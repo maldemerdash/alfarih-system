@@ -4585,47 +4585,52 @@ function ensureUsersManagementView() {
     section.className = "view";
     section.id = "usersView";
     section.innerHTML = `
-      <div class="section-toolbar">
+      <div class="section-toolbar user-management-toolbar">
         <div>
           <h2 class="section-title">إدارة المستخدمين والصلاحيات</h2>
           <p class="section-description">هذه الشاشة تظهر للمدير فقط. أنشئ الحساب في Supabase Authentication ثم أضف بريده هنا وحدد الصلاحية.</p>
         </div>
-        <button type="button" class="primary-btn" id="refreshUsersBtn"><span data-icon="refresh"></span>تحديث القائمة</button>
+        <div class="user-toolbar-actions">
+          <button type="button" class="primary-btn" id="openUserProfileModal"><span data-icon="user-plus"></span>إضافة مستخدم</button>
+          <button type="button" class="secondary-btn" id="refreshUsersBtn"><span data-icon="refresh"></span>تحديث القائمة</button>
+        </div>
       </div>
 
-      <div class="user-management-grid">
-        <article class="panel user-management-form-panel">
-          <div class="panel-head">
-            <div><h3>إضافة / تعديل مستخدم</h3><p>البريد يجب أن يطابق بريد المستخدم في Supabase Authentication.</p></div>
+      <article class="panel user-management-table-panel user-management-full-panel">
+        <div class="panel-head">
+          <div><h3>المستخدمون الحاليون</h3><p>قائمة المستخدمين بعرض الصفحة. يمكنك تعديل الصلاحية أو إيقاف المستخدم من عمود الإجراء.</p></div>
+        </div>
+        <div class="table-wrap">
+          <table class="employees-table">
+            <thead><tr><th>الاسم</th><th>البريد</th><th>الصلاحية</th><th>الحالة</th><th>إجراء</th></tr></thead>
+            <tbody id="appUserProfilesBody"><tr><td colspan="5"><div class="empty-state"><strong>جاري التحميل...</strong></div></td></tr></tbody>
+          </table>
+        </div>
+      </article>
+
+      <dialog class="modal user-profile-modal" id="userProfileModal">
+        <form id="appUserProfileForm" class="user-profile-form" method="dialog">
+          <div class="modal-head">
+            <div><h2 id="userProfileModalTitle">إضافة مستخدم</h2><p>أدخل بيانات المستخدم وحدد الصلاحية داخل النظام.</p></div>
+            <button type="button" class="icon-btn" data-close-modal="userProfileModal"><span data-icon="x"></span></button>
           </div>
-          <form id="appUserProfileForm" class="form-grid user-profile-form">
+          <div class="modal-body user-profile-modal-body">
             <input type="hidden" name="profileId" />
             <label><span>الاسم</span><input name="fullName" placeholder="مثال: أحمد محمد" required /></label>
             <label><span>البريد الإلكتروني</span><input name="email" type="email" placeholder="name@example.com" required dir="ltr" /></label>
             <label><span>الصلاحية</span><select name="role">${roleOptions("employee")}</select></label>
             <label><span>الحالة</span><select name="isActive"><option value="true">مفعل</option><option value="false">موقوف</option></select></label>
-            <div class="span-all user-help-card">
+            <div class="user-help-card">
               <strong>مهم:</strong> هذه الشاشة تضبط الصلاحية داخل النظام. إنشاء حساب الدخول نفسه يتم من Supabase: Authentication ثم Users ثم Add user بنفس البريد.
             </div>
-            <div class="form-actions span-all">
-              <button type="button" class="secondary-btn" id="resetUserProfileForm">تفريغ النموذج</button>
-              <button type="submit" class="primary-btn"><span data-icon="check"></span>حفظ المستخدم</button>
-            </div>
-          </form>
-        </article>
-
-        <article class="panel user-management-table-panel">
-          <div class="panel-head">
-            <div><h3>المستخدمون الحاليون</h3><p>تعديل الصلاحية أو إيقاف المستخدم من هنا.</p></div>
           </div>
-          <div class="table-wrap">
-            <table class="employees-table">
-              <thead><tr><th>الاسم</th><th>البريد</th><th>الصلاحية</th><th>الحالة</th><th>إجراء</th></tr></thead>
-              <tbody id="appUserProfilesBody"><tr><td colspan="5"><div class="empty-state"><strong>جاري التحميل...</strong></div></td></tr></tbody>
-            </table>
+          <div class="modal-actions">
+            <button type="button" class="secondary-btn" id="resetUserProfileForm">تفريغ النموذج</button>
+            <button type="button" class="secondary-btn" data-close-modal="userProfileModal">إلغاء</button>
+            <button type="submit" class="primary-btn"><span data-icon="check"></span>حفظ المستخدم</button>
           </div>
-        </article>
-      </div>`;
+        </form>
+      </dialog>`;
     content.appendChild(section);
   }
 
@@ -4636,27 +4641,26 @@ function ensureUsersManagementView() {
       #usersView .section-toolbar { align-items: center; gap: 18px; margin-bottom: 18px; }
       #usersView .section-toolbar > div { min-width: 0; }
       #usersView .section-title { margin: 0 0 6px; }
-      #usersView .section-description { max-width: 720px; line-height: 1.7; }
-      .user-management-grid { display: grid; grid-template-columns: minmax(420px, 1.08fr) minmax(420px, .92fr); gap: 22px; align-items: start; direction: rtl; }
-      .user-management-form-panel { order: 1; }
-      .user-management-table-panel { order: 2; }
-      .user-management-form-panel, .user-management-table-panel { min-height: 350px; overflow: hidden; }
-      .user-management-form-panel .panel-head, .user-management-table-panel .panel-head { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
-      .user-profile-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; align-items: end; direction: rtl; }
+      #usersView .section-description { max-width: 760px; line-height: 1.7; }
+      .user-management-toolbar { display: flex; justify-content: space-between; align-items: center; }
+      .user-toolbar-actions { display: flex; gap: 10px; align-items: center; margin-right: auto; }
+      .user-management-full-panel { width: 100%; min-height: 430px; overflow: hidden; }
+      .user-management-table-panel .panel-head { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+      .user-management-table-panel .table-wrap { max-height: 560px; overflow: auto; border-radius: 14px; border: 1px solid var(--border); }
+      .user-management-table-panel table { min-width: 760px; }
+      .user-profile-modal { width: min(620px, calc(100vw - 32px)); }
+      .user-profile-modal form { margin: 0; }
+      .user-profile-modal-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; direction: rtl; }
       .user-profile-form label { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
       .user-profile-form label > span { color: #536166; font-size: 10px; font-weight: 800; }
       .user-profile-form input, .user-profile-form select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #dfe6e8; border-radius: 12px; outline: 0; background: #fff; color: var(--text); font-size: 12px; box-sizing: border-box; }
       .user-profile-form input:focus, .user-profile-form select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.10); }
       .user-profile-form input[dir="ltr"] { text-align: left; direction: ltr; }
       .user-help-card { grid-column: 1 / -1; background: #f8fafc; border: 1px dashed #cbd5e1; color: #475569; border-radius: 16px; padding: 14px 16px; line-height: 1.9; font-size: 12px; }
-      .user-management-form-panel .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-start; gap: 10px; margin-top: 4px; padding-top: 16px; border-top: 1px solid var(--border); }
-      .user-management-table-panel .table-wrap { max-height: 440px; overflow: auto; border-radius: 14px; border: 1px solid var(--border); }
-      .user-management-table-panel table { min-width: 680px; }
       .user-status-active { color: #047857; font-weight: 900; }
       .user-status-disabled { color: #b91c1c; font-weight: 900; }
       .user-action-row { display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
-      @media (max-width: 1180px) { .user-management-grid { grid-template-columns: 1fr; } .user-management-form-panel, .user-management-table-panel { order: initial; } }
-      @media (max-width: 760px) { .user-profile-form { grid-template-columns: 1fr; } }
+      @media (max-width: 760px) { .user-management-toolbar { align-items: stretch; flex-direction: column; } .user-toolbar-actions { width: 100%; margin-right: 0; } .user-toolbar-actions button { flex: 1; } .user-profile-modal-body { grid-template-columns: 1fr; } }
     `;
     document.head.appendChild(style);
   }
@@ -4712,6 +4716,8 @@ function resetUserProfileForm() {
   form.elements.profileId.value = "";
   form.elements.role.value = "employee";
   form.elements.isActive.value = "true";
+  const title = document.querySelector("#userProfileModalTitle");
+  if (title) title.textContent = "إضافة مستخدم";
 }
 
 function fillUserProfileForm(id) {
@@ -4723,7 +4729,10 @@ function fillUserProfileForm(id) {
   form.elements.email.value = profile.email || "";
   form.elements.role.value = AUTH_ROLES[profile.role] ? profile.role : "employee";
   form.elements.isActive.value = profile.is_active ? "true" : "false";
-  window.scrollTo({ top: form.getBoundingClientRect().top + window.scrollY - 120, behavior: "smooth" });
+  const title = document.querySelector("#userProfileModalTitle");
+  if (title) title.textContent = "تعديل مستخدم";
+  const modal = document.querySelector("#userProfileModal");
+  if (modal && !modal.open) modal.showModal();
 }
 
 async function saveUserProfileFromForm(form) {
@@ -4754,6 +4763,7 @@ async function saveUserProfileFromForm(form) {
     const { error } = await query;
     if (error) throw error;
     resetUserProfileForm();
+    document.querySelector("#userProfileModal")?.close();
     await renderUsersManagement();
     showToast("تم حفظ المستخدم والصلاحية");
   } catch (error) {
@@ -4793,7 +4803,10 @@ function attachUserManagementEvents() {
   });
   document.addEventListener("click", (event) => {
     if (event.target.closest("#refreshUsersBtn")) renderUsersManagement();
+    if (event.target.closest("#openUserProfileModal")) { resetUserProfileForm(); document.querySelector("#userProfileModal")?.showModal(); }
     if (event.target.closest("#resetUserProfileForm")) resetUserProfileForm();
+    const closeUserModal = event.target.closest('[data-close-modal="userProfileModal"]');
+    if (closeUserModal) document.querySelector("#userProfileModal")?.close();
     const edit = event.target.closest("[data-edit-user-profile]");
     if (edit) fillUserProfileForm(edit.dataset.editUserProfile);
     const toggle = event.target.closest("[data-toggle-user-profile]");
