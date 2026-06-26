@@ -4662,6 +4662,8 @@ function ensureUsersManagementView() {
       .user-status-active { color: #047857; font-weight: 900; }
       .user-status-disabled { color: #b91c1c; font-weight: 900; }
       .user-action-row { display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
+      .warning-inline-btn { background: #fff7ed !important; color: #c2410c !important; border-color: #fed7aa !important; }
+      .danger-inline-btn { background: #fef2f2 !important; color: #dc2626 !important; border-color: #fecaca !important; }
       @media (max-width: 760px) { .user-management-toolbar { align-items: stretch; flex-direction: column; } .user-toolbar-actions { width: 100%; margin-right: 0; } .user-toolbar-actions button { flex: 1; } .user-profile-modal-body { grid-template-columns: 1fr; } }
     `;
     document.head.appendChild(style);
@@ -4693,7 +4695,7 @@ function renderAppUserProfiles() {
       <td dir="ltr">${escapeHtml(profile.email || "—")}</td>
       <td>${roleBadge(profile.role)}</td>
       <td><span class="${profile.is_active ? "user-status-active" : "user-status-disabled"}">${profile.is_active ? "مفعل" : "موقوف"}</span></td>
-      <td><span class="user-action-row"><button type="button" class="quick-view-btn" data-edit-user-profile="${escapeHtml(profile.id)}" title="تعديل">${iconSvg("edit")}</button><button type="button" class="quick-view-btn ${profile.is_active ? "danger-inline-btn" : ""}" data-toggle-user-profile="${escapeHtml(profile.id)}" title="تفعيل/إيقاف">${iconSvg(profile.is_active ? "x" : "check")}</button></span></td>
+      <td><span class="user-action-row"><button type="button" class="quick-view-btn" data-edit-user-profile="${escapeHtml(profile.id)}" title="تعديل">${iconSvg("edit")}</button><button type="button" class="quick-view-btn ${profile.is_active ? "warning-inline-btn" : ""}" data-toggle-user-profile="${escapeHtml(profile.id)}" title="${profile.is_active ? "إيقاف" : "تنشيط"}">${iconSvg(profile.is_active ? "user-x" : "check")}</button><button type="button" class="quick-view-btn danger-inline-btn" data-delete-user-profile="${escapeHtml(profile.id)}" title="حذف">${iconSvg("trash")}</button></span></td>
     </tr>`).join("");
 }
 
@@ -4789,6 +4791,13 @@ async function saveUserProfileFromForm(form) {
       });
       if (error) throw error;
       if (data && data.error) throw new Error(data.error);
+      const createdUserId = data?.user_id || data?.userId || null;
+      const { error: upsertError } = await supabaseClient
+        .from("app_user_profiles")
+        .upsert({ ...payload, user_id: createdUserId, created_at: new Date().toISOString() }, { onConflict: "email" });
+      if (upsertError) console.warn("تم إنشاء حساب الدخول لكن تعذر تحديث جدول الصلاحيات من الواجهة", upsertError);
+      appUserProfilesCache.unshift({ id: createdUserId || `local-${Date.now()}`, user_id: createdUserId, ...payload, created_at: new Date().toISOString() });
+      renderAppUserProfiles();
     }
     resetUserProfileForm();
     document.querySelector("#userProfileModal")?.close();
@@ -4825,6 +4834,30 @@ async function toggleUserProfile(id) {
   }
 }
 
+async function deleteUserProfile(id) {
+  if (currentRoleKey() !== "admin") return showToast("هذه الشاشة للمدير فقط");
+  const profile = appUserProfilesCache.find((item) => item.id === id);
+  if (!profile) return;
+  if (authProfile?.id === profile.id) {
+    showToast("لا يمكنك حذف حسابك الحالي من هذه الشاشة");
+    return;
+  }
+  if (!confirm(`هل تريد حذف المستخدم ${profile.full_name || profile.email} من قائمة الصلاحيات؟`)) return;
+  try {
+    const { error } = await supabaseClient
+      .from("app_user_profiles")
+      .delete()
+      .eq("id", profile.id);
+    if (error) throw error;
+    appUserProfilesCache = appUserProfilesCache.filter((item) => item.id !== profile.id);
+    renderAppUserProfiles();
+    showToast("تم حذف المستخدم من قائمة الصلاحيات");
+  } catch (error) {
+    console.error(error);
+    showToast("تعذر حذف المستخدم");
+  }
+}
+
 function attachUserManagementEvents() {
   document.addEventListener("submit", (event) => {
     if (event.target?.id === "appUserProfileForm") {
@@ -4842,6 +4875,8 @@ function attachUserManagementEvents() {
     if (edit) fillUserProfileForm(edit.dataset.editUserProfile);
     const toggle = event.target.closest("[data-toggle-user-profile]");
     if (toggle) toggleUserProfile(toggle.dataset.toggleUserProfile);
+    const deleteBtn = event.target.closest("[data-delete-user-profile]");
+    if (deleteBtn) deleteUserProfile(deleteBtn.dataset.deleteUserProfile);
     const navTarget = event.target.closest('[data-view="users"], [data-go-view="users"]');
     if (navTarget && roleCanOpen("users")) setTimeout(renderUsersManagement, 0);
   });
