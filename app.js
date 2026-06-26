@@ -4598,7 +4598,7 @@ function ensureUsersManagementView() {
           <div class="panel-head">
             <div><h3>إضافة / تعديل مستخدم</h3><p>البريد يجب أن يطابق بريد المستخدم في Supabase Authentication.</p></div>
           </div>
-          <form id="appUserProfileForm" class="employee-form-grid">
+          <form id="appUserProfileForm" class="form-grid user-profile-form">
             <input type="hidden" name="profileId" />
             <label><span>الاسم</span><input name="fullName" placeholder="مثال: أحمد محمد" required /></label>
             <label><span>البريد الإلكتروني</span><input name="email" type="email" placeholder="name@example.com" required dir="ltr" /></label>
@@ -4633,13 +4633,30 @@ function ensureUsersManagementView() {
     const style = document.createElement("style");
     style.id = "userManagementStyles";
     style.textContent = `
-      .user-management-grid { display: grid; grid-template-columns: minmax(320px, .85fr) minmax(420px, 1.15fr); gap: 20px; align-items: start; }
-      .user-management-form-panel, .user-management-table-panel { min-height: 100%; }
-      .user-help-card { background: #f8fafc; border: 1px dashed #cbd5e1; color: #475569; border-radius: 16px; padding: 12px 14px; line-height: 1.8; }
+      #usersView .section-toolbar { align-items: center; gap: 18px; margin-bottom: 18px; }
+      #usersView .section-toolbar > div { min-width: 0; }
+      #usersView .section-title { margin: 0 0 6px; }
+      #usersView .section-description { max-width: 720px; line-height: 1.7; }
+      .user-management-grid { display: grid; grid-template-columns: minmax(420px, 1.08fr) minmax(420px, .92fr); gap: 22px; align-items: start; direction: rtl; }
+      .user-management-form-panel { order: 1; }
+      .user-management-table-panel { order: 2; }
+      .user-management-form-panel, .user-management-table-panel { min-height: 350px; overflow: hidden; }
+      .user-management-form-panel .panel-head, .user-management-table-panel .panel-head { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+      .user-profile-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; align-items: end; direction: rtl; }
+      .user-profile-form label { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+      .user-profile-form label > span { color: #536166; font-size: 10px; font-weight: 800; }
+      .user-profile-form input, .user-profile-form select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #dfe6e8; border-radius: 12px; outline: 0; background: #fff; color: var(--text); font-size: 12px; box-sizing: border-box; }
+      .user-profile-form input:focus, .user-profile-form select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.10); }
+      .user-profile-form input[dir="ltr"] { text-align: left; direction: ltr; }
+      .user-help-card { grid-column: 1 / -1; background: #f8fafc; border: 1px dashed #cbd5e1; color: #475569; border-radius: 16px; padding: 14px 16px; line-height: 1.9; font-size: 12px; }
+      .user-management-form-panel .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-start; gap: 10px; margin-top: 4px; padding-top: 16px; border-top: 1px solid var(--border); }
+      .user-management-table-panel .table-wrap { max-height: 440px; overflow: auto; border-radius: 14px; border: 1px solid var(--border); }
+      .user-management-table-panel table { min-width: 680px; }
       .user-status-active { color: #047857; font-weight: 900; }
       .user-status-disabled { color: #b91c1c; font-weight: 900; }
-      .user-action-row { display: inline-flex; gap: 6px; align-items: center; }
-      @media (max-width: 1100px) { .user-management-grid { grid-template-columns: 1fr; } }
+      .user-action-row { display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
+      @media (max-width: 1180px) { .user-management-grid { grid-template-columns: 1fr; } .user-management-form-panel, .user-management-table-panel { order: initial; } }
+      @media (max-width: 760px) { .user-profile-form { grid-template-columns: 1fr; } }
     `;
     document.head.appendChild(style);
   }
