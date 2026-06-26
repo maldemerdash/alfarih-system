@@ -4565,7 +4565,7 @@ function roleBadge(role) {
 
 function ensureUsersManagementView() {
   if (!AUTH_ROLES.admin.views.includes("users")) AUTH_ROLES.admin.views.push("users");
-  pageMeta.users = ["إدارة المستخدمين", "إضافة المستخدمين وتحديد صلاحيات الدخول"];
+  pageMeta.users = ["إدارة المستخدمين", "إضافة المستخدمين وكلمات المرور وتحديد الصلاحيات"];
 
   const settingsBtn = document.querySelector('.main-nav [data-view="settings"]');
   const nav = document.querySelector('.main-nav');
@@ -4588,7 +4588,7 @@ function ensureUsersManagementView() {
       <div class="section-toolbar user-management-toolbar">
         <div>
           <h2 class="section-title">إدارة المستخدمين والصلاحيات</h2>
-          <p class="section-description">هذه الشاشة تظهر للمدير فقط. أنشئ الحساب في Supabase Authentication ثم أضف بريده هنا وحدد الصلاحية.</p>
+          <p class="section-description">هذه الشاشة تظهر للمدير فقط. أضف المستخدم من هنا بالبريد وكلمة المرور والصلاحية، وسيتم إنشاء حساب الدخول والصلاحية معًا.</p>
         </div>
         <div class="user-toolbar-actions">
           <button type="button" class="primary-btn" id="openUserProfileModal"><span data-icon="user-plus"></span>إضافة مستخدم</button>
@@ -4611,17 +4611,18 @@ function ensureUsersManagementView() {
       <dialog class="modal user-profile-modal" id="userProfileModal">
         <form id="appUserProfileForm" class="user-profile-form" method="dialog">
           <div class="modal-head">
-            <div><h2 id="userProfileModalTitle">إضافة مستخدم</h2><p>أدخل بيانات المستخدم وحدد الصلاحية داخل النظام.</p></div>
+            <div><h2 id="userProfileModalTitle">إضافة مستخدم</h2><p>أدخل بيانات المستخدم وكلمة المرور وحدد الصلاحية.</p></div>
             <button type="button" class="icon-btn" data-close-modal="userProfileModal"><span data-icon="x"></span></button>
           </div>
           <div class="modal-body user-profile-modal-body">
             <input type="hidden" name="profileId" />
             <label><span>الاسم</span><input name="fullName" placeholder="مثال: أحمد محمد" required /></label>
             <label><span>البريد الإلكتروني</span><input name="email" type="email" placeholder="name@example.com" required dir="ltr" /></label>
+            <label class="user-password-field"><span>كلمة المرور</span><input name="password" type="password" placeholder="كلمة مرور مؤقتة" autocomplete="new-password" minlength="6" /></label>
             <label><span>الصلاحية</span><select name="role">${roleOptions("employee")}</select></label>
             <label><span>الحالة</span><select name="isActive"><option value="true">مفعل</option><option value="false">موقوف</option></select></label>
             <div class="user-help-card">
-              <strong>مهم:</strong> هذه الشاشة تضبط الصلاحية داخل النظام. إنشاء حساب الدخول نفسه يتم من Supabase: Authentication ثم Users ثم Add user بنفس البريد.
+              <strong>مهم:</strong> كلمة المرور لا تُحفظ كنص داخل قاعدة البيانات. يتم إرسالها إلى Supabase Authentication ويتم حفظها هناك بشكل آمن. عند تعديل مستخدم موجود اترك كلمة المرور فارغة.
             </div>
           </div>
           <div class="modal-actions">
@@ -4648,7 +4649,7 @@ function ensureUsersManagementView() {
       .user-management-table-panel .panel-head { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
       .user-management-table-panel .table-wrap { max-height: 560px; overflow: auto; border-radius: 14px; border: 1px solid var(--border); }
       .user-management-table-panel table { min-width: 760px; }
-      .user-profile-modal { width: min(620px, calc(100vw - 32px)); }
+      .user-profile-modal { width: min(700px, calc(100vw - 32px)); }
       .user-profile-modal form { margin: 0; }
       .user-profile-modal-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; direction: rtl; }
       .user-profile-form label { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
@@ -4657,6 +4658,7 @@ function ensureUsersManagementView() {
       .user-profile-form input:focus, .user-profile-form select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.10); }
       .user-profile-form input[dir="ltr"] { text-align: left; direction: ltr; }
       .user-help-card { grid-column: 1 / -1; background: #f8fafc; border: 1px dashed #cbd5e1; color: #475569; border-radius: 16px; padding: 14px 16px; line-height: 1.9; font-size: 12px; }
+      .user-password-field.is-hidden { display: none; }
       .user-status-active { color: #047857; font-weight: 900; }
       .user-status-disabled { color: #b91c1c; font-weight: 900; }
       .user-action-row { display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
@@ -4716,6 +4718,11 @@ function resetUserProfileForm() {
   form.elements.profileId.value = "";
   form.elements.role.value = "employee";
   form.elements.isActive.value = "true";
+  if (form.elements.password) {
+    form.elements.password.value = "";
+    form.elements.password.required = true;
+    form.elements.password.closest("label")?.classList.remove("is-hidden");
+  }
   const title = document.querySelector("#userProfileModalTitle");
   if (title) title.textContent = "إضافة مستخدم";
 }
@@ -4727,6 +4734,11 @@ function fillUserProfileForm(id) {
   form.elements.profileId.value = profile.id || "";
   form.elements.fullName.value = profile.full_name || "";
   form.elements.email.value = profile.email || "";
+  if (form.elements.password) {
+    form.elements.password.value = "";
+    form.elements.password.required = false;
+    form.elements.password.closest("label")?.classList.add("is-hidden");
+  }
   form.elements.role.value = AUTH_ROLES[profile.role] ? profile.role : "employee";
   form.elements.isActive.value = profile.is_active ? "true" : "false";
   const title = document.querySelector("#userProfileModalTitle");
@@ -4752,23 +4764,42 @@ async function saveUserProfileFromForm(form) {
     is_active: form.elements.isActive.value === "true",
     updated_at: new Date().toISOString()
   };
+  const password = form.elements.password?.value || "";
   if (!payload.full_name || !payload.email) {
     showToast("أدخل الاسم والبريد");
     return;
   }
+  if (!profileId && password.length < 6) {
+    showToast("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+    return;
+  }
   try {
-    const query = profileId
-      ? supabaseClient.from("app_user_profiles").update(payload).eq("id", profileId)
-      : supabaseClient.from("app_user_profiles").upsert(payload, { onConflict: "email" });
-    const { error } = await query;
-    if (error) throw error;
+    if (profileId) {
+      const { error } = await supabaseClient.from("app_user_profiles").update(payload).eq("id", profileId);
+      if (error) throw error;
+    } else {
+      const { data, error } = await supabaseClient.functions.invoke("admin-create-user", {
+        body: {
+          email: payload.email,
+          password,
+          fullName: payload.full_name,
+          role: payload.role,
+          isActive: payload.is_active
+        }
+      });
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+    }
     resetUserProfileForm();
     document.querySelector("#userProfileModal")?.close();
     await renderUsersManagement();
-    showToast("تم حفظ المستخدم والصلاحية");
+    showToast(profileId ? "تم تحديث المستخدم" : "تم إنشاء المستخدم وحفظ الصلاحية");
   } catch (error) {
     console.error(error);
-    showToast("تعذر حفظ المستخدم. تأكد من صلاحيات جدول المستخدمين");
+    const message = String(error?.message || "");
+    if (message.includes("already") || message.includes("registered") || message.includes("exists")) showToast("هذا البريد موجود مسبقًا في حسابات الدخول");
+    else if (message.includes("not deployed") || message.includes("FunctionsHttpError")) showToast("تعذر إنشاء حساب الدخول. تأكد من نشر Edge Function");
+    else showToast("تعذر حفظ المستخدم أو إنشاء حساب الدخول");
   }
 }
 
