@@ -12607,3 +12607,296 @@ document.addEventListener("click", function(event) {
     }
   }, 300);
 })();
+
+
+/* =========================================================
+   FINAL HOTFIX - user employee link + edge error handling
+   =========================================================
+   - Permissions screen now resolves linked profiles exactly from the visible
+     users management cache and app_user_profiles data.
+   - Admin-linked employees are considered linked for display/selection.
+   - Edge Function errors are parsed so the real Supabase reason appears.
+   - Existing-user updates fall back to direct app_user_profiles update when
+     the Edge Function is unavailable, because updating the profile row does
+     not require creating an Auth user.
+*/
+(function finalUserEmployeeLinkAndEdgeErrorHotfix(){
+  const esc = (value) => typeof escapeHtml === 'function'
+    ? escapeHtml(value ?? '')
+    : String(value ?? '').replace(/[&<>\"]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[m] || m));
+  const text = (value) => String(value ?? '').trim();
+  const lower = (value) => text(value).toLowerCase();
+  const cleanName = (value) => text(value).replace(/[\u0640]/g, '').replace(/\s+/g, ' ').trim();
+  const employeesList = () => (Array.isArray(employees) ? employees : []).filter((e) => e && e.id && e.status !== 'terminated');
+  const employeeName = (e) => cleanName(e?.name || [e?.firstName, e?.fatherName, e?.grandName, e?.familyName].filter(Boolean).join(' '));
+  const employeeKeys = (e) => new Set([
+    e?.id, e?.employeeId, e?.employee_id, e?.employeeNumber, e?.employeeNo, e?.number, e?.code,
+    e?.nationalId, e?.national_id, e?.identityNumber, e?.idNumber, e?.iqamaNumber, e?.residencyNumber
+  ].map(text).filter(Boolean));
+  const profileValues = (p) => [
+    p?.employee_id, p?.employeeId, p?.linked_employee_id, p?.linkedEmployeeId,
+    p?.employee_number, p?.employeeNumber, p?.employee_no, p?.employeeNo,
+    p?.employee_code, p?.employeeCode, p?.national_id, p?.nationalId,
+    p?.identity_number, p?.identityNumber, p?.employee?.id, p?.employee?.employee_id,
+    p?.employee?.employeeId, p?.employee?.employeeNumber, p?.employee?.employee_number,
+    p?.linkedEmployee?.id, p?.linkedEmployee?.employeeNumber
+  ].map(text).filter(Boolean);
+  const profileLinkedName = (p) => cleanName(p?.employee_name || p?.employeeName || p?.linked_employee_name || p?.linkedEmployeeName || p?.employee?.name || p?.linkedEmployee?.name || '');
+
+  async function readFunctionError(error){
+    const fallback = String(error?.message || error || 'تعذر الاتصال بدالة إدارة المستخدمين');
+    try {
+      const ctx = error?.context;
+      if (ctx && typeof ctx.clone === 'function') {
+        const body = await ctx.clone().json().catch(async () => ({ error: await ctx.clone().text() }));
+        if (body?.error) return String(body.error);
+        if (body?.message) return String(body.message);
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
+  async function invokeAdminUsers(body){
+    if (!supabaseClient?.functions?.invoke) throw new Error('Supabase غير متصل أو دالة المستخدمين غير متاحة');
+    const { data, error } = await supabaseClient.functions.invoke('admin-create-user', { body });
+    if (error) throw new Error(await readFunctionError(error));
+    if (data?.error) throw new Error(String(data.error));
+    return data;
+  }
+
+  function profileMatchesEmployee(profile, employee){
+    if (!profile || !employee) return false;
+    const keys = employeeKeys(employee);
+    if (profileValues(profile).some((value) => keys.has(value))) return true;
+    const pName = profileLinkedName(profile);
+    const eName = employeeName(employee);
+    return Boolean(pName && eName && pName === eName);
+  }
+
+  function canonicalEmployeeId(profile){
+    const direct = text(profile?.employee_id || profile?.employeeId || profile?.linked_employee_id || profile?.linkedEmployeeId);
+    if (direct && employeesList().some((e) => text(e.id) === direct)) return direct;
+    const byAnyKey = employeesList().find((employee) => profileValues(profile).some((value) => employeeKeys(employee).has(value)));
+    if (byAnyKey?.id) return text(byAnyKey.id);
+    const pName = profileLinkedName(profile);
+    if (pName) {
+      const byName = employeesList().find((employee) => employeeName(employee) === pName);
+      if (byName?.id) return text(byName.id);
+    }
+    return direct || '';
+  }
+
+  function mergeProfiles(rows){
+    const byEmailOrId = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      if (!row || typeof row !== 'object') return;
+      const keys = [row.id, row.user_id, lower(row.email)].map(text).filter(Boolean);
+      const existingKey = keys.find((key) => byEmailOrId.has(key));
+      const merged = existingKey ? { ...byEmailOrId.get(existingKey), ...row } : { ...row };
+      const canonical = canonicalEmployeeId(merged);
+      if (canonical) { merged.employee_id = canonical; merged.employeeId = canonical; }
+      keys.forEach((key) => byEmailOrId.set(key, merged));
+    });
+    return Array.from(new Set(byEmailOrId.values()));
+  }
+
+  async function loadProfilesForPermissions(){
+    const rows = [];
+    if (Array.isArray(appUserProfilesCache)) rows.push(...appUserProfilesCache);
+    try {
+      const data = await invokeAdminUsers({ action: 'list-users' });
+      if (Array.isArray(data?.users)) rows.push(...data.users);
+    } catch (error) {
+      console.warn('admin-create-user list-users failed, using direct table/cache', error);
+    }
+    try {
+      if (supabaseClient?.from) {
+        const { data, error } = await supabaseClient
+          .from('app_user_profiles')
+          .select('id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at');
+        if (!error && Array.isArray(data)) rows.push(...data);
+      }
+    } catch (error) {
+      console.warn('direct app_user_profiles load failed', error);
+    }
+    const merged = mergeProfiles(rows).map((row) => {
+      const role = String(row?.role || 'employee') === 'admin' ? 'admin' : 'employee';
+      const id = canonicalEmployeeId(row);
+      return { ...row, role, employee_id: id || row.employee_id || row.employeeId || '', employeeId: id || row.employeeId || row.employee_id || '' };
+    });
+    appUserProfilesCache = merged;
+    return merged;
+  }
+
+  function profileForEmployee(employee){
+    return (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : [])
+      .find((profile) => profileMatchesEmployee(profile, employee)) || null;
+  }
+
+  function permissionGroups(){
+    const m = window.employeePermissionMatrix || {};
+    if (Array.isArray(m.groups) && m.groups.length) return m.groups;
+    if (typeof PERMISSION_GROUPS !== 'undefined' && Array.isArray(PERMISSION_GROUPS)) return PERMISSION_GROUPS;
+    if (typeof CLEAN_PERMISSION_GROUPS !== 'undefined' && Array.isArray(CLEAN_PERMISSION_GROUPS)) return CLEAN_PERMISSION_GROUPS;
+    return [];
+  }
+  function permissionKeys(){ return permissionGroups().flatMap((g) => Array.isArray(g.items) ? g.items.map((item) => item[0]) : []); }
+  function normalizePermissionObject(permissions, role){
+    const m = window.employeePermissionMatrix || {};
+    if (typeof m.normalizePermissions === 'function') return m.normalizePermissions(permissions, role);
+    if (typeof normalizePermissions === 'function') return normalizePermissions(permissions, role);
+    const result = {};
+    permissionKeys().forEach((key) => result[key] = Boolean(permissions && permissions[key]));
+    return result;
+  }
+
+  function ensurePanel(){
+    const panel = document.querySelector('[data-settings-panel="permissions"]');
+    if (!panel) return;
+    panel.innerHTML = `
+      <div class="panel-head"><div><h3>الصلاحيات والأمان</h3><p>اختر الموظف المرتبط بحساب مستخدم، ثم حدد الصلاحيات المسموحة له داخل النظام.</p></div></div>
+      <div class="security-layout permissions-employee-picker-layout">
+        <article class="settings-placeholder-card security-user-picker"><span data-icon="shield"></span><div><strong>تحديد الموظف</strong><p>تظهر هنا ملفات الموظفين. حفظ الصلاحيات يتم على حساب المستخدم المرتبط بالموظف.</p></div></article>
+        <div class="security-controls"><select id="fixedSecurityEmployeeSelect"><option value="">اختر موظفًا...</option></select><button type="button" class="secondary-btn" id="reloadFixedSecurityEmployees"><span data-icon="refresh"></span>تحديث الموظفين</button><button type="button" class="primary-btn" id="saveFixedEmployeeSecurityPermissions"><span data-icon="check"></span>حفظ الصلاحيات</button></div>
+        <div id="fixedEmployeeSecurityPermissionsEditor" class="security-editor-empty"><strong>اختر موظفًا من القائمة</strong><p>بعد الاختيار ستظهر الصلاحيات إذا كان الموظف مرتبطًا بحساب مستخدم.</p></div>
+      </div>`;
+    if (typeof hydrateIcons === 'function') hydrateIcons(panel);
+  }
+
+  async function loadEmployeeSelect(selected = ''){
+    const select = document.querySelector('#fixedSecurityEmployeeSelect');
+    if (!select) return;
+    select.disabled = false;
+    select.innerHTML = '<option value="">جاري تحميل الموظفين...</option>';
+    await loadProfilesForPermissions();
+    const options = employeesList().map((employee) => {
+      const profile = profileForEmployee(employee);
+      const linked = profile ? ` - ${profile.email || profile.full_name || 'حساب مستخدم'}` : ' - غير مربوط بحساب';
+      const num = employee.employeeNumber ? ` - ${employee.employeeNumber}` : '';
+      return `<option value="${esc(employee.id)}" ${text(employee.id) === text(selected) ? 'selected' : ''}>${esc(employeeName(employee) || employee.name || '')}${esc(num)}${esc(linked)}</option>`;
+    }).join('');
+    select.innerHTML = '<option value="">اختر موظفًا...</option>' + options;
+    if (!employeesList().length) select.innerHTML = '<option value="">لا يوجد موظفون</option>';
+    if (selected) select.value = selected;
+  }
+
+  function renderEditor(){
+    const id = document.querySelector('#fixedSecurityEmployeeSelect')?.value || '';
+    const editor = document.querySelector('#fixedEmployeeSecurityPermissionsEditor');
+    if (!editor) return;
+    const employee = employeesList().find((item) => text(item.id) === text(id));
+    const profile = profileForEmployee(employee);
+    if (!id || !employee) {
+      editor.className = 'security-editor-empty';
+      editor.innerHTML = '<strong>اختر موظفًا من القائمة</strong><p>بعد الاختيار ستظهر الصلاحيات إذا كان الموظف مرتبطًا بحساب مستخدم.</p>';
+      return;
+    }
+    if (!profile) {
+      editor.className = 'security-editor-empty';
+      editor.innerHTML = `<strong>${esc(employeeName(employee) || employee.name || '')} غير مربوط بحساب مستخدم</strong><p>اربط الموظف أولًا من شاشة إدارة المستخدمين، ثم ارجع لتحديد الصلاحيات.</p>`;
+      return;
+    }
+    const role = String(profile.role || 'employee') === 'admin' ? 'admin' : 'employee';
+    const normalized = normalizePermissionObject(profile.permissions, role);
+    const groups = permissionGroups();
+    const adminNote = role === 'admin' ? '<p class="security-linked-employee-note"><strong>تنبيه:</strong> هذا الحساب مدير نظام، ويملك كامل الصلاحيات فعليًا. يمكنك تعديل الربط من إدارة المستخدمين.</p>' : '';
+    editor.className = '';
+    editor.innerHTML = `${adminNote}<div class="security-linked-employee-note"><strong>الحساب المرتبط:</strong> ${esc(profile.full_name || profile.email || '')} — <span dir="ltr">${esc(profile.email || '')}</span></div>
+      <div class="security-permissions-grid">${groups.map((group) => `
+        <section class="security-permission-card">
+          <div class="security-permission-head"><strong>${esc(group.title)}</strong><button type="button" class="text-btn" data-fixed-security-group="${esc(group.id)}">تحديد الكل</button></div>
+          <div class="security-permission-list">
+            ${(group.items || []).map(([key, label]) => `<label class="security-permission-row"><span>${esc(label)}</span><input type="checkbox" data-fixed-security-permission="${esc(key)}" ${normalized[key] ? 'checked' : ''}></label>`).join('')}
+          </div>
+        </section>`).join('')}</div>`;
+  }
+
+  async function savePermissions(){
+    const employeeId = document.querySelector('#fixedSecurityEmployeeSelect')?.value || '';
+    const employee = employeesList().find((item) => text(item.id) === text(employeeId));
+    const profile = profileForEmployee(employee);
+    if (!employeeId || !employee) return showToast('اختر موظفًا أولًا');
+    if (!profile) return showToast('هذا الموظف غير مربوط بحساب مستخدم');
+    const permissions = {};
+    permissionKeys().forEach((key) => permissions[key] = Boolean(document.querySelector(`[data-fixed-security-permission="${CSS.escape(key)}"]`)?.checked));
+    try {
+      try {
+        const data = await invokeAdminUsers({ action: 'update-user', id: profile.id, email: profile.email, fullName: profile.full_name, role: profile.role || 'employee', isActive: profile.is_active, employeeId, employee_id: employeeId, permissions });
+        if (data?.user) Object.assign(profile, data.user);
+      } catch (edgeError) {
+        if (!supabaseClient?.from) throw edgeError;
+        const { data, error } = await supabaseClient.from('app_user_profiles')
+          .update({ employee_id: employeeId, permissions, updated_at: new Date().toISOString() })
+          .eq('id', profile.id)
+          .select('id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at')
+          .single();
+        if (error) throw edgeError;
+        Object.assign(profile, data || {});
+      }
+      profile.employee_id = employeeId;
+      profile.employeeId = employeeId;
+      profile.permissions = normalizePermissionObject(permissions, profile.role || 'employee');
+      await loadEmployeeSelect(employeeId);
+      renderEditor();
+      showToast('تم حفظ صلاحيات الموظف');
+    } catch (error) {
+      console.error(error);
+      showToast(String(error?.message || 'تعذر حفظ الصلاحيات').slice(0, 160));
+    }
+  }
+
+  async function openPanel(selected = ''){
+    ensurePanel();
+    try { await loadEmployeeSelect(selected); renderEditor(); }
+    catch (error) { console.error(error); showToast('تعذر تحميل موظفي الصلاحيات'); }
+  }
+
+  const oldRenderPermissionsPreview = typeof renderPermissionsPreview === 'function' ? renderPermissionsPreview : null;
+  renderPermissionsPreview = function(){ try { oldRenderPermissionsPreview?.(); } catch (_) {} openPanel(); };
+  const oldSwitchSettingsSection = typeof switchSettingsSection === 'function' ? switchSettingsSection : null;
+  if (oldSwitchSettingsSection) {
+    switchSettingsSection = function(section){
+      oldSwitchSettingsSection(section);
+      if (section === 'permissions') openPanel();
+    };
+  }
+
+  document.addEventListener('change', (event) => {
+    if (event.target?.id === 'fixedSecurityEmployeeSelect') renderEditor();
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('#reloadFixedSecurityEmployees')) { event.preventDefault(); event.stopPropagation(); openPanel(document.querySelector('#fixedSecurityEmployeeSelect')?.value || ''); return; }
+    if (event.target.closest('#saveFixedEmployeeSecurityPermissions')) { event.preventDefault(); event.stopPropagation(); savePermissions(); return; }
+    const group = event.target.closest('[data-fixed-security-group]');
+    if (group) {
+      event.preventDefault(); event.stopPropagation();
+      const boxes = Array.from(group.closest('.security-permission-card')?.querySelectorAll('[data-fixed-security-permission]') || []);
+      const shouldCheck = boxes.some((box) => !box.checked);
+      boxes.forEach((box) => box.checked = shouldCheck);
+    }
+  }, true);
+
+  // Improve create/update user form feedback and direct update fallback.
+  const oldSaveUserProfile = typeof saveUserProfileFromForm === 'function' ? saveUserProfileFromForm : null;
+  if (oldSaveUserProfile) {
+    saveUserProfileFromForm = async function(form){
+      const profileId = form.elements.profileId?.value?.trim() || '';
+      const employeeId = form.elements.employeeId?.value || null;
+      try {
+        await oldSaveUserProfile(form);
+        // If editing an existing user and old handler succeeded, ensure cache/table link uses employee_id.
+        if (profileId && supabaseClient?.from) {
+          await supabaseClient.from('app_user_profiles').update({ employee_id: employeeId, updated_at: new Date().toISOString() }).eq('id', profileId);
+        }
+      } catch (error) {
+        console.error(error);
+        showToast(String(error?.message || 'تعذر حفظ المستخدم').slice(0, 160));
+      }
+    };
+  }
+
+  setTimeout(() => {
+    const panel = document.querySelector('[data-settings-panel="permissions"]');
+    if (panel && (panel.offsetParent !== null || panel.classList.contains('active'))) openPanel();
+  }, 400);
+})();
