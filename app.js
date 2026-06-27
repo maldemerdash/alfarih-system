@@ -9765,7 +9765,8 @@ document.addEventListener("click", function(event) {
       ['dashboard.employeeExpiringDocs', 'عرض وثائق الموظفين قرب الانتهاء'],
       ['dashboard.recentEmployees', 'عرض أحدث الموظفين'],
       ['dashboard.absenceShortcut', 'زر تسجيل الغياب في الشريط الأخضر'],
-      ['dashboard.reviewShortcut', 'زر مراجعة الطلبات في الشريط الأخضر']
+      ['dashboard.reviewShortcut', 'زر مراجعة الطلبات في الشريط الأخضر'],
+      ['dashboard.advanceShortcut', 'زر إضافة سلفة في الشريط الأخضر']
     ]},
     { id: 'employees', title: 'الموظفون', items: [
       ['employees.viewSelf', 'عرض ملف الموظف المرتبط فقط'],
@@ -9793,9 +9794,15 @@ document.addEventListener("click", function(event) {
       ['leaves.resume', 'تسجيل المباشرة بعد العودة'],
       ['leaves.viewTravelers', 'عرض قائمة المسافرين']
     ]},
-    { id: 'payroll', title: 'الرواتب والعمولات', items: [
-      ['payroll.viewSelf', 'عرض راتبه وعمولاته فقط'],
-      ['payroll.viewAll', 'عرض رواتب الجميع'],
+    { id: 'payroll', title: 'الرواتب والسلفيات', items: [
+      ['payroll.viewSelf', 'عرض مسير راتبه فقط'],
+      ['payroll.viewAll', 'عرض مسيرات رواتب جميع الموظفين'],
+      ['payroll.periods.select', 'اختيار شهر وسنة المسير'],
+      ['payroll.advances.viewSelf', 'عرض سلفياته فقط'],
+      ['payroll.advances.viewAll', 'عرض سلفيات جميع الموظفين'],
+      ['payroll.advances.create', 'إضافة واعتماد سلفة'],
+      ['payroll.runs.process', 'اعتماد وصرف مسير الرواتب'],
+      ['payroll.runs.print', 'طباعة وتصدير PDF لمسير الرواتب'],
       ['payroll.edit', 'تعديل الرواتب'],
       ['payroll.commissions', 'إدارة العمولات'],
       ['payroll.printClearance', 'طباعة المخالصة']
@@ -9836,6 +9843,7 @@ document.addEventListener("click", function(event) {
     'dashboard.recentEmployees': false,
     'dashboard.absenceShortcut': false,
     'dashboard.reviewShortcut': false,
+    'dashboard.advanceShortcut': false,
     'employees.viewSelf': true,
     'employees.viewAll': false,
     'employees.create': false,
@@ -9858,6 +9866,12 @@ document.addEventListener("click", function(event) {
     'leaves.viewTravelers': false,
     'payroll.viewSelf': false,
     'payroll.viewAll': false,
+    'payroll.periods.select': false,
+    'payroll.advances.viewSelf': false,
+    'payroll.advances.viewAll': false,
+    'payroll.advances.create': false,
+    'payroll.runs.process': false,
+    'payroll.runs.print': false,
     'payroll.edit': false,
     'payroll.commissions': false,
     'payroll.printClearance': false,
@@ -9937,7 +9951,7 @@ document.addEventListener("click", function(event) {
     if (viewName === 'employees') return can('nav.employees') && (can('employees.viewSelf') || can('employees.viewAll'));
     if (viewName === 'attendance') return can('nav.attendance') && (can('attendance.viewSelf') || can('attendance.viewAll') || can('attendance.markAbsent'));
     if (viewName === 'leaves') return can('nav.leaves') && (can('leaves.viewOwn') || can('leaves.viewAll') || can('leaves.createLeave') || can('leaves.createTravel'));
-    if (viewName === 'payroll') return can('nav.payroll') && (can('payroll.viewSelf') || can('payroll.viewAll') || can('payroll.commissions'));
+    if (viewName === 'payroll') return can('nav.payroll') && (can('payroll.viewSelf') || can('payroll.viewAll') || can('payroll.advances.viewSelf') || can('payroll.advances.viewAll') || can('payroll.runs.process') || can('payroll.runs.print') || can('payroll.commissions'));
     if (viewName === 'establishmentDocuments') return can('nav.establishmentDocuments') && can('documents.view');
     if (viewName === 'departments') return can('nav.departments') && can('organization.view');
     if (viewName === 'settings') return can('nav.settings') && (can('settings.view') || can('security.manage'));
@@ -10189,6 +10203,7 @@ document.addEventListener("click", function(event) {
     document.querySelector('#dashboardEmployeeDocsPanel')?.classList.toggle('is-permission-hidden', !can('dashboard.employeeExpiringDocs'));
     document.querySelector('.recent-panel')?.classList.toggle('is-permission-hidden', !can('dashboard.recentEmployees'));
     document.querySelector('#dashboardAbsenceBtn')?.classList.toggle('is-permission-hidden', !can('dashboard.absenceShortcut') || !can('attendance.markAbsent'));
+    document.querySelector('#dashboardAdvanceBtn')?.classList.toggle('is-permission-hidden', !can('dashboard.advanceShortcut') || !can('payroll.advances.create'));
     document.querySelector('.banner-action[data-go-view="leaves"]')?.classList.toggle('is-permission-hidden', !can('dashboard.reviewShortcut') || !roleCanOpen('leaves'));
     document.querySelector('#newAbsenceBtn')?.classList.toggle('is-permission-hidden', !can('attendance.markAbsent'));
     document.querySelector('#attendanceExportBtn')?.classList.toggle('is-permission-hidden', !can('attendance.export'));
@@ -10201,6 +10216,11 @@ document.addEventListener("click", function(event) {
     document.querySelectorAll('[data-edit-employee]').forEach((b) => { const id = b.dataset.editEmployee; b.classList.toggle('is-permission-hidden', !isAdmin() && !can('employees.edit') && !isLinkedEmployee(id)); });
     document.querySelectorAll('.add-employee-btn, #quickAddBtn, [data-open-employee-modal="new"]').forEach((b) => b.classList.toggle('is-permission-hidden', !can('employees.create')));
     document.querySelector('#hardAddEstDocBtn, #branchAddEstDocBtn, #addEstablishmentDocumentBtn')?.classList.toggle('is-permission-hidden', !can('documents.create'));
+    document.querySelector('#payrollAddAdvanceBtn')?.classList.toggle('is-permission-hidden', !can('payroll.advances.create'));
+    document.querySelectorAll('#payrollPrintBtn, #payrollExportBtn').forEach((button) => button.classList.toggle('is-permission-hidden', !can('payroll.runs.print')));
+    document.querySelector('#processPayrollBtn')?.classList.toggle('is-permission-hidden', !can('payroll.runs.process'));
+    document.querySelector('#payrollPeriodControls')?.classList.toggle('is-permission-hidden', !can('payroll.periods.select') && !can('payroll.viewAll') && !can('payroll.runs.process') && !can('payroll.runs.print'));
+    document.querySelector('#payrollAdvancesPanel')?.classList.toggle('is-permission-hidden', !can('payroll.advances.viewSelf') && !can('payroll.advances.viewAll') && !can('payroll.advances.create'));
     ensureEmployeeLinkWarning();
   }
   const oldApply = applyRolePermissions;
@@ -10315,6 +10335,9 @@ document.addEventListener("click", function(event) {
     const editEmployee = event.target.closest('[data-edit-employee]');
     if (editEmployee && !canSeeEmployee(editEmployee.dataset.editEmployee, 'employees')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('لا يمكنك عرض بيانات موظف آخر'); return; }
     if (event.target.closest('#newAbsenceBtn, #dashboardAbsenceBtn') && !can('attendance.markAbsent')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية تسجيل الغياب'); return; }
+    if (event.target.closest('#dashboardAdvanceBtn, #payrollAddAdvanceBtn') && !can('payroll.advances.create')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية إضافة السلفيات'); return; }
+    if (event.target.closest('#processPayrollBtn') && !can('payroll.runs.process')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية اعتماد وصرف مسير الرواتب'); return; }
+    if (event.target.closest('#payrollPrintBtn, #payrollExportBtn') && !can('payroll.runs.print')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية طباعة أو تصدير مسير الرواتب'); return; }
     if (event.target.closest('[data-delete-absence]') && !can('attendance.deleteAbsence')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية حذف الغياب'); return; }
     if (event.target.closest('[data-leave-action="approved"], [data-travel-approve]') && !can('leaves.approve')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية الموافقة'); return; }
     if (event.target.closest('[data-leave-action="rejected"], [data-travel-reject]') && !can('leaves.reject')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية الرفض'); return; }
@@ -11717,6 +11740,7 @@ document.addEventListener("click", function(event) {
       if (![...yearSelect.options].some(option => option.value === String(selectedYear))) yearSelect.insertAdjacentHTML('beforeend', `<option value="${selectedYear}">${selectedYear}</option>`);
       yearSelect.value = String(selectedYear);
     }
+    controls.classList.toggle('is-permission-hidden', !canSelectPayrollPeriods());
     return controls;
   }
   function updatePayrollPeriodLabels(){
@@ -11737,6 +11761,35 @@ document.addEventListener("click", function(event) {
     return Number.isFinite(number) ? number : 0;
   }
   function getEmployees(){ try { return Array.isArray(employees) ? employees : []; } catch(_) { return []; } }
+  function permissionCan(key){ try { return Boolean(window.employeePermissionMatrix?.can?.(key)); } catch(_) { return false; } }
+  function isPayrollAdmin(){ try { return String(authProfile?.role || '').trim() === 'admin'; } catch(_) { return false; } }
+  function linkedPayrollEmployee(){ try { return window.employeePermissionMatrix?.linkedEmployee?.() || null; } catch(_) { return null; } }
+  function canViewAllPayroll(){ return isPayrollAdmin() || permissionCan('payroll.viewAll'); }
+  function canViewSelfPayroll(){ return permissionCan('payroll.viewSelf'); }
+  function canViewAllAdvances(){ return isPayrollAdmin() || permissionCan('payroll.advances.viewAll'); }
+  function canViewSelfAdvances(){ return permissionCan('payroll.advances.viewSelf') || canViewSelfPayroll(); }
+  function canCreateAdvances(){ return isPayrollAdmin() || permissionCan('payroll.advances.create'); }
+  function canProcessPayrollRuns(){ return isPayrollAdmin() || permissionCan('payroll.runs.process'); }
+  function canPrintPayrollRuns(){ return isPayrollAdmin() || permissionCan('payroll.runs.print'); }
+  function canSelectPayrollPeriods(){ return isPayrollAdmin() || permissionCan('payroll.periods.select') || canViewAllPayroll() || canProcessPayrollRuns() || canPrintPayrollRuns(); }
+  function visiblePayrollEmployees(){
+    const all = getEmployees().filter(emp => emp && emp.id && emp.status !== 'terminated');
+    if (canViewAllPayroll() || canProcessPayrollRuns() || canPrintPayrollRuns()) return all;
+    if (canViewSelfPayroll()) { const linked = linkedPayrollEmployee(); return linked ? all.filter(emp => String(emp.id) === String(linked.id)) : []; }
+    return [];
+  }
+  function filterPayrollRowsForCurrentUser(rows){
+    const list = Array.isArray(rows) ? rows : [];
+    if (canViewAllPayroll() || canProcessPayrollRuns() || canPrintPayrollRuns()) return list;
+    const linked = linkedPayrollEmployee();
+    if (canViewSelfPayroll() && linked) return list.filter(row => String(row.employeeId || row.employee?.id || '') === String(linked.id));
+    return [];
+  }
+  function canSeeAdvanceEmployee(employeeId){
+    if (canViewAllAdvances()) return true;
+    const linked = linkedPayrollEmployee();
+    return Boolean(linked && canViewSelfAdvances() && String(employeeId) === String(linked.id));
+  }
   function getEmployeeById(id){ try { if (typeof getEmployee === 'function') return getEmployee(id); } catch(_) {} return getEmployees().find(emp => String(emp.id) === String(id)); }
   function employeeSalaryBase(employee){ if (!employee) return 0; try { if (typeof employeeGrossSalary === 'function') return Number(employeeGrossSalary(employee) || 0); } catch(_) {} return Number(employee.totalSalary || employee.salary || employee.baseSalary || 0) || 0; }
   function loadAdvances(){ try { const raw = localStorage.getItem(ADVANCE_KEY); const rows = raw ? JSON.parse(raw) : []; return Array.isArray(rows) ? rows.filter(Boolean) : []; } catch(_) { return []; } }
@@ -11768,6 +11821,7 @@ document.addEventListener("click", function(event) {
     return dialog;
   }
   function openAdvanceModal(){
+    if (!canCreateAdvances()) { try { showToast('ليست لديك صلاحية إضافة السلفيات'); } catch(_) {} return; }
     if (payrollRunForMonth(monthKey())) { try { showToast('لا يمكن إضافة سلفة على مسير محفوظ ومصروف'); } catch(_) {} return; }
     const dialog = ensureAdvanceModal();
     const select = dialog.querySelector('#advanceEmployeeSelect');
@@ -11855,7 +11909,7 @@ document.addEventListener("click", function(event) {
     };
   }
   function buildPayrollRunSnapshot(key = monthKey()){
-    const items = getEmployees().map(employee => ({
+    const items = getEmployees().filter(employee => employee && employee.id && employee.status !== 'terminated').map(employee => ({
       employeeId: employee.id,
       employee: employeeSnapshot(employee),
       line: calcPayrollLine(employee, key)
@@ -11879,6 +11933,7 @@ document.addEventListener("click", function(event) {
     return `<div class="employee-mini"><div class="avatar sm">${esc(employee.initials || (employee.name || 'م').slice(0,1))}</div><div><strong>${esc(employee.name || 'موظف')}</strong>${employee.phone ? `<small>${esc(employee.phone)}</small>` : ''}</div></div>`;
   }
   function saveCurrentPayrollRun(){
+    if (!canProcessPayrollRuns()) { try { showToast('ليست لديك صلاحية اعتماد وصرف مسير الرواتب'); } catch(_) {} return; }
     const key = monthKey();
     if (payrollRunForMonth(key)) {
       try { showToast(`مسير رواتب ${payrollMonthLabel(key)} محفوظ مسبقًا`); } catch(_) {}
@@ -11903,20 +11958,26 @@ document.addEventListener("click", function(event) {
     const panel = ensureAdvanceSummaryPanel(); if (!panel) return;
     const key = monthKey();
     const grouped = new Map();
-    advancesForMonth(key).forEach(item => { const employee = getEmployeeById(item.employeeId); if (!employee) return; const group = grouped.get(item.employeeId) || { employee, total: 0, items: [] }; group.total += Number(item.amount || 0); group.items.push(item); grouped.set(item.employeeId, group); });
+    advancesForMonth(key).filter(item => canSeeAdvanceEmployee(item.employeeId)).forEach(item => { const employee = getEmployeeById(item.employeeId); if (!employee) return; const group = grouped.get(item.employeeId) || { employee, total: 0, items: [] }; group.total += Number(item.amount || 0); group.items.push(item); grouped.set(item.employeeId, group); });
     const groups = Array.from(grouped.values()).sort((a,b) => String(a.employee.name || '').localeCompare(String(b.employee.name || ''), 'ar'));
-    panel.innerHTML = `<div class="panel-head payroll-advances-head"><div><h3>السلفيات</h3><p>إجمالي السلفيات المعتمدة خلال شهر المسير</p></div><div class="payroll-advances-actions"><button type="button" class="primary-btn payroll-add-advance-btn" id="payrollAddAdvanceBtn"><span data-icon="wallet"></span>إضافة سلفة</button><button type="button" class="secondary-btn payroll-print-btn" id="payrollPrintBtn"><span data-icon="printer"></span>طباعة</button></div></div><div class="table-wrap payroll-advances-table-wrap"><table class="payroll-advances-table"><thead><tr><th>الموظف</th><th>إجمالي السلفيات</th></tr></thead><tbody>${groups.length ? groups.map(group => `<tr class="advance-summary-row" data-toggle-advance-details="${esc(group.employee.id)}"><td class="advance-employee-cell"><button type="button" class="advance-toggle-btn" aria-expanded="false" aria-label="عرض تفاصيل السلفيات"><span class="advance-arrow">▾</span></button><div class="advance-employee-compact">${typeof employeeCell === 'function' ? employeeCell(group.employee) : esc(group.employee.name)}</div></td><td class="advance-total-cell"><strong>${money(group.total)}</strong></td></tr><tr class="advance-detail-row" id="advance-detail-${esc(group.employee.id)}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>التاريخ</th><th>اليوم</th><th>القيمة</th></tr></thead><tbody>${group.items.sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(item => `<tr><td>${esc(dateLabel(item.date))}</td><td>${esc(item.dayName || dayName(item.date))}</td><td><strong>${money(item.amount)}</strong></td></tr>`).join('')}</tbody></table></div></td></tr>`).join('') : `<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات مسجلة لهذا الشهر</strong></div></td></tr>`}</tbody></table></div>`;
+    const canShowAdvanceTable = canViewAllAdvances() || canViewSelfAdvances();
+    const addAdvanceButton = canCreateAdvances() ? `<button type="button" class="primary-btn payroll-add-advance-btn" id="payrollAddAdvanceBtn"><span data-icon="wallet"></span>إضافة سلفة</button>` : '';
+    const printButton = canPrintPayrollRuns() ? `<button type="button" class="secondary-btn payroll-print-btn" id="payrollPrintBtn"><span data-icon="printer"></span>طباعة</button>` : '';
+    panel.classList.toggle('is-permission-hidden', !canShowAdvanceTable && !canCreateAdvances());
+    panel.innerHTML = `<div class="panel-head payroll-advances-head"><div><h3>السلفيات</h3><p>إجمالي السلفيات المعتمدة خلال شهر المسير</p></div><div class="payroll-advances-actions">${addAdvanceButton}${printButton}</div></div>${canShowAdvanceTable ? `<div class="table-wrap payroll-advances-table-wrap"><table class="payroll-advances-table"><thead><tr><th>الموظف</th><th>إجمالي السلفيات</th></tr></thead><tbody>${groups.length ? groups.map(group => `<tr class="advance-summary-row" data-toggle-advance-details="${esc(group.employee.id)}"><td class="advance-employee-cell"><button type="button" class="advance-toggle-btn" aria-expanded="false" aria-label="عرض تفاصيل السلفيات"><span class="advance-arrow">▾</span></button><div class="advance-employee-compact">${typeof employeeCell === 'function' ? employeeCell(group.employee) : esc(group.employee.name)}</div></td><td class="advance-total-cell"><strong>${money(group.total)}</strong></td></tr><tr class="advance-detail-row" id="advance-detail-${esc(group.employee.id)}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>التاريخ</th><th>اليوم</th><th>القيمة</th></tr></thead><tbody>${group.items.sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(item => `<tr><td>${esc(dateLabel(item.date))}</td><td>${esc(item.dayName || dayName(item.date))}</td><td><strong>${money(item.amount)}</strong></td></tr>`).join('')}</tbody></table></div></td></tr>`).join('') : `<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات مسجلة لهذا الشهر</strong></div></td></tr>`}</tbody></table></div>` : `<div class="empty-state"><strong>لا تملك صلاحية عرض جدول السلفيات</strong></div>`}`;
     panel.querySelector('#payrollAddAdvanceBtn')?.addEventListener('click', openAdvanceModal);
     panel.querySelector('#payrollPrintBtn')?.addEventListener('click', () => openPayrollReport('print'));
     panel.querySelectorAll('[data-toggle-advance-details]').forEach(row => { row.addEventListener('click', (event) => { event.preventDefault(); const id = row.dataset.toggleAdvanceDetails; const detail = panel.querySelector(`#advance-detail-${CSS.escape(id)}`); const btn = row.querySelector('.advance-toggle-btn'); const arrow = row.querySelector('.advance-arrow'); if (!detail) return; const open = detail.hasAttribute('hidden'); detail.toggleAttribute('hidden', !open); btn?.setAttribute('aria-expanded', open ? 'true' : 'false'); if (arrow) arrow.textContent = open ? '▴' : '▾'; }); });
     try { if (typeof hydrateIcons === 'function') hydrateIcons(panel); } catch(_) {}
   }
   function renderPayrollWithAdvances(){
+    if (!canSelectPayrollPeriods()) setSelectedPayrollMonthKey(currentPayrollMonthKey());
     ensurePayrollPeriodControls();
     const key = monthKey();
     const savedRun = payrollRunForMonth(key);
-    const rows = savedRun ? savedRun.items : getEmployees().map(employee => ({ employeeId: employee.id, employee: employeeSnapshot(employee), line: calcPayrollLine(employee, key) }));
-    const totals = savedRun?.totals || payrollTotalsFromLines(rows);
+    const rawRows = savedRun ? savedRun.items : visiblePayrollEmployees().map(employee => ({ employeeId: employee.id, employee: employeeSnapshot(employee), line: calcPayrollLine(employee, key) }));
+    const rows = savedRun ? filterPayrollRowsForCurrentUser(rawRows) : rawRows;
+    const totals = (savedRun && (canViewAllPayroll() || canProcessPayrollRuns() || canPrintPayrollRuns())) ? savedRun.totals : payrollTotalsFromLines(rows);
     const hero = document.querySelector('#payrollHeroTotal'); const count = document.querySelector('#payrollEmployeeCount'); const baseEl = document.querySelector('#baseSalaryTotal'); const allowanceEl = document.querySelector('#allowanceTotal'); const advanceEl = document.querySelector('#advanceTotal'); const deductionEl = document.querySelector('#deductionTotal');
     if (hero) hero.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.net) : money(totals.net);
     if (count) count.textContent = (typeof arabicNumber === 'function') ? arabicNumber(rows.length) : String(rows.length);
@@ -11927,9 +11988,9 @@ document.addEventListener("click", function(event) {
     const statusEl = document.querySelector('#payrollView .payroll-hero .hero-stat:nth-of-type(3) strong, #payrollStatusText');
     if (statusEl) statusEl.textContent = savedRun ? 'مصروف' : 'جاهز';
     const processBtn = document.getElementById('processPayrollBtn');
-    if (processBtn) processBtn.innerHTML = savedRun ? '<span data-icon="check-circle"></span>المسير محفوظ ومصروف' : '<span data-icon="play"></span>اعتماد وصرف الرواتب';
+    if (processBtn) { processBtn.innerHTML = savedRun ? '<span data-icon="check-circle"></span>المسير محفوظ ومصروف' : '<span data-icon="play"></span>اعتماد وصرف الرواتب'; processBtn.classList.toggle('is-permission-hidden', !canProcessPayrollRuns()); }
     const exportButton = document.getElementById('payrollExportBtn');
-    if (exportButton) exportButton.innerHTML = '<span data-icon="download"></span>تصدير PDF';
+    if (exportButton) { exportButton.innerHTML = '<span data-icon="download"></span>تصدير PDF'; exportButton.classList.toggle('is-permission-hidden', !canPrintPayrollRuns()); }
     const body = document.querySelector('#payrollTableBody');
     if (body) {
       body.innerHTML = rows.map(row => { const line = row.line || {}; const requiredText = Number(line.required || 0) > 0 ? `<strong class="payroll-required-amount">${money(line.required)}</strong>` : ''; const withdrawText = line.cardWithdraw ? `<span class="payroll-card-withdraw-text">نعم</span>` : ''; return `<tr class="${line.cardWithdraw ? 'payroll-row-card-withdraw' : ''}"><td class="payroll-employee-cell">${employeeCellForPayroll(row)}</td><td class="payroll-money-cell payroll-base-amount">${money(line.baseSalary)}</td><td class="payroll-money-cell payroll-allowance-amount">${money(line.allowance)}</td><td class="payroll-money-cell payroll-deduction-amount"><strong>${money(line.insuranceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong class="absence-money-deduction">${money(line.absenceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong>${money(line.advanceDeduction)}</strong></td><td class="payroll-money-cell payroll-net-amount"><strong>${money(line.net)}</strong></td><td class="payroll-money-cell payroll-transfer-cell"><strong class="payroll-transfer-amount">${money(line.transfer)}</strong></td><td class="payroll-money-cell payroll-required-cell">${requiredText}</td><td class="payroll-card-withdraw-cell">${withdrawText}</td><td><span class="status-badge status-paid">${savedRun ? 'مصروف' : 'جاهز للصرف'}</span></td></tr>`; }).join('');
@@ -11956,8 +12017,9 @@ document.addEventListener("click", function(event) {
     return current?.name || row.employee?.name || 'موظف';
   }
   function payrollReportRowsForPrint(key = monthKey()){
+    if (!canPrintPayrollRuns()) return [];
     const savedRun = payrollRunForMonth(key);
-    return savedRun ? savedRun.items : getEmployees().map(employee => ({ employeeId: employee.id, employee: employeeSnapshot(employee), line: calcPayrollLine(employee, key) }));
+    return savedRun ? savedRun.items : getEmployees().filter(employee => employee && employee.id && employee.status !== 'terminated').map(employee => ({ employeeId: employee.id, employee: employeeSnapshot(employee), line: calcPayrollLine(employee, key) }));
   }
   function payrollReportApprovedAtForPrint(key = monthKey()){
     const savedRun = payrollRunForMonth(key);
@@ -12024,6 +12086,7 @@ document.addEventListener("click", function(event) {
     try { showToast('المتصفح منع نافذة التقرير؛ اسمح بالنوافذ المنبثقة أو استخدم الطباعة من هذه الصفحة'); } catch(_) {}
   }
   function openPayrollReport(mode = 'print'){
+    if (!canPrintPayrollRuns()) { try { showToast('ليست لديك صلاحية طباعة أو تصدير مسير الرواتب'); } catch(_) {} return; }
     const key = monthKey();
     const markup = payrollReportMarkupForPrint(key);
     const title = `${mode === 'pdf' ? 'تصدير PDF' : 'طباعة'} مسير رواتب ${payrollMonthLabel(key)}`;
@@ -12044,7 +12107,7 @@ document.addEventListener("click", function(event) {
   window.openPayrollReport = openPayrollReport;
   document.addEventListener('click', function(event){
     const dashboard = event.target.closest('#dashboardAdvanceBtn');
-    if (dashboard) { event.preventDefault(); event.stopPropagation(); setSelectedPayrollMonthKey(currentPayrollMonthKey()); openAdvanceModal(); return; }
+    if (dashboard) { event.preventDefault(); event.stopPropagation(); if (!canCreateAdvances()) { try { showToast('ليست لديك صلاحية إضافة السلفيات'); } catch(_) {} return; } setSelectedPayrollMonthKey(currentPayrollMonthKey()); openAdvanceModal(); return; }
     const processBtn = event.target.closest('#processPayrollBtn');
     if (processBtn) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation(); saveCurrentPayrollRun(); return; }
     const exportBtn = event.target.closest('#payrollExportBtn');
@@ -12899,4 +12962,104 @@ document.addEventListener("click", function(event) {
     const panel = document.querySelector('[data-settings-panel="permissions"]');
     if (panel && (panel.offsetParent !== null || panel.classList.contains('active'))) openPanel();
   }, 400);
+})();
+
+
+/* =========================================================
+   Final payroll permissions integration
+   - Keeps new payroll controls hidden unless explicitly allowed.
+   - Does not change UI identity or payroll calculations.
+   ========================================================= */
+(function finalPayrollPermissionsIntegration(){
+  if (window.__finalPayrollPermissionsIntegrationReady) return;
+  window.__finalPayrollPermissionsIntegrationReady = true;
+  const NEW_DEFAULTS = {
+    'dashboard.advanceShortcut': false,
+    'payroll.periods.select': false,
+    'payroll.advances.viewSelf': false,
+    'payroll.advances.viewAll': false,
+    'payroll.advances.create': false,
+    'payroll.runs.process': false,
+    'payroll.runs.print': false
+  };
+  const toast = (message) => { try { showToast(message); } catch(_) {} };
+  function isAdmin(){ try { return String(authProfile?.role || '').trim() === 'admin'; } catch(_) { return false; } }
+  function matrix(){ return window.employeePermissionMatrix || {}; }
+  function rawPerms(){ try { return authProfile?.permissions && typeof authProfile.permissions === 'object' ? authProfile.permissions : {}; } catch(_) { return {}; } }
+  function ensureMatrixKeys(){
+    const m = matrix();
+    if (!Array.isArray(m.groups)) return;
+    const dashboard = m.groups.find(group => group && group.id === 'dashboard');
+    if (dashboard && Array.isArray(dashboard.items) && !dashboard.items.some(item => item[0] === 'dashboard.advanceShortcut')) dashboard.items.push(['dashboard.advanceShortcut', 'زر إضافة سلفة في الشريط الأخضر']);
+    const payroll = m.groups.find(group => group && group.id === 'payroll');
+    if (payroll && Array.isArray(payroll.items)) {
+      const desired = [
+        ['payroll.periods.select', 'اختيار شهر وسنة المسير'],
+        ['payroll.advances.viewSelf', 'عرض سلفياته فقط'],
+        ['payroll.advances.viewAll', 'عرض سلفيات جميع الموظفين'],
+        ['payroll.advances.create', 'إضافة واعتماد سلفة'],
+        ['payroll.runs.process', 'اعتماد وصرف مسير الرواتب'],
+        ['payroll.runs.print', 'طباعة وتصدير PDF لمسير الرواتب']
+      ];
+      desired.forEach(item => { if (!payroll.items.some(existing => existing[0] === item[0])) payroll.items.push(item); });
+      payroll.title = 'الرواتب والسلفيات';
+    }
+    if (m.defaults && typeof m.defaults === 'object') Object.keys(NEW_DEFAULTS).forEach(key => { if (!(key in m.defaults)) m.defaults[key] = NEW_DEFAULTS[key]; });
+  }
+  function patchMatrix(){
+    const m = matrix();
+    if (!m || m.__payrollFinalPatched) return;
+    ensureMatrixKeys();
+    const oldNormalize = typeof m.normalizePermissions === 'function' ? m.normalizePermissions.bind(m) : null;
+    const oldCan = typeof m.can === 'function' ? m.can.bind(m) : null;
+    m.normalizePermissions = function(permissions, role){
+      const base = oldNormalize ? oldNormalize(permissions, role) : { ...(m.defaults || {}) };
+      Object.keys(NEW_DEFAULTS).forEach(key => { if (!(key in base)) base[key] = NEW_DEFAULTS[key]; });
+      const source = permissions && typeof permissions === 'object' ? permissions : {};
+      Object.keys(NEW_DEFAULTS).forEach(key => { if (Object.prototype.hasOwnProperty.call(source, key)) base[key] = Boolean(source[key]); });
+      if (String(role || '').trim() === 'admin') Object.keys(base).forEach(key => base[key] = true);
+      return base;
+    };
+    m.can = function(key){
+      if (isAdmin()) return true;
+      if (oldCan && oldCan(key)) return true;
+      return Boolean(m.normalizePermissions(rawPerms(), authProfile?.role)[key]);
+    };
+    m.__payrollFinalPatched = true;
+  }
+  function can(key){ patchMatrix(); return Boolean(matrix().can?.(key)); }
+  function applyPayrollPermissionUi(){
+    patchMatrix();
+    const addAdvanceAllowed = can('payroll.advances.create');
+    document.querySelector('#dashboardAdvanceBtn')?.classList.toggle('is-permission-hidden', !can('dashboard.advanceShortcut') || !addAdvanceAllowed);
+    document.querySelector('#payrollAddAdvanceBtn')?.classList.toggle('is-permission-hidden', !addAdvanceAllowed);
+    document.querySelectorAll('#payrollPrintBtn, #payrollExportBtn').forEach((button) => button.classList.toggle('is-permission-hidden', !can('payroll.runs.print')));
+    document.querySelector('#processPayrollBtn')?.classList.toggle('is-permission-hidden', !can('payroll.runs.process'));
+    document.querySelector('#payrollPeriodControls')?.classList.toggle('is-permission-hidden', !can('payroll.periods.select') && !can('payroll.viewAll') && !can('payroll.runs.process') && !can('payroll.runs.print'));
+    document.querySelector('#payrollAdvancesPanel')?.classList.toggle('is-permission-hidden', !can('payroll.advances.viewSelf') && !can('payroll.advances.viewAll') && !addAdvanceAllowed);
+  }
+  const oldRoleCanOpen = typeof roleCanOpen === 'function' ? roleCanOpen : null;
+  if (oldRoleCanOpen && !oldRoleCanOpen.__payrollFinalWrapped) {
+    const wrapped = function(viewName){
+      if (viewName === 'payroll') return can('nav.payroll') && (can('payroll.viewSelf') || can('payroll.viewAll') || can('payroll.advances.viewSelf') || can('payroll.advances.viewAll') || can('payroll.runs.process') || can('payroll.runs.print') || can('payroll.commissions'));
+      return oldRoleCanOpen.apply(this, arguments);
+    };
+    wrapped.__payrollFinalWrapped = true;
+    try { roleCanOpen = wrapped; } catch(_) {}
+  }
+  const oldApply = typeof applyRolePermissions === 'function' ? applyRolePermissions : null;
+  if (oldApply && !oldApply.__payrollFinalWrapped) {
+    const wrapped = function(){ const result = oldApply.apply(this, arguments); applyPayrollPermissionUi(); return result; };
+    wrapped.__payrollFinalWrapped = true;
+    try { applyRolePermissions = wrapped; } catch(_) {}
+  }
+  document.addEventListener('click', function(event){
+    if (event.target.closest('#dashboardAdvanceBtn, #payrollAddAdvanceBtn') && !can('payroll.advances.create')) { event.preventDefault(); event.stopImmediatePropagation(); toast('ليست لديك صلاحية إضافة السلفيات'); return; }
+    if (event.target.closest('#processPayrollBtn') && !can('payroll.runs.process')) { event.preventDefault(); event.stopImmediatePropagation(); toast('ليست لديك صلاحية اعتماد وصرف مسير الرواتب'); return; }
+    if (event.target.closest('#payrollPrintBtn, #payrollExportBtn') && !can('payroll.runs.print')) { event.preventDefault(); event.stopImmediatePropagation(); toast('ليست لديك صلاحية طباعة أو تصدير مسير الرواتب'); return; }
+  }, true);
+  patchMatrix();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(applyPayrollPermissionUi, 250));
+  else setTimeout(applyPayrollPermissionUi, 250);
+  setInterval(applyPayrollPermissionUi, 1500);
 })();
