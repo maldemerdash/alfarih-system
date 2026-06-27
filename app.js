@@ -2966,6 +2966,14 @@ async function handleEmployeeSubmit(event) {
     showToast("رقم الهوية أو الإقامة يجب أن يتكون من 10 أرقام");
     return;
   }
+  const duplicateIdentityEmployee = employees.find((item) => normalizeNumerals(item.identityNumber || "").replace(/\D/g, "") === identityNumber && String(item.id) !== String(values.employeeId || ""));
+  if (duplicateIdentityEmployee) {
+    switchEmployeeSection("identity");
+    const duplicateMessage = `رقم الهوية مستخدم مسبقًا للموظف: ${duplicateIdentityEmployee.name || "موظف آخر"}`;
+    if (typeof showModalMessage === "function") showModalMessage(duplicateMessage, "تنبيه رقم الهوية");
+    else showToast(duplicateMessage);
+    return;
+  }
   if (phone.length < 2) {
     switchEmployeeSection("contact");
     showToast("أدخل رقم جوال صحيحًا");
@@ -9934,12 +9942,18 @@ document.addEventListener("click", function(event) {
 
   function fillEmployeeSelect(select, selected = '', scope = 'self'){
     if (!select) return;
-    const list = isAdmin() || scope === 'all' ? allEmps() : (linkedEmployee() ? [linkedEmployee()] : []);
+    const allList = allEmps().filter((employee) => employee && employee.id && employee.status !== 'terminated');
+    const linked = linkedEmployee();
+    const list = (isAdmin() || scope === 'all' || !linked) ? allList : [linked];
+    select.disabled = false;
+    select.removeAttribute('disabled');
+    select.removeAttribute('aria-disabled');
+    select.style.pointerEvents = 'auto';
+    select.style.opacity = '1';
     select.innerHTML = `<option value="">اختر الموظف</option>` + list.map((employee) => `<option value="${escape(employee.id)}" ${String(employee.id) === String(selected) ? 'selected' : ''}>${escape(employee.name)}${employee.employeeNumber ? ` - ${escape(employee.employeeNumber)}` : ''}</option>`).join('');
-    if (!list.length) select.innerHTML = `<option value="">لا يوجد موظف مرتبط بالحساب</option>`;
-    const wanted = selected || (!isAdmin() && list[0]?.id) || '';
+    if (!list.length) select.innerHTML = `<option value="">لا يوجد موظفون متاحون</option>`;
+    const wanted = selected || (!isAdmin() && list.length === 1 ? list[0]?.id : '') || '';
     if (wanted && list.some((e) => String(e.id) === String(wanted))) select.value = wanted;
-    if (!isAdmin() && !can('leaves.createForAll')) select.disabled = true;
   }
   function fillUserEmployeeSelect(selected = ''){
     const select = document.querySelector('#appUserProfileForm [name="employeeId"]');
@@ -10315,4 +10329,712 @@ document.addEventListener("click", function(event) {
       setTimeout(run, 0); setTimeout(run, 80); setTimeout(run, 200);
     }
   }, true);
+})();
+
+/* Final stability patch: employee create/edit separation, identity uniqueness, and employee selectors */
+(function finalEmployeeIntegrityAndSelectorPatch(){
+  const EMPLOYEE_FORM_SELECTOR = '#employeeForm';
+  const EMPLOYEE_SELECTORS = [
+    '#leaveForm select[name="employeeId"]',
+    '#travelRequestForm select[name="employeeId"]',
+    '#absenceForm select[name="employeeId"]'
+  ];
+
+  function toast(message){
+    try { if (typeof showToast === 'function') showToast(message); else console.warn(message); }
+    catch (_) { console.warn(message); }
+  }
+
+  function normalizeDigits(value){
+    try { if (typeof normalizeNumerals === 'function') return normalizeNumerals(value || '').replace(/\D/g, ''); }
+    catch (_) {}
+    return String(value || '')
+      .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+      .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+      .replace(/\D/g, '');
+  }
+
+  function employeeList(){
+    return Array.isArray(employees) ? employees.filter((employee) => employee && employee.id && employee.status !== 'terminated') : [];
+  }
+
+  function employeeExists(id){
+    return employeeList().some((employee) => String(employee.id) === String(id));
+  }
+
+  function currentRoleIsAdmin(){
+    try { if (typeof currentRoleKey === 'function' && currentRoleKey() === 'admin') return true; } catch (_) {}
+    try { if (String(authProfile?.role || '').trim() === 'admin') return true; } catch (_) {}
+    return false;
+  }
+
+  function canSelectAllEmployees(kind){
+    if (currentRoleIsAdmin()) return true;
+    const api = window.employeePermissionMatrix;
+    try {
+      if (kind === 'attendance') return Boolean(api?.can?.('attendance.viewAll') || api?.can?.('attendance.markAbsent'));
+      return Boolean(api?.can?.('leaves.createForAll') || api?.can?.('leaves.viewAll'));
+    } catch (_) { return true; }
+  }
+
+  function linkedEmployeeSafe(){
+    try { return window.employeePermissionMatrix?.linkedEmployee?.() || null; } catch (_) { return null; }
+  }
+
+  function escapeOption(value){
+    try { if (typeof escapeHtml === 'function') return escapeHtml(value); } catch (_) {}
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+  }
+
+  function fillOneEmployeeSelect(selector, selectedValue, forceAll = false){
+    const select = document.querySelector(selector);
+    if (!select) return;
+    const kind = selector.includes('absenceForm') ? 'attendance' : 'leaves';
+    const allowAll = forceAll || canSelectAllEmployees(kind);
+    const linked = linkedEmployeeSafe();
+    const source = allowAll ? employeeList() : (linked ? [linked] : employeeList());
+    const current = selectedValue || select.value || select.dataset.selected || '';
+    select.disabled = false;
+    select.removeAttribute('aria-disabled');
+    select.classList.remove('readonly-employee-select');
+    select.innerHTML = '<option value="">اختر الموظف</option>' + source.map((employee) => {
+      const id = String(employee.id || '');
+      const label = `${employee.name || 'موظف'}${employee.employeeNumber ? ` - ${employee.employeeNumber}` : ''}`;
+      return `<option value="${escapeOption(id)}">${escapeOption(label)}</option>`;
+    }).join('');
+    if (source.some((employee) => String(employee.id) === String(current))) select.value = current;
+    else if (!allowAll && source.length === 1) select.value = source[0].id;
+    if (!allowAll && source.length === 1) {
+      select.dataset.lockedToLinkedEmployee = '1';
+    } else {
+      delete select.dataset.lockedToLinkedEmployee;
+    }
+  }
+
+  function refreshEmployeeSelectors(){
+    fillOneEmployeeSelect('#leaveForm select[name="employeeId"]');
+    fillOneEmployeeSelect('#travelRequestForm select[name="employeeId"]');
+    fillOneEmployeeSelect('#absenceForm select[name="employeeId"]');
+  }
+
+  function markEmployeeFormMode(employeeId){
+    const form = document.querySelector(EMPLOYEE_FORM_SELECTOR);
+    if (!form) return;
+    const id = employeeId ? String(employeeId) : '';
+    form.dataset.employeeMode = id ? 'edit' : 'create';
+    if (form.elements?.employeeId) form.elements.employeeId.value = id;
+  }
+
+  const previousOpenEmployeeModal = typeof openEmployeeModal === 'function' ? openEmployeeModal : window.openEmployeeModal;
+  if (typeof previousOpenEmployeeModal === 'function' && !previousOpenEmployeeModal.__finalIntegrityWrapped) {
+    const wrappedOpenEmployeeModal = async function(employeeId = null){
+      const id = employeeId ? String(employeeId) : '';
+      markEmployeeFormMode(id);
+      const result = await previousOpenEmployeeModal.apply(this, arguments);
+      markEmployeeFormMode(id);
+      if (!id) {
+        const form = document.querySelector(EMPLOYEE_FORM_SELECTOR);
+        if (form?.elements?.employeeId) form.elements.employeeId.value = '';
+      }
+      return result;
+    };
+    wrappedOpenEmployeeModal.__finalIntegrityWrapped = true;
+    try { openEmployeeModal = wrappedOpenEmployeeModal; } catch (_) {}
+    window.openEmployeeModal = wrappedOpenEmployeeModal;
+  }
+
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('.add-employee-btn, #quickAddBtn, [data-open-employee-modal]')) {
+      markEmployeeFormMode('');
+      setTimeout(() => markEmployeeFormMode(''), 0);
+      setTimeout(() => markEmployeeFormMode(''), 120);
+    }
+    if (event.target.closest('[data-edit-employee]')) {
+      const id = event.target.closest('[data-edit-employee]')?.dataset?.editEmployee || '';
+      if (id) {
+        markEmployeeFormMode(id);
+        setTimeout(() => markEmployeeFormMode(id), 120);
+      }
+    }
+    if (event.target.closest('#newLeaveBtn, #newTravelBtn, #newAbsenceBtn, #dashboardAbsenceBtn')) {
+      setTimeout(refreshEmployeeSelectors, 0);
+      setTimeout(refreshEmployeeSelectors, 120);
+      setTimeout(refreshEmployeeSelectors, 320);
+      setTimeout(refreshEmployeeSelectors, 600);
+    }
+  }, true);
+
+  document.addEventListener('submit', (event) => {
+    const form = event.target;
+    if (!form || form.matches?.(EMPLOYEE_FORM_SELECTOR) !== true) return;
+    const mode = form.dataset.employeeMode === 'edit' ? 'edit' : 'create';
+    if (mode === 'create' && form.elements?.employeeId) form.elements.employeeId.value = '';
+    const editingId = mode === 'edit' ? String(form.elements?.employeeId?.value || '') : '';
+    const identity = normalizeDigits(form.elements?.identityNumber?.value || '');
+    if (identity) {
+      const duplicateIdentity = employeeList().find((employee) => normalizeDigits(employee.identityNumber) === identity && String(employee.id) !== editingId);
+      if (duplicateIdentity) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        try { if (typeof switchEmployeeSection === 'function') switchEmployeeSection('identity'); } catch (_) {}
+        toast(`رقم الهوية مستخدم مسبقًا للموظف: ${duplicateIdentity.name || 'موظف آخر'}`);
+        return;
+      }
+    }
+    if (mode === 'edit' && editingId && !employeeExists(editingId)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toast('تعذر تحديث الموظف لأن السجل الأصلي غير موجود. افتح شاشة إضافة موظف جديد مرة أخرى.');
+    }
+  }, true);
+
+  document.addEventListener('change', (event) => {
+    if (EMPLOYEE_SELECTORS.some((selector) => event.target.matches?.(selector))) {
+      event.target.dataset.selected = event.target.value || '';
+    }
+  }, true);
+
+  const previousRenderAll = typeof renderAll === 'function' ? renderAll : null;
+  if (previousRenderAll && !previousRenderAll.__employeeIntegrityCleanWrapped) {
+    const wrappedRenderAll = function(){
+      const result = previousRenderAll.apply(this, arguments);
+      try { refreshEmployeeSelectors(); } catch (_) {}
+      return result;
+    };
+    wrappedRenderAll.__employeeIntegrityCleanWrapped = true;
+    try { renderAll = wrappedRenderAll; } catch (_) {}
+  }
+
+  window.refreshEmployeeSelectorsFinal = refreshEmployeeSelectors;
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(refreshEmployeeSelectors, 300));
+  } else {
+    setTimeout(refreshEmployeeSelectors, 300);
+  }
+})();
+
+/* Ultimate leave/travel interaction and visual stability patch */
+(function ultimateLeaveTravelInteractionPatch(){
+  const TRAVEL_KEY = 'nawah-travel-requests';
+  let currentLeaveTravelTab = 'all';
+
+  function esc(value){
+    try { if (typeof escapeHtml === 'function') return escapeHtml(value || ''); } catch (_) {}
+    return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+  function n(value){ try { return typeof arabicNumber === 'function' ? arabicNumber(value) : value; } catch (_) { return value; } }
+  function fdate(value){ try { return value ? formatDate(value) : '—'; } catch (_) { return value || '—'; } }
+  function todayValue(){ try { return formatInputDate(todayAtNoon()); } catch (_) { return new Date().toISOString().slice(0,10); } }
+  function canPerm(key){
+    try { if (String(authProfile?.role || '').trim() === 'admin') return true; } catch (_) {}
+    try { if (typeof currentRoleKey === 'function' && currentRoleKey() === 'admin') return true; } catch (_) {}
+    try { if (window.employeePermissionMatrix?.can?.(key)) return true; } catch (_) {}
+    try { if (typeof roleCan === 'function' && roleCan(key)) return true; } catch (_) {}
+    return false;
+  }
+  function isAdminRole(){
+    try { if (String(authProfile?.role || '').trim() === 'admin') return true; } catch (_) {}
+    try { if (typeof currentRoleKey === 'function' && currentRoleKey() === 'admin') return true; } catch (_) {}
+    return false;
+  }
+  function allEmployees(){
+    return Array.isArray(employees) ? employees.filter((employee) => employee && employee.id && employee.status !== 'terminated') : [];
+  }
+  function linkedEmployee(){
+    try { return window.employeePermissionMatrix?.linkedEmployee?.() || null; } catch (_) { return null; }
+  }
+  function employeeVisibleList(kind){
+    const all = allEmployees();
+    if (isAdminRole()) return all;
+    if (kind === 'attendance' && (canPerm('attendance.viewAll') || canPerm('attendance.markAbsent'))) return all;
+    if (kind !== 'attendance' && (canPerm('leaves.createForAll') || canPerm('leaves.viewAll'))) return all;
+    const linked = linkedEmployee();
+    return linked ? [linked] : all;
+  }
+  function employeeByIdLocal(id){
+    try { if (typeof getEmployee === 'function') return getEmployee(id); } catch (_) {}
+    return allEmployees().find((employee) => String(employee.id) === String(id));
+  }
+  function fillSelect(selector, kind){
+    const select = document.querySelector(selector);
+    if (!select) return;
+    const current = select.value || select.dataset.selected || '';
+    const rows = employeeVisibleList(kind);
+    select.disabled = false;
+    select.removeAttribute('disabled');
+    select.removeAttribute('aria-disabled');
+    select.style.pointerEvents = 'auto';
+    select.style.opacity = '1';
+    select.classList.remove('readonly-employee-select');
+    select.innerHTML = '<option value="">اختر الموظف</option>' + rows.map((employee) => {
+      const label = `${employee.name || 'موظف'}${employee.employeeNumber ? ` - ${employee.employeeNumber}` : ''}`;
+      return `<option value="${esc(employee.id)}">${esc(label)}</option>`;
+    }).join('');
+    if (rows.some((employee) => String(employee.id) === String(current))) select.value = current;
+    else if (rows.length === 1 && !isAdminRole()) select.value = rows[0].id;
+  }
+  function refreshEmployeeSelects(){
+    fillSelect('#leaveForm select[name="employeeId"]', 'leaves');
+    fillSelect('#travelRequestForm select[name="employeeId"]', 'leaves');
+    fillSelect('#absenceForm select[name="employeeId"]', 'attendance');
+  }
+  window.refreshEmployeeSelectorsFinal = refreshEmployeeSelects;
+
+  function loadTravels(){
+    try { const raw = localStorage.getItem(TRAVEL_KEY); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; } catch (_) { return []; }
+  }
+  function saveTravels(list){ localStorage.setItem(TRAVEL_KEY, JSON.stringify(Array.isArray(list) ? list : [])); }
+  function cleanTravels(){
+    const list = loadTravels();
+    const cleaned = list.filter((travel) => Boolean(employeeByIdLocal(travel.employeeId)));
+    if (cleaned.length !== list.length) saveTravels(cleaned);
+    return cleaned;
+  }
+  function visibleLeaves(){
+    const rows = Array.isArray(leaves) ? leaves : [];
+    if (isAdminRole() || canPerm('leaves.viewAll')) return rows;
+    const linked = linkedEmployee();
+    return linked ? rows.filter((leave) => String(leave.employeeId) === String(linked.id)) : rows;
+  }
+  function visibleTravels(){
+    const rows = cleanTravels();
+    if (isAdminRole() || canPerm('leaves.viewAll')) return rows;
+    const linked = linkedEmployee();
+    return linked ? rows.filter((travel) => String(travel.employeeId) === String(linked.id)) : rows;
+  }
+  function leaveBadge(status){
+    try { return leaveStatusBadge(status); } catch (_) {}
+    const text = status === 'approved' ? 'معتمدة' : status === 'rejected' ? 'مرفوضة' : 'بانتظار الموافقة';
+    const cls = status === 'approved' ? 'status-active' : status === 'rejected' ? 'status-rejected' : 'status-pending';
+    return `<span class="status-badge ${cls}">${text}</span>`;
+  }
+  function travelBadge(travel){
+    const status = travel?.status || 'pending';
+    if (status === 'rejected') return '<span class="status-badge status-rejected">مرفوض</span>';
+    if (status === 'returned') return '<span class="status-badge status-active">تمت المباشرة</span>';
+    if (status === 'approved') return '<span class="status-badge status-leave">مسافر</span>';
+    return '<span class="status-badge status-pending">بانتظار الاعتماد</span>';
+  }
+  function employeeCellLocal(employee){
+    try { if (typeof employeeCell === 'function') return employeeCell(employee); } catch (_) {}
+    return esc(employee?.name || '—');
+  }
+  function renderLeaveRows(scopedLeaves){
+    const rows = currentLeaveTravelTab === 'all' ? scopedLeaves : ['pending','approved','rejected'].includes(currentLeaveTravelTab) ? scopedLeaves.filter((leave) => leave.status === currentLeaveTravelTab) : [];
+    return rows.length ? rows.map((leave) => {
+      const employee = employeeByIdLocal(leave.employeeId);
+      if (!employee) return '';
+      let actions = leaveBadge(leave.status);
+      if (leave.status === 'pending') {
+        const reject = canPerm('leaves.reject') ? `<button class="secondary-btn" data-leave-action="rejected" data-leave-id="${esc(leave.id)}">رفض</button>` : '';
+        const approve = canPerm('leaves.approve') ? `<button class="primary-btn" data-leave-action="approved" data-leave-id="${esc(leave.id)}">اعتماد الإجازة</button>` : '';
+        actions = reject + approve || actions;
+      } else if (leave.status === 'approved' && !leave.returnDate && canPerm('leaves.resume')) {
+        actions = `${leaveBadge(leave.status)}<button class="primary-btn" data-leave-return="${esc(leave.id)}">تسجيل مباشرة</button>`;
+      } else if (leave.returnDate) {
+        actions = `<span class="status-badge status-active">تمت المباشرة ${fdate(leave.returnDate)}</span>`;
+      }
+      return `<tr><td>${employeeCellLocal(employee)}</td><td>${esc(leave.type)}</td><td>${fdate(leave.from)}</td><td>${fdate(leave.to)}</td><td>${n(leave.days || 0)} أيام</td><td>${leaveBadge(leave.status)}</td><td><div class="travel-actions">${actions}</div></td></tr>`;
+    }).join('') : `<tr><td colspan="7"><div class="empty-state"><strong>لا توجد طلبات في هذه الفئة</strong></div></td></tr>`;
+  }
+  function renderTravelRows(scopedTravels){
+    const rows = currentLeaveTravelTab === 'travel-pending' ? scopedTravels.filter((travel) => travel.status === 'pending') : scopedTravels;
+    return rows.length ? rows.map((travel) => {
+      const employee = employeeByIdLocal(travel.employeeId);
+      if (!employee) return '';
+      let actions = travelBadge(travel);
+      if (travel.status === 'pending') {
+        const reject = canPerm('leaves.reject') ? `<button class="secondary-btn" data-travel-reject="${esc(travel.id)}">رفض</button>` : '';
+        const approve = canPerm('leaves.approve') ? `<button class="primary-btn" data-travel-approve="${esc(travel.id)}">اعتماد السفر</button>` : '';
+        actions = reject + approve || actions;
+      } else if (travel.status === 'approved' && !travel.workResumeDate && canPerm('leaves.resume')) {
+        actions = `${travelBadge(travel)}<button class="primary-btn" data-travel-resume="${esc(travel.id)}">تسجيل مباشرة عمل</button>`;
+      }
+      return `<tr><td>${employeeCellLocal(employee)}</td><td>${fdate(travel.travelDate)}</td><td>${travel.returnDate ? fdate(travel.returnDate) : 'غير محدد'}</td><td>${travel.workResumeDate ? fdate(travel.workResumeDate) : 'لم يباشر'}</td><td>${travelBadge(travel)}</td><td><div class="travel-actions">${actions}</div></td></tr>`;
+    }).join('') : `<tr><td colspan="6"><div class="empty-state"><strong>لا توجد طلبات سفر</strong></div></td></tr>`;
+  }
+  function tabButton(key, label, count){
+    return `<button type="button" class="${currentLeaveTravelTab === key ? 'active' : ''}" data-leave-filter="${key}">${label}${typeof count !== 'undefined' ? ` <span>${n(count)}</span>` : ''}</button>`;
+  }
+  function renderUnifiedLeaves(){
+    const view = document.querySelector('#leavesView');
+    if (!view) return;
+    const scopedLeaves = visibleLeaves();
+    const scopedTravels = visibleTravels();
+    const pendingTravelCount = scopedTravels.filter((travel) => travel.status === 'pending').length;
+    const leaveRows = renderLeaveRows(scopedLeaves);
+    const travelRows = renderTravelRows(scopedTravels);
+    view.innerHTML = `<div class="leave-travel-hero">
+      <button type="button" class="request-card request-card-leave ${!canPerm('leaves.createLeave') ? 'is-permission-hidden' : ''}" id="newLeaveBtn"><span data-icon="calendar"></span><strong>طلب إجازة</strong><small>إنشاء طلب إجازة جديد</small></button>
+      <button type="button" class="request-card request-card-travel ${!canPerm('leaves.createTravel') ? 'is-permission-hidden' : ''}" id="newTravelBtn"><span data-icon="plane"></span><strong>طلب سفر</strong><small>طلب سفر بتاريخ عودة أو بدون عودة</small></button>
+    </div>
+    <div class="leave-tabs">
+      ${tabButton('all', 'جميع الإجازات', scopedLeaves.length)}
+      ${tabButton('pending', 'إجازات بانتظار الموافقة', scopedLeaves.filter((leave) => leave.status === 'pending').length)}
+      ${tabButton('approved', 'إجازات معتمدة', scopedLeaves.filter((leave) => leave.status === 'approved').length)}
+      ${tabButton('rejected', 'إجازات مرفوضة', scopedLeaves.filter((leave) => leave.status === 'rejected').length)}
+      ${tabButton('travel-pending', 'طلبات سفر معلقة', pendingTravelCount)}
+    </div>
+    <div class="leave-travel-tables">
+      <article class="panel travel-table-panel identity-table-panel travel-colored-panel"><div class="panel-head"><div><h3>المسافرون</h3><p>طلبات السفر وحالة المباشرة</p></div></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>تاريخ المباشرة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${travelRows}</tbody></table></div></article>
+      <article class="panel leave-table-panel identity-table-panel leave-colored-panel"><div class="panel-head"><div><h3>الإجازات</h3><p>طلبات الإجازة حسب الحالة</p></div></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>نوع الإجازة</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${leaveRows}</tbody></table></div></article>
+    </div>`;
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(view); } catch (_) {}
+    refreshEmployeeSelects();
+  }
+
+  function ensureAlertDialog(){
+    let dialog = document.querySelector('#identityAlertModal');
+    if (dialog) return dialog;
+    dialog = document.createElement('dialog');
+    dialog.id = 'identityAlertModal';
+    dialog.className = 'app-dialog identity-alert-modal';
+    dialog.innerHTML = `<form method="dialog" class="modal-card identity-alert-card"><div class="modal-head"><div><h3>تنبيه</h3><p id="identityAlertText"></p></div></div><div class="modal-actions"><button class="primary-btn" value="ok">حسناً</button></div></form>`;
+    document.body.appendChild(dialog);
+    return dialog;
+  }
+  function showAlert(message){
+    const dialog = ensureAlertDialog();
+    const text = dialog.querySelector('#identityAlertText');
+    if (text) text.textContent = message || 'حدث تنبيه في النظام';
+    try { if (!dialog.open) dialog.showModal(); } catch (_) { alert(message); }
+  }
+
+  const previousShowToast = typeof showToast === 'function' ? showToast : null;
+  if (previousShowToast && !previousShowToast.__identityAlertWrapped) {
+    const wrappedToast = function(message){
+      if (String(message || '').includes('رقم الهوية مستخدم مسبقًا')) { showAlert(message); return; }
+      return previousShowToast.apply(this, arguments);
+    };
+    wrappedToast.__identityAlertWrapped = true;
+    try { showToast = wrappedToast; } catch (_) {}
+    window.showToast = wrappedToast;
+  }
+
+  const previousRenderLeaves = typeof renderLeaves === 'function' ? renderLeaves : null;
+  if (previousRenderLeaves && !previousRenderLeaves.__ultimateUnifiedWrapped) {
+    const wrappedRenderLeaves = function(){ return renderUnifiedLeaves(); };
+    wrappedRenderLeaves.__ultimateUnifiedWrapped = true;
+    try { renderLeaves = wrappedRenderLeaves; } catch (_) {}
+    window.renderLeaves = wrappedRenderLeaves;
+  }
+
+  document.addEventListener('click', (event) => {
+    const tab = event.target.closest?.('[data-leave-filter]');
+    if (tab) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      currentLeaveTravelTab = tab.dataset.leaveFilter || 'all';
+      try { activeLeaveFilter = ['all','pending','approved','rejected'].includes(currentLeaveTravelTab) ? currentLeaveTravelTab : 'all'; } catch (_) {}
+      renderUnifiedLeaves();
+      return;
+    }
+    const leaveBtn = event.target.closest?.('#newLeaveBtn');
+    if (leaveBtn) {
+      setTimeout(refreshEmployeeSelects, 0);
+      setTimeout(refreshEmployeeSelects, 80);
+      setTimeout(refreshEmployeeSelects, 250);
+      return;
+    }
+    const travelBtn = event.target.closest?.('#newTravelBtn');
+    if (travelBtn) {
+      setTimeout(refreshEmployeeSelects, 0);
+      setTimeout(refreshEmployeeSelects, 80);
+      setTimeout(refreshEmployeeSelects, 250);
+      setTimeout(refreshEmployeeSelects, 600);
+    }
+  }, true);
+
+  document.addEventListener('change', (event) => {
+    if (event.target?.matches?.('#leaveForm select[name="employeeId"], #travelRequestForm select[name="employeeId"], #absenceForm select[name="employeeId"]')) {
+      event.target.dataset.selected = event.target.value || '';
+    }
+  }, true);
+
+  const previousRenderAll = typeof renderAll === 'function' ? renderAll : null;
+  if (previousRenderAll && !previousRenderAll.__ultimateLeaveTravelWrapped) {
+    const wrappedRenderAll = function(){
+      const result = previousRenderAll.apply(this, arguments);
+      try { refreshEmployeeSelects(); } catch (_) {}
+      return result;
+    };
+    wrappedRenderAll.__ultimateLeaveTravelWrapped = true;
+    try { renderAll = wrappedRenderAll; } catch (_) {}
+  }
+
+  setTimeout(() => { try { refreshEmployeeSelects(); if (document.querySelector('#leavesView')) renderUnifiedLeaves(); } catch (_) {} }, 350);
+})();
+
+
+/* Definitive fix 2026-06-27: employee identity, leave/travel selectors, tabs, and identity alert */
+(function definitiveEmployeeLeaveTravelFix(){
+  const TRAVEL_KEY = 'nawah-travel-requests';
+  let activeTab = 'all';
+
+  function esc(value){
+    try { if (typeof escapeHtml === 'function') return escapeHtml(value ?? ''); } catch(_) {}
+    return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+  function n(value){ try { return typeof arabicNumber === 'function' ? arabicNumber(value) : value; } catch(_) { return value; } }
+  function fdate(value){ try { return value ? formatDate(value) : '—'; } catch(_) { return value || '—'; } }
+  function today(){ try { return formatInputDate(todayAtNoon()); } catch(_) { return new Date().toISOString().slice(0,10); } }
+  function employeeRows(){
+    return Array.isArray(employees) ? employees.filter((employee) => employee && employee.id && employee.status !== 'terminated') : [];
+  }
+  function employeeByIdFixed(id){
+    try { if (typeof getEmployee === 'function') return getEmployee(id); } catch(_) {}
+    return employeeRows().find((employee) => String(employee.id) === String(id));
+  }
+  function empCell(employee){
+    try { if (typeof employeeCell === 'function') return employeeCell(employee); } catch(_) {}
+    return `<button type="button" class="employee-name-link" data-edit-employee="${esc(employee?.id || '')}">${esc(employee?.name || '—')}</button>`;
+  }
+  function canDo(key){
+    try { if (String(authProfile?.role || '').trim() === 'admin') return true; } catch(_) {}
+    try { if (typeof currentRoleKey === 'function' && currentRoleKey() === 'admin') return true; } catch(_) {}
+    try { if (window.employeePermissionMatrix?.can?.(key)) return true; } catch(_) {}
+    try { if (typeof roleCan === 'function' && roleCan(key)) return true; } catch(_) {}
+    return true;
+  }
+  function linkedEmployeeFixed(){
+    try { return window.employeePermissionMatrix?.linkedEmployee?.() || null; } catch(_) { return null; }
+  }
+  function isAdminFixed(){
+    try { if (String(authProfile?.role || '').trim() === 'admin') return true; } catch(_) {}
+    try { if (typeof currentRoleKey === 'function' && currentRoleKey() === 'admin') return true; } catch(_) {}
+    return false;
+  }
+  function visibleEmployeesForRequest(){
+    const rows = employeeRows();
+    const linked = linkedEmployeeFixed();
+    if (isAdminFixed() || canDo('leaves.createForAll') || canDo('leaves.viewAll') || !linked) return rows;
+    return [linked];
+  }
+  function fillRequestEmployeeSelect(selector, selected){
+    const select = document.querySelector(selector);
+    if (!select) return;
+    const current = selected || select.value || select.dataset.selected || '';
+    const rows = visibleEmployeesForRequest();
+    select.disabled = false;
+    select.removeAttribute('disabled');
+    select.removeAttribute('aria-disabled');
+    select.style.pointerEvents = 'auto';
+    select.style.opacity = '1';
+    select.classList.remove('readonly-employee-select');
+    select.innerHTML = '<option value="">اختر الموظف</option>' + rows.map((employee) => {
+      const label = `${employee.name || 'موظف'}${employee.employeeNumber ? ` - ${employee.employeeNumber}` : ''}`;
+      return `<option value="${esc(employee.id)}">${esc(label)}</option>`;
+    }).join('');
+    if (!rows.length) select.innerHTML = '<option value="">لا يوجد موظفون متاحون</option>';
+    if (rows.some((employee) => String(employee.id) === String(current))) select.value = current;
+    else if (!isAdminFixed() && rows.length === 1) select.value = rows[0].id;
+  }
+  function refreshRequestEmployeeSelects(){
+    fillRequestEmployeeSelect('#leaveForm select[name="employeeId"]');
+    fillRequestEmployeeSelect('#travelRequestForm select[name="employeeId"]');
+    fillRequestEmployeeSelect('#absenceForm select[name="employeeId"]');
+  }
+  window.refreshEmployeeSelectorsFinal = refreshRequestEmployeeSelects;
+
+  function loadTravels(){
+    try { const raw = localStorage.getItem(TRAVEL_KEY); const rows = raw ? JSON.parse(raw) : []; return Array.isArray(rows) ? rows : []; } catch(_) { return []; }
+  }
+  function saveTravels(rows){ try { localStorage.setItem(TRAVEL_KEY, JSON.stringify(Array.isArray(rows) ? rows : [])); } catch(_) {} }
+  function cleanTravels(){
+    const rows = loadTravels();
+    const clean = rows.filter((travel) => employeeByIdFixed(travel.employeeId));
+    if (clean.length !== rows.length) saveTravels(clean);
+    return clean;
+  }
+  function visibleLeavesFixed(){
+    const rows = Array.isArray(leaves) ? leaves.filter((leave) => employeeByIdFixed(leave.employeeId)) : [];
+    if (isAdminFixed() || canDo('leaves.viewAll')) return rows;
+    const linked = linkedEmployeeFixed();
+    return linked ? rows.filter((leave) => String(leave.employeeId) === String(linked.id)) : rows;
+  }
+  function visibleTravelsFixed(){
+    const rows = cleanTravels();
+    if (isAdminFixed() || canDo('leaves.viewAll')) return rows;
+    const linked = linkedEmployeeFixed();
+    return linked ? rows.filter((travel) => String(travel.employeeId) === String(linked.id)) : rows;
+  }
+  function leaveBadgeFixed(status){
+    try { return leaveStatusBadge(status); } catch(_) {}
+    const text = status === 'approved' ? 'معتمدة' : status === 'rejected' ? 'مرفوضة' : 'بانتظار الموافقة';
+    const cls = status === 'approved' ? 'status-active' : status === 'rejected' ? 'status-rejected' : 'status-pending';
+    return `<span class="status-badge ${cls}">${text}</span>`;
+  }
+  function travelBadgeFixed(travel){
+    const status = travel?.status || 'pending';
+    if (status === 'rejected') return '<span class="status-badge status-rejected">مرفوض</span>';
+    if (status === 'returned') return '<span class="status-badge status-active">تمت المباشرة</span>';
+    if (status === 'approved') return '<span class="status-badge status-leave">مسافر</span>';
+    return '<span class="status-badge status-pending">بانتظار الاعتماد</span>';
+  }
+  function leaveRowsHtml(rows){
+    let filtered = rows;
+    if (['pending','approved','rejected'].includes(activeTab)) filtered = rows.filter((leave) => leave.status === activeTab);
+    if (activeTab === 'travel-pending') filtered = [];
+    if (!filtered.length) return '<tr><td colspan="7"><div class="empty-state"><strong>لا توجد إجازات في هذه الفئة</strong></div></td></tr>';
+    return filtered.map((leave) => {
+      const employee = employeeByIdFixed(leave.employeeId);
+      if (!employee) return '';
+      let actions = leaveBadgeFixed(leave.status);
+      if (leave.status === 'pending') {
+        const reject = canDo('leaves.reject') ? `<button type="button" class="secondary-btn" data-leave-action="rejected" data-leave-id="${esc(leave.id)}">رفض</button>` : '';
+        const approve = canDo('leaves.approve') ? `<button type="button" class="primary-btn" data-leave-action="approved" data-leave-id="${esc(leave.id)}">اعتماد الإجازة</button>` : '';
+        actions = reject + approve || actions;
+      } else if (leave.status === 'approved' && !leave.returnDate && canDo('leaves.resume')) {
+        actions = `${leaveBadgeFixed(leave.status)}<button type="button" class="primary-btn" data-leave-return="${esc(leave.id)}">تسجيل مباشرة</button>`;
+      } else if (leave.returnDate) {
+        actions = `<span class="status-badge status-active">تمت المباشرة ${fdate(leave.returnDate)}</span>`;
+      }
+      return `<tr><td>${empCell(employee)}</td><td>${esc(leave.type)}</td><td>${fdate(leave.from)}</td><td>${fdate(leave.to)}</td><td>${n(leave.days || 0)} أيام</td><td>${leaveBadgeFixed(leave.status)}</td><td><div class="travel-actions">${actions}</div></td></tr>`;
+    }).join('');
+  }
+  function travelRowsHtml(rows){
+    let filtered = rows;
+    if (activeTab === 'travel-pending') filtered = rows.filter((travel) => travel.status === 'pending');
+    if (!filtered.length) return '<tr><td colspan="6"><div class="empty-state"><strong>لا توجد طلبات سفر في هذه الفئة</strong></div></td></tr>';
+    return filtered.map((travel) => {
+      const employee = employeeByIdFixed(travel.employeeId);
+      if (!employee) return '';
+      let actions = travelBadgeFixed(travel);
+      if (travel.status === 'pending') {
+        const reject = canDo('leaves.reject') ? `<button type="button" class="secondary-btn" data-travel-reject="${esc(travel.id)}">رفض</button>` : '';
+        const approve = canDo('leaves.approve') ? `<button type="button" class="primary-btn" data-travel-approve="${esc(travel.id)}">اعتماد السفر</button>` : '';
+        actions = reject + approve || actions;
+      } else if (travel.status === 'approved' && !travel.workResumeDate && canDo('leaves.resume')) {
+        actions = `${travelBadgeFixed(travel)}<button type="button" class="primary-btn" data-travel-resume="${esc(travel.id)}">تسجيل مباشرة عمل</button>`;
+      }
+      return `<tr><td>${empCell(employee)}</td><td>${fdate(travel.travelDate)}</td><td>${travel.returnDate ? fdate(travel.returnDate) : 'غير محدد'}</td><td>${travel.workResumeDate ? fdate(travel.workResumeDate) : 'لم يباشر'}</td><td>${travelBadgeFixed(travel)}</td><td><div class="travel-actions">${actions}</div></td></tr>`;
+    }).join('');
+  }
+  function tab(key, label, count){ return `<button type="button" class="${activeTab === key ? 'active' : ''}" data-leave-filter="${key}">${label}${typeof count !== 'undefined' ? ` <span>${n(count)}</span>` : ''}</button>`; }
+  function renderLeavesFixed(){
+    const view = document.querySelector('#leavesView');
+    if (!view) return;
+    const leaveList = visibleLeavesFixed();
+    const travelList = visibleTravelsFixed();
+    view.innerHTML = `<div class="leave-travel-hero">
+      <button type="button" class="request-card request-card-leave" id="newLeaveBtn"><span data-icon="calendar"></span><strong>طلب إجازة</strong><small>إنشاء طلب إجازة جديد</small></button>
+      <button type="button" class="request-card request-card-travel" id="newTravelBtn"><span data-icon="plane"></span><strong>طلب سفر</strong><small>إنشاء طلب سفر بتاريخ عودة أو بدون عودة</small></button>
+    </div>
+    <div class="leave-tabs leave-tabs-fixed">
+      ${tab('all','جميع الإجازات', leaveList.length)}
+      ${tab('pending','إجازات بانتظار الموافقة', leaveList.filter((leave) => leave.status === 'pending').length)}
+      ${tab('approved','إجازات معتمدة', leaveList.filter((leave) => leave.status === 'approved').length)}
+      ${tab('rejected','إجازات مرفوضة', leaveList.filter((leave) => leave.status === 'rejected').length)}
+      ${tab('travel-pending','طلبات سفر معلقة', travelList.filter((travel) => travel.status === 'pending').length)}
+    </div>
+    <div class="leave-travel-tables">
+      <article class="panel travel-table-panel travel-colored-panel"><div class="panel-head"><div><h3>المسافرون</h3><p>طلبات السفر وحالة المباشرة</p></div></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>تاريخ المباشرة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${travelRowsHtml(travelList)}</tbody></table></div></article>
+      <article class="panel leave-table-panel leave-colored-panel"><div class="panel-head"><div><h3>الإجازات</h3><p>طلبات الإجازة حسب الحالة</p></div></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>نوع الإجازة</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${leaveRowsHtml(leaveList)}</tbody></table></div></article>
+    </div>`;
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(view); } catch(_) {}
+    refreshRequestEmployeeSelects();
+  }
+  try { renderLeaves = renderLeavesFixed; window.renderLeaves = renderLeavesFixed; } catch(_) {}
+
+  function openLeaveModalFixed(){
+    const modal = document.querySelector('#leaveModal');
+    const form = document.querySelector('#leaveForm');
+    if (!modal || !form) return;
+    try { if (typeof populateFormOptions === 'function') populateFormOptions(); } catch(_) {}
+    form.reset();
+    if (form.elements.from) form.elements.from.value = today();
+    if (form.elements.to) form.elements.to.value = today();
+    fillRequestEmployeeSelect('#leaveForm select[name="employeeId"]');
+    try { modal.showModal(); } catch(_) { modal.setAttribute('open','open'); }
+    setTimeout(() => fillRequestEmployeeSelect('#leaveForm select[name="employeeId"]'), 30);
+  }
+  function openTravelModalFixed(){
+    const modal = document.querySelector('#travelRequestModal');
+    const form = document.querySelector('#travelRequestForm');
+    if (!modal || !form) return false;
+    form.reset();
+    if (form.elements.travelDate) form.elements.travelDate.value = today();
+    if (form.elements.travelMode) form.elements.travelMode.value = 'oneway';
+    if (form.elements.returnMode) form.elements.returnMode.value = 'date';
+    if (form.elements.returnDate) form.elements.returnDate.value = '';
+    if (form.elements.returnDays) form.elements.returnDays.value = '';
+    fillRequestEmployeeSelect('#travelRequestForm select[name="employeeId"]');
+    const planner = document.querySelector('#travelReturnPlanner');
+    if (planner) planner.style.display = 'none';
+    try { modal.showModal(); } catch(_) { modal.setAttribute('open','open'); }
+    setTimeout(() => fillRequestEmployeeSelect('#travelRequestForm select[name="employeeId"]'), 30);
+    return true;
+  }
+  function showModalMessage(message, title = 'تنبيه'){
+    let dialog = document.querySelector('#systemMessageModal');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = 'systemMessageModal';
+      dialog.className = 'app-dialog system-message-modal';
+      dialog.innerHTML = `<form method="dialog" class="modal-card system-message-card"><div class="modal-head"><div><h3 id="systemMessageTitle"></h3><p id="systemMessageText"></p></div></div><div class="modal-actions"><button class="primary-btn" value="ok">حسناً</button></div></form>`;
+      document.body.appendChild(dialog);
+    }
+    const titleEl = dialog.querySelector('#systemMessageTitle');
+    const textEl = dialog.querySelector('#systemMessageText');
+    if (titleEl) titleEl.textContent = title;
+    if (textEl) textEl.textContent = message || 'حدث تنبيه في النظام';
+    try { dialog.showModal(); } catch(_) { alert(message); }
+  }
+  window.showModalMessage = showModalMessage;
+
+  window.addEventListener('click', (event) => {
+    const tabButton = event.target.closest?.('[data-leave-filter]');
+    if (tabButton && tabButton.closest('#leavesView')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      activeTab = tabButton.dataset.leaveFilter || 'all';
+      try { activeLeaveFilter = ['all','pending','approved','rejected'].includes(activeTab) ? activeTab : 'all'; } catch(_) {}
+      renderLeavesFixed();
+      return;
+    }
+    const leaveButton = event.target.closest?.('#newLeaveBtn');
+    if (leaveButton && leaveButton.closest('#leavesView')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openLeaveModalFixed();
+      return;
+    }
+    const travelButton = event.target.closest?.('#newTravelBtn');
+    if (travelButton && travelButton.closest('#leavesView')) {
+      const opened = openTravelModalFixed();
+      if (opened) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }
+  }, true);
+
+  document.addEventListener('change', (event) => {
+    if (event.target?.matches?.('#leaveForm select[name="employeeId"], #travelRequestForm select[name="employeeId"], #absenceForm select[name="employeeId"]')) {
+      event.target.dataset.selected = event.target.value || '';
+    }
+  }, true);
+
+  document.addEventListener('submit', (event) => {
+    const form = event.target;
+    if (!form || form.id !== 'employeeForm') return;
+    const identity = (function(value){
+      try { return normalizeNumerals(value || '').replace(/\D/g, ''); } catch(_) { return String(value || '').replace(/\D/g, ''); }
+    })(form.elements?.identityNumber?.value || '');
+    const editingId = String(form.elements?.employeeId?.value || '');
+    if (!identity) return;
+    const duplicate = employeeRows().find((employee) => {
+      let empIdentity = '';
+      try { empIdentity = normalizeNumerals(employee.identityNumber || '').replace(/\D/g, ''); } catch(_) { empIdentity = String(employee.identityNumber || '').replace(/\D/g, ''); }
+      return empIdentity === identity && String(employee.id) !== editingId;
+    });
+    if (duplicate) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      try { if (typeof switchEmployeeSection === 'function') switchEmployeeSection('identity'); } catch(_) {}
+      showModalMessage(`رقم الهوية مستخدم مسبقًا للموظف: ${duplicate.name || 'موظف آخر'}`, 'تنبيه رقم الهوية');
+    }
+  }, true);
+
+  setTimeout(() => { try { refreshRequestEmployeeSelects(); if (document.querySelector('#leavesView')) renderLeavesFixed(); } catch(_) {} }, 400);
 })();

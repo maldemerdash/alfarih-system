@@ -8010,3 +8010,102 @@ body.auth-locked .app-shell {
   color: #13778c !important;
   font-weight: 900 !important;
 }
+
+/* Ultimate leave/travel color identity and popup layering */
+.leave-travel-hero .request-card {
+  position: relative !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(15, 118, 140, .14) !important;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, .08) !important;
+}
+.leave-travel-hero .request-card::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 0 auto 0 !important;
+  height: 6px !important;
+  pointer-events: none !important;
+}
+.request-card-leave {
+  background: linear-gradient(180deg, rgba(245,158,11,.09), #fff 42%) !important;
+}
+.request-card-leave::before {
+  background: linear-gradient(100deg, #f59e0b, #f7c948) !important;
+}
+.request-card-travel {
+  background: linear-gradient(180deg, rgba(18,148,184,.09), #fff 42%) !important;
+}
+.request-card-travel::before {
+  background: linear-gradient(100deg, #14b8a6, #1294b8) !important;
+}
+.identity-table-panel {
+  position: relative !important;
+  overflow: hidden !important;
+  border-width: 1px !important;
+}
+.identity-table-panel::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 0 auto 0 !important;
+  height: 7px !important;
+  z-index: 1 !important;
+}
+.travel-colored-panel {
+  border-color: rgba(18,148,184,.22) !important;
+  background: linear-gradient(180deg, rgba(18,148,184,.06), #fff 30%) !important;
+}
+.travel-colored-panel::before {
+  background: linear-gradient(100deg, #14b8a6, #1294b8) !important;
+}
+.leave-colored-panel {
+  border-color: rgba(245,158,11,.24) !important;
+  background: linear-gradient(180deg, rgba(245,158,11,.055), #fff 30%) !important;
+}
+.leave-colored-panel::before {
+  background: linear-gradient(100deg, #f59e0b, #f7c948) !important;
+}
+.travel-colored-panel thead th {
+  background: rgba(18,148,184,.075) !important;
+}
+.leave-colored-panel thead th {
+  background: rgba(245,158,11,.085) !important;
+}
+.leave-tabs [data-leave-filter="travel-pending"].active {
+  background: linear-gradient(135deg, #14b8a6, #1294b8) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+#identityAlertModal {
+  z-index: 999999 !important;
+}
+#identityAlertModal::backdrop {
+  background: rgba(15, 23, 42, .42) !important;
+  backdrop-filter: blur(2px) !important;
+}
+.identity-alert-card {
+  max-width: 460px !important;
+  border: 1px solid rgba(245,158,11,.26) !important;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, .28) !important;
+}
+.identity-alert-card .modal-head {
+  background: linear-gradient(135deg, rgba(20,184,166,.12), rgba(18,148,184,.10)) !important;
+  border-radius: 18px !important;
+  padding: 16px !important;
+}
+.identity-alert-card h3 {
+  color: #0f766e !important;
+}
+#identityAlertText {
+  color: #334155 !important;
+  font-weight: 800 !important;
+  line-height: 1.8 !important;
+}
+#leaveForm select[name="employeeId"],
+#travelRequestForm select[name="employeeId"],
+#absenceForm select[name="employeeId"] {
+  pointer-events: auto !important;
+  opacity: 1 !important;
+}
+
+
+/* Definitive leave/travel visual colors and modal stacking */
+.leave-travel-hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}.leave-travel-hero .request-card{position:relative;overflow:hidden;border:0;border-radius:24px;padding:20px;min-height:118px;box-shadow:0 16px 35px rgba(15,23,42,.10);transition:transform .2s ease,box-shadow .2s ease}.leave-travel-hero .request-card:hover{transform:translateY(-2px);box-shadow:0 20px 42px rgba(15,23,42,.14)}.leave-travel-hero .request-card::before{content:"";position:absolute;inset:0;opacity:.96;z-index:0}.leave-travel-hero .request-card>*{position:relative;z-index:1}.leave-travel-hero .request-card strong,.leave-travel-hero .request-card small{color:#fff}.leave-travel-hero .request-card span[data-icon]{background:rgba(255,255,255,.22);color:#fff}.request-card-leave::before{background:linear-gradient(135deg,#0f766e,#0ea5a8 48%,#2563eb)}.request-card-travel::before{background:linear-gradient(135deg,#0ea5a8,#0891b2 48%,#1d4ed8)}.leave-tabs-fixed{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px}.leave-tabs-fixed button{border:1px solid rgba(14,165,168,.22);background:#fff;color:#0f172a;border-radius:999px;padding:10px 14px;cursor:pointer}.leave-tabs-fixed button.active{background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;border-color:transparent;box-shadow:0 10px 22px rgba(8,145,178,.20)}.travel-colored-panel,.leave-colored-panel{position:relative;overflow:hidden;border:1px solid transparent}.travel-colored-panel::before,.leave-colored-panel::before{content:"";position:absolute;top:0;left:0;right:0;height:6px}.travel-colored-panel::before{background:linear-gradient(90deg,#0f766e,#0891b2,#2563eb)}.leave-colored-panel::before{background:linear-gradient(90deg,#f59e0b,#0ea5a8,#2563eb)}.travel-colored-panel .panel-head{background:linear-gradient(135deg,rgba(15,118,110,.10),rgba(37,99,235,.08));margin:-20px -20px 14px;padding:22px 20px 16px}.leave-colored-panel .panel-head{background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(14,165,168,.08));margin:-20px -20px 14px;padding:22px 20px 16px}.travel-colored-panel thead th{background:rgba(8,145,178,.10);color:#0f766e}.leave-colored-panel thead th{background:rgba(245,158,11,.12);color:#92400e}#systemMessageModal,#identityAlertModal{z-index:2147483647!important}#systemMessageModal::backdrop,#identityAlertModal::backdrop{background:rgba(15,23,42,.55)!important;backdrop-filter:none!important}.system-message-card,.identity-alert-card{max-width:460px!important;border-radius:24px!important}.modal select[name="employeeId"]{pointer-events:auto!important;opacity:1!important}select.readonly-employee-select{pointer-events:auto!important;opacity:1!important}@media(max-width:860px){.leave-travel-hero{grid-template-columns:1fr}}
