@@ -9630,3 +9630,428 @@ document.addEventListener("click", function(event) {
     applyRolePermissions();
   };
 })();
+
+/* =========================================================
+   Stable detailed permissions matrix - design-preserving patch
+   Source base: permissions_security_simplified
+   ========================================================= */
+(function stableDetailedPermissionsMatrix(){
+  const GROUPS = [
+    { id:'dashboard', title:'الصفحة الرئيسية', items:[
+      ['dashboard.open','فتح الصفحة الرئيسية'],
+      ['dashboard.stats','عرض بطاقات الإحصائيات العلوية'],
+      ['dashboard.statEmployees','بطاقة إجمالي الموظفين'],
+      ['dashboard.statAttendance','بطاقة الحاضرون اليوم'],
+      ['dashboard.statLeaves','بطاقة طلبات الإجازة'],
+      ['dashboard.statPayroll','بطاقة رواتب هذا الشهر'],
+      ['dashboard.attendanceOverview','عرض نظرة عامة على الحضور'],
+      ['dashboard.reviewRequests','عرض بطاقة طلبات تحتاج مراجعة'],
+      ['dashboard.reviewViewDetails','فتح تفاصيل الطلب من زر العين'],
+      ['dashboard.reviewApprove','موافقة الطلبات من الرئيسية'],
+      ['dashboard.reviewReject','رفض الطلبات من الرئيسية'],
+      ['dashboard.travelers','عرض بطاقة المسافرون'],
+      ['dashboard.travelersAll','عرض جميع المسافرين'],
+      ['dashboard.travelersOwn','عرض مسافري المستخدم فقط'],
+      ['dashboard.expiringDocs','عرض وثائق قرب الانتهاء'],
+      ['dashboard.expiringEmployeeDocsAll','عرض وثائق جميع الموظفين قرب الانتهاء'],
+      ['dashboard.expiringEmployeeDocsOwn','عرض وثائق الموظف نفسه قرب الانتهاء'],
+      ['dashboard.recentEmployees','عرض أحدث الموظفين'],
+      ['dashboard.quickReviewButton','زر مراجعة الطلبات'],
+      ['dashboard.quickAbsenceButton','زر تسجيل الغياب في الشريط']
+    ]},
+    { id:'employees', title:'الموظفون', items:[
+      ['employees.open','فتح قسم الموظفين'],
+      ['employees.viewSelf','عرض ملفه فقط'],
+      ['employees.viewAll','عرض جميع الموظفين'],
+      ['employees.create','إضافة موظف'],
+      ['employees.edit','تعديل بيانات الموظف'],
+      ['employees.delete','حذف موظف'],
+      ['employees.changeStatus','تغيير حالة الموظف'],
+      ['employees.attachmentsView','عرض مرفقات الموظف'],
+      ['employees.attachmentsUpload','رفع مرفقات الموظف'],
+      ['employees.attachmentsDelete','حذف مرفقات الموظف'],
+      ['employees.documentsView','عرض وثائق الموظف'],
+      ['employees.documentsEdit','تعديل وثائق الموظف'],
+      ['employees.export','تصدير الموظفين']
+    ]},
+    { id:'attendance', title:'الحضور والانصراف', items:[
+      ['attendance.open','فتح قسم الحضور والانصراف'],
+      ['attendance.viewSelf','عرض حضوره فقط'],
+      ['attendance.viewAll','عرض حضور الجميع'],
+      ['attendance.markPresentSelf','تسجيل حضور لنفسه'],
+      ['attendance.markAbsent','تسجيل غياب'],
+      ['attendance.markAbsentOthers','تسجيل غياب لموظف آخر'],
+      ['attendance.edit','تعديل سجلات الحضور'],
+      ['attendance.delete','حذف سجلات الحضور'],
+      ['attendance.export','تصدير تقرير الحضور'],
+      ['attendance.absencePolicy','تعديل قاعدة بيانات الغياب']
+    ]},
+    { id:'leaves', title:'الإجازات والسفر', items:[
+      ['leaves.open','فتح قسم الإجازات والسفر'],
+      ['leaves.createLeave','إنشاء طلب إجازة'],
+      ['leaves.createTravel','إنشاء طلب سفر'],
+      ['leaves.viewOwn','عرض طلباته فقط'],
+      ['leaves.viewAll','عرض طلبات الجميع'],
+      ['leaves.editOwnPending','تعديل طلبه قبل الاعتماد'],
+      ['leaves.deleteOwnPending','حذف طلبه قبل الاعتماد'],
+      ['leaves.approveLeave','موافقة طلب إجازة'],
+      ['leaves.rejectLeave','رفض طلب إجازة'],
+      ['leaves.approveTravel','موافقة طلب سفر'],
+      ['leaves.rejectTravel','رفض طلب سفر'],
+      ['leaves.resumeLeave','تسجيل مباشرة بعد الإجازة'],
+      ['leaves.resumeTravel','تسجيل مباشرة بعد السفر'],
+      ['leaves.viewTravelers','عرض قائمة المسافرين'],
+      ['leaves.viewTravelersOwn','عرض مسافري المستخدم فقط'],
+      ['leaves.viewTravelersAll','عرض جميع المسافرين'],
+      ['leaves.details','فتح تفاصيل الطلب']
+    ]},
+    { id:'payroll', title:'الرواتب والعمولات', items:[
+      ['payroll.open','فتح قسم الرواتب'],
+      ['payroll.viewSelf','عرض راتبه فقط'],
+      ['payroll.viewAll','عرض رواتب جميع الموظفين'],
+      ['payroll.edit','تعديل الرواتب'],
+      ['payroll.approve','اعتماد وصرف الرواتب'],
+      ['payroll.export','تصدير الرواتب'],
+      ['payroll.commissionsView','عرض العمولات'],
+      ['payroll.commissionsEdit','إضافة أو تعديل العمولات'],
+      ['payroll.printClearance','طباعة المخالصة']
+    ]},
+    { id:'documents', title:'وثائق المنشأة', items:[
+      ['documents.open','فتح وثائق المنشأة'],
+      ['documents.view','عرض وثائق المنشأة'],
+      ['documents.create','إضافة وثيقة'],
+      ['documents.edit','تعديل وثيقة'],
+      ['documents.delete','حذف وثيقة'],
+      ['documents.upload','رفع مرفق وثيقة'],
+      ['documents.deleteAttachment','حذف مرفق وثيقة'],
+      ['documents.expiryAlerts','عرض تنبيهات انتهاء الوثائق']
+    ]},
+    { id:'departments', title:'الأقسام والإدارات', items:[
+      ['departments.open','فتح الأقسام والإدارات'],
+      ['departments.departmentCreate','إضافة إدارة'],
+      ['departments.departmentEdit','تعديل إدارة'],
+      ['departments.departmentDelete','حذف إدارة'],
+      ['departments.sectionCreate','إضافة قسم'],
+      ['departments.sectionEdit','تعديل قسم'],
+      ['departments.sectionDelete','حذف قسم'],
+      ['departments.professionCreate','إضافة مهنة'],
+      ['departments.professionEdit','تعديل مهنة'],
+      ['departments.professionDelete','حذف مهنة'],
+      ['departments.assignManager','تعيين مدير']
+    ]},
+    { id:'settings', title:'الإعدادات والأمان', items:[
+      ['settings.open','فتح الإعدادات'],
+      ['settings.company','تعديل بيانات المنشأة'],
+      ['settings.work','تعديل إعدادات العمل'],
+      ['settings.absencePolicy','تعديل قاعدة بيانات الغياب'],
+      ['settings.security','الوصول إلى الصلاحيات والأمان'],
+      ['users.open','فتح إدارة المستخدمين'],
+      ['users.create','إضافة مستخدم'],
+      ['users.edit','تعديل مستخدم'],
+      ['users.delete','حذف مستخدم'],
+      ['users.toggle','إيقاف أو تنشيط مستخدم']
+    ]}
+  ];
+  const KEYS = GROUPS.flatMap(g => g.items.map(i => i[0]));
+  const DEFAULTS = Object.fromEntries(KEYS.map(key => [key, false]));
+  Object.assign(DEFAULTS, {
+    'dashboard.open': true,
+    'dashboard.stats': true,
+    'dashboard.statEmployees': false,
+    'dashboard.statAttendance': false,
+    'dashboard.statLeaves': true,
+    'dashboard.statPayroll': false,
+    'employees.open': true,
+    'employees.viewSelf': true,
+    'attendance.open': true,
+    'attendance.viewSelf': true,
+    'leaves.open': true,
+    'leaves.createLeave': true,
+    'leaves.createTravel': true,
+    'leaves.viewOwn': true,
+    'leaves.viewTravelersOwn': true,
+    'dashboard.travelersOwn': true,
+    'dashboard.expiringEmployeeDocsOwn': true,
+    'payroll.viewSelf': false,
+    'settings.open': false
+  });
+  function role(){ return String(authProfile?.role || 'employee') === 'admin' ? 'admin' : 'employee'; }
+  function normalize(raw){
+    if (role() === 'admin') return Object.fromEntries(KEYS.map(key => [key, true]));
+    const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const out = { ...DEFAULTS };
+    for (const key of KEYS) if (Object.prototype.hasOwnProperty.call(src, key)) out[key] = Boolean(src[key]);
+    // backwards compatibility with older keys
+    if (src['dashboard.reviewActions']) { out['dashboard.reviewApprove'] = true; out['dashboard.reviewReject'] = true; }
+    if (src['attendance.markAbsent']) out['dashboard.quickAbsenceButton'] = Boolean(src['dashboard.quickAbsenceButton'] ?? src['attendance.markAbsent']);
+    if (src['leaves.approve']) { out['leaves.approveLeave'] = true; out['leaves.approveTravel'] = true; }
+    if (src['leaves.reject']) { out['leaves.rejectLeave'] = true; out['leaves.rejectTravel'] = true; }
+    if (src['leaves.resume']) { out['leaves.resumeLeave'] = true; out['leaves.resumeTravel'] = true; }
+    if (src['payroll.view']) out['payroll.viewAll'] = true;
+    if (src['payroll.commissions']) out['payroll.commissionsView'] = true;
+    if (src['settings.view']) out['settings.open'] = true;
+    return out;
+  }
+  function can(key){ return role() === 'admin' || Boolean(normalize(authProfile?.permissions)[key]); }
+  function esc(v){ return typeof escapeHtml === 'function' ? escapeHtml(v) : String(v ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+  function mine(){
+    const email = String(authUser?.email || authProfile?.email || '').trim().toLowerCase();
+    return email ? employees.find(e => String(e.email || '').trim().toLowerCase() === email) || null : null;
+  }
+  function ownsEmployee(id){ const me = mine(); return Boolean(me && String(me.id) === String(id)); }
+  function allowEmployee(id, allKey, ownKey){ if (role() === 'admin' || can(allKey)) return true; return can(ownKey) && ownsEmployee(id); }
+  function employeeScopeRows(rows, allKey, ownKey){ return Array.isArray(rows) ? rows.filter(item => allowEmployee(item.id || item.employeeId, allKey, ownKey)) : []; }
+  function leaveScopeRows(rows){ return role() === 'admin' || can('leaves.viewAll') ? rows : (can('leaves.viewOwn') ? rows.filter(x => ownsEmployee(x.employeeId)) : []); }
+  function travelerScopeRows(rows){ return role() === 'admin' || can('leaves.viewTravelersAll') || can('dashboard.travelersAll') ? rows : (can('leaves.viewTravelersOwn') || can('dashboard.travelersOwn') ? rows.filter(x => ownsEmployee(x.employeeId)) : []); }
+  window.permissionMatrix = { groups: GROUPS, keys: KEYS, defaults: DEFAULTS, can, normalize, mine, ownsEmployee };
+  window.cleanEmployeePermissions = { groups: GROUPS, defaults: DEFAULTS, can };
+
+  const oldLoadAuthProfileMatrix = loadAuthProfile;
+  loadAuthProfile = async function(user){
+    const p = await oldLoadAuthProfileMatrix(user);
+    if (p && !Object.prototype.hasOwnProperty.call(p, 'permissions')) {
+      try {
+        const { data } = await supabaseClient.from('app_user_profiles').select('permissions').eq(p.user_id ? 'user_id' : 'email', p.user_id || p.email).maybeSingle();
+        p.permissions = data?.permissions || {};
+      } catch(_) { p.permissions = {}; }
+    }
+    if (p) p.permissions = normalize(p.permissions);
+    return p;
+  };
+
+  const oldLoadProfilesMatrix = loadAppUserProfiles;
+  loadAppUserProfiles = async function(){
+    if (!supabaseClient) return oldLoadProfilesMatrix();
+    const { data, error } = await supabaseClient.from('app_user_profiles').select('id, user_id, full_name, email, role, is_active, permissions, created_at, updated_at').order('created_at', { ascending:false });
+    if (error) throw error;
+    appUserProfilesCache = (Array.isArray(data) ? data : []).map(p => ({...p, role: String(p.role||'employee') === 'admin' ? 'admin' : 'employee', permissions: normalize(p.permissions)}));
+    return appUserProfilesCache;
+  };
+
+  function canOpen(view){
+    if (role() === 'admin') return true;
+    const map = {
+      dashboard: can('dashboard.open'),
+      employees: can('employees.open') && (can('employees.viewSelf') || can('employees.viewAll')),
+      attendance: can('attendance.open') && (can('attendance.viewSelf') || can('attendance.viewAll')),
+      leaves: can('leaves.open') && (can('leaves.viewOwn') || can('leaves.viewAll') || can('leaves.createLeave') || can('leaves.createTravel') || can('leaves.viewTravelers')),
+      payroll: can('payroll.open') && (can('payroll.viewSelf') || can('payroll.viewAll') || can('payroll.commissionsView')),
+      departments: can('departments.open'),
+      settings: can('settings.open'),
+      users: can('users.open')
+    };
+    return Boolean(map[view]);
+  }
+  roleCanOpen = canOpen;
+
+  function hide(el, yes=true){ if (el) el.classList.toggle('is-permission-hidden', Boolean(yes)); }
+  function setDisabled(el, denied, title='ليست لديك صلاحية هذا الإجراء'){
+    if (!el) return;
+    if (denied) { el.setAttribute('data-permission-disabled','true'); el.setAttribute('title', title); }
+    else { el.removeAttribute('data-permission-disabled'); if (el.getAttribute('title') === title) el.removeAttribute('title'); }
+  }
+  function gateByText(selector, pattern, denied){
+    document.querySelectorAll(selector).forEach(el => { if (pattern.test((el.textContent || '').trim())) hide(el, denied); });
+  }
+  function applyMatrixVisibility(){
+    document.querySelectorAll('.nav-item[data-view]').forEach(btn => hide(btn, !canOpen(btn.dataset.view)));
+    document.querySelectorAll('[data-go-view]').forEach(el => { const v = el.dataset.goView; if (v && pageMeta[v]) hide(el, !canOpen(v)); });
+    const stats = document.querySelector('#statsGrid');
+    hide(stats, role() !== 'admin' && !can('dashboard.stats'));
+    hide(document.querySelector('.stat-card-employees'), role() !== 'admin' && !can('dashboard.statEmployees'));
+    hide(document.querySelector('.stat-card-attendance'), role() !== 'admin' && !can('dashboard.statAttendance'));
+    hide(document.querySelector('.stat-card-leaves'), role() !== 'admin' && !can('dashboard.statLeaves'));
+    hide(document.querySelector('.stat-card-payroll'), role() !== 'admin' && !can('dashboard.statPayroll'));
+    hide(document.querySelector('.attendance-panel'), role() !== 'admin' && !can('dashboard.attendanceOverview'));
+    hide(document.querySelector('.leave-panel'), role() !== 'admin' && !can('dashboard.reviewRequests'));
+    hide(document.querySelector('.recent-panel'), role() !== 'admin' && !can('dashboard.recentEmployees'));
+    document.querySelectorAll('#newAbsenceBtn').forEach(el => hide(el, role() !== 'admin' && !can('attendance.markAbsent')));
+    gateByText('.banner-action', /مراجعة الطلبات/, role() !== 'admin' && !can('dashboard.quickReviewButton'));
+    gateByText('.banner-action, .primary-btn, .secondary-btn', /تسجيل الغياب/, role() !== 'admin' && !can('dashboard.quickAbsenceButton') && !can('attendance.markAbsent'));
+    hide(document.querySelector('#newLeaveBtn'), role() !== 'admin' && !can('leaves.createLeave'));
+    hide(document.querySelector('#newTravelBtn'), role() !== 'admin' && !can('leaves.createTravel'));
+    hide(document.querySelector('#quickAddBtn'), role() !== 'admin' && !can('employees.create'));
+    hide(document.querySelector('#exportBtn'), role() !== 'admin' && !can('employees.export'));
+    hide(document.querySelector('#attendanceExportBtn'), role() !== 'admin' && !can('attendance.export'));
+    hide(document.querySelector('#payrollExportBtn'), role() !== 'admin' && !can('payroll.export'));
+    hide(document.querySelector('#processPayrollBtn'), role() !== 'admin' && !can('payroll.approve'));
+    document.querySelectorAll('[data-leave-action="approved"]').forEach(el => hide(el, role() !== 'admin' && !can('leaves.approveLeave')));
+    document.querySelectorAll('[data-leave-action="rejected"]').forEach(el => hide(el, role() !== 'admin' && !can('leaves.rejectLeave')));
+    document.querySelectorAll('[data-leave-return]').forEach(el => hide(el, role() !== 'admin' && !can('leaves.resumeLeave')));
+    document.querySelectorAll('[data-travel-approve]').forEach(el => hide(el, role() !== 'admin' && !can('leaves.approveTravel')));
+    document.querySelectorAll('[data-travel-reject]').forEach(el => hide(el, role() !== 'admin' && !can('leaves.rejectTravel')));
+    document.querySelectorAll('[data-travel-resume]').forEach(el => hide(el, role() !== 'admin' && !can('leaves.resumeTravel')));
+    document.querySelectorAll('[data-delete-employee]').forEach(el => hide(el, role() !== 'admin' && !can('employees.delete')));
+    document.querySelectorAll('[data-edit-employee]').forEach(el => { const id = el.dataset.editEmployee; hide(el, role() !== 'admin' && !(can('employees.edit') || (can('employees.viewSelf') && ownsEmployee(id)))); });
+    document.querySelectorAll('[data-quick-view]').forEach(el => { const id = el.dataset.quickView; hide(el, role() !== 'admin' && !(can('employees.viewAll') || (can('employees.viewSelf') && ownsEmployee(id)))); });
+  }
+  const oldApplyMatrix = applyRolePermissions;
+  applyRolePermissions = function(){ try { oldApplyMatrix(); } catch(_) {} applyMatrixVisibility(); };
+
+  const oldSwitchMatrix = switchView;
+  switchView = function(viewName){
+    if (!canOpen(viewName)) { showToast('ليست لديك صلاحية الدخول إلى هذا القسم'); return; }
+    return oldSwitchMatrix.apply(this, arguments);
+  };
+
+  const oldFilteredEmployeesMatrix = filteredEmployees;
+  filteredEmployees = function(){
+    const rows = oldFilteredEmployeesMatrix();
+    if (role() === 'admin' || can('employees.viewAll')) return rows;
+    if (can('employees.viewSelf')) return rows.filter(e => ownsEmployee(e.id));
+    return [];
+  };
+
+  function filterEmployeesTemporarily(keys, fn){
+    const original = employees;
+    try { employees = employeeScopeRows(employees, keys.all, keys.own); return fn(); }
+    finally { employees = original; }
+  }
+  const oldRenderPayrollMatrix = renderPayroll;
+  renderPayroll = function(){
+    if (role() === 'admin' || can('payroll.viewAll')) return oldRenderPayrollMatrix();
+    if (can('payroll.viewSelf')) return filterEmployeesTemporarily({all:'payroll.viewAll', own:'payroll.viewSelf'}, oldRenderPayrollMatrix);
+    document.querySelector('#payrollTableBody').innerHTML = '<tr><td colspan="8"><div class="empty-state"><strong>ليست لديك صلاحية عرض الرواتب</strong></div></td></tr>';
+    ['#payrollHeroTotal','#baseSalaryTotal','#allowanceTotal','#deductionTotal'].forEach(s=>{ const el=document.querySelector(s); if(el) el.textContent='—'; });
+  };
+
+  const oldRenderLeavesMatrix = renderLeaves;
+  renderLeaves = function(){
+    const originalLeaves = leaves;
+    const originalTravels = typeof travelRequests !== 'undefined' ? travelRequests : null;
+    try {
+      if (role() !== 'admin' && !can('leaves.viewAll')) leaves = leaveScopeRows(leaves);
+      if (originalTravels && role() !== 'admin' && !can('leaves.viewTravelersAll') && !can('leaves.viewAll')) travelRequests = travelerScopeRows(travelRequests);
+      const res = oldRenderLeavesMatrix();
+      applyMatrixVisibility();
+      return res;
+    } finally { leaves = originalLeaves; if (originalTravels) travelRequests = originalTravels; }
+  };
+
+  const oldRenderDashboardMatrix = renderDashboard;
+  renderDashboard = function(){
+    const originalLeaves = leaves;
+    const originalEmployees = employees;
+    const originalTravels = typeof travelRequests !== 'undefined' ? travelRequests : null;
+    try {
+      if (role() !== 'admin') {
+        if (!can('leaves.viewAll') && !can('dashboard.reviewRequests')) leaves = [];
+        else if (!can('leaves.viewAll')) leaves = leaveScopeRows(leaves);
+        if (!can('employees.viewAll')) employees = employeeScopeRows(employees, 'employees.viewAll', 'employees.viewSelf');
+        if (originalTravels && !can('dashboard.travelersAll') && !can('leaves.viewTravelersAll')) travelRequests = travelerScopeRows(travelRequests);
+      }
+      oldRenderDashboardMatrix();
+      if (role() !== 'admin') {
+        const list = document.querySelector('#leavePreviewList');
+        if (list && can('dashboard.reviewRequests') && !can('leaves.viewAll')) {
+          const ownPending = originalLeaves.filter(l => l.status === 'pending' && ownsEmployee(l.employeeId));
+          list.innerHTML = ownPending.length ? ownPending.slice(0, 5).map(leave => {
+            const employee = getEmployee(leave.employeeId); if (!employee) return '';
+            const approve = can('dashboard.reviewApprove') || can('leaves.approveLeave');
+            const reject = can('dashboard.reviewReject') || can('leaves.rejectLeave');
+            const actions = approve || reject ? `<div class="mini-actions">${reject ? `<button data-leave-action="rejected" data-leave-id="${esc(leave.id)}" title="رفض">${iconSvg('x')}</button>` : ''}${approve ? `<button data-leave-action="approved" data-leave-id="${esc(leave.id)}" title="موافقة">${iconSvg('check')}</button>` : ''}</div>` : '';
+            return `<div class="leave-preview-item">${employeeAvatar(employee)}<div class="leave-preview-info"><button type="button" class="employee-name-link" data-edit-employee="${esc(employee.id)}">${esc(employee.name)}</button><span>${esc(leave.type)} · ${arabicNumber(leave.days)} أيام</span></div>${actions}</div>`;
+          }).join('') : '<div class="empty-state"><strong>لا توجد طلبات تخصك</strong></div>';
+        }
+      }
+      applyMatrixVisibility();
+    } finally { leaves = originalLeaves; employees = originalEmployees; if (originalTravels) travelRequests = originalTravels; }
+  };
+
+  function renderPermissionsEditor(profile){
+    const perms = normalize(profile?.permissions || {});
+    return `<div class="security-permissions-grid full-security-grid">${GROUPS.map(group => `
+      <section class="security-permission-card">
+        <div class="security-permission-head"><strong>${esc(group.title)}</strong><button type="button" class="text-btn" data-matrix-group="${esc(group.id)}">تحديد الكل</button></div>
+        <div class="security-permission-list">
+          ${group.items.map(([key,label]) => `<label class="security-permission-row"><span>${esc(label)}</span><input type="checkbox" data-matrix-permission="${esc(key)}" ${perms[key] ? 'checked' : ''}></label>`).join('')}
+        </div>
+      </section>`).join('')}</div>`;
+  }
+  async function renderSecurityPanelV2(){
+    const panel = document.querySelector('[data-settings-panel="permissions"]');
+    if (!panel) return;
+    panel.innerHTML = `<div class="panel-head"><div><h3>الصلاحيات والأمان</h3><p>اختر الموظف وحدد كل زر وبطاقة وجدول مسموح له بها. لا تؤثر على مدير النظام.</p></div></div>
+      <div class="security-layout">
+        <article class="settings-placeholder-card security-user-picker"><span data-icon="shield"></span><div><strong>إدارة صلاحيات الموظفين</strong><p>إدارة المستخدمين تبقى لإضافة الحساب فقط، أما الصلاحيات التفصيلية هنا.</p></div></article>
+        <div class="security-controls"><select id="securityUserSelect"><option value="">جاري تحميل المستخدمين...</option></select><button type="button" class="secondary-btn" id="reloadSecurityUsers"><span data-icon="refresh"></span>تحديث المستخدمين</button><button type="button" class="primary-btn" id="saveSecurityPermissions"><span data-icon="check"></span>حفظ الصلاحيات</button></div>
+        <div id="securityPermissionsEditor" class="security-editor-empty"><strong>اختر مستخدمًا من القائمة</strong><p>بعد الاختيار تظهر الصلاحيات التفصيلية حسب الأقسام.</p></div>
+      </div>`;
+    hydrateIcons(panel);
+    try {
+      await loadAppUserProfiles();
+      const select = panel.querySelector('#securityUserSelect');
+      const users = appUserProfilesCache.filter(p => String(p.role || 'employee') !== 'admin');
+      select.innerHTML = '<option value="">اختر موظفًا...</option>' + users.map(p => `<option value="${esc(p.id)}">${esc(p.full_name || p.email)} - ${esc(p.email || '')}</option>`).join('');
+      if (!users.length) select.innerHTML = '<option value="">لا يوجد موظفون</option>';
+    } catch(e) {
+      console.error(e);
+      const select = panel.querySelector('#securityUserSelect');
+      if (select) select.innerHTML = '<option value="">تعذر تحميل المستخدمين</option>';
+      showToast('تعذر تحميل مستخدمي الصلاحيات');
+    }
+  }
+  async function saveSecurityPanelV2(){
+    const id = document.querySelector('#securityUserSelect')?.value;
+    const profile = appUserProfilesCache.find(p => String(p.id) === String(id));
+    if (!profile) return showToast('اختر موظفًا أولًا');
+    const permissions = { ...DEFAULTS };
+    KEYS.forEach(k => { permissions[k] = Boolean(document.querySelector(`[data-matrix-permission="${CSS.escape(k)}"]`)?.checked); });
+    try {
+      const { error } = await supabaseClient.from('app_user_profiles').update({ permissions, role:'employee', updated_at:new Date().toISOString() }).eq('id', profile.id);
+      if (error) throw error;
+      profile.permissions = permissions;
+      if (authProfile?.id === profile.id) authProfile.permissions = permissions;
+      showToast('تم حفظ الصلاحيات');
+      applyMatrixVisibility();
+    } catch(e) { console.error(e); showToast('تعذر حفظ الصلاحيات'); }
+  }
+  const oldSwitchSettingsMatrix = switchSettingsSection;
+  switchSettingsSection = function(section){
+    oldSwitchSettingsMatrix.apply(this, arguments);
+    if (section === 'permissions') setTimeout(renderSecurityPanelV2, 0);
+  };
+  document.addEventListener('change', e => {
+    if (e.target?.id === 'securityUserSelect') {
+      const p = appUserProfilesCache.find(x => String(x.id) === String(e.target.value));
+      const ed = document.querySelector('#securityPermissionsEditor');
+      if (!ed) return;
+      if (!p) { ed.className='security-editor-empty'; ed.innerHTML='<strong>اختر مستخدمًا من القائمة</strong><p>بعد الاختيار تظهر الصلاحيات.</p>'; return; }
+      ed.className=''; ed.innerHTML = renderPermissionsEditor(p);
+    }
+  });
+  document.addEventListener('click', e => {
+    if (e.target.closest('#reloadSecurityUsers')) { e.preventDefault(); renderSecurityPanelV2(); return; }
+    if (e.target.closest('#saveSecurityPermissions')) { e.preventDefault(); saveSecurityPanelV2(); return; }
+    const g = e.target.closest('[data-matrix-group]');
+    if (g) { const card = g.closest('.security-permission-card'); const boxes=[...card.querySelectorAll('[data-matrix-permission]')]; const on=boxes.some(b=>!b.checked); boxes.forEach(b=>b.checked=on); return; }
+  });
+
+  document.addEventListener('click', e => {
+    const deny = msg => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); showToast(msg || 'ليست لديك صلاحية هذا الإجراء'); };
+    const go = e.target.closest('[data-go-view]'); if (go && !canOpen(go.dataset.goView)) return deny('ليست لديك صلاحية فتح هذا القسم');
+    if (e.target.closest('#quickAddBtn,[data-open-employee-modal="new"]') && role() !== 'admin' && !can('employees.create')) return deny();
+    if (e.target.closest('#newAbsenceBtn') && role() !== 'admin' && !can('attendance.markAbsent')) return deny('تسجيل الغياب من صلاحيات المدير أو من يفوضه');
+    if (e.target.closest('#newLeaveBtn') && role() !== 'admin' && !can('leaves.createLeave')) return deny();
+    if (e.target.closest('#newTravelBtn') && role() !== 'admin' && !can('leaves.createTravel')) return deny();
+    if (e.target.closest('#exportBtn') && role() !== 'admin' && !can('employees.export')) return deny();
+    if (e.target.closest('#attendanceExportBtn') && role() !== 'admin' && !can('attendance.export')) return deny();
+    if (e.target.closest('#payrollExportBtn') && role() !== 'admin' && !can('payroll.export')) return deny();
+    if (e.target.closest('#processPayrollBtn') && role() !== 'admin' && !can('payroll.approve')) return deny();
+    if (e.target.closest('[data-leave-action="approved"]') && role() !== 'admin' && !can('leaves.approveLeave') && !can('dashboard.reviewApprove')) return deny();
+    if (e.target.closest('[data-leave-action="rejected"]') && role() !== 'admin' && !can('leaves.rejectLeave') && !can('dashboard.reviewReject')) return deny();
+    if (e.target.closest('[data-leave-return]') && role() !== 'admin' && !can('leaves.resumeLeave')) return deny();
+    if (e.target.closest('[data-travel-approve]') && role() !== 'admin' && !can('leaves.approveTravel')) return deny();
+    if (e.target.closest('[data-travel-reject]') && role() !== 'admin' && !can('leaves.rejectTravel')) return deny();
+    if (e.target.closest('[data-travel-resume]') && role() !== 'admin' && !can('leaves.resumeTravel')) return deny();
+    const delEmp = e.target.closest('[data-delete-employee]'); if (delEmp && role() !== 'admin' && !can('employees.delete')) return deny();
+    const editEmp = e.target.closest('[data-edit-employee]'); if (editEmp && role() !== 'admin' && !(can('employees.edit') || (can('employees.viewSelf') && ownsEmployee(editEmp.dataset.editEmployee)))) return deny();
+  }, true);
+
+  if (!document.querySelector('#matrixPermissionStyle')) {
+    const style=document.createElement('style'); style.id='matrixPermissionStyle';
+    style.textContent='.is-permission-hidden{display:none!important}.full-security-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.security-permission-card{break-inside:avoid}@media(max-width:900px){.full-security-grid{grid-template-columns:1fr}}[data-permission-disabled="true"]{opacity:.45;cursor:not-allowed!important}';
+    document.head.appendChild(style);
+  }
+  setTimeout(() => { try { if (authProfile) { authProfile.permissions = normalize(authProfile.permissions); applyMatrixVisibility(); } } catch(_){} }, 500);
+})();
