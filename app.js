@@ -11034,3 +11034,174 @@ document.addEventListener("click", function(event) {
 
   setTimeout(() => { try { refreshRequestEmployeeSelects(); if (document.querySelector('#leavesView')) renderLeavesFixed(); } catch(_) {} }, 400);
 })();
+
+/* Final precise fix: stable leave/travel tab navigation only */
+(function stableLeaveTravelTabsOnly(){
+  const TRAVEL_KEY = 'nawah-travel-requests';
+  window.__stableLeaveTravelTab = window.__stableLeaveTravelTab || 'all';
+
+  function esc(value){
+    try { if (typeof escapeHtml === 'function') return escapeHtml(value ?? ''); } catch(_) {}
+    return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+  function num(value){ try { return typeof arabicNumber === 'function' ? arabicNumber(value || 0) : String(value || 0); } catch(_) { return String(value || 0); } }
+  function fmt(value){ try { return value ? formatDate(value) : '—'; } catch(_) { return value || '—'; } }
+  function icon(name){ try { return typeof iconSvg === 'function' ? iconSvg(name) : ''; } catch(_) { return ''; } }
+  function can(permission){
+    try { if (window.employeePermissionMatrix?.can) return Boolean(window.employeePermissionMatrix.can(permission)); } catch(_) {}
+    return true;
+  }
+  function employeeList(){
+    try { if (Array.isArray(employees)) return employees.filter((employee) => employee && employee.id && employee.status !== 'terminated'); } catch(_) {}
+    return [];
+  }
+  function employeeById(id){
+    return employeeList().find((employee) => String(employee.id) === String(id));
+  }
+  function canSeeEmployee(id){
+    try {
+      if (typeof canSeeEmployee === 'function') return canSeeEmployee(id, 'leaves');
+    } catch(_) {}
+    try {
+      const api = window.employeePermissionMatrix;
+      if (!api) return true;
+      if (api.can?.('leaves.viewAll') || api.can?.('leaves.createForAll')) return true;
+      const linked = api.linkedEmployee?.();
+      return linked ? String(linked.id) === String(id) : true;
+    } catch(_) { return true; }
+  }
+  function loadTravel(){
+    try {
+      const parsed = JSON.parse(localStorage.getItem(TRAVEL_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch(_) { return []; }
+  }
+  function saveTravel(rows){
+    try { localStorage.setItem(TRAVEL_KEY, JSON.stringify(Array.isArray(rows) ? rows : [])); } catch(_) {}
+  }
+  function visibleLeaves(){
+    try { return (Array.isArray(leaves) ? leaves : []).filter((leave) => leave && employeeById(leave.employeeId) && canSeeEmployee(leave.employeeId)); } catch(_) { return []; }
+  }
+  function visibleTravels(){
+    const rows = loadTravel();
+    const cleaned = rows.filter((travel) => travel && employeeById(travel.employeeId));
+    if (cleaned.length !== rows.length) saveTravel(cleaned);
+    return cleaned.filter((travel) => canSeeEmployee(travel.employeeId));
+  }
+  function leaveBadge(status){
+    try { return leaveStatusBadge(status); } catch(_) {}
+    const label = status === 'approved' ? 'معتمدة' : status === 'rejected' ? 'مرفوضة' : 'بانتظار الموافقة';
+    const cls = status === 'approved' ? 'status-active' : status === 'rejected' ? 'status-rejected' : 'status-pending';
+    return `<span class="status-badge ${cls}">${label}</span>`;
+  }
+  function travelBadge(travel){
+    const status = travel?.status || 'pending';
+    if (status === 'rejected') return '<span class="status-badge status-rejected">مرفوض</span>';
+    if (status === 'returned' || travel?.workResumeDate) return '<span class="status-badge status-active">تمت المباشرة</span>';
+    if (status === 'approved') return '<span class="status-badge status-leave">مسافر</span>';
+    return '<span class="status-badge status-pending">بانتظار الاعتماد</span>';
+  }
+  function employeeCellSafe(employee){
+    try { if (typeof employeeCell === 'function') return employeeCell(employee); } catch(_) {}
+    return esc(employee?.name || 'موظف');
+  }
+  function tabButton(key, label, count){
+    const active = window.__stableLeaveTravelTab === key ? 'active' : '';
+    return `<button type="button" class="${active}" data-lt-tab="${esc(key)}">${esc(label)} <span>${num(count)}</span></button>`;
+  }
+  function travelRows(rows){
+    let filtered = rows;
+    if (window.__stableLeaveTravelTab === 'travel-pending') filtered = rows.filter((travel) => (travel.status || 'pending') === 'pending');
+    if (!filtered.length) return '<tr><td colspan="6"><div class="empty-state"><strong>لا توجد طلبات سفر في هذا التبويب</strong></div></td></tr>';
+    return filtered.map((travel) => {
+      const employee = employeeById(travel.employeeId);
+      if (!employee) return '';
+      let actions = travelBadge(travel);
+      if ((travel.status || 'pending') === 'pending') {
+        const reject = can('leaves.reject') ? `<button type="button" class="secondary-btn" data-travel-reject="${esc(travel.id)}">رفض</button>` : '';
+        const approve = can('leaves.approve') ? `<button type="button" class="primary-btn" data-travel-approve="${esc(travel.id)}">اعتماد السفر</button>` : '';
+        actions = reject + approve || actions;
+      } else if (travel.status === 'approved' && !travel.workResumeDate && can('leaves.resume')) {
+        actions = `${travelBadge(travel)}<button type="button" class="primary-btn" data-travel-resume="${esc(travel.id)}">تسجيل مباشرة عمل</button>`;
+      }
+      return `<tr><td>${employeeCellSafe(employee)}</td><td>${fmt(travel.travelDate)}</td><td>${travel.returnDate ? fmt(travel.returnDate) : 'غير محدد'}</td><td>${travel.workResumeDate ? fmt(travel.workResumeDate) : 'لم يباشر'}</td><td>${travelBadge(travel)}</td><td><div class="travel-actions">${actions}</div></td></tr>`;
+    }).join('');
+  }
+  function leaveRows(rows){
+    let filtered = rows;
+    const tab = window.__stableLeaveTravelTab;
+    if (['pending','approved','rejected'].includes(tab)) filtered = rows.filter((leave) => leave.status === tab);
+    if (tab === 'travel-pending') filtered = [];
+    if (!filtered.length) return '<tr><td colspan="7"><div class="empty-state"><strong>لا توجد إجازات في هذا التبويب</strong></div></td></tr>';
+    return filtered.map((leave) => {
+      const employee = employeeById(leave.employeeId);
+      if (!employee) return '';
+      let actions = leaveBadge(leave.status);
+      if (leave.status === 'pending') {
+        const reject = can('leaves.reject') ? `<button type="button" class="secondary-btn" data-leave-action="rejected" data-leave-id="${esc(leave.id)}">رفض</button>` : '';
+        const approve = can('leaves.approve') ? `<button type="button" class="primary-btn" data-leave-action="approved" data-leave-id="${esc(leave.id)}">اعتماد الإجازة</button>` : '';
+        actions = reject + approve || actions;
+      } else if (leave.status === 'approved' && !leave.returnDate && can('leaves.resume')) {
+        actions = `${leaveBadge(leave.status)}<button type="button" class="primary-btn" data-leave-return="${esc(leave.id)}">تسجيل مباشرة</button>`;
+      } else if (leave.returnDate) {
+        actions = `<span class="status-badge status-active">تمت المباشرة ${fmt(leave.returnDate)}</span>`;
+      }
+      return `<tr><td>${employeeCellSafe(employee)}</td><td>${esc(leave.type || 'إجازة')}</td><td>${fmt(leave.from)}</td><td>${fmt(leave.to)}</td><td>${num(leave.days || 0)} أيام</td><td>${leaveBadge(leave.status)}</td><td><div class="travel-actions">${actions}</div></td></tr>`;
+    }).join('');
+  }
+  function renderStableLeavesTravel(){
+    const view = document.querySelector('#leavesView');
+    if (!view) return;
+    const leaveList = visibleLeaves();
+    const travelList = visibleTravels();
+    const validTabs = ['all','pending','approved','rejected','travel-pending'];
+    if (!validTabs.includes(window.__stableLeaveTravelTab)) window.__stableLeaveTravelTab = 'all';
+    view.innerHTML = `<div class="leave-tabs leave-tabs-fixed stable-leave-travel-tabs">
+      ${tabButton('all', 'جميع الإجازات', leaveList.length)}
+      ${tabButton('pending', 'إجازات بانتظار الموافقة', leaveList.filter((leave) => leave.status === 'pending').length)}
+      ${tabButton('approved', 'إجازات معتمدة', leaveList.filter((leave) => leave.status === 'approved').length)}
+      ${tabButton('rejected', 'إجازات مرفوضة', leaveList.filter((leave) => leave.status === 'rejected').length)}
+      ${tabButton('travel-pending', 'طلبات سفر معلقة', travelList.filter((travel) => (travel.status || 'pending') === 'pending').length)}
+    </div>
+    <div class="leave-travel-tables stable-leave-travel-layout">
+      <article class="panel travel-table-panel travel-colored-panel half-page-panel"><div class="panel-head"><div><h3>المسافرون</h3><p>طلبات السفر وحالة المباشرة</p></div><button type="button" class="primary-btn" id="newTravelBtn">${icon('plus')}طلب سفر</button></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>تاريخ المباشرة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${travelRows(travelList)}</tbody></table></div></article>
+      <article class="panel leave-table-panel leave-colored-panel half-page-panel"><div class="panel-head"><div><h3>الإجازات</h3><p>طلبات الإجازة حسب التبويب المحدد</p></div><button type="button" class="primary-btn" id="newLeaveBtn">${icon('plus')}طلب إجازة</button></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>نوع الإجازة</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${leaveRows(leaveList)}</tbody></table></div></article>
+    </div>`;
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(view); } catch(_) {}
+    try { if (typeof hydrateAttachmentImages === 'function') hydrateAttachmentImages(view); } catch(_) {}
+    try { if (typeof applyRolePermissions === 'function') applyRolePermissions(); } catch(_) {}
+  }
+
+  function handleTabClick(event){
+    const button = event.target?.closest?.('#leavesView [data-lt-tab]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.__stableLeaveTravelTab = button.dataset.ltTab || 'all';
+    try { activeLeaveFilter = ['all','pending','approved','rejected'].includes(window.__stableLeaveTravelTab) ? window.__stableLeaveTravelTab : 'all'; } catch(_) {}
+    renderStableLeavesTravel();
+  }
+
+  try { renderLeaves = renderStableLeavesTravel; } catch(_) {}
+  window.renderLeaves = renderStableLeavesTravel;
+  window.addEventListener('click', handleTabClick, true);
+  document.addEventListener('click', handleTabClick, true);
+
+  const previousRenderAll = typeof renderAll === 'function' ? renderAll : null;
+  if (previousRenderAll && !previousRenderAll.__stableLeaveTravelTabsWrapped) {
+    const wrappedRenderAll = function(){
+      const result = previousRenderAll.apply(this, arguments);
+      try { if (document.querySelector('#leavesView') && document.querySelector('#leavesView').classList.contains('active')) renderStableLeavesTravel(); } catch(_) {}
+      return result;
+    };
+    wrappedRenderAll.__stableLeaveTravelTabsWrapped = true;
+    try { renderAll = wrappedRenderAll; } catch(_) {}
+    window.renderAll = wrappedRenderAll;
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(() => { if (document.querySelector('#leavesView')) renderStableLeavesTravel(); }, 300));
+  } else {
+    setTimeout(() => { if (document.querySelector('#leavesView')) renderStableLeavesTravel(); }, 300);
+  }
+})();
