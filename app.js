@@ -11542,6 +11542,7 @@ document.addEventListener("click", function(event) {
   if (window.__payrollAdvancesModuleReady) return;
   window.__payrollAdvancesModuleReady = true;
   const ADVANCE_KEY = 'nawah-payroll-advances';
+  const PAYROLL_RUNS_KEY = 'nawah-payroll-runs';
   const STATUS_APPROVED = 'approved';
   function esc(value){ try { return typeof escapeHtml === 'function' ? escapeHtml(value ?? '') : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch])); } catch(_) { return String(value ?? ''); } }
   function money(value){ try { return typeof formatCurrencyEn === 'function' ? formatCurrencyEn(Number(value || 0)) : `${Number(value || 0).toFixed(2)} ر.س`; } catch(_) { return `${Number(value || 0).toFixed(2)} ر.س`; } }
@@ -11637,6 +11638,16 @@ document.addEventListener("click", function(event) {
   function employeeSalaryBase(employee){ if (!employee) return 0; try { if (typeof employeeGrossSalary === 'function') return Number(employeeGrossSalary(employee) || 0); } catch(_) {} return Number(employee.totalSalary || employee.salary || employee.baseSalary || 0) || 0; }
   function loadAdvances(){ try { const raw = localStorage.getItem(ADVANCE_KEY); const rows = raw ? JSON.parse(raw) : []; return Array.isArray(rows) ? rows.filter(Boolean) : []; } catch(_) { return []; } }
   function saveAdvances(rows){ try { localStorage.setItem(ADVANCE_KEY, JSON.stringify(Array.isArray(rows) ? rows : [])); } catch(_) {} try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch(_) {} }
+  function loadPayrollRuns(){ try { const raw = localStorage.getItem(PAYROLL_RUNS_KEY); const rows = raw ? JSON.parse(raw) : []; return Array.isArray(rows) ? rows.filter(Boolean) : []; } catch(_) { return []; } }
+  function savePayrollRuns(rows){ try { localStorage.setItem(PAYROLL_RUNS_KEY, JSON.stringify(Array.isArray(rows) ? rows : [])); } catch(_) {} try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch(_) {} }
+  function payrollRunForMonth(key = monthKey()){ return loadPayrollRuns().find(run => run && run.monthKey === key && Array.isArray(run.items)); }
+  function savePayrollRun(run){
+    if (!run || !run.monthKey) return;
+    const rows = loadPayrollRuns().filter(item => item && item.monthKey !== run.monthKey);
+    rows.push(run);
+    rows.sort((a,b) => String(a.monthKey || '').localeCompare(String(b.monthKey || '')));
+    savePayrollRuns(rows);
+  }
   function advancesForMonth(key = monthKey()){ return loadAdvances().filter(item => item && item.status === STATUS_APPROVED && item.monthKey === key && getEmployeeById(item.employeeId)); }
   function totalAdvancesForEmployee(employeeId, key = monthKey()){ return advancesForMonth(key).filter(item => String(item.employeeId) === String(employeeId)).reduce((sum, item) => sum + Number(item.amount || 0), 0); }
   function employeeOptions(){ return getEmployees().filter(emp => emp && emp.id && emp.status !== 'terminated').slice().sort((a,b) => String(a.name || '').localeCompare(String(b.name || ''), 'ar')).map(emp => `<option value="${esc(emp.id)}">${esc(emp.name || 'موظف بدون اسم')}</option>`).join(''); }
@@ -11654,6 +11665,7 @@ document.addEventListener("click", function(event) {
     return dialog;
   }
   function openAdvanceModal(){
+    if (payrollRunForMonth(monthKey())) { try { showToast('لا يمكن إضافة سلفة على مسير محفوظ ومصروف'); } catch(_) {} return; }
     const dialog = ensureAdvanceModal();
     const select = dialog.querySelector('#advanceEmployeeSelect');
     const amount = dialog.querySelector('#advanceAmountInput');
@@ -11718,6 +11730,64 @@ document.addEventListener("click", function(event) {
     const cardWithdraw = advanceDeduction > halfSalary;
     return { baseSalary, allowance, gross, insuranceDeduction, absenceDeduction, advanceDeduction, net, halfSalary, transfer, required, cardWithdraw };
   }
+  function payrollTotalsFromLines(lines){
+    return (Array.isArray(lines) ? lines : []).reduce((acc, row) => {
+      const line = row.line || row;
+      acc.base += Number(line.baseSalary || 0);
+      acc.allowance += Number(line.allowance || 0);
+      acc.advances += Number(line.advanceDeduction || 0);
+      acc.deductions += Number(line.insuranceDeduction || 0) + Number(line.absenceDeduction || 0) + Number(line.advanceDeduction || 0);
+      acc.net += Number(line.net || 0);
+      return acc;
+    }, { base: 0, allowance: 0, advances: 0, deductions: 0, net: 0 });
+  }
+  function employeeSnapshot(employee){
+    return {
+      id: employee?.id || '',
+      name: employee?.name || 'موظف',
+      phone: employee?.phone || employee?.mobile || '',
+      initials: employee?.initials || (employee?.name || 'م').slice(0,1),
+      baseSalary: Number(employee?.baseSalary || 0),
+      totalSalary: Number(employeeSalaryBase(employee) || 0)
+    };
+  }
+  function buildPayrollRunSnapshot(key = monthKey()){
+    const items = getEmployees().map(employee => ({
+      employeeId: employee.id,
+      employee: employeeSnapshot(employee),
+      line: calcPayrollLine(employee, key)
+    }));
+    return {
+      id: `payroll-${key}`,
+      monthKey: key,
+      monthLabel: payrollMonthLabel(key),
+      status: 'paid',
+      statusLabel: 'مصروف',
+      createdAt: new Date().toISOString(),
+      createdBy: (typeof authProfile !== 'undefined' && authProfile?.full_name) ? authProfile.full_name : 'النظام',
+      totals: payrollTotalsFromLines(items),
+      items
+    };
+  }
+  function employeeCellForPayroll(row){
+    const current = getEmployeeById(row.employeeId);
+    if (current && typeof employeeCell === 'function') return employeeCell(current);
+    const employee = row.employee || {};
+    return `<div class="employee-mini"><div class="avatar sm">${esc(employee.initials || (employee.name || 'م').slice(0,1))}</div><div><strong>${esc(employee.name || 'موظف')}</strong>${employee.phone ? `<small>${esc(employee.phone)}</small>` : ''}</div></div>`;
+  }
+  function saveCurrentPayrollRun(){
+    const key = monthKey();
+    if (payrollRunForMonth(key)) {
+      try { showToast(`مسير رواتب ${payrollMonthLabel(key)} محفوظ مسبقًا`); } catch(_) {}
+      renderPayrollWithAdvances();
+      return;
+    }
+    const run = buildPayrollRunSnapshot(key);
+    savePayrollRun(run);
+    try { showToast(`تم اعتماد وصرف مسير رواتب ${payrollMonthLabel(key)} وحفظه`); } catch(_) {}
+    renderPayrollWithAdvances();
+  }
+  window.saveCurrentPayrollRun = saveCurrentPayrollRun;
   function ensureAdvanceSummaryPanel(){
     const view = document.getElementById('payrollView');
     const summary = view?.querySelector('.payroll-summary');
@@ -11739,18 +11809,24 @@ document.addEventListener("click", function(event) {
   }
   function renderPayrollWithAdvances(){
     ensurePayrollPeriodControls();
-    const key = monthKey(); const list = getEmployees();
-    const totals = list.reduce((acc, employee) => { const line = calcPayrollLine(employee, key); acc.base += line.baseSalary; acc.allowance += line.allowance; acc.advances += line.advanceDeduction; acc.deductions += line.insuranceDeduction + line.absenceDeduction + line.advanceDeduction; acc.net += line.net; return acc; }, { base: 0, allowance: 0, advances: 0, deductions: 0, net: 0 });
+    const key = monthKey();
+    const savedRun = payrollRunForMonth(key);
+    const rows = savedRun ? savedRun.items : getEmployees().map(employee => ({ employeeId: employee.id, employee: employeeSnapshot(employee), line: calcPayrollLine(employee, key) }));
+    const totals = savedRun?.totals || payrollTotalsFromLines(rows);
     const hero = document.querySelector('#payrollHeroTotal'); const count = document.querySelector('#payrollEmployeeCount'); const baseEl = document.querySelector('#baseSalaryTotal'); const allowanceEl = document.querySelector('#allowanceTotal'); const advanceEl = document.querySelector('#advanceTotal'); const deductionEl = document.querySelector('#deductionTotal');
     if (hero) hero.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.net) : money(totals.net);
-    if (count) count.textContent = (typeof arabicNumber === 'function') ? arabicNumber(list.length) : String(list.length);
+    if (count) count.textContent = (typeof arabicNumber === 'function') ? arabicNumber(rows.length) : String(rows.length);
     if (baseEl) baseEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.base) : money(totals.base);
     if (allowanceEl) allowanceEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.allowance) : money(totals.allowance);
     if (advanceEl) advanceEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.advances) : money(totals.advances);
     if (deductionEl) deductionEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.deductions) : money(totals.deductions);
+    const statusEl = document.querySelector('#payrollView .payroll-hero .hero-stat:nth-of-type(3) strong, #payrollStatusText');
+    if (statusEl) statusEl.textContent = savedRun ? 'مصروف' : 'جاهز';
+    const processBtn = document.getElementById('processPayrollBtn');
+    if (processBtn) processBtn.innerHTML = savedRun ? '<span data-icon="check-circle"></span>المسير محفوظ ومصروف' : '<span data-icon="play"></span>اعتماد وصرف الرواتب';
     const body = document.querySelector('#payrollTableBody');
     if (body) {
-      body.innerHTML = list.map(employee => { const line = calcPayrollLine(employee, key); const requiredText = line.required > 0 ? `<strong class="payroll-required-amount">${money(line.required)}</strong>` : ''; const withdrawText = line.cardWithdraw ? `<span class="payroll-card-withdraw-text">نعم</span>` : ''; return `<tr class="${line.cardWithdraw ? 'payroll-row-card-withdraw' : ''}"><td class="payroll-employee-cell">${typeof employeeCell === 'function' ? employeeCell(employee) : esc(employee.name)}</td><td class="payroll-money-cell payroll-base-amount">${money(line.baseSalary)}</td><td class="payroll-money-cell payroll-allowance-amount">${money(line.allowance)}</td><td class="payroll-money-cell payroll-deduction-amount"><strong>${money(line.insuranceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong class="absence-money-deduction">${money(line.absenceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong>${money(line.advanceDeduction)}</strong></td><td class="payroll-money-cell payroll-net-amount"><strong>${money(line.net)}</strong></td><td class="payroll-money-cell payroll-transfer-cell"><strong class="payroll-transfer-amount">${money(line.transfer)}</strong></td><td class="payroll-money-cell payroll-required-cell">${requiredText}</td><td class="payroll-card-withdraw-cell">${withdrawText}</td><td><span class="status-badge status-paid">جاهز للصرف</span></td></tr>`; }).join('');
+      body.innerHTML = rows.map(row => { const line = row.line || {}; const requiredText = Number(line.required || 0) > 0 ? `<strong class="payroll-required-amount">${money(line.required)}</strong>` : ''; const withdrawText = line.cardWithdraw ? `<span class="payroll-card-withdraw-text">نعم</span>` : ''; return `<tr class="${line.cardWithdraw ? 'payroll-row-card-withdraw' : ''}"><td class="payroll-employee-cell">${employeeCellForPayroll(row)}</td><td class="payroll-money-cell payroll-base-amount">${money(line.baseSalary)}</td><td class="payroll-money-cell payroll-allowance-amount">${money(line.allowance)}</td><td class="payroll-money-cell payroll-deduction-amount"><strong>${money(line.insuranceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong class="absence-money-deduction">${money(line.absenceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong>${money(line.advanceDeduction)}</strong></td><td class="payroll-money-cell payroll-net-amount"><strong>${money(line.net)}</strong></td><td class="payroll-money-cell payroll-transfer-cell"><strong class="payroll-transfer-amount">${money(line.transfer)}</strong></td><td class="payroll-money-cell payroll-required-cell">${requiredText}</td><td class="payroll-card-withdraw-cell">${withdrawText}</td><td><span class="status-badge status-paid">${savedRun ? 'مصروف' : 'جاهز للصرف'}</span></td></tr>`; }).join('');
       const head = body.closest('table')?.querySelector('thead tr'); if (head) head.innerHTML = `<th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المبلغ المحول للموظف</th><th>المبلغ المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th>`;
     }
     renderAdvanceSummary();
@@ -11760,14 +11836,16 @@ document.addEventListener("click", function(event) {
   try { renderPayroll = renderPayrollWithAdvances; } catch(_) {}
   window.renderPayroll = renderPayrollWithAdvances;
   const oldBuild = typeof buildCloudState === 'function' ? buildCloudState : null;
-  if (oldBuild && !oldBuild.__payrollAdvancesWrapped) { const wrappedBuild = function(){ const state = oldBuild.apply(this, arguments) || {}; state.payrollAdvances = loadAdvances(); return state; }; wrappedBuild.__payrollAdvancesWrapped = true; try { buildCloudState = wrappedBuild; } catch(_) {} window.buildCloudState = wrappedBuild; }
+  if (oldBuild && !oldBuild.__payrollAdvancesWrapped) { const wrappedBuild = function(){ const state = oldBuild.apply(this, arguments) || {}; state.payrollAdvances = loadAdvances(); state.payrollRuns = loadPayrollRuns(); return state; }; wrappedBuild.__payrollAdvancesWrapped = true; try { buildCloudState = wrappedBuild; } catch(_) {} window.buildCloudState = wrappedBuild; }
   const oldApply = typeof applyCloudState === 'function' ? applyCloudState : null;
-  if (oldApply && !oldApply.__payrollAdvancesWrapped) { const wrappedApply = function(state){ const result = oldApply.apply(this, arguments); if (state && Array.isArray(state.payrollAdvances)) saveAdvances(state.payrollAdvances); return result; }; wrappedApply.__payrollAdvancesWrapped = true; try { applyCloudState = wrappedApply; } catch(_) {} window.applyCloudState = wrappedApply; }
+  if (oldApply && !oldApply.__payrollAdvancesWrapped) { const wrappedApply = function(state){ const result = oldApply.apply(this, arguments); if (state && Array.isArray(state.payrollAdvances)) saveAdvances(state.payrollAdvances); if (state && Array.isArray(state.payrollRuns)) savePayrollRuns(state.payrollRuns); return result; }; wrappedApply.__payrollAdvancesWrapped = true; try { applyCloudState = wrappedApply; } catch(_) {} window.applyCloudState = wrappedApply; }
   document.addEventListener('click', function(event){
     const dashboard = event.target.closest('#dashboardAdvanceBtn');
     if (dashboard) { event.preventDefault(); event.stopPropagation(); setSelectedPayrollMonthKey(currentPayrollMonthKey()); openAdvanceModal(); return; }
+    const processBtn = event.target.closest('#processPayrollBtn');
+    if (processBtn) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation(); saveCurrentPayrollRun(); return; }
     const exportBtn = event.target.closest('#payrollExportBtn');
-    if (exportBtn) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation(); const key = monthKey(); try { exportCsv(`payroll-${key}.csv`, [["الموظف", "الراتب الأساسي", "البدلات", "التأمينات", "حسم الغياب", "السلفيات", "صافي الراتب", "المبلغ المحول للموظف", "المبلغ المطلوب من الموظف", "سحب البطاقة"], ...getEmployees().map(employee => { const line = calcPayrollLine(employee, key); return [employee.name, line.baseSalary, line.allowance, line.insuranceDeduction, line.absenceDeduction, line.advanceDeduction, line.net, line.transfer, line.required > 0 ? line.required : '', line.cardWithdraw ? 'نعم' : '']; })]); } catch(_) {} }
+    if (exportBtn) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation(); const key = monthKey(); try { const savedRun = payrollRunForMonth(key); const exportRows = savedRun ? savedRun.items : getEmployees().map(employee => ({ employee, employeeId: employee.id, line: calcPayrollLine(employee, key) })); exportCsv(`payroll-${key}.csv`, [["الموظف", "الراتب الأساسي", "البدلات", "التأمينات", "حسم الغياب", "السلفيات", "صافي الراتب", "المبلغ المحول للموظف", "المبلغ المطلوب من الموظف", "سحب البطاقة"], ...exportRows.map(row => { const line = row.line || {}; const name = row.employee?.name || row.employee?.name || getEmployeeById(row.employeeId)?.name || ''; return [name, line.baseSalary, line.allowance, line.insuranceDeduction, line.absenceDeduction, line.advanceDeduction, line.net, line.transfer, Number(line.required || 0) > 0 ? line.required : '', line.cardWithdraw ? 'نعم' : '']; })]); } catch(_) {} }
   }, true);
   document.addEventListener('DOMContentLoaded', function(){ ensureAdvanceModal(); try { renderPayrollWithAdvances(); } catch(_) {} });
   setTimeout(function(){ try { ensureAdvanceModal(); renderPayrollWithAdvances(); } catch(_) {} }, 200);
