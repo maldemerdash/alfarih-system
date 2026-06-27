@@ -10061,7 +10061,8 @@ document.addEventListener("click", function(event) {
       return;
     }
     body.innerHTML = appUserProfilesCache.map((profile) => {
-      const emp = allEmps().find((e) => String(e.id) === String(profile.employee_id || ''));
+      const linkedEmployeeId = profile.employee_id || profile.employeeId || profile.linked_employee_id || profile.employee?.id || '';
+      const emp = allEmps().find((e) => String(e.id) === String(linkedEmployeeId));
       return `<tr>
         <td><strong>${escape(profile.full_name || '—')}</strong></td>
         <td dir="ltr">${escape(profile.email || '—')}</td>
@@ -10090,6 +10091,7 @@ document.addEventListener("click", function(event) {
       role,
       isActive: form.elements.isActive.value === 'true',
       employeeId: form.elements.employeeId?.value || null,
+      employee_id: form.elements.employeeId?.value || null,
       permissions: normalizePermissions(existing?.permissions, role)
     };
     if (!payload.fullName || !payload.email) return showToast('أدخل الاسم والبريد');
@@ -12068,8 +12070,34 @@ document.addEventListener("click", function(event) {
   const keys = () => groups().flatMap((group) => Array.isArray(group.items) ? group.items.map((item) => item[0]) : []);
   const normalize = (permissions, role = 'employee') => typeof matrix().normalizePermissions === 'function' ? matrix().normalizePermissions(permissions, role) : Object.fromEntries(keys().map((key) => [key, Boolean(permissions && permissions[key])]));
 
+  function profileEmployeeId(profile){
+    if (!profile) return '';
+    return String(
+      profile.employee_id ??
+      profile.employeeId ??
+      profile.linked_employee_id ??
+      profile.employee?.id ??
+      profile.employee?.employee_id ??
+      ''
+    ).trim();
+  }
+
+  function normalizeProfileRow(profile){
+    if (!profile || typeof profile !== 'object') return profile;
+    const employeeId = profileEmployeeId(profile);
+    if (employeeId) {
+      profile.employee_id = employeeId;
+      profile.employeeId = employeeId;
+    }
+    return profile;
+  }
+
   function profileForEmployee(employeeId){
-    return (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []).find((profile) => String(profile.role || 'employee') !== 'admin' && String(profile.employee_id || profile.employeeId || '') === String(employeeId || '')) || null;
+    const wanted = String(employeeId || '').trim();
+    if (!wanted) return null;
+    return (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : [])
+      .map(normalizeProfileRow)
+      .find((profile) => String(profile.role || 'employee') !== 'admin' && profileEmployeeId(profile) === wanted) || null;
   }
 
   async function fetchSecurityProfiles(){
@@ -12078,7 +12106,30 @@ document.addEventListener("click", function(event) {
     const { data, error } = await supabaseClient.functions.invoke('admin-create-user', { body: { action: 'list-users' } });
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
-    appUserProfilesCache = Array.isArray(data?.users) ? data.users : [];
+    let rows = Array.isArray(data?.users) ? data.users.map(normalizeProfileRow) : [];
+
+    // Some deployed Edge Function versions may return users without employee_id.
+    // Merge directly from app_user_profiles when allowed, so permissions and user management read the same link.
+    try {
+      if (supabaseClient?.from) {
+        const { data: directRows, error: directError } = await supabaseClient
+          .from('app_user_profiles')
+          .select('id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at');
+        if (!directError && Array.isArray(directRows)) {
+          const byId = new Map(rows.map((row) => [String(row.id || row.email || ''), normalizeProfileRow(row)]));
+          directRows.map(normalizeProfileRow).forEach((row) => {
+            const key = String(row.id || row.email || '');
+            const current = byId.get(key) || {};
+            byId.set(key, { ...current, ...row, employee_id: profileEmployeeId(row) || profileEmployeeId(current), employeeId: profileEmployeeId(row) || profileEmployeeId(current) });
+          });
+          rows = [...byId.values()].map(normalizeProfileRow);
+        }
+      }
+    } catch (mergeError) {
+      console.warn('تعذر دمج ربط الموظفين مباشرة', mergeError);
+    }
+
+    appUserProfilesCache = rows;
     return appUserProfilesCache;
   }
 
@@ -12172,12 +12223,14 @@ document.addEventListener("click", function(event) {
           role: 'employee',
           isActive: profile.is_active,
           employeeId: employeeId,
+          employee_id: employeeId,
           permissions
         }
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       profile.employee_id = employeeId;
+      profile.employeeId = employeeId;
       profile.permissions = normalize(permissions, 'employee');
       showToast('تم حفظ صلاحيات الموظف');
     } catch (error) {
