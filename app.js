@@ -175,6 +175,7 @@ let pendingEndServiceEmployeeId = null;
 let pendingLeaveReturn = null;
 let pendingConsentAttachmentId = "";
 const objectUrls = new Set();
+let attachmentBackups = loadLocalData("nawah-attachment-backups", {});
 
 const SUPABASE_URL = "https://nbpfeyoydvujpfoizimh.supabase.co";
 const SUPABASE_KEY = "sb_publishable_6FXDGmhPXkJ-WeP6z3mvZg_lj58n_JE";
@@ -457,7 +458,10 @@ function buildCloudState() {
     workSettings,
     absencePolicySettings,
     minuteTemplateSettings,
-    orgStructure: getOrgStructure()
+    orgStructure: getOrgStructure(),
+    travelRequests: loadLocalData("nawah-travel-requests", []),
+    establishmentDocuments: loadLocalData("nawah-establishment-documents", []),
+    attachmentBackups
   };
 }
 
@@ -471,6 +475,12 @@ function applyCloudState(state) {
   if (state.absencePolicySettings) absencePolicySettings = normalizeAbsencePolicySettings(state.absencePolicySettings);
   if (state.minuteTemplateSettings) minuteTemplateSettings = normalizeMinuteTemplateSettings(state.minuteTemplateSettings);
   if (state.orgStructure) localStorage.setItem("nawah-org-structure", JSON.stringify(normalizeOrgStructure(state.orgStructure)));
+  if (Array.isArray(state.travelRequests)) localStorage.setItem("nawah-travel-requests", JSON.stringify(state.travelRequests));
+  if (Array.isArray(state.establishmentDocuments)) localStorage.setItem("nawah-establishment-documents", JSON.stringify(state.establishmentDocuments));
+  if (state.attachmentBackups && typeof state.attachmentBackups === "object") {
+    attachmentBackups = state.attachmentBackups;
+    localStorage.setItem("nawah-attachment-backups", JSON.stringify(attachmentBackups));
+  }
   localStorage.setItem("nawah-leaves", JSON.stringify(leaves));
   localStorage.setItem("nawah-job-titles", JSON.stringify(jobTitles));
   localStorage.setItem("nawah-attendance-exceptions", JSON.stringify(attendanceExceptions));
@@ -574,6 +584,15 @@ async function dbDeleteEmployee(id) {
   queueCloudStateSave();
 }
 
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("FileReader failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function saveAttachment(file, category) {
   if (!file) return "";
   if (supabaseClient && cloudReady) {
@@ -604,15 +623,23 @@ async function saveAttachment(file, category) {
       showToast("تعذر رفع المرفق للسحابة، تم حفظه محليًا مؤقتًا");
     }
   }
+  let dataUrl = "";
+  try { dataUrl = await fileToDataUrl(file); } catch (_) { dataUrl = ""; }
   const record = {
     id: `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     category,
     name: file.name,
     type: file.type || "application/octet-stream",
     blob: file,
+    dataUrl,
     createdAt: new Date().toISOString()
   };
+  if (dataUrl) {
+    attachmentBackups[record.id] = { id: record.id, category, name: record.name, type: record.type, dataUrl, createdAt: record.createdAt };
+    localStorage.setItem("nawah-attachment-backups", JSON.stringify(attachmentBackups));
+  }
   await requestResult(dbStore("attachments", "readwrite").put(record));
+  queueCloudStateSave();
   return record.id;
 }
 
@@ -641,12 +668,15 @@ async function getAttachment(id) {
       console.warn("تعذر قراءة المرفق من Supabase.", error);
     }
   }
-  return requestResult(dbStore("attachments").get(id));
+  const localRecord = await requestResult(dbStore("attachments").get(id));
+  if (localRecord) return localRecord;
+  return attachmentBackups?.[id] || null;
 }
 
 async function attachmentUrl(id) {
   const record = await getAttachment(id);
   if (!record) return "";
+  if (record.dataUrl) return record.dataUrl;
   if (record.blob) {
     const url = URL.createObjectURL(record.blob);
     objectUrls.add(url);
@@ -4394,6 +4424,7 @@ function setupEvents() {
     employees = employees.filter((employee) => employee.id !== deleteTargetId);
     leaves = leaves.filter((leave) => leave.employeeId !== deleteTargetId);
     attendanceExceptions = attendanceExceptions.filter((record) => record.employeeId !== deleteTargetId);
+    if (typeof window.purgeTravelRequestsForEmployee === "function") window.purgeTravelRequestsForEmployee(deleteTargetId);
     queueCloudStateSave();
     saveLocalMeta();
     document.querySelector("#confirmModal").close();
@@ -8273,6 +8304,7 @@ document.addEventListener("click", function(event) {
   let travelRequests = [];
   let pendingTravelApproval = null;
   let pendingTravelReturn = null;
+  let activeTravelFilter = "all";
   let pendingTicketAttachmentId = "";
   let pendingVisaAttachmentId = "";
 
@@ -8283,7 +8315,13 @@ document.addEventListener("click", function(event) {
       if (!Array.isArray(travelRequests)) travelRequests = [];
     } catch (_) { travelRequests = []; }
   }
-  function saveTravelRequests(){ localStorage.setItem(TRAVEL_KEY, JSON.stringify(travelRequests)); }
+  function saveTravelRequests(){ localStorage.setItem(TRAVEL_KEY, JSON.stringify(travelRequests)); try { queueCloudStateSave(); } catch (_) {} }
+  window.purgeTravelRequestsForEmployee = function(employeeId){
+    const before = travelRequests.length;
+    travelRequests = travelRequests.filter((item) => String(item.employeeId) !== String(employeeId));
+    if (travelRequests.length !== before) saveTravelRequests();
+  };
+  window.getTravelRequestsForBackup = function(){ return Array.isArray(travelRequests) ? travelRequests : []; };
   function safeEl(selector){ return document.querySelector(selector); }
   function setText(selector, value){ const el = safeEl(selector); if (el) el.textContent = value; }
   function htmlEscape(value){ return typeof escapeHtml === "function" ? escapeHtml(value || "") : String(value || "").replace(/[&<>\"]/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m])); }
@@ -8618,7 +8656,9 @@ document.addEventListener("click", function(event) {
   }
   function activeTravelRequests(){ return travelRequests.filter((t) => t.status === "approved"); }
   function renderTravelTable(){
-    const body = travelRequests.length ? travelRequests.map((travel) => {
+    if (activeTravelFilter === "none") return "";
+    const visibleTravelRequests = activeTravelFilter === "pending" ? travelRequests.filter((travel) => travel.status === "pending") : travelRequests;
+    const body = visibleTravelRequests.length ? visibleTravelRequests.map((travel) => {
       const employee = employeeById(travel.employeeId);
       if (!employee) return "";
       let actions = travelStatusBadge(travel);
@@ -8638,10 +8678,11 @@ document.addEventListener("click", function(event) {
         <td>${travel.commissionFrozenAt ? badge("مجمدة", "status-warning") : badge("غير مجمدة", "status-active")}</td>
         <td><div class="travel-actions">${actions}</div></td>
       </tr>`;
-    }).join("") : `<tr><td colspan="8"><div class="empty-state"><strong>لا توجد طلبات سفر</strong></div></td></tr>`;
+    }).join("") : `<tr><td colspan="8"><div class="empty-state"><strong>لا توجد طلبات سفر في هذه الفئة</strong></div></td></tr>`;
     return `<article class="panel travel-table-panel"><div class="panel-head"><div><h3>المسافرون</h3><p>طلبات السفر وحالة المباشرة والعمولات</p></div><button class="primary-btn" id="newTravelBtn">${icon("plus")}طلب سفر</button></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>تاريخ المباشرة</th><th>مضى على السفر</th><th>المتبقي للعودة</th><th>العمولة</th><th>الإجراءات</th></tr></thead><tbody>${body}</tbody></table></div></article>`;
   }
   function renderLeaveTable(){
+    if (activeLeaveFilter === "none") return "";
     const filtered = activeLeaveFilter === "all" ? leaves : leaves.filter((leave) => leave.status === activeLeaveFilter);
     const rows = filtered.length ? filtered.map((leave) => {
       const employee = employeeById(leave.employeeId);
@@ -8670,11 +8711,11 @@ document.addEventListener("click", function(event) {
         <button type="button" class="request-card" id="newTravelBtn"><span data-icon="plane"></span><strong>طلب سفر</strong><small>طلب سفر بتاريخ عودة أو بدون عودة</small></button>
       </div>
       <div class="leave-tabs">
-        <button class="${activeLeaveFilter === "all" ? "active" : ""}" data-leave-filter="all">جميع الإجازات <span id="allLeaveCount">${num(leaves.length)}</span></button>
-        <button class="${activeLeaveFilter === "pending" ? "active" : ""}" data-leave-filter="pending">إجازات بانتظار الموافقة <span id="pendingLeaveCount">${num(pendingLeaves)}</span></button>
-        <button class="${activeLeaveFilter === "approved" ? "active" : ""}" data-leave-filter="approved">إجازات معتمدة</button>
-        <button class="${activeLeaveFilter === "rejected" ? "active" : ""}" data-leave-filter="rejected">إجازات مرفوضة</button>
-        <button class="travel-tab-info" type="button">طلبات سفر معلقة <span>${num(pendingTravel)}</span></button>
+        <button class="${activeLeaveFilter === "all" && activeTravelFilter === "all" ? "active" : ""}" data-leave-filter="all" data-travel-filter="all">جميع الطلبات <span id="allLeaveCount">${num(leaves.length + travelRequests.length)}</span></button>
+        <button class="${activeLeaveFilter === "pending" && activeTravelFilter === "pending" ? "active" : ""}" data-leave-filter="pending" data-travel-filter="pending">إجراءات بانتظار الموافقة <span id="pendingLeaveCount">${num(pendingLeaves + pendingTravel)}</span></button>
+        <button class="${activeLeaveFilter === "approved" && activeTravelFilter === "none" ? "active" : ""}" data-leave-filter="approved" data-travel-filter="none">إجازات معتمدة</button>
+        <button class="${activeLeaveFilter === "rejected" && activeTravelFilter === "none" ? "active" : ""}" data-leave-filter="rejected" data-travel-filter="none">إجازات مرفوضة</button>
+        <button class="${activeTravelFilter === "pending" && activeLeaveFilter === "none" ? "active" : ""}" type="button" data-travel-filter="pending" data-leave-filter="none">طلبات سفر معلقة <span>${num(pendingTravel)}</span></button>
       </div>
       <div class="leave-travel-tables">
         ${renderTravelTable()}
@@ -8967,6 +9008,17 @@ document.addEventListener("click", function(event) {
   function bindTravelEvents(){
     document.addEventListener("click", (event) => {
       const target = event.target;
+      const tabButton = target.closest(".leave-tabs button");
+      if (tabButton && (tabButton.dataset.leaveFilter || tabButton.dataset.travelFilter)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        document.querySelectorAll(".leave-tabs button").forEach((item) => item.classList.remove("active"));
+        tabButton.classList.add("active");
+        activeLeaveFilter = tabButton.dataset.leaveFilter || "all";
+        activeTravelFilter = tabButton.dataset.travelFilter || "all";
+        renderLeavesAndTravel();
+        return;
+      }
       const newTravel = target.closest("#newTravelBtn");
       const newLeave = target.closest("#newLeaveBtn");
       const approve = target.closest("[data-travel-approve]");
@@ -10158,7 +10210,7 @@ document.addEventListener("click", function(event) {
       if (travel.status === 'pending' && (can('leaves.approve') || can('leaves.reject'))) actions = `${can('leaves.reject') ? `<button class="secondary-btn" data-travel-reject="${escape(travel.id)}">رفض</button>` : ''}${can('leaves.approve') ? `<button class="primary-btn" data-travel-approve="${escape(travel.id)}">اعتماد السفر</button>` : ''}`;
       else if (travel.status === 'approved' && can('leaves.resume')) actions = `${travelBadge(travel)}<button class="primary-btn" data-travel-resume="${escape(travel.id)}">تسجيل مباشرة عمل</button>`;
       return `<tr><td>${employeeCell(employee)}</td><td>${formatDate(travel.travelDate)}</td><td>${travel.returnDate ? formatDate(travel.returnDate) : 'غير محدد'}</td><td>${travel.workResumeDate ? formatDate(travel.workResumeDate) : 'لم يباشر'}</td><td>${travelBadge(travel)}</td><td><div class="travel-actions">${actions}</div></td></tr>`;
-    }).join('') : `<tr><td colspan="6"><div class="empty-state"><strong>لا توجد طلبات سفر</strong></div></td></tr>`;
+    }).join('') : `<tr><td colspan="6"><div class="empty-state"><strong>لا توجد طلبات سفر في هذه الفئة</strong></div></td></tr>`;
     view.innerHTML = `<div class="leave-travel-hero">
       <button type="button" class="request-card ${!can('leaves.createLeave') ? 'is-permission-hidden' : ''}" id="newLeaveBtn"><span data-icon="calendar"></span><strong>طلب إجازة</strong><small>إنشاء طلب إجازة جديد</small></button>
       <button type="button" class="request-card ${!can('leaves.createTravel') ? 'is-permission-hidden' : ''}" id="newTravelBtn"><span data-icon="plane"></span><strong>طلب سفر</strong><small>طلب سفر بتاريخ عودة أو بدون عودة</small></button>
@@ -10361,3 +10413,7 @@ document.addEventListener("click", function(event) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startObserver);
   else startObserver();
 })();
+
+
+/* Data consistency patch: attachments, travel cloud sync, employee delete cascade, tabs */
+console.info("Data consistency patch 2026-06-27 applied");
