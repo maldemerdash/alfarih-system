@@ -307,7 +307,7 @@ async function loadAuthProfile(user) {
   try {
     const { data, error } = await supabaseClient
       .from("app_user_profiles")
-      .select("id, user_id, full_name, email, role, is_active")
+      .select("*")
       .eq("user_id", user.id)
       .maybeSingle();
     if (error) throw error;
@@ -318,7 +318,7 @@ async function loadAuthProfile(user) {
   try {
     const { data, error } = await supabaseClient
       .from("app_user_profiles")
-      .select("id, user_id, full_name, email, role, is_active")
+      .select("*")
       .eq("email", user.email)
       .maybeSingle();
     if (error) throw error;
@@ -4675,7 +4675,7 @@ async function loadAppUserProfiles() {
   if (!supabaseClient) return [];
   const { data, error } = await supabaseClient
     .from("app_user_profiles")
-    .select("id, user_id, full_name, email, role, is_active, created_at, updated_at")
+    .select("*")
     .order("created_at", { ascending: false });
   if (error) throw error;
   appUserProfilesCache = Array.isArray(data) ? data : [];
@@ -9257,4 +9257,650 @@ document.addEventListener("click", function(event) {
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(install, 250));
   else setTimeout(install, 250);
+})();
+
+
+/* =========================================================
+   Granular employee permissions + clean login background
+   ========================================================= */
+(function granularEmployeePermissionsPatch(){
+  const PERMISSION_GROUPS = [
+    { id: "dashboard", title: "الصفحة الرئيسية", items: [
+      ["dashboard.statsEmployees", "إظهار بطاقة إجمالي الموظفين"],
+      ["dashboard.statsAttendance", "إظهار بطاقة الحضور اليوم"],
+      ["dashboard.statsLeaves", "إظهار بطاقة طلبات الإجازة"],
+      ["dashboard.statsPayroll", "إظهار بطاقة الرواتب"],
+      ["dashboard.travelers", "إظهار بطاقة المسافرون"],
+      ["dashboard.reviewRequests", "إظهار بطاقة طلبات تحتاج مراجعة"],
+      ["dashboard.recentEmployees", "إظهار أحدث الموظفين"],
+      ["dashboard.estDocs", "إظهار وثائق المنشأة القريبة من الانتهاء"],
+      ["dashboard.empDocs", "إظهار وثائق الموظفين القريبة من الانتهاء"],
+      ["dashboard.reviewActions", "إظهار أزرار الموافقة والرفض في الرئيسية"],
+      ["dashboard.absenceShortcut", "إظهار زر تسجيل الغياب في الشريط"],
+    ]},
+    { id: "employees", title: "الموظفون", items: [
+      ["employees.view", "فتح صفحة الموظفين"],
+      ["employees.viewAll", "عرض جميع الموظفين"],
+      ["employees.viewSelf", "عرض ملفه فقط"],
+      ["employees.create", "إضافة موظف"],
+      ["employees.edit", "تعديل بيانات الموظفين"],
+      ["employees.delete", "حذف الموظفين"],
+      ["employees.attachments", "عرض ورفع مرفقات الموظفين"],
+    ]},
+    { id: "attendance", title: "الحضور والانصراف", items: [
+      ["attendance.view", "فتح صفحة الحضور والانصراف"],
+      ["attendance.viewAll", "عرض حضور جميع الموظفين"],
+      ["attendance.viewSelf", "عرض حضوره فقط"],
+      ["attendance.recordAbsence", "تسجيل غياب"],
+      ["attendance.edit", "تعديل سجلات الحضور"],
+    ]},
+    { id: "leaves", title: "الإجازات والسفر", items: [
+      ["leaves.view", "فتح صفحة الإجازات والسفر"],
+      ["leaves.viewOwn", "عرض طلباته فقط"],
+      ["leaves.viewAll", "عرض طلبات الجميع"],
+      ["leaves.createLeave", "إنشاء طلب إجازة"],
+      ["leaves.createTravel", "إنشاء طلب سفر"],
+      ["leaves.approve", "الموافقة على الطلبات"],
+      ["leaves.reject", "رفض الطلبات"],
+      ["leaves.resume", "تسجيل المباشرة بعد العودة"],
+      ["leaves.viewTravelers", "عرض قائمة المسافرين"],
+    ]},
+    { id: "payroll", title: "الرواتب والعمولات", items: [
+      ["payroll.view", "فتح صفحة الرواتب"],
+      ["payroll.edit", "تعديل الرواتب والعمولات"],
+      ["payroll.print", "طباعة المخالصة"],
+    ]},
+    { id: "companyDocs", title: "وثائق المنشأة", items: [
+      ["companyDocs.view", "عرض وثائق المنشأة"],
+      ["companyDocs.create", "إضافة وثيقة"],
+      ["companyDocs.edit", "تعديل وثيقة"],
+      ["companyDocs.delete", "حذف وثيقة"],
+      ["companyDocs.attachments", "رفع وعرض مرفقات الوثائق"],
+    ]},
+    { id: "settings", title: "الإعدادات والأقسام", items: [
+      ["settings.view", "فتح الإعدادات"],
+      ["settings.edit", "تعديل الإعدادات"],
+      ["departments.view", "فتح الأقسام"],
+      ["departments.edit", "تعديل الإدارات والأقسام والمهن"],
+    ]},
+  ];
+  const ALL_PERMISSION_KEYS = PERMISSION_GROUPS.flatMap(g => g.items.map(i => i[0]));
+  const DEFAULT_EMPLOYEE_PERMISSIONS = {
+    "dashboard.statsLeaves": true,
+    "leaves.view": true,
+    "leaves.viewOwn": true,
+    "leaves.createLeave": true,
+    "leaves.createTravel": true,
+  };
+  function isAdminRole(role){ return role === "admin"; }
+  function normalizeRole(role){ return role === "admin" ? "admin" : "employee"; }
+  function adminPermissions(){ return Object.fromEntries(ALL_PERMISSION_KEYS.map(key => [key, true])); }
+  function normalizePermissions(raw, role = "employee"){
+    if (normalizeRole(role) === "admin") return adminPermissions();
+    let obj = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    try { if (typeof raw === "string") obj = JSON.parse(raw); } catch(_) { obj = {}; }
+    const base = { ...DEFAULT_EMPLOYEE_PERMISSIONS, ...obj };
+    return Object.fromEntries(ALL_PERMISSION_KEYS.map(key => [key, Boolean(base[key])]));
+  }
+  function currentPermissions(){ return normalizePermissions(authProfile?.permissions, currentRoleKey()); }
+  window.hasAppPermission = function(key){
+    if (currentRoleKey() === "admin") return true;
+    return Boolean(currentPermissions()[key]);
+  };
+  function can(key){ return window.hasAppPermission(key); }
+  function currentEmployee(){
+    const email = String(authProfile?.email || authUser?.email || "").trim().toLowerCase();
+    if (!email) return null;
+    return (Array.isArray(employees) ? employees : []).find(emp => String(emp.email || "").trim().toLowerCase() === email) || null;
+  }
+  function currentEmployeeId(){ return currentEmployee()?.id || ""; }
+  function scopedEmployees(){
+    if (currentRoleKey() === "admin" || can("employees.viewAll")) return employees;
+    const mine = currentEmployee();
+    if (mine && (can("employees.viewSelf") || can("leaves.viewOwn") || can("attendance.viewSelf"))) return [mine];
+    return [];
+  }
+  function ownsEmployee(employeeId){
+    const mine = currentEmployeeId();
+    return mine && String(employeeId) === String(mine);
+  }
+  function canSeeRequestFor(employeeId){
+    if (currentRoleKey() === "admin") return true;
+    if (can("leaves.viewAll")) return true;
+    return can("leaves.viewOwn") && ownsEmployee(employeeId);
+  }
+  function canOpenViewGranular(view){
+    if (currentRoleKey() === "admin") return true;
+    const map = {
+      dashboard: true,
+      employees: can("employees.view") || can("employees.viewSelf") || can("employees.viewAll"),
+      attendance: can("attendance.view") || can("attendance.viewSelf") || can("attendance.viewAll"),
+      leaves: can("leaves.view") || can("leaves.viewOwn") || can("leaves.viewAll"),
+      payroll: can("payroll.view"),
+      departments: can("departments.view"),
+      settings: can("settings.view"),
+      users: false,
+    };
+    return Boolean(map[view]);
+  }
+
+  // Roles are now only admin / employee.
+  AUTH_ROLES.admin = { label: "مدير النظام", views: ["dashboard", "employees", "attendance", "leaves", "payroll", "departments", "settings", "users"] };
+  AUTH_ROLES.employee = { label: "موظف", views: ["dashboard", "leaves"] };
+  delete AUTH_ROLES.hr; delete AUTH_ROLES.accountant; delete AUTH_ROLES.manager;
+  currentRoleKey = function(){ return normalizeRole(authProfile?.role); };
+  roleCanOpen = function(viewName){ return canOpenViewGranular(viewName); };
+  roleOptions = function(selected = "employee"){
+    const role = normalizeRole(selected);
+    return `<option value="admin" ${role === "admin" ? "selected" : ""}>مدير النظام</option><option value="employee" ${role === "employee" ? "selected" : ""}>موظف</option>`;
+  };
+  roleBadge = function(role){
+    const label = normalizeRole(role) === "admin" ? "مدير النظام" : "موظف";
+    return `<span class="status-badge status-approved">${escapeHtml(label)}</span>`;
+  };
+
+  const oldApplyRolePermissions = applyRolePermissions;
+  applyRolePermissions = function(){
+    updateTopbarUser();
+    document.querySelectorAll(".nav-item[data-view]").forEach((button) => {
+      button.classList.toggle("is-permission-hidden", !canOpenViewGranular(button.dataset.view));
+    });
+    document.querySelectorAll(".stat-card[data-go-view], [data-go-view]").forEach((element) => {
+      const view = element.dataset.goView;
+      if (view && pageMeta[view]) element.dataset.permissionHidden = canOpenViewGranular(view) ? "false" : "true";
+    });
+    applyDashboardPermissionVisibility();
+  };
+
+  function applyDashboardPermissionVisibility(){
+    if (currentRoleKey() === "admin") {
+      document.querySelectorAll("[data-granular-hidden='true']").forEach(el => el.dataset.granularHidden = "false");
+      return;
+    }
+    const pairs = [
+      [".stat-card-employees", "dashboard.statsEmployees"],
+      [".stat-card-attendance", "dashboard.statsAttendance"],
+      [".stat-card-leaves", "dashboard.statsLeaves"],
+      [".stat-card-payroll", "dashboard.statsPayroll"],
+      [".travelers-dashboard-panel", "dashboard.travelers"],
+      [".leave-panel", "dashboard.reviewRequests"],
+      [".recent-panel", "dashboard.recentEmployees"],
+      ["#dashboardEstDocsPanel", "dashboard.estDocs"],
+      ["#dashboardEmployeeDocsPanel", "dashboard.empDocs"],
+      ["#dashboardAbsenceBtn", "dashboard.absenceShortcut"],
+    ];
+    pairs.forEach(([selector, key]) => document.querySelectorAll(selector).forEach(el => el.dataset.granularHidden = can(key) ? "false" : "true"));
+    document.querySelectorAll(".leave-panel [data-dashboard-request-action]").forEach(btn => btn.dataset.granularHidden = can("dashboard.reviewActions") && (can("leaves.approve") || can("leaves.reject")) ? "false" : "true");
+  }
+
+  function renderPermissionEditor(container, permissions, role){
+    if (!container) return;
+    const normalized = normalizePermissions(permissions, role);
+    container.innerHTML = PERMISSION_GROUPS.map(group => `
+      <section class="granular-permission-section">
+        <div class="granular-permission-head"><strong>${escapeHtml(group.title)}</strong><button type="button" class="text-btn" data-permission-group-toggle="${escapeHtml(group.id)}">تحديد الكل</button></div>
+        <div class="granular-permission-grid">
+          ${group.items.map(([key, label]) => `<label class="granular-permission-item"><input type="checkbox" name="permission_${escapeHtml(key)}" data-permission-key="${escapeHtml(key)}" ${normalized[key] ? "checked" : ""}><span>${escapeHtml(label)}</span></label>`).join("")}
+        </div>
+      </section>`).join("");
+  }
+  function readPermissionsFromForm(form){
+    const role = normalizeRole(form.elements.role?.value || "employee");
+    if (role === "admin") return adminPermissions();
+    const values = {};
+    ALL_PERMISSION_KEYS.forEach(key => {
+      values[key] = Boolean(form.querySelector(`[data-permission-key="${CSS.escape(key)}"]`)?.checked);
+    });
+    // Keep an employee able to enter at least the dashboard.
+    return normalizePermissions(values, role);
+  }
+  function ensureGranularPermissionEditor(){
+    ensureUsersManagementView();
+    const form = document.querySelector("#appUserProfileForm");
+    if (!form) return;
+    const roleSelect = form.elements.role;
+    if (roleSelect) roleSelect.innerHTML = roleOptions(roleSelect.value || "employee");
+    let holder = form.querySelector("#granularPermissionsHolder");
+    if (!holder) {
+      holder = document.createElement("div");
+      holder.id = "granularPermissionsHolder";
+      holder.className = "granular-permissions-holder";
+      const help = form.querySelector(".user-help-card");
+      if (help) help.insertAdjacentElement("afterend", holder); else form.querySelector(".user-profile-modal-body")?.appendChild(holder);
+    }
+    if (!holder.innerHTML.trim()) renderPermissionEditor(holder, DEFAULT_EMPLOYEE_PERMISSIONS, roleSelect?.value || "employee");
+    updatePermissionEditorVisibility();
+  }
+  function updatePermissionEditorVisibility(){
+    const form = document.querySelector("#appUserProfileForm");
+    const holder = document.querySelector("#granularPermissionsHolder");
+    const role = normalizeRole(form?.elements.role?.value || "employee");
+    if (holder) holder.style.display = role === "admin" ? "none" : "block";
+  }
+  function setPermissionEditorValues(permissions, role){
+    ensureGranularPermissionEditor();
+    renderPermissionEditor(document.querySelector("#granularPermissionsHolder"), permissions, role);
+    updatePermissionEditorVisibility();
+  }
+
+  const oldEnsureUsersManagementView = ensureUsersManagementView;
+  ensureUsersManagementView = function(){
+    oldEnsureUsersManagementView();
+    const form = document.querySelector("#appUserProfileForm");
+    if (form?.elements.role) form.elements.role.innerHTML = roleOptions(form.elements.role.value || "employee");
+    if (!document.querySelector("#granularPermissionStyles")) {
+      const style = document.createElement("style");
+      style.id = "granularPermissionStyles";
+      style.textContent = `
+        [data-granular-hidden="true"]{display:none!important;}
+        .granular-permissions-holder{grid-column:1/-1;border:1px solid #dce8ec;background:#fbfeff;border-radius:18px;padding:14px;display:grid;gap:12px;max-height:360px;overflow:auto;}
+        .granular-permission-section{border:1px solid #e5eef1;border-radius:16px;background:#fff;padding:12px;}
+        .granular-permission-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;color:#0f5960;}
+        .granular-permission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;}
+        .granular-permission-item{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:9px 10px;font-size:11px;color:#334155;}
+        .granular-permission-item input{width:16px!important;height:16px!important;min-height:auto!important;accent-color:#0f9f8f;}
+        .auth-gate{background:radial-gradient(circle at 15% 15%, rgba(45,212,191,.28), transparent 30%),radial-gradient(circle at 85% 20%, rgba(14,165,233,.24), transparent 28%),linear-gradient(135deg,#062b36 0%,#0f766e 48%,#18b990 100%)!important;overflow:hidden;}
+        .auth-gate:before{content:"";position:absolute;inset:24px;border:1px solid rgba(255,255,255,.16);border-radius:34px;background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.02));pointer-events:none;}
+        .auth-gate:after{content:"نظام إدارة الموظفين";position:absolute;right:7vw;top:8vh;color:rgba(255,255,255,.13);font-size:54px;font-weight:900;letter-spacing:-1px;}
+        body.auth-locked .app-shell{filter:none!important;opacity:0!important;pointer-events:none!important;}
+        .auth-card{position:relative;z-index:2;border-radius:30px!important;box-shadow:0 34px 90px rgba(2,6,23,.34)!important;}
+        @media(max-width:760px){.granular-permission-grid{grid-template-columns:1fr}.auth-gate:after{display:none}}
+      `;
+      document.head.appendChild(style);
+    }
+    ensureGranularPermissionEditor();
+  };
+
+  loadAuthProfile = async function(user){
+    if (!user || !supabaseClient) return null;
+    for (const [column, value] of [["user_id", user.id], ["email", user.email]]) {
+      try {
+        const { data, error } = await supabaseClient.from("app_user_profiles").select("*").eq(column, value).maybeSingle();
+        if (error) throw error;
+        if (data) return { ...data, role: normalizeRole(data.role), permissions: normalizePermissions(data.permissions, data.role) };
+      } catch (error) { console.warn("تعذر قراءة صلاحيات المستخدم", column, error); }
+    }
+    return { full_name: user.email || "مستخدم", email: user.email || "", role: "employee", is_active: false, permissions: normalizePermissions({}, "employee") };
+  };
+
+  loadAppUserProfiles = async function(){
+    if (!supabaseClient) return [];
+    const { data, error } = await supabaseClient.from("app_user_profiles").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    appUserProfilesCache = (Array.isArray(data) ? data : []).map(p => ({ ...p, role: normalizeRole(p.role), permissions: normalizePermissions(p.permissions, p.role) }));
+    return appUserProfilesCache;
+  };
+
+  const oldResetUserProfileForm = resetUserProfileForm;
+  resetUserProfileForm = function(){
+    oldResetUserProfileForm();
+    const form = document.querySelector("#appUserProfileForm");
+    if (form?.elements.role) form.elements.role.value = "employee";
+    setPermissionEditorValues(DEFAULT_EMPLOYEE_PERMISSIONS, "employee");
+  };
+  fillUserProfileForm = function(id){
+    const profile = appUserProfilesCache.find((item) => item.id === id);
+    const form = document.querySelector("#appUserProfileForm");
+    if (!profile || !form) return;
+    ensureGranularPermissionEditor();
+    form.elements.profileId.value = profile.id || "";
+    form.elements.fullName.value = profile.full_name || "";
+    form.elements.email.value = profile.email || "";
+    if (form.elements.password) { form.elements.password.value = ""; form.elements.password.required = false; form.elements.password.closest("label")?.classList.add("is-hidden"); }
+    form.elements.role.value = normalizeRole(profile.role);
+    form.elements.isActive.value = profile.is_active ? "true" : "false";
+    setPermissionEditorValues(profile.permissions, profile.role);
+    const title = document.querySelector("#userProfileModalTitle"); if (title) title.textContent = "تعديل مستخدم";
+    const modal = document.querySelector("#userProfileModal"); if (modal && !modal.open) modal.showModal();
+  };
+  renderAppUserProfiles = function(){
+    const body = document.querySelector("#appUserProfilesBody");
+    if (!body) return;
+    if (!appUserProfilesCache.length) {
+      body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>لا يوجد مستخدمون بعد</strong><p>أضف أول مستخدم من زر إضافة مستخدم.</p></div></td></tr>`;
+      return;
+    }
+    body.innerHTML = appUserProfilesCache.map((profile) => `
+      <tr>
+        <td><strong>${escapeHtml(profile.full_name || "—")}</strong></td>
+        <td dir="ltr">${escapeHtml(profile.email || "—")}</td>
+        <td>${roleBadge(profile.role)}</td>
+        <td><span class="${profile.is_active ? "user-status-active" : "user-status-disabled"}">${profile.is_active ? "مفعل" : "موقوف"}</span></td>
+        <td><span class="user-action-row"><button type="button" class="quick-view-btn" data-edit-user-profile="${escapeHtml(profile.id)}" title="تعديل">${iconSvg("edit")}</button><button type="button" class="quick-view-btn ${profile.is_active ? "warning-inline-btn" : ""}" data-toggle-user-profile="${escapeHtml(profile.id)}" title="${profile.is_active ? "إيقاف" : "تنشيط"}">${iconSvg(profile.is_active ? "user-x" : "check")}</button><button type="button" class="quick-view-btn danger-inline-btn" data-delete-user-profile="${escapeHtml(profile.id)}" title="حذف">${iconSvg("trash")}</button></span></td>
+      </tr>`).join("");
+  };
+
+  saveUserProfileFromForm = async function(form){
+    if (currentRoleKey() !== "admin") return showToast("هذه الشاشة للمدير فقط");
+    if (!supabaseClient) return showToast("Supabase غير متصل");
+    const profileId = form.elements.profileId.value.trim();
+    const role = normalizeRole(form.elements.role.value);
+    const payload = {
+      full_name: form.elements.fullName.value.trim(),
+      email: form.elements.email.value.trim().toLowerCase(),
+      role,
+      is_active: form.elements.isActive.value === "true",
+      permissions: readPermissionsFromForm(form),
+      updated_at: new Date().toISOString()
+    };
+    const password = form.elements.password?.value || "";
+    if (!payload.full_name || !payload.email) return showToast("أدخل الاسم والبريد");
+    if (!profileId && password.length < 6) return showToast("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+    try {
+      if (profileId) {
+        const { error } = await supabaseClient.from("app_user_profiles").update(payload).eq("id", profileId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabaseClient.functions.invoke("admin-create-user", { body: { email: payload.email, password, fullName: payload.full_name, role: payload.role, isActive: payload.is_active, permissions: payload.permissions } });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        if (!data?.user_id && !data?.userId) throw new Error("لم يتم إنشاء حساب الدخول في Authentication");
+      }
+      resetUserProfileForm();
+      document.querySelector("#userProfileModal")?.close();
+      await renderUsersManagement();
+      showToast(profileId ? "تم تحديث المستخدم والصلاحيات" : "تم إنشاء المستخدم والصلاحيات");
+    } catch (error) {
+      console.error(error);
+      showToast(String(error?.message || "تعذر حفظ المستخدم أو إنشاء حساب الدخول").slice(0, 120));
+    }
+  };
+
+  // Dashboard scoped data and component visibility.
+  function loadTravelList(){ try { const raw = localStorage.getItem("nawah-travel-requests"); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; } catch(_) { return []; } }
+  function empById(id){ return employees.find(e => String(e.id) === String(id)); }
+  function fmtDate(v){ return typeof formatDate === "function" ? formatDate(v) : (v || "—"); }
+  function esc(v){ return typeof escapeHtml === "function" ? escapeHtml(v ?? "") : String(v ?? ""); }
+  function avatarFor(emp){ return typeof employeeAvatar === "function" ? employeeAvatar(emp) : (typeof avatar === "function" ? avatar(emp) : ""); }
+  function renderScopedDashboardRequests(){
+    const list = document.querySelector("#leavePreviewList");
+    if (!list || currentRoleKey() === "admin") return;
+    if (!can("dashboard.reviewRequests")) { list.innerHTML = ""; return; }
+    const items = [];
+    if (Array.isArray(leaves)) leaves.filter(l => l.status === "pending" && canSeeRequestFor(l.employeeId)).forEach(l => { const emp = empById(l.employeeId); if (emp) items.push({ source:"leave", id:l.id, emp, title:"إجازة", desc:`${l.type || "إجازة"} · ${l.days || ""} أيام` }); });
+    loadTravelList().filter(t => t.status === "pending" && canSeeRequestFor(t.employeeId)).forEach(t => { const emp = empById(t.employeeId) || { id:t.employeeId, name:t.employeeName || "موظف" }; items.push({ source:"travel", id:t.id, emp, title:"سفر", desc:`سفر · ${t.travelDate ? fmtDate(t.travelDate) : "غير محدد"}` }); });
+    list.innerHTML = items.length ? items.slice(0, 9).map(req => `<div class="leave-preview-item dashboard-request-item">${avatarFor(req.emp)}<div class="leave-preview-info"><button type="button" class="employee-name-link" data-edit-employee="${esc(req.emp.id)}">${esc(req.emp.name)}</button><span><b>${esc(req.title)}</b> · ${esc(req.desc)}</span></div><div class="mini-actions dashboard-request-actions"><button type="button" class="quick-view-btn" data-dashboard-request-view="${req.source}:${esc(req.id)}" title="عرض الطلب">${iconSvg("eye")}</button>${can("dashboard.reviewActions") && (can("leaves.approve") || can("leaves.reject")) ? `<button type="button" data-dashboard-request-action="approve" data-dashboard-request-key="${req.source}:${esc(req.id)}" title="موافقة">${iconSvg("check")}</button><button type="button" data-dashboard-request-action="reject" data-dashboard-request-key="${req.source}:${esc(req.id)}" title="رفض">${iconSvg("x")}</button>` : ""}</div></div>`).join("") : `<div class="empty-state"><strong>لا توجد طلبات ضمن صلاحيتك</strong></div>`;
+    if (typeof hydrateIcons === "function") hydrateIcons(list);
+  }
+  function renderScopedTravelers(){
+    const panel = document.querySelector(".travelers-dashboard-panel") || document.querySelector(".attendance-panel");
+    if (!panel || currentRoleKey() === "admin") return;
+    if (!can("dashboard.travelers") || !can("leaves.viewTravelers")) { panel.dataset.granularHidden = "true"; return; }
+    const travels = loadTravelList().filter(t => ["approved","pending"].includes(t.status) && !t.workResumeDate && canSeeRequestFor(t.employeeId));
+    panel.innerHTML = `<div class="panel-head"><div><h3>المسافرون</h3><p>الموظفون المسافرون ضمن صلاحيتك</p></div><button class="text-btn" data-go-view="leaves">عرض الكل</button></div><div class="travelers-dashboard-list dashboard-list-ordered">${travels.length ? travels.slice(0,7).map(t => { const emp = empById(t.employeeId) || {id:t.employeeId,name:t.employeeName||"موظف"}; return `<div class="leave-preview-item dashboard-request-item traveler-request-row">${avatarFor(emp)}<div class="leave-preview-info"><button type="button" class="employee-name-link" data-edit-employee="${esc(emp.id)}">${esc(emp.name)}</button><span>سفر · ${t.status === "pending" ? "بانتظار الموافقة" : "معتمد"} · ${t.travelDate ? fmtDate(t.travelDate) : "غير محدد"}</span></div><div class="mini-actions dashboard-request-actions"><button type="button" class="quick-view-btn" data-dashboard-request-view="travel:${esc(t.id)}" title="عرض الطلب">${iconSvg("eye")}</button></div></div>`; }).join("") : `<div class="empty-state"><strong>لا يوجد مسافرون ضمن صلاحيتك</strong></div>`}</div>`;
+    panel.classList.add("travelers-dashboard-panel");
+    if (typeof hydrateIcons === "function") hydrateIcons(panel);
+  }
+  const oldRenderDashboardGranular = renderDashboard;
+  renderDashboard = function(){
+    oldRenderDashboardGranular();
+    if (currentRoleKey() !== "admin") {
+      const visibleEmployees = scopedEmployees();
+      const total = document.querySelector("#totalEmployees"); if (total && !can("employees.viewAll")) total.textContent = arabicNumber(visibleEmployees.length);
+      renderScopedDashboardRequests();
+      renderScopedTravelers();
+    }
+    applyDashboardPermissionVisibility();
+  };
+
+  // Hide blocked action buttons globally after each render.
+  const oldRenderAllGranular = renderAll;
+  renderAll = function(){
+    oldRenderAllGranular();
+    applyGranularActionVisibility();
+  };
+  function applyGranularActionVisibility(){
+    if (currentRoleKey() === "admin") return;
+    document.querySelectorAll("#openEmployeeModal, [data-open-employee-modal]").forEach(el => el.dataset.granularHidden = can("employees.create") ? "false" : "true");
+    document.querySelectorAll("[data-delete-employee]").forEach(el => el.dataset.granularHidden = can("employees.delete") ? "false" : "true");
+    document.querySelectorAll("[data-edit-employee]").forEach(el => el.dataset.granularHidden = can("employees.edit") || ownsEmployee(el.dataset.editEmployee) ? "false" : "true");
+    document.querySelectorAll("#newLeaveBtn").forEach(el => el.dataset.granularHidden = can("leaves.createLeave") ? "false" : "true");
+    document.querySelectorAll("#newTravelBtn").forEach(el => el.dataset.granularHidden = can("leaves.createTravel") ? "false" : "true");
+    document.querySelectorAll("[data-leave-action], [data-dashboard-request-action], #approveTravelOnlyBtn, #approveTravelWithCommissionBtn").forEach(el => el.dataset.granularHidden = can("leaves.approve") || can("leaves.reject") ? "false" : "true");
+    document.querySelectorAll("#newAbsenceBtn, #dashboardAbsenceBtn").forEach(el => el.dataset.granularHidden = can("attendance.recordAbsence") || can("dashboard.absenceShortcut") ? "false" : "true");
+  }
+
+  document.addEventListener("change", (event) => {
+    if (event.target?.matches?.("#appUserProfileForm [name='role']")) updatePermissionEditorVisibility();
+  });
+  document.addEventListener("click", (event) => {
+    const groupBtn = event.target.closest("[data-permission-group-toggle]");
+    if (groupBtn) {
+      event.preventDefault();
+      const section = groupBtn.closest(".granular-permission-section");
+      const boxes = Array.from(section?.querySelectorAll("input[type='checkbox']") || []);
+      const shouldCheck = boxes.some(box => !box.checked);
+      boxes.forEach(box => { box.checked = shouldCheck; });
+    }
+  });
+
+  // Initialize patched UI after current script setup.
+  setTimeout(() => { try { ensureUsersManagementView(); applyRolePermissions(); applyGranularActionVisibility(); } catch(e){ console.warn(e); } }, 0);
+})();
+
+/* =========================================================
+   Scoped employee data lists for employee role
+   ========================================================= */
+(function scopedEmployeeListsPatch(){
+  function isEmployeeRole(){ return typeof currentRoleKey === "function" && currentRoleKey() !== "admin"; }
+  function has(key){ return typeof window.hasAppPermission === "function" ? window.hasAppPermission(key) : true; }
+  function myEmployee(){
+    const email = String(authProfile?.email || authUser?.email || "").trim().toLowerCase();
+    return (Array.isArray(employees) ? employees : []).find(e => String(e.email || "").trim().toLowerCase() === email) || null;
+  }
+  function canSeeEmp(id){
+    if (!isEmployeeRole()) return true;
+    if (has("employees.viewAll") || has("leaves.viewAll") || has("attendance.viewAll")) return true;
+    const me = myEmployee();
+    return Boolean(me && String(me.id) === String(id));
+  }
+  const oldFilteredEmployees = typeof filteredEmployees === "function" ? filteredEmployees : null;
+  if (oldFilteredEmployees) {
+    filteredEmployees = function(){
+      const list = oldFilteredEmployees();
+      if (!isEmployeeRole()) return list;
+      if (has("employees.viewAll")) return list;
+      const me = myEmployee();
+      return me ? list.filter(e => String(e.id) === String(me.id)) : [];
+    };
+  }
+  function loadTravels(){ try { const raw = localStorage.getItem("nawah-travel-requests"); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; } catch(_) { return []; } }
+  function esc(v){ return typeof escapeHtml === "function" ? escapeHtml(v ?? "") : String(v ?? ""); }
+  function fmt(v){ return typeof formatDate === "function" ? formatDate(v) : (v || "—"); }
+  function emp(id){ return (Array.isArray(employees) ? employees : []).find(e => String(e.id) === String(id)); }
+  function badge(status){ return typeof leaveStatusBadge === "function" ? leaveStatusBadge(status) : `<span>${esc(status)}</span>`; }
+  const oldRenderLeavesScoped = typeof renderLeaves === "function" ? renderLeaves : null;
+  if (oldRenderLeavesScoped) {
+    renderLeaves = function(){
+      if (!isEmployeeRole()) return oldRenderLeavesScoped();
+      const view = document.querySelector("#leavesView");
+      if (!view) return;
+      if (!has("leaves.view") && !has("leaves.viewOwn") && !has("leaves.viewAll")) {
+        view.innerHTML = `<div class="empty-state"><strong>ليست لديك صلاحية عرض الإجازات والسفر</strong></div>`;
+        return;
+      }
+      const my = myEmployee();
+      const leaveItems = (Array.isArray(leaves) ? leaves : []).filter(l => canSeeEmp(l.employeeId));
+      const travelItems = loadTravels().filter(t => canSeeEmp(t.employeeId));
+      const canApprove = has("leaves.approve") || has("leaves.reject");
+      view.innerHTML = `
+        <div class="leave-travel-hero">
+          ${has("leaves.createLeave") ? `<button type="button" class="request-card" id="newLeaveBtn"><span data-icon="calendar"></span><strong>طلب إجازة</strong><small>إنشاء طلب إجازة جديد</small></button>` : ""}
+          ${has("leaves.createTravel") ? `<button type="button" class="request-card" id="newTravelBtn"><span data-icon="plane"></span><strong>طلب سفر</strong><small>طلب سفر بتاريخ عودة أو بدون عودة</small></button>` : ""}
+        </div>
+        <div class="leave-travel-tables scoped-leave-travel-tables">
+          <article class="panel"><div class="panel-head"><div><h3>طلبات السفر</h3><p>${has("leaves.viewAll") ? "جميع طلبات السفر" : "طلبات السفر الخاصة بك"}</p></div></div>
+            <div class="leave-preview-list">${travelItems.length ? travelItems.map(t => { const e = emp(t.employeeId) || { id:t.employeeId, name:t.employeeName || "موظف" }; return `<div class="leave-request"><div class="leave-request-main"><div class="leave-request-title"><button type="button" class="employee-name-link" ${canSeeEmp(e.id) ? `data-edit-employee="${esc(e.id)}"` : ""}>${esc(e.name)}</button><span>سفر · ${esc(t.status === "pending" ? "معلق" : t.status === "approved" ? "معتمد" : "مرفوض")}</span></div><div class="leave-dates"><span>${fmt(t.travelDate)} ${t.returnDate ? `إلى ${fmt(t.returnDate)}` : ""}</span></div></div><div class="leave-request-actions">${canApprove && t.status === "pending" ? `<button class="secondary-btn" data-dashboard-request-action="reject" data-dashboard-request-key="travel:${esc(t.id)}">رفض</button><button class="primary-btn" data-dashboard-request-action="approve" data-dashboard-request-key="travel:${esc(t.id)}">موافقة</button>` : badge(t.status)}</div></div>`; }).join("") : `<div class="empty-state"><strong>لا توجد طلبات سفر ضمن صلاحيتك</strong></div>`}</div>
+          </article>
+          <article class="panel"><div class="panel-head"><div><h3>طلبات الإجازة</h3><p>${has("leaves.viewAll") ? "جميع طلبات الإجازة" : "طلبات الإجازة الخاصة بك"}</p></div></div>
+            <div class="leave-preview-list">${leaveItems.length ? leaveItems.map(l => { const e = emp(l.employeeId); if (!e) return ""; return `<div class="leave-request">${typeof employeeAvatar === "function" ? employeeAvatar(e) : ""}<div class="leave-request-main"><div class="leave-request-title"><button type="button" class="employee-name-link" ${canSeeEmp(e.id) ? `data-edit-employee="${esc(e.id)}"` : ""}>${esc(e.name)}</button><span>${esc(l.type || "إجازة")}</span></div><div class="leave-dates"><span>${fmt(l.from)} إلى ${fmt(l.to)}</span><b>${typeof arabicNumber === "function" ? arabicNumber(l.days || 0) : (l.days || 0)} أيام</b></div></div><div class="leave-request-actions">${canApprove && l.status === "pending" ? `<button class="secondary-btn" data-leave-action="rejected" data-leave-id="${esc(l.id)}">رفض</button><button class="primary-btn" data-leave-action="approved" data-leave-id="${esc(l.id)}">اعتماد الإجازة</button>` : badge(l.status)}</div></div>`; }).join("") : `<div class="empty-state"><strong>لا توجد طلبات إجازة ضمن صلاحيتك</strong></div>`}</div>
+          </article>
+        </div>`;
+      if (typeof hydrateIcons === "function") hydrateIcons(view);
+      if (typeof hydrateAttachmentImages === "function") hydrateAttachmentImages(view);
+    };
+  }
+})();
+
+/* =========================================================
+   Users screen loading safety patch
+   Fixes stuck "جاري التحميل" state after granular permissions update.
+   ========================================================= */
+(function usersLoadingSafetyPatch(){
+  function normalizeRoleSafe(role){ return role === "admin" ? "admin" : "employee"; }
+  function normalizePermsSafe(raw, role){
+    if (typeof normalizePermissions === "function") return normalizePermissions(raw, role);
+    return raw && typeof raw === "object" ? raw : {};
+  }
+  async function safeLoadProfiles(){
+    if (!supabaseClient) throw new Error("Supabase غير متصل");
+    let result = await supabaseClient
+      .from("app_user_profiles")
+      .select("id,user_id,full_name,email,role,is_active,permissions,created_at,updated_at")
+      .order("created_at", { ascending: false });
+    if (result.error && /permissions|column/i.test(String(result.error.message || ""))) {
+      result = await supabaseClient
+        .from("app_user_profiles")
+        .select("id,user_id,full_name,email,role,is_active,created_at,updated_at")
+        .order("created_at", { ascending: false });
+    }
+    if (result.error) throw result.error;
+    appUserProfilesCache = (Array.isArray(result.data) ? result.data : []).map((profile) => ({
+      ...profile,
+      role: normalizeRoleSafe(profile.role),
+      permissions: normalizePermsSafe(profile.permissions, profile.role)
+    }));
+    return appUserProfilesCache;
+  }
+  loadAppUserProfiles = safeLoadProfiles;
+
+  renderUsersManagement = async function renderUsersManagementSafe(){
+    ensureUsersManagementView();
+    const body = document.querySelector("#appUserProfilesBody");
+    if (body) body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>جاري تحميل المستخدمين...</strong><p>يتم قراءة الصلاحيات من Supabase.</p></div></td></tr>`;
+    try {
+      await safeLoadProfiles();
+      if (typeof renderAppUserProfiles === "function") renderAppUserProfiles();
+      if (typeof hydrateIcons === "function") hydrateIcons(document.querySelector("#usersView") || document);
+    } catch (error) {
+      console.error("تعذر تحميل المستخدمين", error);
+      if (body) body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>تعذر تحميل المستخدمين</strong><p>${escapeHtml(error?.message || "خطأ غير معروف")}</p><button type="button" class="secondary-btn" id="retryUsersLoadBtn">إعادة المحاولة</button></div></td></tr>`;
+      if (typeof showToast === "function") showToast("تعذر تحميل المستخدمين: " + String(error?.message || ""));
+    }
+  };
+
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("#retryUsersLoadBtn")) {
+      event.preventDefault();
+      renderUsersManagement();
+    }
+    const navTarget = event.target.closest('[data-view="users"], [data-go-view="users"]');
+    if (navTarget) setTimeout(() => {
+      const body = document.querySelector("#appUserProfilesBody");
+      if (body && /جاري/.test(body.textContent || "")) renderUsersManagement();
+    }, 80);
+  }, true);
+
+  const usersWatchdog = setInterval(() => {
+    const view = document.querySelector("#usersView.active");
+    const body = document.querySelector("#appUserProfilesBody");
+    if (view && body && /جاري/.test(body.textContent || "")) renderUsersManagement();
+  }, 1200);
+  setTimeout(() => clearInterval(usersWatchdog), 30000);
+})();
+
+
+/* =========================================================
+   Startup performance and stable first paint patch
+   يمنع ظهور بطاقات قديمة ثم إعادة رسمها بعد تحميل Supabase.
+   ========================================================= */
+(function startupPerformancePatch(){
+  const style = document.createElement("style");
+  style.id = "startupPerformanceStyles";
+  style.textContent = `
+    body.app-loading{overflow:hidden;background:#f4f8fb;}
+    body.app-loading .app-shell{opacity:0;pointer-events:none;user-select:none;}
+    .startup-loader{position:fixed;inset:0;z-index:99998;display:grid;place-items:center;background:linear-gradient(135deg,#eef7f9 0%,#f8fbff 45%,#e7fbf4 100%);direction:rtl;}
+    .startup-loader:before{content:"";position:absolute;inset:8%;background:radial-gradient(circle at 80% 20%,rgba(20,184,166,.18),transparent 32%),radial-gradient(circle at 15% 80%,rgba(14,165,233,.14),transparent 28%);pointer-events:none;}
+    .startup-loader-card{position:relative;width:min(360px,calc(100% - 48px));border:1px solid rgba(193,213,225,.75);background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border-radius:28px;box-shadow:0 24px 80px rgba(15,23,42,.12);padding:28px;display:grid;justify-items:center;gap:10px;color:#0f172a;text-align:center;}
+    .startup-logo{width:58px;height:58px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(135deg,#0f766e,#16c784);color:#fff;font-weight:900;font-size:24px;box-shadow:0 14px 35px rgba(20,184,166,.28);}
+    .startup-loader-card strong{font-size:21px}.startup-loader-card span{font-size:14px;color:#64748b;}
+    body.app-ready .startup-loader{display:none!important;}
+    body.app-ready .app-shell{opacity:1;transition:opacity .18s ease;}
+  `;
+  document.head.appendChild(style);
+
+  function finishStartup(){
+    document.body.classList.remove("app-loading");
+    document.body.classList.add("app-ready");
+    const loader = document.getElementById("startupLoader");
+    if (loader) loader.remove();
+  }
+  window.finishStartupLoading = finishStartup;
+
+  const oldShowAuthGate = typeof showAuthGate === "function" ? showAuthGate : null;
+  if (oldShowAuthGate) {
+    showAuthGate = function(){ finishStartup(); return oldShowAuthGate.apply(this, arguments); };
+  }
+
+  function renderViewFast(viewName){
+    try {
+      switch(viewName){
+        case "dashboard": renderDashboard(); break;
+        case "employees": renderEmployees(); break;
+        case "attendance": renderAttendance(); break;
+        case "leaves": renderLeaves(); break;
+        case "payroll": renderPayroll(); break;
+        case "departments": renderDepartments(); break;
+        case "settings": renderSettings(); break;
+        case "users": renderUsersManagement(); break;
+        case "establishmentDocuments":
+          if (typeof renderEstablishmentDocuments === "function") renderEstablishmentDocuments();
+          break;
+      }
+    } catch(error){ console.warn("تعذر رسم القسم", viewName, error); }
+  }
+  window.renderCurrentViewFast = function(){
+    const active = document.querySelector(".view.active")?.id?.replace(/View$/, "") || "dashboard";
+    renderViewFast(active);
+  };
+
+  const oldRenderAll = typeof renderAll === "function" ? renderAll : null;
+  if (oldRenderAll) {
+    renderAll = function fastInitialRenderAll(){
+      try { populateFormOptions(); } catch(_) {}
+      renderViewFast("dashboard");
+      const active = document.querySelector(".view.active")?.id?.replace(/View$/, "") || "dashboard";
+      if (active !== "dashboard") renderViewFast(active);
+      try { applyRolePermissions(); } catch(_) {}
+      try { hydrateIcons(); } catch(_) {}
+      finishStartup();
+      const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 350));
+      idle(() => {
+        try {
+          // تجهيز خفيف للأقسام الأساسية بعد ظهور الصفحة حتى لا يشعر المستخدم بالثقل.
+          if (document.querySelector("#usersView")?.classList.contains("active")) renderUsersManagement();
+          hydrateAttachmentImages?.();
+        } catch(error){ console.warn(error); }
+      });
+    };
+  }
+
+  const oldSwitchView = typeof switchView === "function" ? switchView : null;
+  if (oldSwitchView) {
+    switchView = function patchedFastSwitchView(viewName){
+      const result = oldSwitchView.apply(this, arguments);
+      setTimeout(() => {
+        renderViewFast(viewName);
+        try { applyRolePermissions(); } catch(_) {}
+        try { hydrateIcons(document.querySelector(`#${viewName}View`) || document); } catch(_) {}
+      }, 0);
+      return result;
+    };
+  }
+
+  // حماية: لا تترك شاشة التحميل أكثر من 8 ثوان حتى لو حدث خطأ خارجي.
+  setTimeout(() => {
+    if (document.body.classList.contains("app-loading")) finishStartup();
+  }, 8000);
 })();
