@@ -175,7 +175,6 @@ let pendingEndServiceEmployeeId = null;
 let pendingLeaveReturn = null;
 let pendingConsentAttachmentId = "";
 const objectUrls = new Set();
-let attachmentBackups = loadLocalData("nawah-attachment-backups", {});
 
 const SUPABASE_URL = "https://nbpfeyoydvujpfoizimh.supabase.co";
 const SUPABASE_KEY = "sb_publishable_6FXDGmhPXkJ-WeP6z3mvZg_lj58n_JE";
@@ -308,7 +307,7 @@ async function loadAuthProfile(user) {
   try {
     const { data, error } = await supabaseClient
       .from("app_user_profiles")
-      .select("id, user_id, full_name, email, role, is_active")
+      .select("id, user_id, full_name, email, role, is_active, employee_id")
       .eq("user_id", user.id)
       .maybeSingle();
     if (error) throw error;
@@ -319,7 +318,7 @@ async function loadAuthProfile(user) {
   try {
     const { data, error } = await supabaseClient
       .from("app_user_profiles")
-      .select("id, user_id, full_name, email, role, is_active")
+      .select("id, user_id, full_name, email, role, is_active, employee_id")
       .eq("email", user.email)
       .maybeSingle();
     if (error) throw error;
@@ -459,9 +458,7 @@ function buildCloudState() {
     absencePolicySettings,
     minuteTemplateSettings,
     orgStructure: getOrgStructure(),
-    travelRequests: loadLocalData("nawah-travel-requests", []),
-    establishmentDocuments: loadLocalData("nawah-establishment-documents", []),
-    attachmentBackups
+    travelRequests: loadLocalData("nawah-travel-requests", [])
   };
 }
 
@@ -476,11 +473,6 @@ function applyCloudState(state) {
   if (state.minuteTemplateSettings) minuteTemplateSettings = normalizeMinuteTemplateSettings(state.minuteTemplateSettings);
   if (state.orgStructure) localStorage.setItem("nawah-org-structure", JSON.stringify(normalizeOrgStructure(state.orgStructure)));
   if (Array.isArray(state.travelRequests)) localStorage.setItem("nawah-travel-requests", JSON.stringify(state.travelRequests));
-  if (Array.isArray(state.establishmentDocuments)) localStorage.setItem("nawah-establishment-documents", JSON.stringify(state.establishmentDocuments));
-  if (state.attachmentBackups && typeof state.attachmentBackups === "object") {
-    attachmentBackups = state.attachmentBackups;
-    localStorage.setItem("nawah-attachment-backups", JSON.stringify(attachmentBackups));
-  }
   localStorage.setItem("nawah-leaves", JSON.stringify(leaves));
   localStorage.setItem("nawah-job-titles", JSON.stringify(jobTitles));
   localStorage.setItem("nawah-attendance-exceptions", JSON.stringify(attendanceExceptions));
@@ -584,15 +576,6 @@ async function dbDeleteEmployee(id) {
   queueCloudStateSave();
 }
 
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(reader.error || new Error("FileReader failed"));
-    reader.readAsDataURL(file);
-  });
-}
-
 async function saveAttachment(file, category) {
   if (!file) return "";
   if (supabaseClient && cloudReady) {
@@ -623,23 +606,15 @@ async function saveAttachment(file, category) {
       showToast("تعذر رفع المرفق للسحابة، تم حفظه محليًا مؤقتًا");
     }
   }
-  let dataUrl = "";
-  try { dataUrl = await fileToDataUrl(file); } catch (_) { dataUrl = ""; }
   const record = {
     id: `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     category,
     name: file.name,
     type: file.type || "application/octet-stream",
     blob: file,
-    dataUrl,
     createdAt: new Date().toISOString()
   };
-  if (dataUrl) {
-    attachmentBackups[record.id] = { id: record.id, category, name: record.name, type: record.type, dataUrl, createdAt: record.createdAt };
-    localStorage.setItem("nawah-attachment-backups", JSON.stringify(attachmentBackups));
-  }
   await requestResult(dbStore("attachments", "readwrite").put(record));
-  queueCloudStateSave();
   return record.id;
 }
 
@@ -668,15 +643,12 @@ async function getAttachment(id) {
       console.warn("تعذر قراءة المرفق من Supabase.", error);
     }
   }
-  const localRecord = await requestResult(dbStore("attachments").get(id));
-  if (localRecord) return localRecord;
-  return attachmentBackups?.[id] || null;
+  return requestResult(dbStore("attachments").get(id));
 }
 
 async function attachmentUrl(id) {
   const record = await getAttachment(id);
   if (!record) return "";
-  if (record.dataUrl) return record.dataUrl;
   if (record.blob) {
     const url = URL.createObjectURL(record.blob);
     objectUrls.add(url);
@@ -708,19 +680,64 @@ async function openAttachment(id) {
   window.open(url, "_blank", "noopener");
 }
 
+
+function mergeEmployeePersistentAttachments(cloudEmployees = [], localEmployees = []) {
+  const localById = new Map((localEmployees || []).map((employee) => [String(employee.id), employee]));
+  const scalarKeys = ["photoAttachmentId", "identityAttachmentId", "signatureAttachmentId", "fingerprintAttachmentId"];
+  const mergeByIndex = (cloudList = [], localList = [], keys = ["attachmentId"]) => {
+    const localByItemId = new Map((localList || []).filter((item) => item?.id).map((item) => [String(item.id), item]));
+    return (cloudList || []).map((item, index) => {
+      const local = (item?.id && localByItemId.get(String(item.id))) || (localList || [])[index] || {};
+      const next = { ...item };
+      keys.forEach((key) => { if (!next[key] && local[key]) next[key] = local[key]; });
+      return next;
+    });
+  };
+  return (cloudEmployees || []).map((employee) => {
+    const local = localById.get(String(employee.id));
+    if (!local) return employee;
+    const next = { ...employee };
+    scalarKeys.forEach((key) => { if (!next[key] && local[key]) next[key] = local[key]; });
+    if (next.consent && local.consent && !next.consent.attachmentId && local.consent.attachmentId) {
+      next.consent = { ...next.consent, attachmentId: local.consent.attachmentId };
+    }
+    next.passports = mergeByIndex(next.passports, local.passports, ["attachmentId"]);
+    next.documents = mergeByIndex(next.documents, local.documents, ["attachmentId"]);
+    next.bankAccounts = mergeByIndex(next.bankAccounts, local.bankAccounts, ["certificateAttachmentId", "approvalAttachmentId"]);
+    return next;
+  });
+}
+
+function currentLinkedEmployee() {
+  const linkedId = authProfile?.employee_id || authProfile?.employeeId || "";
+  if (linkedId) {
+    const byId = getEmployee(linkedId);
+    if (byId) return byId;
+  }
+  const email = String(authProfile?.email || authUser?.email || "").trim().toLowerCase();
+  if (email) {
+    return (employees || []).find((employee) => String(employee.email || "").trim().toLowerCase() === email) || null;
+  }
+  return null;
+}
+
 async function initStorage() {
   db = await openDatabase();
   initSupabaseClient();
   cloudSaveAllowed = false;
 
   const cloudResult = await loadCloudState();
+  const storedEmployees = await dbGetAllEmployees();
   if (cloudResult.ok && cloudResult.found && cloudResult.state && applyCloudState(cloudResult.state)) {
+    if (storedEmployees.length) {
+      employees = mergeEmployeePersistentAttachments(employees, storedEmployees.map(normalizeEmployee));
+    }
     await Promise.all(employees.map(dbSaveEmployee));
     cloudSaveAllowed = true;
+    await saveCloudStateNow({ force: true });
     return;
   }
 
-  const storedEmployees = await dbGetAllEmployees();
   if (!cloudResult.ok && supabaseClient) {
     if (storedEmployees.length) {
       employees = storedEmployees.map(normalizeEmployee);
@@ -3762,6 +3779,9 @@ function showToast(message) {
 function handleLeaveSubmit(event) {
   event.preventDefault();
   const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const linked = currentLinkedEmployee();
+  if (!values.employeeId && linked) values.employeeId = linked.id;
+  if (!values.employeeId) { showToast("اختر الموظف أو اربط حسابك بملف موظف"); return; }
   leaves.unshift({ id: `leave-${Date.now()}`, employeeId: values.employeeId, type: values.type, from: values.from, to: values.to, days: calculateDays(values.from, values.to), status: "pending", note: values.note.trim() });
   saveLocalMeta();
   event.currentTarget.closest("dialog").close();
@@ -4424,7 +4444,8 @@ function setupEvents() {
     employees = employees.filter((employee) => employee.id !== deleteTargetId);
     leaves = leaves.filter((leave) => leave.employeeId !== deleteTargetId);
     attendanceExceptions = attendanceExceptions.filter((record) => record.employeeId !== deleteTargetId);
-    if (typeof window.purgeTravelRequestsForEmployee === "function") window.purgeTravelRequestsForEmployee(deleteTargetId);
+    try { if (typeof window.__removeTravelRequestsForEmployee === "function") window.__removeTravelRequestsForEmployee(deleteTargetId); } catch (_) {}
+    try { const rawTravel = localStorage.getItem("nawah-travel-requests"); const list = rawTravel ? JSON.parse(rawTravel) : []; if (Array.isArray(list)) localStorage.setItem("nawah-travel-requests", JSON.stringify(list.filter((item) => String(item.employeeId) !== String(deleteTargetId)))); } catch (_) {}
     queueCloudStateSave();
     saveLocalMeta();
     document.querySelector("#confirmModal").close();
@@ -8304,7 +8325,6 @@ document.addEventListener("click", function(event) {
   let travelRequests = [];
   let pendingTravelApproval = null;
   let pendingTravelReturn = null;
-  let activeTravelFilter = "all";
   let pendingTicketAttachmentId = "";
   let pendingVisaAttachmentId = "";
 
@@ -8315,13 +8335,8 @@ document.addEventListener("click", function(event) {
       if (!Array.isArray(travelRequests)) travelRequests = [];
     } catch (_) { travelRequests = []; }
   }
-  function saveTravelRequests(){ localStorage.setItem(TRAVEL_KEY, JSON.stringify(travelRequests)); try { queueCloudStateSave(); } catch (_) {} }
-  window.purgeTravelRequestsForEmployee = function(employeeId){
-    const before = travelRequests.length;
-    travelRequests = travelRequests.filter((item) => String(item.employeeId) !== String(employeeId));
-    if (travelRequests.length !== before) saveTravelRequests();
-  };
-  window.getTravelRequestsForBackup = function(){ return Array.isArray(travelRequests) ? travelRequests : []; };
+  function saveTravelRequests(){ localStorage.setItem(TRAVEL_KEY, JSON.stringify(travelRequests)); if (typeof queueCloudStateSave === "function") queueCloudStateSave(); }
+  window.__removeTravelRequestsForEmployee = function(employeeId){ travelRequests = travelRequests.filter((item) => String(item.employeeId) !== String(employeeId)); saveTravelRequests(); };
   function safeEl(selector){ return document.querySelector(selector); }
   function setText(selector, value){ const el = safeEl(selector); if (el) el.textContent = value; }
   function htmlEscape(value){ return typeof escapeHtml === "function" ? escapeHtml(value || "") : String(value || "").replace(/[&<>\"]/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m])); }
@@ -8346,6 +8361,8 @@ document.addEventListener("click", function(event) {
       form.reset();
       if (form.elements.from) form.elements.from.value = todayString();
       if (form.elements.to) form.elements.to.value = todayString();
+      const linked = currentLinkedEmployee();
+      if (linked && form.elements.employeeId) form.elements.employeeId.value = linked.id;
     }
     safeEl("#leaveModal")?.showModal();
   }
@@ -8514,6 +8531,8 @@ document.addEventListener("click", function(event) {
     if (!availableEmployees.length) {
       select.innerHTML = `<option value="">لا يوجد موظفون متاحون</option>`;
     }
+    const linked = currentLinkedEmployee();
+    if (linked && Array.from(select.options).some((option) => option.value === linked.id)) select.value = linked.id;
   }
   function updateTravelSummary(){
     const form = safeEl("#travelRequestForm");
@@ -8599,6 +8618,8 @@ document.addEventListener("click", function(event) {
       if (form.elements.returnMode) form.elements.returnMode.value = "date";
       if (form.elements.returnDate) form.elements.returnDate.value = "";
       if (form.elements.returnDays) form.elements.returnDays.value = "";
+      const linked = currentLinkedEmployee();
+      if (linked && form.elements.employeeId) form.elements.employeeId.value = linked.id;
     }
     setTravelModeVisibility();
     updateTravelSummary();
@@ -8655,10 +8676,14 @@ document.addEventListener("click", function(event) {
     showToast("تم حفظ طلب السفر");
   }
   function activeTravelRequests(){ return travelRequests.filter((t) => t.status === "approved"); }
+  function visibleTravelRequestsForActiveTab(){
+    if (activeLeaveFilter === "pending" || activeLeaveFilter === "travel-pending") return travelRequests.filter((travel) => travel.status === "pending");
+    if (activeLeaveFilter === "approved" || activeLeaveFilter === "rejected") return [];
+    return travelRequests;
+  }
   function renderTravelTable(){
-    if (activeTravelFilter === "none") return "";
-    const visibleTravelRequests = activeTravelFilter === "pending" ? travelRequests.filter((travel) => travel.status === "pending") : travelRequests;
-    const body = visibleTravelRequests.length ? visibleTravelRequests.map((travel) => {
+    const visibleTravel = visibleTravelRequestsForActiveTab();
+    const body = visibleTravel.length ? visibleTravel.map((travel) => {
       const employee = employeeById(travel.employeeId);
       if (!employee) return "";
       let actions = travelStatusBadge(travel);
@@ -8678,12 +8703,11 @@ document.addEventListener("click", function(event) {
         <td>${travel.commissionFrozenAt ? badge("مجمدة", "status-warning") : badge("غير مجمدة", "status-active")}</td>
         <td><div class="travel-actions">${actions}</div></td>
       </tr>`;
-    }).join("") : `<tr><td colspan="8"><div class="empty-state"><strong>لا توجد طلبات سفر في هذه الفئة</strong></div></td></tr>`;
+    }).join("") : `<tr><td colspan="8"><div class="empty-state"><strong>لا توجد طلبات سفر</strong></div></td></tr>`;
     return `<article class="panel travel-table-panel"><div class="panel-head"><div><h3>المسافرون</h3><p>طلبات السفر وحالة المباشرة والعمولات</p></div><button class="primary-btn" id="newTravelBtn">${icon("plus")}طلب سفر</button></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>تاريخ المباشرة</th><th>مضى على السفر</th><th>المتبقي للعودة</th><th>العمولة</th><th>الإجراءات</th></tr></thead><tbody>${body}</tbody></table></div></article>`;
   }
   function renderLeaveTable(){
-    if (activeLeaveFilter === "none") return "";
-    const filtered = activeLeaveFilter === "all" ? leaves : leaves.filter((leave) => leave.status === activeLeaveFilter);
+    const filtered = activeLeaveFilter === "travel-pending" ? [] : (activeLeaveFilter === "all" ? leaves : leaves.filter((leave) => leave.status === activeLeaveFilter));
     const rows = filtered.length ? filtered.map((leave) => {
       const employee = employeeById(leave.employeeId);
       if (!employee) return "";
@@ -8711,11 +8735,11 @@ document.addEventListener("click", function(event) {
         <button type="button" class="request-card" id="newTravelBtn"><span data-icon="plane"></span><strong>طلب سفر</strong><small>طلب سفر بتاريخ عودة أو بدون عودة</small></button>
       </div>
       <div class="leave-tabs">
-        <button class="${activeLeaveFilter === "all" && activeTravelFilter === "all" ? "active" : ""}" data-leave-filter="all" data-travel-filter="all">جميع الطلبات <span id="allLeaveCount">${num(leaves.length + travelRequests.length)}</span></button>
-        <button class="${activeLeaveFilter === "pending" && activeTravelFilter === "pending" ? "active" : ""}" data-leave-filter="pending" data-travel-filter="pending">إجراءات بانتظار الموافقة <span id="pendingLeaveCount">${num(pendingLeaves + pendingTravel)}</span></button>
-        <button class="${activeLeaveFilter === "approved" && activeTravelFilter === "none" ? "active" : ""}" data-leave-filter="approved" data-travel-filter="none">إجازات معتمدة</button>
-        <button class="${activeLeaveFilter === "rejected" && activeTravelFilter === "none" ? "active" : ""}" data-leave-filter="rejected" data-travel-filter="none">إجازات مرفوضة</button>
-        <button class="${activeTravelFilter === "pending" && activeLeaveFilter === "none" ? "active" : ""}" type="button" data-travel-filter="pending" data-leave-filter="none">طلبات سفر معلقة <span>${num(pendingTravel)}</span></button>
+        <button class="${activeLeaveFilter === "all" ? "active" : ""}" data-leave-filter="all">جميع الإجازات <span id="allLeaveCount">${num(leaves.length)}</span></button>
+        <button class="${activeLeaveFilter === "pending" ? "active" : ""}" data-leave-filter="pending">إجازات بانتظار الموافقة <span id="pendingLeaveCount">${num(pendingLeaves)}</span></button>
+        <button class="${activeLeaveFilter === "approved" ? "active" : ""}" data-leave-filter="approved">إجازات معتمدة</button>
+        <button class="${activeLeaveFilter === "rejected" ? "active" : ""}" data-leave-filter="rejected">إجازات مرفوضة</button>
+        <button class="${activeLeaveFilter === "travel-pending" ? "active" : ""}" data-leave-filter="travel-pending" type="button">طلبات سفر معلقة <span>${num(pendingTravel)}</span></button>
       </div>
       <div class="leave-travel-tables">
         ${renderTravelTable()}
@@ -9008,17 +9032,8 @@ document.addEventListener("click", function(event) {
   function bindTravelEvents(){
     document.addEventListener("click", (event) => {
       const target = event.target;
-      const tabButton = target.closest(".leave-tabs button");
-      if (tabButton && (tabButton.dataset.leaveFilter || tabButton.dataset.travelFilter)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        document.querySelectorAll(".leave-tabs button").forEach((item) => item.classList.remove("active"));
-        tabButton.classList.add("active");
-        activeLeaveFilter = tabButton.dataset.leaveFilter || "all";
-        activeTravelFilter = tabButton.dataset.travelFilter || "all";
-        renderLeavesAndTravel();
-        return;
-      }
+      const leaveFilterBtn = target.closest("[data-leave-filter]");
+      if (leaveFilterBtn) { event.preventDefault(); event.stopImmediatePropagation(); activeLeaveFilter = leaveFilterBtn.dataset.leaveFilter || "all"; renderLeaves(); return; }
       const newTravel = target.closest("#newTravelBtn");
       const newLeave = target.closest("#newLeaveBtn");
       const approve = target.closest("[data-travel-approve]");
@@ -9683,737 +9698,27 @@ document.addEventListener("click", function(event) {
   };
 })();
 
-/* =========================================================
-   Employee-linked permissions final integration
-   - Links app users to employee records.
-   - Adds password confirmation.
-   - Applies permissions to sidebar, cards, buttons, and data scope.
-   ========================================================= */
-(function employeeLinkedPermissionsFinal(){
-  const isAdmin = () => String(authProfile?.role || '').trim() === 'admin';
-  const escape = (value) => typeof escapeHtml === 'function' ? escapeHtml(value ?? '') : String(value ?? '').replace(/[&<>\"]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-  const icon = (name) => typeof iconSvg === 'function' ? iconSvg(name) : '';
-
-  const PERMISSION_GROUPS = [
-    { id: 'sidebar', title: 'القوائم اليمنى', items: [
-      ['nav.dashboard', 'إظهار الصفحة الرئيسية'],
-      ['nav.employees', 'إظهار الموظفين'],
-      ['nav.attendance', 'إظهار الحضور والانصراف'],
-      ['nav.leaves', 'إظهار الإجازات والسفر'],
-      ['nav.payroll', 'إظهار الرواتب'],
-      ['nav.establishmentDocuments', 'إظهار وثائق المنشأة'],
-      ['nav.departments', 'إظهار الأقسام والإدارات'],
-      ['nav.settings', 'إظهار الإعدادات']
-    ]},
-    { id: 'dashboard', title: 'الصفحة الرئيسية', items: [
-      ['dashboard.stats', 'عرض بطاقات الإحصائيات'],
-      ['dashboard.attendanceOverview', 'عرض بطاقة المسافرون / الحضور'],
-      ['dashboard.reviewRequests', 'عرض طلبات تحتاج مراجعة'],
-      ['dashboard.reviewActions', 'أزرار الموافقة والرفض في الطلبات'],
-      ['dashboard.establishmentExpiringDocs', 'عرض وثائق المنشأة قرب الانتهاء'],
-      ['dashboard.employeeExpiringDocs', 'عرض وثائق الموظفين قرب الانتهاء'],
-      ['dashboard.recentEmployees', 'عرض أحدث الموظفين'],
-      ['dashboard.absenceShortcut', 'زر تسجيل الغياب في الشريط الأخضر'],
-      ['dashboard.reviewShortcut', 'زر مراجعة الطلبات في الشريط الأخضر']
-    ]},
-    { id: 'employees', title: 'الموظفون', items: [
-      ['employees.viewSelf', 'عرض ملف الموظف المرتبط فقط'],
-      ['employees.viewAll', 'عرض جميع الموظفين'],
-      ['employees.create', 'إضافة موظف'],
-      ['employees.edit', 'تعديل الموظفين'],
-      ['employees.delete', 'حذف الموظفين'],
-      ['employees.attachments', 'عرض ورفع مرفقات الموظفين']
-    ]},
-    { id: 'attendance', title: 'الحضور والانصراف', items: [
-      ['attendance.viewSelf', 'عرض حضور الموظف المرتبط فقط'],
-      ['attendance.viewAll', 'عرض حضور جميع الموظفين'],
-      ['attendance.markAbsent', 'تسجيل غياب'],
-      ['attendance.deleteAbsence', 'حذف الغياب'],
-      ['attendance.export', 'تصدير تقرير الحضور']
-    ]},
-    { id: 'leaves', title: 'الإجازات والسفر', items: [
-      ['leaves.viewOwn', 'عرض طلبات الموظف المرتبط فقط'],
-      ['leaves.viewAll', 'عرض طلبات جميع الموظفين'],
-      ['leaves.createLeave', 'إنشاء طلب إجازة لنفسه'],
-      ['leaves.createTravel', 'إنشاء طلب سفر لنفسه'],
-      ['leaves.createForAll', 'إنشاء طلب لموظف آخر'],
-      ['leaves.approve', 'موافقة الطلبات'],
-      ['leaves.reject', 'رفض الطلبات'],
-      ['leaves.resume', 'تسجيل المباشرة بعد العودة'],
-      ['leaves.viewTravelers', 'عرض قائمة المسافرين']
-    ]},
-    { id: 'payroll', title: 'الرواتب والعمولات', items: [
-      ['payroll.viewSelf', 'عرض راتبه وعمولاته فقط'],
-      ['payroll.viewAll', 'عرض رواتب الجميع'],
-      ['payroll.edit', 'تعديل الرواتب'],
-      ['payroll.commissions', 'إدارة العمولات'],
-      ['payroll.printClearance', 'طباعة المخالصة']
-    ]},
-    { id: 'documents', title: 'وثائق المنشأة', items: [
-      ['documents.view', 'عرض وثائق المنشأة'],
-      ['documents.create', 'إضافة وثيقة منشأة'],
-      ['documents.edit', 'تعديل وثيقة منشأة'],
-      ['documents.delete', 'حذف وثيقة منشأة'],
-      ['documents.upload', 'رفع مرفقات وثائق المنشأة']
-    ]},
-    { id: 'organization', title: 'الأقسام والإدارات', items: [
-      ['organization.view', 'عرض الأقسام والإدارات'],
-      ['organization.manage', 'إضافة وتعديل وحذف الإدارات والأقسام والمهن']
-    ]},
-    { id: 'settings', title: 'الإعدادات والأمان', items: [
-      ['settings.view', 'عرض الإعدادات العامة'],
-      ['security.manage', 'إدارة الصلاحيات والأمان'],
-      ['users.manage', 'إدارة المستخدمين']
-    ]}
-  ];
-  const KEYS = PERMISSION_GROUPS.flatMap((g) => g.items.map((i) => i[0]));
-  const DEFAULTS = {
-    'nav.dashboard': true,
-    'nav.employees': false,
-    'nav.attendance': false,
-    'nav.leaves': true,
-    'nav.payroll': false,
-    'nav.establishmentDocuments': false,
-    'nav.departments': false,
-    'nav.settings': false,
-    'dashboard.stats': false,
-    'dashboard.attendanceOverview': false,
-    'dashboard.reviewRequests': false,
-    'dashboard.reviewActions': false,
-    'dashboard.establishmentExpiringDocs': false,
-    'dashboard.employeeExpiringDocs': false,
-    'dashboard.recentEmployees': false,
-    'dashboard.absenceShortcut': false,
-    'dashboard.reviewShortcut': false,
-    'employees.viewSelf': true,
-    'employees.viewAll': false,
-    'employees.create': false,
-    'employees.edit': false,
-    'employees.delete': false,
-    'employees.attachments': false,
-    'attendance.viewSelf': true,
-    'attendance.viewAll': false,
-    'attendance.markAbsent': false,
-    'attendance.deleteAbsence': false,
-    'attendance.export': false,
-    'leaves.viewOwn': true,
-    'leaves.viewAll': false,
-    'leaves.createLeave': true,
-    'leaves.createTravel': true,
-    'leaves.createForAll': false,
-    'leaves.approve': false,
-    'leaves.reject': false,
-    'leaves.resume': false,
-    'leaves.viewTravelers': false,
-    'payroll.viewSelf': false,
-    'payroll.viewAll': false,
-    'payroll.edit': false,
-    'payroll.commissions': false,
-    'payroll.printClearance': false,
-    'documents.view': false,
-    'documents.create': false,
-    'documents.edit': false,
-    'documents.delete': false,
-    'documents.upload': false,
-    'organization.view': false,
-    'organization.manage': false,
-    'settings.view': false,
-    'security.manage': false,
-    'users.manage': false
-  };
-  function normalizePermissions(raw, role){
-    if (String(role || '').trim() === 'admin') return Object.fromEntries(KEYS.map((key) => [key, true]));
-    const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-    const out = { ...DEFAULTS };
-    KEYS.forEach((key) => { if (Object.prototype.hasOwnProperty.call(source, key)) out[key] = Boolean(source[key]); });
-    return out;
-  }
-  function can(key){
-    if (isAdmin()) return true;
-    return Boolean(normalizePermissions(authProfile?.permissions, authProfile?.role)[key]);
-  }
-  function allEmps(){ return Array.isArray(employees) ? employees : []; }
-  function linkedEmployee(){
-    const linkedId = authProfile?.employee_id || authProfile?.employeeId || '';
-    if (linkedId) {
-      const byId = allEmps().find((e) => String(e.id) === String(linkedId));
-      if (byId) return byId;
-    }
-    const email = String(authUser?.email || authProfile?.email || '').trim().toLowerCase();
-    return email ? allEmps().find((e) => String(e.email || '').trim().toLowerCase() === email) || null : null;
-  }
-  function linkedEmployeeId(){ return linkedEmployee()?.id || ''; }
-  function isLinkedEmployee(id){ return Boolean(id && linkedEmployeeId() && String(id) === String(linkedEmployeeId())); }
-  function employeeRoleNeedsLink(){ return !isAdmin(); }
-  function hasEmployeeLink(){ return isAdmin() || Boolean(linkedEmployee()); }
-  function canSeeEmployee(id, area = 'employees'){
-    if (isAdmin()) return true;
-    if (!hasEmployeeLink()) return false;
-    if (area === 'employees' && can('employees.viewAll')) return true;
-    if (area === 'attendance' && can('attendance.viewAll')) return true;
-    if (area === 'leaves' && can('leaves.viewAll')) return true;
-    if (area === 'payroll' && can('payroll.viewAll')) return true;
-    if (area === 'documents' && can('employees.viewAll')) return true;
-    return isLinkedEmployee(id);
-  }
-  window.employeePermissionMatrix = { groups: PERMISSION_GROUPS, defaults: DEFAULTS, can, linkedEmployee, normalizePermissions };
-
-  pageMeta.establishmentDocuments = ['وثائق المنشأة', 'إدارة وثائق المنشأة وتواريخ انتهائها'];
-
-  const previousLoadAuthProfile = loadAuthProfile;
-  loadAuthProfile = async function(user){
-    if (!user || !supabaseClient) return previousLoadAuthProfile ? previousLoadAuthProfile(user) : null;
-    const cols = 'id,user_id,full_name,email,role,is_active,employee_id,permissions';
-    try {
-      const { data, error } = await supabaseClient.from('app_user_profiles').select(cols).eq('user_id', user.id).maybeSingle();
+/* Stability patch: robust profile loading with optional employee link */
+try {
+  loadAuthProfile = async function(user) {
+    if (!user || !supabaseClient) return null;
+    const baseCols = "id, user_id, full_name, email, role, is_active";
+    const withEmployee = `${baseCols}, employee_id`;
+    async function readBy(column, value, selectCols) {
+      const { data, error } = await supabaseClient.from("app_user_profiles").select(selectCols).eq(column, value).maybeSingle();
       if (error) throw error;
-      if (data) { data.role = String(data.role || 'employee') === 'admin' ? 'admin' : 'employee'; data.permissions = normalizePermissions(data.permissions, data.role); return data; }
-    } catch (error) { console.warn('profile load with employee_id failed', error); }
-    try {
-      const { data, error } = await supabaseClient.from('app_user_profiles').select(cols).eq('email', user.email).maybeSingle();
-      if (error) throw error;
-      if (data) { data.role = String(data.role || 'employee') === 'admin' ? 'admin' : 'employee'; data.permissions = normalizePermissions(data.permissions, data.role); return data; }
-    } catch (error) { console.warn('profile fallback failed', error); }
-    const fallback = previousLoadAuthProfile ? await previousLoadAuthProfile(user) : null;
-    if (fallback) { fallback.role = String(fallback.role || 'employee') === 'admin' ? 'admin' : 'employee'; fallback.permissions = normalizePermissions(fallback.permissions, fallback.role); }
-    return fallback || { full_name: user.email || 'مستخدم', email: user.email || '', role: 'employee', is_active: false, permissions: normalizePermissions({}, 'employee') };
-  };
-
-  currentRoleKey = function(){ return isAdmin() ? 'admin' : 'employee'; };
-  roleCanOpen = function(viewName){
-    if (isAdmin()) return true;
-    if (viewName === 'dashboard') return can('nav.dashboard');
-    if (viewName === 'employees') return can('nav.employees') && (can('employees.viewSelf') || can('employees.viewAll'));
-    if (viewName === 'attendance') return can('nav.attendance') && (can('attendance.viewSelf') || can('attendance.viewAll') || can('attendance.markAbsent'));
-    if (viewName === 'leaves') return can('nav.leaves') && (can('leaves.viewOwn') || can('leaves.viewAll') || can('leaves.createLeave') || can('leaves.createTravel'));
-    if (viewName === 'payroll') return can('nav.payroll') && (can('payroll.viewSelf') || can('payroll.viewAll') || can('payroll.commissions'));
-    if (viewName === 'establishmentDocuments') return can('nav.establishmentDocuments') && can('documents.view');
-    if (viewName === 'departments') return can('nav.departments') && can('organization.view');
-    if (viewName === 'settings') return can('nav.settings') && (can('settings.view') || can('security.manage'));
-    if (viewName === 'users') return can('users.manage');
-    return false;
-  };
-
-  function ensureEmployeeLinkWarning(){
-    let warning = document.querySelector('#employeeLinkRequiredWarning');
-    if (!employeeRoleNeedsLink() || hasEmployeeLink()) { warning?.remove(); return; }
-    const active = document.querySelector('.view.active') || document.querySelector('.content-area');
-    if (!active || active.id === 'settingsView') return;
-    if (!warning) {
-      warning = document.createElement('div');
-      warning.id = 'employeeLinkRequiredWarning';
-      warning.className = 'permission-link-warning';
-      warning.innerHTML = `<strong>لم يتم ربط حسابك بملف موظف</strong><p>تواصل مع مدير النظام لربط حساب المستخدم بملف الموظف حتى تظهر بياناتك وطلباتك وحضورك.</p>`;
-      active.prepend(warning);
+      return data || null;
     }
-  }
-
-  function currentDisplayName(){
-    const emp = linkedEmployee();
-    return emp?.name || authProfile?.full_name || authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || 'مستخدم';
-  }
-  const oldUpdateTopbarUser = updateTopbarUser;
-  updateTopbarUser = function(){
-    try { oldUpdateTopbarUser?.(); } catch(_) {}
-    const name = currentDisplayName();
-    const role = isAdmin() ? 'مدير النظام' : 'موظف';
-    const copy = document.querySelector('.topbar-user-copy');
-    if (copy) copy.innerHTML = `<strong>${escape(name)}</strong><span>${escape(role)}</span>`;
-    const mark = document.querySelector('.topbar-user-mark');
-    if (mark) mark.textContent = String(name).trim().charAt(0) || 'م';
-    document.querySelectorAll('.dashboard-welcome-compact .welcome-copy h2').forEach((h) => { h.textContent = `صباح الخير، ${name}`; });
-    const pageSub = document.querySelector('.page-subtitle');
-    if (pageSub && pageSub.textContent.includes('محمد')) pageSub.textContent = pageSub.textContent.replace(/محمد/g, name);
-  };
-
-  function fillEmployeeSelect(select, selected = '', scope = 'self'){
-    if (!select) return;
-    const list = isAdmin() || scope === 'all' ? allEmps() : (linkedEmployee() ? [linkedEmployee()] : []);
-    select.innerHTML = `<option value="">اختر الموظف</option>` + list.map((employee) => `<option value="${escape(employee.id)}" ${String(employee.id) === String(selected) ? 'selected' : ''}>${escape(employee.name)}${employee.employeeNumber ? ` - ${escape(employee.employeeNumber)}` : ''}</option>`).join('');
-    if (!list.length) select.innerHTML = `<option value="">لا يوجد موظف مرتبط بالحساب</option>`;
-    const wanted = selected || (!isAdmin() && list[0]?.id) || '';
-    if (wanted && list.some((e) => String(e.id) === String(wanted))) select.value = wanted;
-    if (!isAdmin() && !can('leaves.createForAll')) select.disabled = true;
-  }
-  function fillUserEmployeeSelect(selected = ''){
-    const select = document.querySelector('#appUserProfileForm [name="employeeId"]');
-    if (!select) return;
-    select.innerHTML = `<option value="">غير مربوط بموظف</option>` + allEmps().map((employee) => `<option value="${escape(employee.id)}" ${String(employee.id) === String(selected) ? 'selected' : ''}>${escape(employee.name)}${employee.employeeNumber ? ` - ${escape(employee.employeeNumber)}` : ''}</option>`).join('');
-  }
-  function enhanceUserModal(){
-    const form = document.querySelector('#appUserProfileForm');
-    if (!form || form.dataset.employeeLinkEnhanced === '1') return;
-    form.dataset.employeeLinkEnhanced = '1';
-    const body = form.querySelector('.user-profile-modal-body') || form;
-    const roleLabel = form.elements.role?.closest('label');
-    if (roleLabel && !form.elements.employeeId) {
-      roleLabel.insertAdjacentHTML('afterend', `<label><span>ربط المستخدم بملف موظف</span><select name="employeeId"></select></label>`);
+    for (const selectCols of [withEmployee, baseCols]) {
+      try {
+        const byId = await readBy("user_id", user.id, selectCols);
+        if (byId) return byId;
+      } catch (error) { console.warn("تعذر قراءة صلاحيات المستخدم حسب user_id.", error); }
+      try {
+        const byEmail = await readBy("email", user.email, selectCols);
+        if (byEmail) return byEmail;
+      } catch (error) { console.warn("تعذر قراءة صلاحيات المستخدم حسب البريد.", error); }
     }
-    const passLabel = form.elements.password?.closest('label');
-    if (passLabel && !form.elements.passwordConfirm) {
-      passLabel.insertAdjacentHTML('afterend', `<label class="user-password-confirm-field"><span>تأكيد كلمة المرور</span><input type="password" name="passwordConfirm" autocomplete="new-password" dir="ltr" /></label>`);
-    }
-    fillUserEmployeeSelect();
-  }
-
-  const oldEnsureUsersManagementView = ensureUsersManagementView;
-  ensureUsersManagementView = function(){
-    oldEnsureUsersManagementView();
-    enhanceUserModal();
-    const headRow = document.querySelector('#appUserProfilesBody')?.closest('table')?.querySelector('thead tr');
-    if (headRow && !headRow.querySelector('[data-user-employee-head]')) {
-      const th = document.createElement('th'); th.dataset.userEmployeeHead = '1'; th.textContent = 'الموظف المرتبط';
-      headRow.insertBefore(th, headRow.children[2] || null);
-    }
+    return { full_name: user.email || "مستخدم", email: user.email || "", role: "employee", is_active: false };
   };
-  const oldResetUserProfileForm = resetUserProfileForm;
-  resetUserProfileForm = function(){
-    oldResetUserProfileForm();
-    enhanceUserModal();
-    fillUserEmployeeSelect('');
-    const f = document.querySelector('#appUserProfileForm');
-    if (f?.elements.passwordConfirm) { f.elements.passwordConfirm.value = ''; f.elements.passwordConfirm.required = true; f.elements.passwordConfirm.closest('label')?.classList.remove('is-hidden'); }
-  };
-  const oldFillUserProfileForm = fillUserProfileForm;
-  fillUserProfileForm = function(id){
-    oldFillUserProfileForm(id);
-    enhanceUserModal();
-    const profile = appUserProfilesCache.find((item) => String(item.id) === String(id));
-    const f = document.querySelector('#appUserProfileForm');
-    if (f?.elements.employeeId) { fillUserEmployeeSelect(profile?.employee_id || ''); f.elements.employeeId.value = profile?.employee_id || ''; }
-    if (f?.elements.passwordConfirm) { f.elements.passwordConfirm.value = ''; f.elements.passwordConfirm.required = false; f.elements.passwordConfirm.closest('label')?.classList.add('is-hidden'); }
-  };
-
-  function edgeManageUsersFinal(body){
-    if (!supabaseClient) return Promise.reject(new Error('Supabase غير متصل'));
-    return supabaseClient.functions.invoke('admin-create-user', { body });
-  }
-  loadAppUserProfiles = async function(){
-    if (!isAdmin()) return [];
-    const { data, error } = await edgeManageUsersFinal({ action: 'list-users' });
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
-    appUserProfilesCache = Array.isArray(data?.users) ? data.users : [];
-    return appUserProfilesCache;
-  };
-  renderAppUserProfiles = function(){
-    const body = document.querySelector('#appUserProfilesBody');
-    if (!body) return;
-    if (!appUserProfilesCache.length) {
-      body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><strong>لا يوجد مستخدمون بعد</strong><p>أضف أول مستخدم من زر إضافة مستخدم.</p></div></td></tr>`;
-      return;
-    }
-    body.innerHTML = appUserProfilesCache.map((profile) => {
-      const emp = allEmps().find((e) => String(e.id) === String(profile.employee_id || ''));
-      return `<tr>
-        <td><strong>${escape(profile.full_name || '—')}</strong></td>
-        <td dir="ltr">${escape(profile.email || '—')}</td>
-        <td>${emp ? escape(emp.name) : '<span class="status-badge status-pending">غير مربوط</span>'}</td>
-        <td>${roleBadge(profile.role)}</td>
-        <td><span class="${profile.is_active ? 'user-status-active' : 'user-status-disabled'}">${profile.is_active ? 'مفعل' : 'موقوف'}</span></td>
-        <td><span class="user-action-row"><button type="button" class="quick-view-btn" data-edit-user-profile="${escape(profile.id)}" title="تعديل">${icon('edit')}</button><button type="button" class="quick-view-btn ${profile.is_active ? 'warning-inline-btn' : ''}" data-toggle-user-profile="${escape(profile.id)}" title="${profile.is_active ? 'إيقاف' : 'تنشيط'}">${icon(profile.is_active ? 'user-x' : 'check')}</button><button type="button" class="quick-view-btn danger-inline-btn" data-delete-user-profile="${escape(profile.id)}" title="حذف">${icon('trash')}</button></span></td>
-      </tr>`;
-    }).join('');
-  };
-  saveUserProfileFromForm = async function(form){
-    if (!isAdmin()) return showToast('هذه الشاشة للمدير فقط');
-    const profileId = form.elements.profileId.value.trim();
-    const password = form.elements.password?.value || '';
-    const passwordConfirm = form.elements.passwordConfirm?.value || '';
-    if (!profileId) {
-      if (password.length < 6) return showToast('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
-      if (password !== passwordConfirm) return showToast('تأكيد كلمة المرور غير مطابق');
-    }
-    const role = String(form.elements.role.value || 'employee') === 'admin' ? 'admin' : 'employee';
-    const existing = appUserProfilesCache.find((p) => String(p.id) === String(profileId));
-    const payload = {
-      id: profileId,
-      email: form.elements.email.value.trim().toLowerCase(),
-      fullName: form.elements.fullName.value.trim(),
-      role,
-      isActive: form.elements.isActive.value === 'true',
-      employeeId: form.elements.employeeId?.value || null,
-      permissions: normalizePermissions(existing?.permissions, role)
-    };
-    if (!payload.fullName || !payload.email) return showToast('أدخل الاسم والبريد');
-    try {
-      const body = profileId ? { action: 'update-user', ...payload } : { action: 'create-user', ...payload, password };
-      const { data, error } = await edgeManageUsersFinal(body);
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      resetUserProfileForm();
-      document.querySelector('#userProfileModal')?.close();
-      await renderUsersManagement();
-      showToast(profileId ? 'تم تحديث المستخدم' : 'تم إنشاء المستخدم وربطه');
-    } catch (error) { console.error(error); showToast(String(error?.message || 'تعذر حفظ المستخدم').slice(0, 120)); }
-  };
-
-  function permissionsEditorHtml(profile){
-    const normalized = normalizePermissions(profile?.permissions, profile?.role);
-    const emp = allEmps().find((e) => String(e.id) === String(profile?.employee_id || ''));
-    return `<div class="security-linked-employee-note"><strong>المستخدم:</strong> ${escape(profile?.full_name || profile?.email || '')} ${emp ? `— <strong>الموظف المرتبط:</strong> ${escape(emp.name)}` : '— <span class="status-badge status-pending">غير مربوط بموظف</span>'}</div>
-      <div class="security-permissions-grid">${PERMISSION_GROUPS.map((group) => `
-      <section class="security-permission-card">
-        <div class="security-permission-head"><strong>${escape(group.title)}</strong><button type="button" class="text-btn" data-full-security-group="${escape(group.id)}">تحديد الكل</button></div>
-        <div class="security-permission-list">
-          ${group.items.map(([key, label]) => `<label class="security-permission-row"><span>${escape(label)}</span><input type="checkbox" data-full-security-permission="${escape(key)}" ${normalized[key] ? 'checked' : ''}></label>`).join('')}
-        </div>
-      </section>`).join('')}</div>`;
-  }
-  function ensurePermissionsSecurityPanelFinal(){
-    const panel = document.querySelector('[data-settings-panel="permissions"]');
-    if (!panel) return;
-    panel.innerHTML = `
-      <div class="panel-head"><div><h3>الصلاحيات والأمان</h3><p>اختر المستخدم، اربطه بملف موظف من إدارة المستخدمين، ثم حدد القوائم والبطاقات والأزرار المسموحة له.</p></div></div>
-      <div class="security-layout">
-        <article class="settings-placeholder-card security-user-picker"><span data-icon="shield"></span><div><strong>الصلاحيات مرتبطة بالموظف</strong><p>أي موظف غير مربوط بملف موظف لن يرى بيانات عشوائية، وستظهر له رسالة تنبيه.</p></div></article>
-        <div class="security-controls"><select id="securityUserSelectFinal"><option value="">اختر مستخدمًا...</option></select><button type="button" class="secondary-btn" id="reloadSecurityUsersFinal"><span data-icon="refresh"></span>تحديث المستخدمين</button><button type="button" class="primary-btn" id="saveSecurityPermissionsFinal"><span data-icon="check"></span>حفظ الصلاحيات</button></div>
-        <div id="securityPermissionsEditorFinal" class="security-editor-empty"><strong>اختر مستخدمًا من القائمة</strong><p>بعد الاختيار ستظهر الصلاحيات المفصلة.</p></div>
-      </div>`;
-    if (typeof hydrateIcons === 'function') hydrateIcons(panel);
-  }
-  async function loadSecurityUsersFinal(){
-    const select = document.querySelector('#securityUserSelectFinal');
-    if (!select) return;
-    select.innerHTML = `<option value="">جاري تحميل المستخدمين...</option>`;
-    try {
-      await loadAppUserProfiles();
-      const users = appUserProfilesCache.filter((p) => String(p.role || 'employee') !== 'admin');
-      select.innerHTML = `<option value="">اختر مستخدمًا...</option>` + users.map((p) => `<option value="${escape(p.id)}">${escape(p.full_name || p.email)} - ${escape(p.email || '')}</option>`).join('');
-      if (!users.length) select.innerHTML = `<option value="">لا يوجد موظفون</option>`;
-    } catch (error) { console.error(error); select.innerHTML = `<option value="">تعذر تحميل المستخدمين</option>`; showToast('تعذر تحميل مستخدمي الصلاحيات'); }
-  }
-  function renderSelectedSecurityUserFinal(){
-    const id = document.querySelector('#securityUserSelectFinal')?.value;
-    const editor = document.querySelector('#securityPermissionsEditorFinal');
-    if (!editor) return;
-    const profile = appUserProfilesCache.find((p) => String(p.id) === String(id));
-    if (!profile) { editor.className = 'security-editor-empty'; editor.innerHTML = `<strong>اختر مستخدمًا من القائمة</strong><p>بعد الاختيار ستظهر الصلاحيات المفصلة.</p>`; return; }
-    editor.className = '';
-    editor.innerHTML = permissionsEditorHtml(profile);
-  }
-  async function saveSelectedSecurityPermissionsFinal(){
-    const id = document.querySelector('#securityUserSelectFinal')?.value;
-    const profile = appUserProfilesCache.find((p) => String(p.id) === String(id));
-    if (!profile) return showToast('اختر مستخدمًا أولًا');
-    const permissions = {};
-    KEYS.forEach((key) => { permissions[key] = Boolean(document.querySelector(`[data-full-security-permission="${CSS.escape(key)}"]`)?.checked); });
-    try {
-      const { data, error } = await edgeManageUsersFinal({ action: 'update-user', id: profile.id, email: profile.email, fullName: profile.full_name, role: 'employee', isActive: profile.is_active, employeeId: profile.employee_id || null, permissions });
-      if (error) throw error; if (data?.error) throw new Error(data.error);
-      profile.permissions = normalizePermissions(permissions, 'employee');
-      showToast('تم حفظ صلاحيات الموظف');
-    } catch (error) { console.error(error); showToast('تعذر حفظ الصلاحيات'); }
-  }
-  renderPermissionsPreview = function(){ ensurePermissionsSecurityPanelFinal(); };
-  const previousSwitchSettingsSection = switchSettingsSection;
-  switchSettingsSection = function(section){
-    previousSwitchSettingsSection(section);
-    applyRolePermissions();
-    if (section === 'permissions') { ensurePermissionsSecurityPanelFinal(); loadSecurityUsersFinal(); }
-  };
-
-  function applyVisibility(){
-    updateTopbarUser();
-    document.querySelectorAll('.nav-item[data-view]').forEach((button) => {
-      button.classList.toggle('is-permission-hidden', !roleCanOpen(button.dataset.view));
-    });
-    document.querySelectorAll('[data-view="establishmentDocuments"]').forEach((button) => button.classList.toggle('is-permission-hidden', !roleCanOpen('establishmentDocuments')));
-    document.querySelectorAll('[data-go-view]').forEach((element) => {
-      const view = element.dataset.goView;
-      if (view && pageMeta[view]) element.classList.toggle('is-permission-hidden', !roleCanOpen(view));
-    });
-    document.querySelector('#statsGrid')?.classList.toggle('is-permission-hidden', !can('dashboard.stats'));
-    document.querySelector('.travelers-dashboard-panel, .attendance-panel')?.classList.toggle('is-permission-hidden', !can('dashboard.attendanceOverview') && !can('leaves.viewTravelers'));
-    document.querySelector('.leave-panel')?.classList.toggle('is-permission-hidden', !can('dashboard.reviewRequests'));
-    document.querySelector('#dashboardEstDocsPanel')?.classList.toggle('is-permission-hidden', !can('dashboard.establishmentExpiringDocs') || !can('documents.view'));
-    document.querySelector('#dashboardEmployeeDocsPanel')?.classList.toggle('is-permission-hidden', !can('dashboard.employeeExpiringDocs'));
-    document.querySelector('.recent-panel')?.classList.toggle('is-permission-hidden', !can('dashboard.recentEmployees'));
-    document.querySelector('#dashboardAbsenceBtn')?.classList.toggle('is-permission-hidden', !can('dashboard.absenceShortcut') || !can('attendance.markAbsent'));
-    document.querySelector('.banner-action[data-go-view="leaves"]')?.classList.toggle('is-permission-hidden', !can('dashboard.reviewShortcut') || !roleCanOpen('leaves'));
-    document.querySelector('#newAbsenceBtn')?.classList.toggle('is-permission-hidden', !can('attendance.markAbsent'));
-    document.querySelector('#attendanceExportBtn')?.classList.toggle('is-permission-hidden', !can('attendance.export'));
-    document.querySelectorAll('#newLeaveBtn').forEach((b) => b.classList.toggle('is-permission-hidden', !can('leaves.createLeave')));
-    document.querySelectorAll('#newTravelBtn').forEach((b) => b.classList.toggle('is-permission-hidden', !can('leaves.createTravel')));
-    document.querySelectorAll('[data-leave-action="approved"], [data-travel-approve], [data-dashboard-request-action="approve"]').forEach((b) => b.classList.toggle('is-permission-hidden', !can('leaves.approve') && !can('dashboard.reviewActions')));
-    document.querySelectorAll('[data-leave-action="rejected"], [data-travel-reject], [data-dashboard-request-action="reject"]').forEach((b) => b.classList.toggle('is-permission-hidden', !can('leaves.reject') && !can('dashboard.reviewActions')));
-    document.querySelectorAll('[data-leave-return], [data-travel-resume]').forEach((b) => b.classList.toggle('is-permission-hidden', !can('leaves.resume')));
-    document.querySelectorAll('[data-delete-employee]').forEach((b) => b.classList.toggle('is-permission-hidden', !can('employees.delete')));
-    document.querySelectorAll('[data-edit-employee]').forEach((b) => { const id = b.dataset.editEmployee; b.classList.toggle('is-permission-hidden', !isAdmin() && !can('employees.edit') && !isLinkedEmployee(id)); });
-    document.querySelector('#addEmployeeBtn')?.classList.toggle('is-permission-hidden', !can('employees.create'));
-    document.querySelector('#hardAddEstDocBtn, #branchAddEstDocBtn, #addEstablishmentDocumentBtn')?.classList.toggle('is-permission-hidden', !can('documents.create'));
-    ensureEmployeeLinkWarning();
-  }
-  const oldApply = applyRolePermissions;
-  applyRolePermissions = function(){ try { oldApply?.(); } catch(_) {} applyVisibility(); };
-
-  function scopedEmployees(area){
-    if (isAdmin()) return allEmps();
-    if (area === 'employees' && can('employees.viewAll')) return allEmps();
-    if (area === 'attendance' && can('attendance.viewAll')) return allEmps();
-    if (area === 'leaves' && can('leaves.viewAll')) return allEmps();
-    if (area === 'payroll' && can('payroll.viewAll')) return allEmps();
-    const me = linkedEmployee();
-    return me ? [me] : [];
-  }
-  filteredEmployees = function(){
-    const search = document.querySelector('#employeeSearch')?.value.trim().toLowerCase() || '';
-    const department = document.querySelector('#departmentFilter')?.value || 'all';
-    const status = document.querySelector('#statusFilter')?.value || 'all';
-    return scopedEmployees('employees').filter((employee) => {
-      const text = `${employee.employeeNumber} ${employee.name} ${employee.nationality} ${employee.department} ${employee.section || ''} ${employee.role} ${employee.phone}`.toLowerCase();
-      return (!search || text.includes(search)) && (department === 'all' || employee.department === department) && (status === 'all' || employee.status === status);
-    });
-  };
-  const oldAttendanceStateForEmployee = attendanceStateForEmployee;
-  attendanceRowsForDate = function(dateString = selectedAttendanceDate){
-    return scopedEmployees('attendance').map((employee) => ({ employee, state: oldAttendanceStateForEmployee(employee, dateString) }));
-  };
-  renderAbsenceRecords = function(){
-    const body = document.querySelector('#absenceRecordsBody'); if (!body) return;
-    const rows = (Array.isArray(attendanceExceptions) ? attendanceExceptions : []).filter((record) => canSeeEmployee(record.employeeId, 'attendance') && dateWithinRange(selectedAttendanceDate, record.from, record.to)).sort((a,b) => (a.from || '').localeCompare(b.from || '') || (a.createdAt || '').localeCompare(b.createdAt || ''));
-    body.innerHTML = rows.length ? rows.map((record) => {
-      const employee = getEmployee(record.employeeId); const meta = absenceTypeMeta(record.type); const period = record.from === record.to ? formatDate(record.from) : `${formatDate(record.from)} إلى ${formatDate(record.to)}`; const details = absencePenaltyDetails(record); const segmentLabel = details.showPeriod ? (details.periodLabel || absencePeriodMeta(record.periodSegment || 'fullDay').label) : '—'; const deductionAmount = absenceDeductionAmount(record);
-      const del = can('attendance.deleteAbsence') ? `<button class="quick-view-btn delete-absence-btn" data-delete-absence="${escape(record.id)}" title="حذف الغياب">${icon('trash')}</button>` : '—';
-      return `<tr><td>${employee ? employeeCell(employee) : 'موظف محذوف'}</td><td>${period}</td><td><span class="status-badge ${meta.className}">${meta.label}</span></td><td>${segmentLabel}</td><td><span class="status-badge absence-penalty-badge">${escape(details.text)}</span></td><td><strong class="absence-money-deduction">${formatCurrencyEn(deductionAmount)}</strong></td><td>${escape(record.reason || '—')}</td><td>${del}</td></tr>`;
-    }).join('') : '<tr><td colspan="8"><div class="empty-state"><strong>لا توجد غيابات مسجلة لهذا التاريخ</strong></div></td></tr>';
-    if (typeof hydrateIcons === 'function') hydrateIcons(body);
-  };
-
-  const oldPopulate = populateFormOptions;
-  populateFormOptions = function(){
-    try { oldPopulate?.(); } catch(error) { console.warn(error); }
-    fillEmployeeSelect(document.querySelector('#leaveForm select[name="employeeId"]'), document.querySelector('#leaveForm select[name="employeeId"]')?.value, can('leaves.createForAll') || can('leaves.viewAll') ? 'all' : 'self');
-    fillEmployeeSelect(document.querySelector('#absenceForm select[name="employeeId"]'), document.querySelector('#absenceForm select[name="employeeId"]')?.value, can('attendance.markAbsent') && can('attendance.viewAll') ? 'all' : 'self');
-    fillEmployeeSelect(document.querySelector('#travelRequestForm select[name="employeeId"]'), document.querySelector('#travelRequestForm select[name="employeeId"]')?.value, can('leaves.createForAll') || can('leaves.viewAll') ? 'all' : 'self');
-  };
-
-  function leavesScoped(){ return Array.isArray(leaves) ? leaves.filter((leave) => canSeeEmployee(leave.employeeId, 'leaves')) : []; }
-  function travelScoped(){
-    try { const raw = localStorage.getItem('nawah-travel-requests'); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list.filter((travel) => canSeeEmployee(travel.employeeId, 'leaves')) : []; } catch(_) { return []; }
-  }
-  function travelBadge(travel){ return travel.status === 'pending' ? '<span class="status-badge status-pending">بانتظار الاعتماد</span>' : travel.status === 'rejected' ? '<span class="status-badge status-rejected">مرفوض</span>' : travel.status === 'returned' ? '<span class="status-badge status-active">تمت المباشرة</span>' : '<span class="status-badge status-leave">مسافر</span>'; }
-  renderLeaves = function(){
-    const view = document.querySelector('#leavesView'); if (!view) return;
-    const scopedLeaves = leavesScoped(); const scopedTravel = travelScoped();
-    const filtered = activeLeaveFilter === 'all' ? scopedLeaves : scopedLeaves.filter((leave) => leave.status === activeLeaveFilter);
-    const leaveRows = filtered.length ? filtered.map((leave) => {
-      const employee = getEmployee(leave.employeeId); if (!employee) return '';
-      let actions = leaveStatusBadge(leave.status);
-      if (leave.status === 'pending' && (can('leaves.approve') || can('leaves.reject'))) actions = `${can('leaves.reject') ? `<button class="secondary-btn" data-leave-action="rejected" data-leave-id="${escape(leave.id)}">رفض</button>` : ''}${can('leaves.approve') ? `<button class="primary-btn" data-leave-action="approved" data-leave-id="${escape(leave.id)}">اعتماد الإجازة</button>` : ''}`;
-      else if (leave.status === 'approved' && !leave.returnDate && can('leaves.resume')) actions = `${leaveStatusBadge(leave.status)}<button class="primary-btn" data-leave-return="${escape(leave.id)}">تسجيل مباشرة</button>`;
-      return `<tr><td>${employeeCell(employee)}</td><td>${escape(leave.type)}</td><td>${formatDate(leave.from)}</td><td>${formatDate(leave.to)}</td><td>${arabicNumber(leave.days)} أيام</td><td>${leaveStatusBadge(leave.status)}</td><td><div class="travel-actions">${actions}</div></td></tr>`;
-    }).join('') : `<tr><td colspan="7"><div class="empty-state"><strong>لا توجد طلبات في هذه الفئة</strong></div></td></tr>`;
-    const travelRows = scopedTravel.length ? scopedTravel.map((travel) => {
-      const employee = getEmployee(travel.employeeId); if (!employee) return '';
-      let actions = travelBadge(travel);
-      if (travel.status === 'pending' && (can('leaves.approve') || can('leaves.reject'))) actions = `${can('leaves.reject') ? `<button class="secondary-btn" data-travel-reject="${escape(travel.id)}">رفض</button>` : ''}${can('leaves.approve') ? `<button class="primary-btn" data-travel-approve="${escape(travel.id)}">اعتماد السفر</button>` : ''}`;
-      else if (travel.status === 'approved' && can('leaves.resume')) actions = `${travelBadge(travel)}<button class="primary-btn" data-travel-resume="${escape(travel.id)}">تسجيل مباشرة عمل</button>`;
-      return `<tr><td>${employeeCell(employee)}</td><td>${formatDate(travel.travelDate)}</td><td>${travel.returnDate ? formatDate(travel.returnDate) : 'غير محدد'}</td><td>${travel.workResumeDate ? formatDate(travel.workResumeDate) : 'لم يباشر'}</td><td>${travelBadge(travel)}</td><td><div class="travel-actions">${actions}</div></td></tr>`;
-    }).join('') : `<tr><td colspan="6"><div class="empty-state"><strong>لا توجد طلبات سفر في هذه الفئة</strong></div></td></tr>`;
-    view.innerHTML = `<div class="leave-travel-hero">
-      <button type="button" class="request-card ${!can('leaves.createLeave') ? 'is-permission-hidden' : ''}" id="newLeaveBtn"><span data-icon="calendar"></span><strong>طلب إجازة</strong><small>إنشاء طلب إجازة جديد</small></button>
-      <button type="button" class="request-card ${!can('leaves.createTravel') ? 'is-permission-hidden' : ''}" id="newTravelBtn"><span data-icon="plane"></span><strong>طلب سفر</strong><small>طلب سفر بتاريخ عودة أو بدون عودة</small></button>
-    </div>
-    <div class="leave-tabs"><button class="${activeLeaveFilter === 'all' ? 'active' : ''}" data-leave-filter="all">جميع الإجازات <span id="allLeaveCount">${arabicNumber(scopedLeaves.length)}</span></button><button class="${activeLeaveFilter === 'pending' ? 'active' : ''}" data-leave-filter="pending">بانتظار الموافقة <span id="pendingLeaveCount">${arabicNumber(scopedLeaves.filter(l => l.status === 'pending').length)}</span></button><button class="${activeLeaveFilter === 'approved' ? 'active' : ''}" data-leave-filter="approved">تمت الموافقة</button><button class="${activeLeaveFilter === 'rejected' ? 'active' : ''}" data-leave-filter="rejected">مرفوضة</button><button class="travel-tab-info" type="button">طلبات سفر <span>${arabicNumber(scopedTravel.length)}</span></button></div>
-    <div class="leave-travel-tables">
-      <article class="panel travel-table-panel"><div class="panel-head"><div><h3>المسافرون</h3><p>طلبات السفر وحالة المباشرة</p></div></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>تاريخ المباشرة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${travelRows}</tbody></table></div></article>
-      <article class="panel leave-table-panel"><div class="panel-head"><div><h3>الإجازات</h3><p>طلبات الإجازة حسب صلاحيات المستخدم</p></div></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>نوع الإجازة</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${leaveRows}</tbody></table></div></article>
-    </div>`;
-    if (typeof hydrateIcons === 'function') hydrateIcons(view);
-    populateFormOptions(); applyVisibility();
-  };
-
-  const oldRenderDashboard = renderDashboard;
-  renderDashboard = function(){
-    oldRenderDashboard();
-    const name = currentDisplayName();
-    document.querySelectorAll('.dashboard-welcome-compact .welcome-copy h2').forEach((h) => h.textContent = `صباح الخير، ${name}`);
-    if (!isAdmin()) {
-      const scopedPending = [...leavesScoped().filter((l) => l.status === 'pending').map((l) => ({ type: 'إجازة', id: l.id, employeeId: l.employeeId, date: l.from, label: l.type })), ...travelScoped().filter((t) => t.status === 'pending').map((t) => ({ type: 'سفر', id: t.id, employeeId: t.employeeId, date: t.travelDate, label: t.returnDate ? 'سفر وعودة' : 'سفر' }))];
-      const list = document.querySelector('#leavePreviewList');
-      if (list && can('dashboard.reviewRequests')) {
-        list.innerHTML = scopedPending.length ? scopedPending.slice(0, 7).map((req) => { const employee = getEmployee(req.employeeId); return employee ? `<div class="leave-preview-item dashboard-request-item">${employeeAvatar(employee)}<div class="leave-preview-info"><button type="button" class="employee-name-link" data-edit-employee="${escape(employee.id)}">${escape(employee.name)}</button><span><b>${req.type}</b> · ${escape(req.label)} · ${formatDate(req.date)}</span></div><div class="mini-actions dashboard-request-actions"><button type="button" class="quick-view-btn" title="عرض الطلب">${icon('eye')}</button></div></div>` : ''; }).join('') : '<div class="empty-state"><strong>لا توجد طلبات تخصك</strong></div>';
-        const pendingEl = document.querySelector('#pendingLeaves'); if (pendingEl) pendingEl.textContent = arabicNumber(scopedPending.length);
-      }
-      const est = document.querySelector('#dashboardEstDocsPanel'); if (est) est.classList.toggle('is-permission-hidden', !can('dashboard.establishmentExpiringDocs') || !can('documents.view'));
-      const empPanel = document.querySelector('#dashboardEmployeeDocsPanel');
-      if (empPanel && can('dashboard.employeeExpiringDocs') && linkedEmployee()) {
-        empPanel.querySelectorAll('[data-edit-employee]').forEach((btn) => { if (!isLinkedEmployee(btn.dataset.editEmployee)) btn.closest('.expiry-doc-row')?.remove(); });
-      }
-    }
-    applyVisibility();
-  };
-
-  document.addEventListener('click', (event) => {
-    const saveSec = event.target.closest('#saveSecurityPermissionsFinal'); if (saveSec) { event.preventDefault(); saveSelectedSecurityPermissionsFinal(); return; }
-    const reloadSec = event.target.closest('#reloadSecurityUsersFinal'); if (reloadSec) { event.preventDefault(); loadSecurityUsersFinal(); return; }
-    const group = event.target.closest('[data-full-security-group]'); if (group) { const card = group.closest('.security-permission-card'); const boxes = [...card.querySelectorAll('[data-full-security-permission]')]; const should = boxes.some((box) => !box.checked); boxes.forEach((box) => box.checked = should); return; }
-
-    const target = event.target.closest('[data-view], [data-go-view]');
-    const view = target?.dataset?.view || target?.dataset?.goView;
-    if (view && pageMeta[view] && !roleCanOpen(view)) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية هذا القسم'); return; }
-    const editEmployee = event.target.closest('[data-edit-employee]');
-    if (editEmployee && !canSeeEmployee(editEmployee.dataset.editEmployee, 'employees')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('لا يمكنك عرض بيانات موظف آخر'); return; }
-    if (event.target.closest('#newAbsenceBtn, #dashboardAbsenceBtn') && !can('attendance.markAbsent')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية تسجيل الغياب'); return; }
-    if (event.target.closest('[data-delete-absence]') && !can('attendance.deleteAbsence')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية حذف الغياب'); return; }
-    if (event.target.closest('[data-leave-action="approved"], [data-travel-approve]') && !can('leaves.approve')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية الموافقة'); return; }
-    if (event.target.closest('[data-leave-action="rejected"], [data-travel-reject]') && !can('leaves.reject')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية الرفض'); return; }
-    if (event.target.closest('[data-leave-return], [data-travel-resume]') && !can('leaves.resume')) { event.preventDefault(); event.stopImmediatePropagation(); showToast('ليست لديك صلاحية تسجيل المباشرة'); return; }
-  }, true);
-  document.addEventListener('change', (event) => { if (event.target?.id === 'securityUserSelectFinal') renderSelectedSecurityUserFinal(); });
-
-  const oldHandleLeaveSubmit = handleLeaveSubmit;
-  handleLeaveSubmit = function(event){
-    const form = event?.target || document.querySelector('#leaveForm');
-    if (!isAdmin() && !can('leaves.createForAll')) {
-      const me = linkedEmployee();
-      if (!me) { event?.preventDefault?.(); showToast('حسابك غير مربوط بملف موظف'); return; }
-      if (form?.elements.employeeId) form.elements.employeeId.value = me.id;
-    }
-    return oldHandleLeaveSubmit(event);
-  };
-
-  if (!document.querySelector('#employeeLinkedPermissionFinalStyle')) {
-    const style = document.createElement('style');
-    style.id = 'employeeLinkedPermissionFinalStyle';
-    style.textContent = `.is-permission-hidden{display:none!important}.permission-link-warning{margin:0 0 18px;padding:16px 18px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:18px;line-height:1.8}.security-linked-employee-note{padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;margin-bottom:14px;color:#334155}.user-password-confirm-field.is-hidden{display:none!important}`;
-    document.head.appendChild(style);
-  }
-
-  const boot = () => { try { ensureUsersManagementView(); } catch(_) {} try { populateFormOptions(); } catch(_) {} try { applyRolePermissions(); } catch(_) {} try { updateTopbarUser(); } catch(_) {} };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 300)); else setTimeout(boot, 300);
-})();
-
-/* Post-open employee select scoping for leave/travel/absence modals */
-(function scopeEmployeeSelectorsAfterOpen(){
-  function run(){
-    try {
-      const api = window.employeePermissionMatrix;
-      const can = api?.can || (() => false);
-      const emp = api?.linkedEmployee?.();
-      const fill = (selector, allowAll) => {
-        const select = document.querySelector(selector);
-        if (!select || !emp || allowAll) return;
-        select.innerHTML = `<option value="${emp.id}">${emp.name}${emp.employeeNumber ? ` - ${emp.employeeNumber}` : ''}</option>`;
-        select.value = emp.id;
-        select.disabled = true;
-      };
-      fill('#leaveForm select[name="employeeId"]', can('leaves.createForAll') || can('leaves.viewAll'));
-      fill('#travelRequestForm select[name="employeeId"]', can('leaves.createForAll') || can('leaves.viewAll'));
-      fill('#absenceForm select[name="employeeId"]', can('attendance.viewAll'));
-    } catch (error) { console.warn('scopeEmployeeSelectorsAfterOpen', error); }
-  }
-  document.addEventListener('click', (event) => {
-    if (event.target.closest('#newLeaveBtn, #newTravelBtn, #newAbsenceBtn, #dashboardAbsenceBtn')) {
-      setTimeout(run, 0); setTimeout(run, 80); setTimeout(run, 200);
-    }
-  }, true);
-})();
-
-/* =========================================================
-   HARD FIX: menu visibility follows effective permissions
-   - A sidebar item is shown when the user has the parent nav permission OR any child permission inside that section.
-   - Establishment Documents is hidden unless one of documents.* permissions is enabled.
-   - Re-applies after dynamic sidebar buttons are injected.
-   ========================================================= */
-(function hardFixMenuPermissionLogic(){
-  const viewPermissionGroups = {
-    dashboard: ['nav.dashboard', 'dashboard.stats', 'dashboard.attendanceOverview', 'dashboard.reviewRequests', 'dashboard.reviewActions', 'dashboard.establishmentExpiringDocs', 'dashboard.employeeExpiringDocs', 'dashboard.recentEmployees', 'dashboard.absenceShortcut', 'dashboard.reviewShortcut'],
-    employees: ['nav.employees', 'employees.viewSelf', 'employees.viewAll', 'employees.create', 'employees.edit', 'employees.delete', 'employees.attachments'],
-    attendance: ['nav.attendance', 'attendance.viewSelf', 'attendance.viewAll', 'attendance.markAbsent', 'attendance.deleteAbsence', 'attendance.export'],
-    leaves: ['nav.leaves', 'leaves.viewOwn', 'leaves.viewAll', 'leaves.createLeave', 'leaves.createTravel', 'leaves.createForAll', 'leaves.approve', 'leaves.reject', 'leaves.resume', 'leaves.viewTravelers'],
-    payroll: ['nav.payroll', 'payroll.viewSelf', 'payroll.viewAll', 'payroll.edit', 'payroll.commissions', 'payroll.printClearance'],
-    establishmentDocuments: ['nav.establishmentDocuments', 'documents.view', 'documents.create', 'documents.edit', 'documents.delete', 'documents.upload'],
-    departments: ['nav.departments', 'organization.view', 'organization.manage'],
-    settings: ['nav.settings', 'settings.view', 'security.manage'],
-    users: ['users.manage']
-  };
-
-  function isAdminUser(){
-    return String(window.authProfile?.role || authProfile?.role || '').trim() === 'admin';
-  }
-
-  function hasPermission(key){
-    if (isAdminUser()) return true;
-    try {
-      if (window.employeePermissionMatrix?.can) return Boolean(window.employeePermissionMatrix.can(key));
-    } catch (_) {}
-    const raw = (window.authProfile || authProfile || {})?.permissions || {};
-    return Boolean(raw && raw[key]);
-  }
-
-  function viewHasEffectivePermission(view){
-    if (isAdminUser()) return true;
-    const keys = viewPermissionGroups[view] || [];
-    return keys.some(hasPermission);
-  }
-
-  window.viewHasEffectivePermission = viewHasEffectivePermission;
-  window.roleCanOpen = roleCanOpen = function(viewName){
-    return viewHasEffectivePermission(viewName);
-  };
-
-  function applyHardVisibility(){
-    document.querySelectorAll('.nav-item[data-view]').forEach((item) => {
-      const view = item.dataset.view;
-      item.classList.toggle('is-permission-hidden', !viewHasEffectivePermission(view));
-    });
-
-    document.querySelectorAll('[data-go-view]').forEach((item) => {
-      const view = item.dataset.goView;
-      if (!view || !viewPermissionGroups[view]) return;
-      item.classList.toggle('is-permission-hidden', !viewHasEffectivePermission(view));
-    });
-
-    // Section-level dashboard cards. These should not show unless their exact dashboard permission is enabled.
-    document.querySelector('#statsGrid')?.classList.toggle('is-permission-hidden', !hasPermission('dashboard.stats'));
-    document.querySelector('#dashboardEstDocsPanel')?.classList.toggle('is-permission-hidden', !(hasPermission('dashboard.establishmentExpiringDocs') && viewHasEffectivePermission('establishmentDocuments')));
-    document.querySelector('#dashboardEmployeeDocsPanel')?.classList.toggle('is-permission-hidden', !hasPermission('dashboard.employeeExpiringDocs'));
-    document.querySelector('.leave-panel')?.classList.toggle('is-permission-hidden', !hasPermission('dashboard.reviewRequests'));
-    document.querySelector('.travelers-dashboard-panel')?.classList.toggle('is-permission-hidden', !hasPermission('dashboard.attendanceOverview') && !hasPermission('leaves.viewTravelers'));
-    document.querySelector('.attendance-panel')?.classList.toggle('is-permission-hidden', !hasPermission('dashboard.attendanceOverview') && !hasPermission('leaves.viewTravelers') && !hasPermission('attendance.viewAll'));
-
-    document.querySelectorAll('#newAbsenceBtn, #dashboardAbsenceBtn').forEach((btn) => {
-      btn.classList.toggle('is-permission-hidden', !hasPermission('attendance.markAbsent'));
-    });
-    document.querySelectorAll('[data-go-view="leaves"].review-shortcut, #reviewRequestsBtn, [data-review-requests-shortcut]').forEach((btn) => {
-      btn.classList.toggle('is-permission-hidden', !hasPermission('dashboard.reviewShortcut') && !hasPermission('dashboard.reviewRequests'));
-    });
-  }
-
-  const previousApplyRolePermissions = window.applyRolePermissions || applyRolePermissions;
-  window.applyRolePermissions = applyRolePermissions = function(){
-    try { previousApplyRolePermissions?.(); } catch (_) {}
-    applyHardVisibility();
-  };
-
-  const previousSwitchView = window.switchView || switchView;
-  window.switchView = switchView = function(viewName){
-    if (!viewHasEffectivePermission(viewName)) {
-      try { showToast('ليست لديك صلاحية الدخول إلى هذا القسم'); } catch (_) {}
-      return;
-    }
-    const result = previousSwitchView.apply(this, arguments);
-    setTimeout(applyHardVisibility, 0);
-    setTimeout(applyHardVisibility, 120);
-    return result;
-  };
-
-  const observer = new MutationObserver(() => {
-    clearTimeout(observer._timer);
-    observer._timer = setTimeout(applyHardVisibility, 30);
-  });
-  const startObserver = () => {
-    try { observer.observe(document.body, { childList: true, subtree: true }); } catch (_) {}
-    applyHardVisibility();
-    setTimeout(applyHardVisibility, 250);
-    setTimeout(applyHardVisibility, 900);
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startObserver);
-  else startObserver();
-})();
-
-
-/* Data consistency patch: attachments, travel cloud sync, employee delete cascade, tabs */
-console.info("Data consistency patch 2026-06-27 applied");
+} catch (_) {}
