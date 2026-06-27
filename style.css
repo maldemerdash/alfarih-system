@@ -8639,3 +8639,156 @@ body.auth-locked .app-shell {
   .payroll-advances-head { align-items: stretch; flex-direction: column; }
   .payroll-add-advance-btn { width: 100%; justify-content: center; }
 }
+
+/* Payroll compact advances table and semantic payroll colors */
+#payrollAdvancesPanel {
+  margin: 14px 0 16px !important;
+}
+.payroll-advances-table-wrap {
+  overflow-x: auto;
+}
+.payroll-advances-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.payroll-advances-table th,
+.payroll-advances-table td {
+  padding: 8px 14px !important;
+  min-height: 0 !important;
+  height: auto !important;
+  vertical-align: middle !important;
+}
+.payroll-advances-table thead th {
+  height: 34px !important;
+  font-size: 12px !important;
+}
+.advance-summary-row td {
+  height: 44px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+.advance-employee-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.advance-employee-compact {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.advance-employee-compact .employee-cell,
+.advance-employee-compact .employee-mini,
+.advance-employee-compact .employee-info {
+  margin: 0 !important;
+}
+.advance-employee-compact .avatar,
+.advance-employee-compact .employee-avatar,
+.advance-employee-compact .employee-initial {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 12px !important;
+  font-size: 13px !important;
+}
+.advance-employee-compact .employee-name-link,
+.advance-employee-compact .employee-name {
+  font-size: 13px !important;
+  line-height: 1.1 !important;
+}
+.advance-employee-compact small,
+.advance-employee-compact .employee-id,
+.advance-employee-compact .muted {
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+}
+.advance-toggle-btn {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  border-radius: 9px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(15, 118, 110, 0.18) !important;
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.08) !important;
+}
+.advance-arrow {
+  display: block;
+  font-size: 12px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+.advance-total-cell strong {
+  font-size: 13px;
+  color: #0f3f4a;
+}
+.advance-detail-row td {
+  padding: 8px 14px !important;
+}
+.advance-detail-box th,
+.advance-detail-box td {
+  padding: 7px 10px !important;
+  font-size: 12px;
+}
+
+#payrollTableBody .payroll-money-cell {
+  font-weight: 800;
+}
+#payrollTableBody .payroll-base-amount,
+#payrollTableBody .payroll-allowance-amount {
+  color: #065f46 !important;
+}
+#payrollTableBody .payroll-deduction-amount,
+#payrollTableBody .payroll-deduction-amount strong,
+#payrollTableBody .absence-money-deduction {
+  color: #b91c1c !important;
+}
+#payrollTableBody .payroll-net-amount,
+#payrollTableBody .payroll-net-amount strong {
+  color: #075985 !important;
+  font-weight: 900 !important;
+}
+#payrollTableBody .payroll-transfer-amount {
+  color: #047857 !important;
+  font-weight: 900 !important;
+}
+#payrollTableBody .payroll-required-amount {
+  color: #b91c1c !important;
+  font-weight: 900 !important;
+}
+#payrollTableBody .payroll-card-withdraw-text {
+  display: inline !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #991b1b !important;
+  box-shadow: none !important;
+  font-weight: 900 !important;
+}
+#payrollTableBody .payroll-row-card-withdraw td {
+  background: #fff !important;
+  border-bottom-color: rgba(15, 23, 42, 0.06) !important;
+}
+#payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell,
+#payrollTableBody .payroll-row-card-withdraw .payroll-required-cell {
+  background: rgba(254, 226, 226, 0.86) !important;
+}
+#payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell {
+  box-shadow: inset -4px 0 0 #ef4444 !important;
+}
+#payrollTableBody .payroll-row-card-withdraw .employee-name-link,
+#payrollTableBody .payroll-row-card-withdraw .employee-name {
+  color: #b91c1c !important;
+}
+#payrollTableBody .payroll-card-withdraw,
+#payrollTableBody .status-danger {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
