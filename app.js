@@ -12275,3 +12275,335 @@ document.addEventListener("click", function(event) {
     if (event.target?.id === 'securityEmployeeSelect') renderSelectedEmployeePermissions();
   }, true);
 })();
+
+/* =========================================================
+   Final permissions employee-user link resolver
+   - Uses the same linked user data used by Users Management.
+   - Matches employee links by id, employee number, national id, or embedded employee object.
+   - Keeps the permissions screen on employees, not raw users.
+   ========================================================= */
+(function finalPermissionsEmployeeUserLinkResolver(){
+  const esc = (value) => typeof escapeHtml === 'function'
+    ? escapeHtml(value ?? '')
+    : String(value ?? '').replace(/[&<>\"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[m] || m));
+
+  const norm = (value) => String(value ?? '').trim();
+  const normLower = (value) => norm(value).toLowerCase();
+  const isAdminUser = () => String(authProfile?.role || '').trim() === 'admin';
+  const employeesList = () => (Array.isArray(employees) ? employees : []).filter((employee) => employee && employee.id && employee.status !== 'terminated');
+  const matrix = () => window.employeePermissionMatrix || {};
+  const permissionGroups = () => Array.isArray(matrix().groups) ? matrix().groups : [];
+  const permissionKeys = () => permissionGroups().flatMap((group) => Array.isArray(group.items) ? group.items.map((item) => item[0]) : []);
+  const normalizePerms = (permissions, role = 'employee') => typeof matrix().normalizePermissions === 'function'
+    ? matrix().normalizePermissions(permissions, role)
+    : Object.fromEntries(permissionKeys().map((key) => [key, Boolean(permissions && permissions[key]) ]));
+
+  function compactArabicName(value){
+    return norm(value).replace(/\s+/g, ' ').replace(/[\u0640]/g, '').trim();
+  }
+
+  function employeeName(employee){
+    return compactArabicName(employee?.name || [employee?.firstName, employee?.fatherName, employee?.grandName, employee?.familyName].filter(Boolean).join(' '));
+  }
+
+  function employeeKeys(employee){
+    const values = [
+      employee?.id,
+      employee?.employeeId,
+      employee?.employee_id,
+      employee?.employeeNumber,
+      employee?.employeeNo,
+      employee?.number,
+      employee?.code,
+      employee?.nationalId,
+      employee?.national_id,
+      employee?.identityNumber,
+      employee?.idNumber,
+      employee?.iqamaNumber,
+      employee?.residencyNumber
+    ];
+    return new Set(values.map(norm).filter(Boolean));
+  }
+
+  function profileEmployeeRawValues(profile){
+    return [
+      profile?.employee_id,
+      profile?.employeeId,
+      profile?.linked_employee_id,
+      profile?.linkedEmployeeId,
+      profile?.employee_number,
+      profile?.employeeNumber,
+      profile?.employee_no,
+      profile?.employeeNo,
+      profile?.employee_code,
+      profile?.employeeCode,
+      profile?.national_id,
+      profile?.nationalId,
+      profile?.identity_number,
+      profile?.identityNumber,
+      profile?.employee?.id,
+      profile?.employee?.employee_id,
+      profile?.employee?.employeeId,
+      profile?.employee?.employeeNumber,
+      profile?.employee?.employee_number,
+      profile?.linkedEmployee?.id,
+      profile?.linkedEmployee?.employeeNumber
+    ].map(norm).filter(Boolean);
+  }
+
+  function profileEmployeeName(profile){
+    return compactArabicName(
+      profile?.employee_name ||
+      profile?.employeeName ||
+      profile?.linked_employee_name ||
+      profile?.linkedEmployeeName ||
+      profile?.employee?.name ||
+      profile?.linkedEmployee?.name ||
+      ''
+    );
+  }
+
+  function profileMatchesEmployee(profile, employee){
+    if (!profile || !employee) return false;
+    const empKeys = employeeKeys(employee);
+    if (profileEmployeeRawValues(profile).some((value) => empKeys.has(value))) return true;
+    const pName = profileEmployeeName(profile);
+    const eName = employeeName(employee);
+    return Boolean(pName && eName && pName === eName);
+  }
+
+  function canonicalEmployeeIdForProfile(profile){
+    const match = employeesList().find((employee) => profileMatchesEmployee(profile, employee));
+    return match?.id ? String(match.id) : '';
+  }
+
+  function mergeProfileRows(rows){
+    const input = Array.isArray(rows) ? rows : [];
+    const byKey = new Map();
+    function keysFor(row){
+      return [row?.id, row?.user_id, normLower(row?.email)].map(norm).filter(Boolean);
+    }
+    function put(row){
+      if (!row || typeof row !== 'object') return;
+      const keys = keysFor(row);
+      let existingKey = keys.find((key) => byKey.has(key));
+      let merged = existingKey ? { ...byKey.get(existingKey), ...row } : { ...row };
+      const canonical = canonicalEmployeeIdForProfile(merged) || canonicalEmployeeIdForProfile(row);
+      if (canonical) {
+        merged.employee_id = canonical;
+        merged.employeeId = canonical;
+      }
+      keysFor(merged).forEach((key) => byKey.set(key, merged));
+    }
+    input.forEach(put);
+    return [...new Set([...byKey.values()])];
+  }
+
+  async function loadLinkedProfilesForPermissions(){
+    if (!isAdminUser()) return [];
+    const before = Array.isArray(appUserProfilesCache) ? [...appUserProfilesCache] : [];
+    let rows = [...before];
+
+    try {
+      if (supabaseClient?.functions?.invoke) {
+        const { data, error } = await supabaseClient.functions.invoke('admin-create-user', { body: { action: 'list-users' } });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        if (Array.isArray(data?.users)) rows = rows.concat(data.users);
+      }
+    } catch (error) {
+      console.warn('تعذر تحميل المستخدمين من دالة الإدارة', error);
+    }
+
+    try {
+      if (supabaseClient?.from) {
+        const { data, error } = await supabaseClient
+          .from('app_user_profiles')
+          .select('id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at');
+        if (!error && Array.isArray(data)) rows = rows.concat(data);
+      }
+    } catch (error) {
+      console.warn('تعذر تحميل app_user_profiles مباشرة', error);
+    }
+
+    const merged = mergeProfileRows(rows).map((row) => {
+      const role = String(row?.role || 'employee') === 'admin' ? 'admin' : 'employee';
+      const canonical = canonicalEmployeeIdForProfile(row);
+      return {
+        ...row,
+        role,
+        permissions: normalizePerms(row?.permissions, role),
+        employee_id: canonical || row?.employee_id || row?.employeeId || '',
+        employeeId: canonical || row?.employeeId || row?.employee_id || ''
+      };
+    });
+    appUserProfilesCache = merged;
+    return merged;
+  }
+
+  function profileForEmployeeResolved(employee){
+    return (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : [])
+      .find((profile) => String(profile?.role || 'employee') !== 'admin' && profileMatchesEmployee(profile, employee)) || null;
+  }
+
+  function permissionsEditorHtml(profile){
+    const normalized = normalizePerms(profile?.permissions, profile?.role || 'employee');
+    const groups = permissionGroups();
+    if (!groups.length) {
+      return `<div class="security-editor-empty"><strong>تعذر تحميل قائمة الصلاحيات</strong><p>أعد تحميل الصفحة ثم افتح شاشة الصلاحيات مرة أخرى.</p></div>`;
+    }
+    return `<div class="security-linked-employee-note"><strong>الحساب المرتبط:</strong> ${esc(profile?.full_name || profile?.email || '')} — <span dir="ltr">${esc(profile?.email || '')}</span></div>
+      <div class="security-permissions-grid">${groups.map((group) => `
+        <section class="security-permission-card">
+          <div class="security-permission-head"><strong>${esc(group.title)}</strong><button type="button" class="text-btn" data-resolved-security-group="${esc(group.id)}">تحديد الكل</button></div>
+          <div class="security-permission-list">
+            ${(group.items || []).map(([key, label]) => `<label class="security-permission-row"><span>${esc(label)}</span><input type="checkbox" data-resolved-security-permission="${esc(key)}" ${normalized[key] ? 'checked' : ''}></label>`).join('')}
+          </div>
+        </section>`).join('')}</div>`;
+  }
+
+  function ensureResolvedPermissionsPanel(){
+    const panel = document.querySelector('[data-settings-panel="permissions"]');
+    if (!panel) return;
+    panel.innerHTML = `
+      <div class="panel-head"><div><h3>الصلاحيات والأمان</h3><p>اختر الموظف المرتبط بحساب مستخدم، ثم حدد الصلاحيات المسموحة له داخل النظام.</p></div></div>
+      <div class="security-layout permissions-employee-picker-layout">
+        <article class="settings-placeholder-card security-user-picker"><span data-icon="shield"></span><div><strong>تحديد الموظف</strong><p>تظهر هنا ملفات الموظفين. حفظ الصلاحيات يتم على حساب المستخدم المرتبط بالموظف.</p></div></article>
+        <div class="security-controls"><select id="resolvedSecurityEmployeeSelect"><option value="">اختر موظفًا...</option></select><button type="button" class="secondary-btn" id="reloadResolvedSecurityEmployees"><span data-icon="refresh"></span>تحديث الموظفين</button><button type="button" class="primary-btn" id="saveResolvedEmployeeSecurityPermissions"><span data-icon="check"></span>حفظ الصلاحيات</button></div>
+        <div id="resolvedEmployeeSecurityPermissionsEditor" class="security-editor-empty"><strong>اختر موظفًا من القائمة</strong><p>بعد الاختيار ستظهر الصلاحيات إذا كان الموظف مرتبطًا بحساب مستخدم.</p></div>
+      </div>`;
+    if (typeof hydrateIcons === 'function') hydrateIcons(panel);
+  }
+
+  async function loadResolvedSecurityEmployees(selectedId = ''){
+    const select = document.querySelector('#resolvedSecurityEmployeeSelect');
+    if (!select) return;
+    select.disabled = false;
+    select.innerHTML = `<option value="">جاري تحميل الموظفين...</option>`;
+    await loadLinkedProfilesForPermissions();
+    const list = employeesList();
+    select.innerHTML = `<option value="">اختر موظفًا...</option>` + list.map((employee) => {
+      const profile = profileForEmployeeResolved(employee);
+      const suffix = profile ? ` - ${profile.email || profile.full_name || 'حساب مستخدم'}` : ' - غير مربوط بحساب';
+      return `<option value="${esc(employee.id)}" ${String(employee.id) === String(selectedId) ? 'selected' : ''}>${esc(employeeName(employee) || employee.name || '')}${employee.employeeNumber ? ` - ${esc(employee.employeeNumber)}` : ''}${esc(suffix)}</option>`;
+    }).join('');
+    if (!list.length) select.innerHTML = `<option value="">لا يوجد موظفون</option>`;
+    if (selectedId) select.value = selectedId;
+  }
+
+  function renderResolvedSelectedEmployeePermissions(){
+    const employeeId = document.querySelector('#resolvedSecurityEmployeeSelect')?.value || '';
+    const editor = document.querySelector('#resolvedEmployeeSecurityPermissionsEditor');
+    if (!editor) return;
+    const employee = employeesList().find((item) => String(item.id) === String(employeeId));
+    const profile = profileForEmployeeResolved(employee);
+    if (!employeeId || !employee) {
+      editor.className = 'security-editor-empty';
+      editor.innerHTML = `<strong>اختر موظفًا من القائمة</strong><p>بعد الاختيار ستظهر الصلاحيات إذا كان الموظف مرتبطًا بحساب مستخدم.</p>`;
+      return;
+    }
+    if (!profile) {
+      editor.className = 'security-editor-empty';
+      editor.innerHTML = `<strong>${esc(employeeName(employee) || employee.name || '')} غير مربوط بحساب مستخدم</strong><p>اربط الموظف أولًا من شاشة إدارة المستخدمين، ثم ارجع لتحديد الصلاحيات.</p>`;
+      return;
+    }
+    editor.className = '';
+    editor.innerHTML = permissionsEditorHtml(profile);
+  }
+
+  async function saveResolvedEmployeePermissions(){
+    const employeeId = document.querySelector('#resolvedSecurityEmployeeSelect')?.value || '';
+    const employee = employeesList().find((item) => String(item.id) === String(employeeId));
+    const profile = profileForEmployeeResolved(employee);
+    if (!employeeId || !employee) return showToast('اختر موظفًا أولًا');
+    if (!profile) return showToast('هذا الموظف غير مربوط بحساب مستخدم');
+    const permissions = {};
+    permissionKeys().forEach((key) => {
+      permissions[key] = Boolean(document.querySelector(`[data-resolved-security-permission="${CSS.escape(key)}"]`)?.checked);
+    });
+    try {
+      const payload = {
+        action: 'update-user',
+        id: profile.id,
+        email: profile.email,
+        fullName: profile.full_name,
+        role: 'employee',
+        isActive: profile.is_active,
+        employeeId,
+        employee_id: employeeId,
+        permissions
+      };
+      const { data, error } = await supabaseClient.functions.invoke('admin-create-user', { body: payload });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      profile.employee_id = employeeId;
+      profile.employeeId = employeeId;
+      profile.permissions = normalizePerms(permissions, 'employee');
+      showToast('تم حفظ صلاحيات الموظف');
+    } catch (error) {
+      console.error(error);
+      showToast('تعذر حفظ الصلاحيات');
+    }
+  }
+
+  function openResolvedPermissionsPanel(selectedId = ''){
+    ensureResolvedPermissionsPanel();
+    loadResolvedSecurityEmployees(selectedId).then(() => {
+      if (selectedId) renderResolvedSelectedEmployeePermissions();
+    }).catch((error) => {
+      console.error(error);
+      const select = document.querySelector('#resolvedSecurityEmployeeSelect');
+      if (select) select.innerHTML = `<option value="">تعذر تحميل الموظفين</option>`;
+      showToast('تعذر تحميل موظفي الصلاحيات');
+    });
+  }
+
+  const previousRenderPermissionsPreview = typeof renderPermissionsPreview === 'function' ? renderPermissionsPreview : null;
+  renderPermissionsPreview = function(){
+    try { previousRenderPermissionsPreview?.(); } catch (_) {}
+    openResolvedPermissionsPanel();
+  };
+
+  const previousSwitchSettingsSection = typeof switchSettingsSection === 'function' ? switchSettingsSection : null;
+  if (previousSwitchSettingsSection) {
+    switchSettingsSection = function(section){
+      previousSwitchSettingsSection(section);
+      if (section === 'permissions') openResolvedPermissionsPanel();
+    };
+  }
+
+  document.addEventListener('change', (event) => {
+    if (event.target?.id === 'resolvedSecurityEmployeeSelect') renderResolvedSelectedEmployeePermissions();
+  }, true);
+
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('#reloadResolvedSecurityEmployees')) {
+      event.preventDefault();
+      event.stopPropagation();
+      openResolvedPermissionsPanel(document.querySelector('#resolvedSecurityEmployeeSelect')?.value || '');
+      return;
+    }
+    if (event.target.closest('#saveResolvedEmployeeSecurityPermissions')) {
+      event.preventDefault();
+      event.stopPropagation();
+      saveResolvedEmployeePermissions();
+      return;
+    }
+    const group = event.target.closest('[data-resolved-security-group]');
+    if (group) {
+      event.preventDefault();
+      event.stopPropagation();
+      const card = group.closest('.security-permission-card');
+      const boxes = [...(card?.querySelectorAll('[data-resolved-security-permission]') || [])];
+      const shouldCheck = boxes.some((box) => !box.checked);
+      boxes.forEach((box) => { box.checked = shouldCheck; });
+    }
+  }, true);
+
+  setTimeout(() => {
+    const permissionsPanel = document.querySelector('[data-settings-panel="permissions"]');
+    if (permissionsPanel && (permissionsPanel.offsetParent !== null || permissionsPanel.classList.contains('active'))) {
+      openResolvedPermissionsPanel();
+    }
+  }, 300);
+})();
