@@ -104,6 +104,7 @@ const pageMeta = {
   employees: ["إدارة الموظفين", "عرض وإدارة جميع بيانات الموظفين"],
   attendance: ["الحضور والانصراف", "متابعة حضور الفريق وساعات العمل"],
   leaves: ["الإجازات والسفر", "طلبات الإجازات والسفر ومباشرة العمل"],
+  finance: ["المالية", "متابعة البنية المالية اليومية والصلاحيات"],
   payroll: ["الرواتب", "إدارة رواتب واستحقاقات الفريق"],
   departments: ["الأقسام", "توزيع الموظفين والهيكل التنظيمي"],
   settings: ["الإعدادات", "إدارة بيانات المنشأة وتفضيلات النظام"],
@@ -190,9 +191,9 @@ let cloudSaveAllowed = false;
 let authUser = null;
 let authProfile = null;
 const AUTH_ROLES = {
-  admin: { label: "مدير النظام", views: ["dashboard", "employees", "attendance", "leaves", "payroll", "departments", "settings", "users"] },
+  admin: { label: "مدير النظام", views: ["dashboard", "employees", "attendance", "leaves", "finance", "payroll", "departments", "settings", "users"] },
   hr: { label: "الموارد البشرية", views: ["dashboard", "employees", "attendance", "leaves", "departments"] },
-  accountant: { label: "المحاسب", views: ["dashboard", "employees", "payroll"] },
+  accountant: { label: "المحاسب", views: ["dashboard", "employees", "finance", "payroll"] },
   manager: { label: "مدير مباشر", views: ["dashboard", "employees", "attendance", "leaves"] },
   employee: { label: "موظف", views: ["dashboard", "leaves"] }
 };
@@ -13062,4 +13063,232 @@ document.addEventListener("click", function(event) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(applyPayrollPermissionUi, 250));
   else setTimeout(applyPayrollPermissionUi, 250);
   setInterval(applyPayrollPermissionUi, 1500);
+})();
+
+
+/* =========================================================
+   Finance menu and independent permission scaffold
+   - Adds Finance below Leaves & Travel and above Payroll.
+   - Adds independent permission keys without activating calculations.
+   ========================================================= */
+(function financeMenuPermissionScaffold(){
+  const financePageTitle = ['المالية', 'متابعة البنية المالية اليومية والصلاحيات'];
+  const esc = (value) => typeof escapeHtml === 'function'
+    ? escapeHtml(value ?? '')
+    : String(value ?? '').replace(/[&<>"]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+
+  function ensurePageMeta(){
+    try { pageMeta.finance = financePageTitle; } catch (_) {}
+  }
+
+  function ensureFinanceNav(){
+    const nav = document.querySelector('.main-nav');
+    if (!nav || nav.querySelector('[data-view="finance"]')) return;
+    const leavesButton = nav.querySelector('[data-view="leaves"]');
+    const payrollButton = nav.querySelector('[data-view="payroll"]');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'nav-item';
+    button.dataset.view = 'finance';
+    button.innerHTML = `<span class="nav-icon" data-icon="wallet"></span><span>المالية</span>`;
+    if (payrollButton) nav.insertBefore(button, payrollButton);
+    else if (leavesButton?.nextSibling) nav.insertBefore(button, leavesButton.nextSibling);
+    else nav.appendChild(button);
+    try { hydrateIcons(button); } catch (_) {}
+    button.addEventListener('click', () => { try { switchView('finance'); } catch (_) {} });
+  }
+
+  function ensureFinanceView(){
+    if (document.getElementById('financeView')) return;
+    const payrollView = document.getElementById('payrollView');
+    if (!payrollView?.parentElement) return;
+    const section = document.createElement('section');
+    section.className = 'view';
+    section.id = 'financeView';
+    section.innerHTML = `
+      <div class="finance-page-shell">
+        <div class="section-toolbar finance-toolbar">
+          <div><h2 class="section-title">المالية</h2><p class="section-description">بنية شاشة المالية والصلاحية المستقلة جاهزة، وسيتم تفعيل الحسابات والجداول في الخطوات التالية.</p></div>
+          <button type="button" class="danger-btn finance-close-day-btn" disabled><span data-icon="check-circle"></span>إغلاق اليوم</button>
+        </div>
+        <div class="finance-summary-grid"><article class="panel finance-summary-card"><span>المبلغ المرحل</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article><article class="panel finance-summary-card"><span>مبلغ العهدة</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article><article class="panel finance-summary-card"><span>المبلغ المرحل الجديد</span><strong>٠ ر.س</strong><small>جاهز للتجميد لاحقًا</small></article><article class="panel finance-summary-card"><span>إجمالي السلفيات</span><strong>٠ ر.س</strong><small>سلفيات الشهر</small></article><article class="panel finance-summary-card"><span>إجمالي المبالغ المعلقة</span><strong>٠ ر.س</strong><small>مستمرة خلال الشهر</small></article><article class="panel finance-summary-card"><span>مبلغ الصندوق</span><strong>٠ ر.س</strong><small>ناتج الحساب النهائي</small></article></div>
+        <article class="panel"><div class="panel-head"><div><h3>هيكل المالية</h3><p>تم تجهيز الشاشة فقط دون تفعيل منطق الحسابات.</p></div></div></article>
+      </div>`;
+    payrollView.parentElement.insertBefore(section, payrollView);
+    try { hydrateIcons(section); } catch (_) {}
+  }
+
+  function patchAuthRoles(){
+    try {
+      ['admin', 'accountant'].forEach((role) => {
+        if (AUTH_ROLES?.[role]?.views && !AUTH_ROLES[role].views.includes('finance')) {
+          const payrollIndex = AUTH_ROLES[role].views.indexOf('payroll');
+          if (payrollIndex >= 0) AUTH_ROLES[role].views.splice(payrollIndex, 0, 'finance');
+          else AUTH_ROLES[role].views.push('finance');
+        }
+      });
+    } catch (_) {}
+  }
+
+  function patchPermissionMatrix(){
+    const matrix = window.employeePermissionMatrix;
+    if (!matrix || matrix.__financeScaffoldPatched) return;
+    const groups = Array.isArray(matrix.groups) ? matrix.groups : [];
+    const sidebar = groups.find((group) => group.id === 'sidebar');
+    if (sidebar && !sidebar.items.some((item) => item[0] === 'nav.finance')) {
+      const payrollIndex = sidebar.items.findIndex((item) => item[0] === 'nav.payroll');
+      const item = ['nav.finance', 'إظهار المالية'];
+      if (payrollIndex >= 0) sidebar.items.splice(payrollIndex, 0, item); else sidebar.items.push(item);
+    }
+    if (!groups.some((group) => group.id === 'finance')) {
+      const payrollIndex = groups.findIndex((group) => group.id === 'payroll');
+      const group = { id: 'finance', title: 'المالية', items: [
+        ['finance.view', 'عرض شاشة المالية'],
+        ['finance.manage', 'إدارة شاشة المالية لاحقًا']
+      ]};
+      if (payrollIndex >= 0) groups.splice(payrollIndex, 0, group); else groups.push(group);
+    }
+    matrix.defaults = matrix.defaults || {};
+    if (!Object.prototype.hasOwnProperty.call(matrix.defaults, 'nav.finance')) matrix.defaults['nav.finance'] = false;
+    if (!Object.prototype.hasOwnProperty.call(matrix.defaults, 'finance.view')) matrix.defaults['finance.view'] = false;
+    if (!Object.prototype.hasOwnProperty.call(matrix.defaults, 'finance.manage')) matrix.defaults['finance.manage'] = false;
+    const oldNormalize = typeof matrix.normalizePermissions === 'function' ? matrix.normalizePermissions.bind(matrix) : null;
+    const oldCan = typeof matrix.can === 'function' ? matrix.can.bind(matrix) : null;
+    matrix.normalizePermissions = function(permissions, role){
+      const base = oldNormalize ? oldNormalize(permissions, role) : { ...(matrix.defaults || {}) };
+      ['nav.finance', 'finance.view', 'finance.manage'].forEach((key) => {
+        if (!(key in base)) base[key] = Boolean(matrix.defaults?.[key]);
+        if (permissions && typeof permissions === 'object' && Object.prototype.hasOwnProperty.call(permissions, key)) base[key] = Boolean(permissions[key]);
+      });
+      if (String(role || '').trim() === 'admin') Object.keys(base).forEach((key) => { base[key] = true; });
+      return base;
+    };
+    matrix.can = function(key){
+      if (String(authProfile?.role || '').trim() === 'admin') return true;
+      if (oldCan && oldCan(key)) return true;
+      return Boolean(matrix.normalizePermissions(authProfile?.permissions, authProfile?.role)[key]);
+    };
+    matrix.__financeScaffoldPatched = true;
+  }
+
+  function canFinance(){
+    if (String(authProfile?.role || '').trim() === 'admin') return true;
+    const matrix = window.employeePermissionMatrix;
+    if (matrix?.can) return Boolean(matrix.can('nav.finance') && matrix.can('finance.view'));
+    return false;
+  }
+
+  function patchRoleCanOpen(){
+    if (typeof roleCanOpen !== 'function' || roleCanOpen.__financeScaffoldWrapped) return;
+    const oldRoleCanOpen = roleCanOpen;
+    const wrapped = function(viewName){
+      if (viewName === 'finance') return canFinance();
+      return oldRoleCanOpen.apply(this, arguments);
+    };
+    wrapped.__financeScaffoldWrapped = true;
+    try { roleCanOpen = wrapped; } catch (_) {}
+  }
+
+  function patchSecurityEditor(){
+    const oldSwitchSettingsSection = typeof switchSettingsSection === 'function' ? switchSettingsSection : null;
+    if (oldSwitchSettingsSection && !oldSwitchSettingsSection.__financeScaffoldWrapped) {
+      const wrapped = function(section){
+        patchPermissionMatrix();
+        const result = oldSwitchSettingsSection.apply(this, arguments);
+        return result;
+      };
+      wrapped.__financeScaffoldWrapped = true;
+      try { switchSettingsSection = wrapped; } catch (_) {}
+    }
+  }
+
+  function applyFinanceVisibility(){
+    patchPermissionMatrix();
+    patchRoleCanOpen();
+    document.querySelectorAll('[data-view="finance"]').forEach((button) => {
+      button.classList.toggle('is-permission-hidden', !canFinance());
+    });
+  }
+
+  function boot(){
+    ensurePageMeta();
+    ensureFinanceNav();
+    ensureFinanceView();
+    patchAuthRoles();
+    patchPermissionMatrix();
+    patchRoleCanOpen();
+    patchSecurityEditor();
+    applyFinanceVisibility();
+    try { applyRolePermissions(); } catch (_) {}
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 80));
+  else setTimeout(boot, 80);
+  setTimeout(boot, 700);
+})();
+
+/* Finance permission editor save compatibility */
+(function financePermissionEditorSaveFix(){
+  function escCss(value){ try { return CSS.escape(value); } catch (_) { return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&'); } }
+  function matrix(){ return window.employeePermissionMatrix || null; }
+  function selectedProfile(){
+    const id = document.querySelector('#securityUserSelectFinal')?.value;
+    return (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []).find((profile) => String(profile.id) === String(id));
+  }
+  function syncFinanceCheckboxes(){
+    const profile = selectedProfile();
+    const m = matrix();
+    if (!profile || !m?.normalizePermissions) return;
+    const normalized = m.normalizePermissions(profile.permissions, profile.role);
+    ['nav.finance', 'finance.view', 'finance.manage'].forEach((key) => {
+      const box = document.querySelector(`[data-full-security-permission="${escCss(key)}"]`);
+      if (box) box.checked = Boolean(normalized[key]);
+    });
+  }
+  async function saveAllPermissions(event){
+    const button = event.target.closest?.('#saveSecurityPermissionsFinal');
+    if (!button) return;
+    const financeBox = document.querySelector('[data-full-security-permission="finance.view"], [data-full-security-permission="nav.finance"]');
+    if (!financeBox) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const profile = selectedProfile();
+    if (!profile) return typeof showToast === 'function' && showToast('اختر مستخدمًا أولًا');
+    const permissions = {};
+    document.querySelectorAll('[data-full-security-permission]').forEach((box) => {
+      permissions[box.dataset.fullSecurityPermission] = Boolean(box.checked);
+    });
+    try {
+      const normalized = matrix()?.normalizePermissions ? matrix().normalizePermissions(permissions, 'employee') : permissions;
+      const { data, error } = await supabaseClient.functions.invoke('admin-create-user', {
+        body: {
+          action: 'update-user',
+          id: profile.id,
+          email: profile.email,
+          fullName: profile.full_name,
+          role: 'employee',
+          isActive: profile.is_active,
+          employeeId: profile.employee_id || null,
+          employee_id: profile.employee_id || null,
+          permissions: normalized
+        }
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      profile.permissions = normalized;
+      syncFinanceCheckboxes();
+      if (typeof showToast === 'function') showToast('تم حفظ صلاحيات الموظف');
+      try { applyRolePermissions(); } catch (_) {}
+    } catch (error) {
+      console.error(error);
+      if (typeof showToast === 'function') showToast('تعذر حفظ الصلاحيات');
+    }
+  }
+  document.addEventListener('click', saveAllPermissions, true);
+  document.addEventListener('change', (event) => {
+    if (event.target?.id === 'securityUserSelectFinal') setTimeout(syncFinanceCheckboxes, 30);
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (event.target.closest?.('[data-settings-section="permissions"]')) setTimeout(syncFinanceCheckboxes, 300);
+  }, true);
 })();

@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=20260627-employee-link-permissions" />
+    <link rel="stylesheet" href="style.css?v=20260628-finance-menu" />
   </head>
   <body>
     <div class="app-shell">
@@ -36,6 +36,10 @@
             <span class="nav-icon" data-icon="calendar"></span>
             <span>الإجازات والسفر</span>
             <span class="nav-dot" aria-label="طلبات جديدة"></span>
+          </button>
+          <button class="nav-item" data-view="finance">
+            <span class="nav-icon" data-icon="wallet"></span>
+            <span>المالية</span>
           </button>
           <button class="nav-item" data-view="payroll">
             <span class="nav-icon" data-icon="wallet"></span>
@@ -381,6 +385,66 @@
                 <hr />
                 <p class="balance-note"><span data-icon="info"></span>يُرحّل بحد أقصى ٥ أيام للعام القادم.</p>
               </aside>
+            </div>
+          </section>
+
+          <section class="view" id="financeView">
+            <div class="finance-page-shell">
+              <div class="section-toolbar finance-toolbar">
+                <div>
+                  <h2 class="section-title">المالية</h2>
+                  <p class="section-description">بنية شاشة المالية والصلاحية المستقلة جاهزة، وسيتم تفعيل الحسابات والجداول في الخطوات التالية.</p>
+                </div>
+                <button type="button" class="danger-btn finance-close-day-btn" disabled><span data-icon="check-circle"></span>إغلاق اليوم</button>
+              </div>
+
+              <div class="finance-summary-grid" aria-label="بطاقات ملخص المالية">
+                <article class="panel finance-summary-card"><span>المبلغ المرحل</span><strong>٠ ر.س</strong><small>يرتبط لاحقًا بالمبلغ الافتتاحي</small></article>
+                <article class="panel finance-summary-card"><span>مبلغ العهدة</span><strong>٠ ر.س</strong><small>من إعدادات المالية للأيام القادمة</small></article>
+                <article class="panel finance-summary-card"><span>المبلغ المرحل الجديد</span><strong>٠ ر.س</strong><small>يتجمد عند إغلاق اليوم</small></article>
+                <article class="panel finance-summary-card"><span>إجمالي السلفيات</span><strong>٠ ر.س</strong><small>سلفيات الشهر</small></article>
+                <article class="panel finance-summary-card"><span>إجمالي المبالغ المعلقة</span><strong>٠ ر.س</strong><small>مستمرة خلال الشهر</small></article>
+                <article class="panel finance-summary-card"><span>مبلغ الصندوق</span><strong>٠ ر.س</strong><small>ناتج الحساب النهائي</small></article>
+              </div>
+
+              <div class="finance-summary-grid finance-daily-grid" aria-label="بطاقات حركة اليوم">
+                <article class="panel finance-summary-card"><span>مجموع المدين اليومي</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article>
+                <article class="panel finance-summary-card"><span>مجموع الدائن اليومي</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article>
+                <article class="panel finance-summary-card"><span>مجموع المبيعات النقدية</span><strong>٠ ر.س</strong><small>من جدول النقد</small></article>
+                <article class="panel finance-summary-card"><span>مجموع مبيعات الشبكة</span><strong>٠ ر.س</strong><small>من جدول الشبكة</small></article>
+                <article class="panel finance-summary-card finance-total-sales"><span>إجمالي مبيعات اليوم</span><strong>٠ ر.س</strong><small>النقد + الشبكة</small></article>
+              </div>
+
+              <div class="finance-entry-grid">
+                <article class="panel finance-entry-card">
+                  <div class="panel-head"><div><h3>مبلغ الموازنة المدخل</h3><p>سيتم استخدامه لاحقًا لمطابقة مبيعات الشبكة</p></div></div>
+                  <label class="finance-inline-field"><span>المبلغ</span><input type="number" inputmode="decimal" placeholder="0.00" disabled /></label>
+                  <div class="finance-balance-status">لم يتم تفعيل المطابقة بعد</div>
+                </article>
+                <article class="panel finance-entry-card">
+                  <div class="panel-head"><div><h3>المبلغ النقدي</h3><p>سيتم إضافته لاحقًا إلى مبلغ الصندوق</p></div></div>
+                  <label class="finance-inline-field"><span>المبلغ</span><input type="number" inputmode="decimal" placeholder="0.00" disabled /></label>
+                </article>
+              </div>
+
+              <div class="finance-content-grid">
+                <article class="panel">
+                  <div class="panel-head"><div><h3>المبالغ المعلقة</h3><p>جدول المبلغ والبيان، وسيتم تفعيل فتح السطر تلقائيًا لاحقًا</p></div></div>
+                  <div class="table-wrap"><table><thead><tr><th>المبلغ</th><th>البيان</th></tr></thead><tbody><tr><td>٠ ر.س</td><td>جاهز للتفعيل في الخطوة التالية</td></tr></tbody></table></div>
+                </article>
+                <article class="panel">
+                  <div class="panel-head"><div><h3>المصروفات</h3><p>جدول المبلغ والبيان لليوم المفتوح</p></div></div>
+                  <div class="table-wrap"><table><thead><tr><th>المبلغ</th><th>البيان</th></tr></thead><tbody><tr><td>٠ ر.س</td><td>جاهز للتفعيل في الخطوة التالية</td></tr></tbody></table></div>
+                </article>
+                <article class="panel">
+                  <div class="panel-head"><div><h3>مبيعات النقد</h3><p>إدخالات النقد اليومية</p></div></div>
+                  <div class="table-wrap"><table><thead><tr><th>المبلغ</th></tr></thead><tbody><tr><td>٠ ر.س</td></tr></tbody></table></div>
+                </article>
+                <article class="panel">
+                  <div class="panel-head"><div><h3>مبيعات الشبكة</h3><p>إدخالات الشبكة اليومية</p></div></div>
+                  <div class="table-wrap"><table><thead><tr><th>المبلغ</th></tr></thead><tbody><tr><td>٠ ر.س</td></tr></tbody></table></div>
+                </article>
+              </div>
             </div>
           </section>
 
@@ -854,6 +918,6 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260627-employee-link-permissions"></script>
+    <script src="app.js?v=20260628-finance-menu"></script>
   </body>
 </html>
