@@ -9184,6 +9184,26 @@ document.addEventListener("click", function(event) {
         else if (typeof switchView === "function") switchView("attendance");
       });
     }
+    const absenceBtn = bar.querySelector("#dashboardAbsenceBtn");
+    if (!bar.querySelector("#dashboardAdvanceBtn")) {
+      const advanceBtn = document.createElement("button");
+      advanceBtn.type = "button";
+      advanceBtn.id = "dashboardAdvanceBtn";
+      advanceBtn.className = "banner-action banner-advance-action";
+      advanceBtn.dataset.permissionKey = "payroll.advances.create";
+      advanceBtn.innerHTML = `<span data-icon="wallet"></span> إضافة سلفة`;
+      if (absenceBtn) absenceBtn.insertAdjacentElement("afterend", advanceBtn);
+      else if (reviewBtn) reviewBtn.insertAdjacentElement("afterend", advanceBtn);
+      else bar.appendChild(advanceBtn);
+      advanceBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (typeof openAdvanceModal === "function") {
+          openAdvanceModal();
+          return;
+        }
+        if (typeof showToast === "function") showToast("سيتم تفعيل نافذة إضافة السلفة في خطوة منطقية السلفيات التالية");
+      });
+    }
     let date = bar.querySelector(".eyebrow");
     if (!date) { date = document.createElement("span"); date.className = "eyebrow"; bar.appendChild(date); }
     date.textContent = dateLabel();
@@ -9275,6 +9295,13 @@ document.addEventListener("click", function(event) {
     renderDashboard = function(){ const result = previousRenderDashboard.apply(this, arguments); setTimeout(runDashboardFixes, 0); return result; };
   }
   document.addEventListener("click", (event) => {
+    const advance = event.target.closest("#dashboardAdvanceBtn");
+    if (advance) {
+      event.preventDefault();
+      if (typeof openAdvanceModal === "function") openAdvanceModal();
+      else if (typeof showToast === "function") showToast("سيتم تفعيل نافذة إضافة السلفة في خطوة منطقية السلفيات التالية");
+      return;
+    }
     const absence = event.target.closest("#dashboardAbsenceBtn");
     if (absence) {
       event.preventDefault();
