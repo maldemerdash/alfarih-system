@@ -9403,3 +9403,138 @@ body.auth-locked .app-shell {
   font-size: 8.5px !important;
   white-space: nowrap !important;
 }
+
+/* FINAL PRECISE FIX - payroll advances details and employee warning highlight */
+/* Keep payroll tables inside the card without horizontal scroll */
+#payrollView .table-wrap,
+#payrollAdvancesPanel .payroll-advances-table-wrap {
+  overflow-x: hidden !important;
+  max-width: 100% !important;
+}
+#payrollView .table-wrap table,
+#payrollAdvancesPanel .payroll-advances-table,
+#payrollAdvancesPanel .advance-detail-box table {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+
+/* Advances summary: no wasted width, employee and total stay close and readable */
+#payrollAdvancesPanel .payroll-advances-table > thead > tr > th:first-child,
+#payrollAdvancesPanel .payroll-advances-table > tbody > tr.advance-summary-row > td:first-child {
+  width: 62% !important;
+}
+#payrollAdvancesPanel .payroll-advances-table > thead > tr > th:nth-child(2),
+#payrollAdvancesPanel .payroll-advances-table > tbody > tr.advance-summary-row > td:nth-child(2) {
+  width: 38% !important;
+  text-align: center !important;
+}
+#payrollAdvancesPanel .advance-summary-row > td {
+  padding: 5px 10px !important;
+  height: 34px !important;
+  vertical-align: middle !important;
+}
+#payrollAdvancesPanel .advance-employee-cell {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+#payrollAdvancesPanel .advance-toggle-btn {
+  flex: 0 0 22px !important;
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  margin: 0 !important;
+}
+#payrollAdvancesPanel .advance-employee-compact {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Advance detail rows: restore the missing amount column: date + day + amount */
+#payrollAdvancesPanel .advance-detail-row > td {
+  padding: 6px 12px !important;
+  background: rgba(240, 253, 250, 0.78) !important;
+}
+#payrollAdvancesPanel .advance-detail-box {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  border-radius: 12px !important;
+}
+#payrollAdvancesPanel .advance-detail-box table {
+  border-collapse: collapse !important;
+}
+#payrollAdvancesPanel .advance-detail-box table th,
+#payrollAdvancesPanel .advance-detail-box table td {
+  width: 33.333% !important;
+  padding: 6px 8px !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  box-sizing: border-box !important;
+}
+#payrollAdvancesPanel .advance-detail-box table td strong {
+  display: inline-block !important;
+  color: #b91c1c !important;
+  font-weight: 900 !important;
+  white-space: nowrap !important;
+}
+
+/* Payroll warning: do not paint the avatar area red; highlight only employee text block and required amount */
+#payrollTableBody .payroll-row-card-withdraw td {
+  background: #fff !important;
+}
+#payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell {
+  background: #fff !important;
+  box-shadow: none !important;
+  padding-inline-start: 4px !important;
+  padding-inline-end: 4px !important;
+}
+#payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell .employee-cell {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+}
+#payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell .avatar,
+#payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell .employee-avatar,
+#payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell .employee-initial {
+  flex: 0 0 24px !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  border-radius: 8px !important;
+  background: linear-gradient(135deg, #0f766e, #0ea5e9) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+#payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell .employee-cell > div:last-child {
+  min-width: 0 !important;
+  max-width: 92px !important;
+  padding: 5px 6px !important;
+  border-radius: 8px !important;
+  background: rgba(254, 226, 226, 0.88) !important;
+  box-shadow: inset -3px 0 0 #ef4444 !important;
+}
+#payrollTableBody .payroll-row-card-withdraw .payroll-required-cell {
+  background: rgba(254, 226, 226, 0.88) !important;
+}
+#payrollTableBody .payroll-row-card-withdraw .employee-name-link,
+#payrollTableBody .payroll-row-card-withdraw .employee-name {
+  color: #b91c1c !important;
+  font-weight: 900 !important;
+}
+#payrollTableBody .payroll-card-withdraw-cell,
+#payrollTableBody .payroll-card-withdraw-text {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
