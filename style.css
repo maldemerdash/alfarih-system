@@ -9538,3 +9538,9 @@ body.auth-locked .app-shell {
   border: 0 !important;
   box-shadow: none !important;
 }
+
+
+/* Payroll print/export buttons - scoped, preserves current visual identity */
+.payroll-advances-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.payroll-print-btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+@media (max-width: 720px){.payroll-advances-actions{width:100%;justify-content:stretch}.payroll-advances-actions .primary-btn,.payroll-advances-actions .secondary-btn{flex:1;justify-content:center}}
