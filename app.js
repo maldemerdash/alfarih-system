@@ -10212,3 +10212,88 @@ document.addEventListener("click", function(event) {
     if (usersView && body && /تعذر|جاري/.test(body.textContent || "")) renderUsersManagement();
   }, 700);
 })();
+
+/* =========================================================
+   Add user button hard fix
+   يضمن عمل زر إضافة مستخدم وفتح النافذة حتى مع تعديلات الصلاحيات المتعددة.
+   ========================================================= */
+(function addUserButtonHardFix(){
+  function safeToast(msg){ try { if (typeof showToast === 'function') showToast(msg); } catch (_) {} }
+  function safeRole(value){ try { return typeof normalizeRole === 'function' ? normalizeRole(value) : (value === 'admin' ? 'admin' : 'employee'); } catch (_) { return value === 'admin' ? 'admin' : 'employee'; } }
+  function safeDefaultPerms(){
+    try {
+      if (typeof DEFAULT_EMPLOYEE_PERMISSIONS !== 'undefined') return DEFAULT_EMPLOYEE_PERMISSIONS;
+      if (typeof normalizePermissions === 'function') return normalizePermissions({}, 'employee');
+    } catch (_) {}
+    return {};
+  }
+  function openAddUserModalHard(){
+    try { if (typeof ensureUsersManagementView === 'function') ensureUsersManagementView(); } catch (error) { console.warn(error); }
+    const modal = document.querySelector('#userProfileModal');
+    const form = document.querySelector('#appUserProfileForm');
+    if (!modal || !form) {
+      safeToast('تعذر فتح نافذة إضافة المستخدم. حدث الصفحة ثم حاول مرة أخرى');
+      return;
+    }
+    try { form.reset(); } catch (_) {}
+    try { if (form.elements.profileId) form.elements.profileId.value = ''; } catch (_) {}
+    try { if (form.elements.fullName) form.elements.fullName.value = ''; } catch (_) {}
+    try { if (form.elements.email) form.elements.email.value = ''; } catch (_) {}
+    try {
+      if (form.elements.password) {
+        form.elements.password.value = '';
+        form.elements.password.required = true;
+        form.elements.password.closest('label')?.classList.remove('is-hidden');
+      }
+    } catch (_) {}
+    try {
+      if (form.elements.role) {
+        if (typeof roleOptions === 'function') form.elements.role.innerHTML = roleOptions('employee');
+        form.elements.role.value = 'employee';
+      }
+    } catch (_) {}
+    try { if (form.elements.isActive) form.elements.isActive.value = 'true'; } catch (_) {}
+    try {
+      const title = document.querySelector('#userProfileModalTitle');
+      if (title) title.textContent = 'إضافة مستخدم';
+    } catch (_) {}
+    try {
+      if (typeof setPermissionEditorValues === 'function') setPermissionEditorValues(safeDefaultPerms(), 'employee');
+      else if (typeof ensureGranularPermissionEditor === 'function') ensureGranularPermissionEditor();
+    } catch (error) { console.warn(error); }
+    try {
+      if (typeof updatePermissionEditorVisibility === 'function') updatePermissionEditorVisibility();
+    } catch (_) {}
+    try {
+      if (typeof hydrateIcons === 'function') hydrateIcons(modal);
+    } catch (_) {}
+    if (typeof modal.showModal === 'function') {
+      if (!modal.open) modal.showModal();
+    } else {
+      modal.setAttribute('open', 'open');
+    }
+  }
+
+  document.addEventListener('click', function(event){
+    const btn = event.target.closest && event.target.closest('#openUserProfileModal');
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    openAddUserModalHard();
+  }, true);
+
+  document.addEventListener('click', function(event){
+    const btn = event.target.closest && event.target.closest('[data-close-modal="userProfileModal"]');
+    if (!btn) return;
+    event.preventDefault();
+    const modal = document.querySelector('#userProfileModal');
+    try { modal?.close?.(); } catch (_) { modal?.removeAttribute('open'); }
+  }, true);
+
+  // في حال كان المستخدم موجودًا بالفعل في صفحة إدارة المستخدمين، تأكد أن الزر غير معطل.
+  setTimeout(function(){
+    const btn = document.querySelector('#openUserProfileModal');
+    if (btn) { btn.disabled = false; btn.removeAttribute('aria-disabled'); }
+  }, 500);
+})();
