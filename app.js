@@ -11536,3 +11536,158 @@ document.addEventListener("click", function(event) {
     return after;
   };
 })();
+
+/* Payroll advances module - clean final implementation */
+(function payrollAdvancesModule(){
+  if (window.__payrollAdvancesModuleReady) return;
+  window.__payrollAdvancesModuleReady = true;
+  const ADVANCE_KEY = 'nawah-payroll-advances';
+  const STATUS_APPROVED = 'approved';
+  function esc(value){ try { return typeof escapeHtml === 'function' ? escapeHtml(value ?? '') : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch])); } catch(_) { return String(value ?? ''); } }
+  function money(value){ try { return typeof formatCurrencyEn === 'function' ? formatCurrencyEn(Number(value || 0)) : `${Number(value || 0).toFixed(2)} ر.س`; } catch(_) { return `${Number(value || 0).toFixed(2)} ر.س`; } }
+  function inputDate(date){ try { return typeof formatInputDate === 'function' ? formatInputDate(date) : new Date(date).toISOString().slice(0,10); } catch(_) { return new Date().toISOString().slice(0,10); } }
+  function payrollDate(){ try { return typeof todayAtNoon === 'function' ? todayAtNoon() : new Date(); } catch(_) { return new Date(); } }
+  function monthKey(date = payrollDate()){ const d = date instanceof Date ? date : new Date(date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+  function dayName(dateValue){ try { return new Intl.DateTimeFormat('ar-SA', { weekday: 'long' }).format(new Date(dateValue)); } catch(_) { return ''; } }
+  function dateLabel(dateValue){ try { return typeof formatDateEn === 'function' ? formatDateEn(dateValue) : String(dateValue || ''); } catch(_) { return String(dateValue || ''); } }
+  function parseMoney(value){
+    const cleaned = String(value ?? '').replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/,/g,'').replace(/[^0-9.\-]/g,'');
+    const number = Number(cleaned);
+    return Number.isFinite(number) ? number : 0;
+  }
+  function getEmployees(){ try { return Array.isArray(employees) ? employees : []; } catch(_) { return []; } }
+  function getEmployeeById(id){ try { if (typeof getEmployee === 'function') return getEmployee(id); } catch(_) {} return getEmployees().find(emp => String(emp.id) === String(id)); }
+  function employeeSalaryBase(employee){ if (!employee) return 0; try { if (typeof employeeGrossSalary === 'function') return Number(employeeGrossSalary(employee) || 0); } catch(_) {} return Number(employee.totalSalary || employee.salary || employee.baseSalary || 0) || 0; }
+  function loadAdvances(){ try { const raw = localStorage.getItem(ADVANCE_KEY); const rows = raw ? JSON.parse(raw) : []; return Array.isArray(rows) ? rows.filter(Boolean) : []; } catch(_) { return []; } }
+  function saveAdvances(rows){ try { localStorage.setItem(ADVANCE_KEY, JSON.stringify(Array.isArray(rows) ? rows : [])); } catch(_) {} try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch(_) {} }
+  function advancesForMonth(key = monthKey()){ return loadAdvances().filter(item => item && item.status === STATUS_APPROVED && item.monthKey === key && getEmployeeById(item.employeeId)); }
+  function totalAdvancesForEmployee(employeeId, key = monthKey()){ return advancesForMonth(key).filter(item => String(item.employeeId) === String(employeeId)).reduce((sum, item) => sum + Number(item.amount || 0), 0); }
+  function employeeOptions(){ return getEmployees().filter(emp => emp && emp.id && emp.status !== 'terminated').slice().sort((a,b) => String(a.name || '').localeCompare(String(b.name || ''), 'ar')).map(emp => `<option value="${esc(emp.id)}">${esc(emp.name || 'موظف بدون اسم')}</option>`).join(''); }
+  function ensureAdvanceModal(){
+    let dialog = document.getElementById('advanceModal');
+    if (dialog) return dialog;
+    dialog = document.createElement('dialog');
+    dialog.className = 'modal small-modal advance-modal';
+    dialog.id = 'advanceModal';
+    dialog.innerHTML = `<form id="advanceForm" method="dialog"><div class="modal-head advance-modal-head"><div><h2>إضافة سلفة</h2><p>تسجل السلفة كاعتماد مباشر ضمن مسير الشهر الحالي</p></div><button type="button" class="icon-btn" data-close-advance-modal><span data-icon="x"></span></button></div><div class="modal-body advance-modal-body"><label><span>الموظف</span><select id="advanceEmployeeSelect" required></select></label><label><span>قيمة السلفة</span><input id="advanceAmountInput" type="number" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required /></label></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-advance-modal>إلغاء</button><button type="submit" class="primary-btn advance-submit-btn">اعتماد السلفة</button></div></form>`;
+    document.body.appendChild(dialog);
+    dialog.querySelectorAll('[data-close-advance-modal]').forEach(btn => btn.addEventListener('click', () => dialog.close()));
+    dialog.querySelector('#advanceForm').addEventListener('submit', handleAdvanceSubmit);
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(dialog); } catch(_) {}
+    return dialog;
+  }
+  function openAdvanceModal(){
+    const dialog = ensureAdvanceModal();
+    const select = dialog.querySelector('#advanceEmployeeSelect');
+    const amount = dialog.querySelector('#advanceAmountInput');
+    if (select) select.innerHTML = `<option value="">اختر الموظف</option>${employeeOptions()}`;
+    if (amount) amount.value = '';
+    if (!select?.options?.length || select.options.length <= 1) { try { showToast('لا يوجد موظفون متاحون لتسجيل السلفة'); } catch(_) {} return; }
+    if (!dialog.open) dialog.showModal();
+    setTimeout(() => select?.focus(), 50);
+  }
+  window.openAdvanceModal = openAdvanceModal;
+  function warningDialog(message){
+    return new Promise(resolve => {
+      let dialog = document.getElementById('advanceWarningModal');
+      if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'advanceWarningModal'; dialog.className = 'modal small-modal advance-warning-modal'; dialog.innerHTML = `<div class="modal-head"><div><h2>تنبيه تجاوز نصف الراتب</h2><p>راجع السلفة قبل الاعتماد</p></div></div><div class="modal-body"><p id="advanceWarningText" class="advance-warning-text"></p></div><div class="modal-actions"><button type="button" class="secondary-btn" id="rejectAdvanceWarningBtn">رفض</button><button type="button" class="primary-btn" id="approveAdvanceWarningBtn">اعتماد</button></div>`; document.body.appendChild(dialog); }
+      dialog.querySelector('#advanceWarningText').textContent = message;
+      const cleanup = (value) => { dialog.querySelector('#approveAdvanceWarningBtn').onclick = null; dialog.querySelector('#rejectAdvanceWarningBtn').onclick = null; if (dialog.open) dialog.close(); resolve(value); };
+      dialog.querySelector('#approveAdvanceWarningBtn').onclick = () => cleanup(true);
+      dialog.querySelector('#rejectAdvanceWarningBtn').onclick = () => cleanup(false);
+      dialog.oncancel = (event) => { event.preventDefault(); cleanup(false); };
+      if (!dialog.open) dialog.showModal();
+    });
+  }
+  async function handleAdvanceSubmit(event){
+    event.preventDefault();
+    const dialog = ensureAdvanceModal();
+    const employeeId = dialog.querySelector('#advanceEmployeeSelect')?.value || '';
+    const amount = parseMoney(dialog.querySelector('#advanceAmountInput')?.value || '');
+    const employee = getEmployeeById(employeeId);
+    if (!employee) { try { showToast('اختر الموظف'); } catch(_) {} return; }
+    if (!(amount > 0)) { try { showToast('أدخل قيمة السلفة'); } catch(_) {} return; }
+    const key = monthKey();
+    const salary = employeeSalaryBase(employee);
+    const half = salary / 2;
+    const before = totalAdvancesForEmployee(employeeId, key);
+    const after = before + amount;
+    if (salary > 0 && after > half) {
+      const exceeded = after - half;
+      const approve = await warningDialog(`إجمالي سلفيات الموظف ${employee.name || ''} سيتجاوز نصف راتبه بمبلغ ${money(exceeded)}. هل تريد اعتماد السلفة؟`);
+      if (!approve) return;
+    }
+    const now = new Date();
+    const date = inputDate(now);
+    const record = { id: `adv-${Date.now()}-${Math.random().toString(16).slice(2)}`, employeeId, employeeName: employee.name || '', amount, date, dayName: dayName(date), monthKey: key, status: STATUS_APPROVED, createdAt: now.toISOString(), createdBy: (typeof authProfile !== 'undefined' && authProfile?.full_name) ? authProfile.full_name : 'النظام' };
+    const rows = loadAdvances(); rows.push(record); saveAdvances(rows);
+    dialog.close();
+    try { showToast('تم اعتماد السلفة وتحديث مسير الرواتب'); } catch(_) {}
+    try { if (typeof renderPayroll === 'function') renderPayroll(); } catch(_) {}
+    try { if (typeof renderDashboard === 'function') renderDashboard(); } catch(_) {}
+  }
+  function calcPayrollLine(employee, key = monthKey()){
+    const allowance = Number(employee.housingAllowance || 0) + Number(employee.transportAllowance || 0) + Number(employee.otherAllowances || 0);
+    const gross = employeeSalaryBase(employee);
+    const baseSalary = Number(employee.baseSalary || employee.salary || gross || 0);
+    const insuranceDeduction = employee.insuranceEnabled ? gross * 0.0995 : 0;
+    const absenceDeduction = (typeof absenceDeductionForEmployeeInMonth === 'function') ? absenceDeductionForEmployeeInMonth(employee.id, payrollDate()) : 0;
+    const advanceDeduction = totalAdvancesForEmployee(employee.id, key);
+    const net = gross - insuranceDeduction - absenceDeduction - advanceDeduction;
+    const halfSalary = gross / 2;
+    const transfer = net < halfSalary ? halfSalary : net;
+    const required = net < halfSalary ? (halfSalary - net) : 0;
+    const cardWithdraw = advanceDeduction > halfSalary;
+    return { baseSalary, allowance, gross, insuranceDeduction, absenceDeduction, advanceDeduction, net, halfSalary, transfer, required, cardWithdraw };
+  }
+  function ensureAdvanceSummaryPanel(){
+    const view = document.getElementById('payrollView');
+    const summary = view?.querySelector('.payroll-summary');
+    if (!view || !summary) return null;
+    let panel = document.getElementById('payrollAdvancesPanel');
+    if (!panel) { panel = document.createElement('article'); panel.id = 'payrollAdvancesPanel'; panel.className = 'panel payroll-advances-panel'; summary.insertAdjacentElement('afterend', panel); }
+    return panel;
+  }
+  function renderAdvanceSummary(){
+    const panel = ensureAdvanceSummaryPanel(); if (!panel) return;
+    const key = monthKey();
+    const grouped = new Map();
+    advancesForMonth(key).forEach(item => { const employee = getEmployeeById(item.employeeId); if (!employee) return; const group = grouped.get(item.employeeId) || { employee, total: 0, items: [] }; group.total += Number(item.amount || 0); group.items.push(item); grouped.set(item.employeeId, group); });
+    const groups = Array.from(grouped.values()).sort((a,b) => String(a.employee.name || '').localeCompare(String(b.employee.name || ''), 'ar'));
+    panel.innerHTML = `<div class="panel-head payroll-advances-head"><div><h3>السلفيات</h3><p>إجمالي السلفيات المعتمدة خلال شهر المسير</p></div><button type="button" class="primary-btn payroll-add-advance-btn" id="payrollAddAdvanceBtn"><span data-icon="wallet"></span>إضافة سلفة</button></div><div class="table-wrap payroll-advances-table-wrap"><table class="payroll-advances-table"><thead><tr><th>الموظف</th><th>إجمالي السلفيات</th></tr></thead><tbody>${groups.length ? groups.map(group => `<tr class="advance-summary-row" data-toggle-advance-details="${esc(group.employee.id)}"><td><button type="button" class="advance-toggle-btn" aria-expanded="false"><span class="advance-arrow">⌄</span></button>${typeof employeeCell === 'function' ? employeeCell(group.employee) : esc(group.employee.name)}</td><td><strong>${money(group.total)}</strong></td></tr><tr class="advance-detail-row" id="advance-detail-${esc(group.employee.id)}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>التاريخ</th><th>اليوم</th><th>القيمة</th></tr></thead><tbody>${group.items.sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(item => `<tr><td>${esc(dateLabel(item.date))}</td><td>${esc(item.dayName || dayName(item.date))}</td><td><strong>${money(item.amount)}</strong></td></tr>`).join('')}</tbody></table></div></td></tr>`).join('') : `<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات مسجلة لهذا الشهر</strong></div></td></tr>`}</tbody></table></div>`;
+    panel.querySelector('#payrollAddAdvanceBtn')?.addEventListener('click', openAdvanceModal);
+    panel.querySelectorAll('[data-toggle-advance-details]').forEach(row => { row.addEventListener('click', (event) => { event.preventDefault(); const id = row.dataset.toggleAdvanceDetails; const detail = panel.querySelector(`#advance-detail-${CSS.escape(id)}`); const btn = row.querySelector('.advance-toggle-btn'); const arrow = row.querySelector('.advance-arrow'); if (!detail) return; const open = detail.hasAttribute('hidden'); detail.toggleAttribute('hidden', !open); btn?.setAttribute('aria-expanded', open ? 'true' : 'false'); if (arrow) arrow.textContent = open ? '⌃' : '⌄'; }); });
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(panel); } catch(_) {}
+  }
+  function renderPayrollWithAdvances(){
+    const key = monthKey(); const list = getEmployees();
+    const totals = list.reduce((acc, employee) => { const line = calcPayrollLine(employee, key); acc.base += line.baseSalary; acc.allowance += line.allowance; acc.deductions += line.insuranceDeduction + line.absenceDeduction + line.advanceDeduction; acc.net += line.net; return acc; }, { base: 0, allowance: 0, deductions: 0, net: 0 });
+    const hero = document.querySelector('#payrollHeroTotal'); const count = document.querySelector('#payrollEmployeeCount'); const baseEl = document.querySelector('#baseSalaryTotal'); const allowanceEl = document.querySelector('#allowanceTotal'); const deductionEl = document.querySelector('#deductionTotal');
+    if (hero) hero.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.net) : money(totals.net);
+    if (count) count.textContent = (typeof arabicNumber === 'function') ? arabicNumber(list.length) : String(list.length);
+    if (baseEl) baseEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.base) : money(totals.base);
+    if (allowanceEl) allowanceEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.allowance) : money(totals.allowance);
+    if (deductionEl) deductionEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.deductions) : money(totals.deductions);
+    const body = document.querySelector('#payrollTableBody');
+    if (body) {
+      body.innerHTML = list.map(employee => { const line = calcPayrollLine(employee, key); const requiredText = line.required > 0 ? `<strong class="payroll-required-amount">${money(line.required)}</strong>` : ''; const withdrawText = line.cardWithdraw ? `<span class="status-badge status-danger payroll-card-withdraw">نعم</span>` : ''; return `<tr class="${line.cardWithdraw ? 'payroll-row-card-withdraw' : ''}"><td>${typeof employeeCell === 'function' ? employeeCell(employee) : esc(employee.name)}</td><td>${money(line.baseSalary)}</td><td>${money(line.allowance)}</td><td><strong>${money(line.insuranceDeduction)}</strong></td><td><strong class="absence-money-deduction">${money(line.absenceDeduction)}</strong></td><td><strong>${money(line.advanceDeduction)}</strong></td><td><strong>${money(line.net)}</strong></td><td><strong class="payroll-transfer-amount">${money(line.transfer)}</strong></td><td>${requiredText}</td><td>${withdrawText}</td><td><span class="status-badge status-paid">جاهز للصرف</span></td></tr>`; }).join('');
+      const head = body.closest('table')?.querySelector('thead tr'); if (head) head.innerHTML = `<th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المبلغ المحول للموظف</th><th>المبلغ المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th>`;
+    }
+    renderAdvanceSummary();
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(document.getElementById('payrollView') || document); } catch(_) {}
+  }
+  try { renderPayroll = renderPayrollWithAdvances; } catch(_) {}
+  window.renderPayroll = renderPayrollWithAdvances;
+  const oldBuild = typeof buildCloudState === 'function' ? buildCloudState : null;
+  if (oldBuild && !oldBuild.__payrollAdvancesWrapped) { const wrappedBuild = function(){ const state = oldBuild.apply(this, arguments) || {}; state.payrollAdvances = loadAdvances(); return state; }; wrappedBuild.__payrollAdvancesWrapped = true; try { buildCloudState = wrappedBuild; } catch(_) {} window.buildCloudState = wrappedBuild; }
+  const oldApply = typeof applyCloudState === 'function' ? applyCloudState : null;
+  if (oldApply && !oldApply.__payrollAdvancesWrapped) { const wrappedApply = function(state){ const result = oldApply.apply(this, arguments); if (state && Array.isArray(state.payrollAdvances)) saveAdvances(state.payrollAdvances); return result; }; wrappedApply.__payrollAdvancesWrapped = true; try { applyCloudState = wrappedApply; } catch(_) {} window.applyCloudState = wrappedApply; }
+  document.addEventListener('click', function(event){
+    const dashboard = event.target.closest('#dashboardAdvanceBtn');
+    if (dashboard) { event.preventDefault(); event.stopPropagation(); openAdvanceModal(); return; }
+    const exportBtn = event.target.closest('#payrollExportBtn');
+    if (exportBtn) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation(); const key = monthKey(); try { exportCsv('payroll.csv', [["الموظف", "الراتب الأساسي", "البدلات", "التأمينات", "حسم الغياب", "السلفيات", "صافي الراتب", "المبلغ المحول للموظف", "المبلغ المطلوب من الموظف", "سحب البطاقة"], ...getEmployees().map(employee => { const line = calcPayrollLine(employee, key); return [employee.name, line.baseSalary, line.allowance, line.insuranceDeduction, line.absenceDeduction, line.advanceDeduction, line.net, line.transfer, line.required > 0 ? line.required : '', line.cardWithdraw ? 'نعم' : '']; })]); } catch(_) {} }
+  }, true);
+  document.addEventListener('DOMContentLoaded', function(){ ensureAdvanceModal(); try { renderPayrollWithAdvances(); } catch(_) {} });
+  setTimeout(function(){ try { ensureAdvanceModal(); renderPayrollWithAdvances(); } catch(_) {} }, 200);
+})();
