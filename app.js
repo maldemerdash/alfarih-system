@@ -11538,18 +11538,66 @@ document.addEventListener("click", function(event) {
     return `<main class="payroll-print-sheet"><table class="payroll-print-table"><thead><tr><th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المبلغ المحول للموظف</th><th>المبلغ المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th></tr></thead><tbody>${tableRows || `<tr><td colspan="11">لا توجد بيانات في هذا المسير</td></tr>`}</tbody></table><div class="payroll-print-footer"><div></div><p>يحتوي هذا التقرير على ${pages} صفحة، وتمت الطباعة في تاريخ ${payrollReportDateTime(printedAt)}، وتم اعتماد المسير في تاريخ ${payrollReportDateTime(approvedAt)}</p></div></main>`;
   }
   const payrollReportPrintStyle = `@page{size:A4 landscape;margin:7mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{direction:rtl;font-family:Almarai,Arial,Tahoma,sans-serif;color:#172226;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.payroll-print-sheet{width:100%;padding:0}.payroll-print-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:8px;line-height:1.25;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden}.payroll-print-table th{background:#f3f8f8;color:#0f5f59;font-weight:800;border-bottom:1px solid #dfe7e9;padding:5px 3px;text-align:center;white-space:normal}.payroll-print-table td{border-bottom:1px solid #edf2f3;padding:4px 3px;text-align:center;vertical-align:middle;white-space:normal;word-break:break-word}.payroll-print-table tr:last-child td{border-bottom:0}.payroll-print-table th:nth-child(1),.payroll-print-table td:nth-child(1){width:16%;text-align:right}.payroll-print-table th:nth-child(8),.payroll-print-table td:nth-child(8){width:10%}.payroll-print-table th:nth-child(9),.payroll-print-table td:nth-child(9){width:10%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.status-badge{display:inline-block;font-size:7px;line-height:1;border-radius:999px;padding:3px 5px;background:#dcfce7;color:#166534;font-weight:800}.payroll-row-card-withdraw .payroll-report-employee,.payroll-row-card-withdraw .payroll-required-cell{background:#fee2e2;color:#991b1b}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.payroll-print-footer{margin-top:6px;border-top:1.5px solid #172226;padding-top:5px;font-size:8px;color:#334155;text-align:center}.payroll-print-footer p{margin:0}@media print{body{background:#fff}.payroll-print-table{font-size:7.5px}.payroll-print-table th{padding:4px 2px}.payroll-print-table td{padding:3px 2px}.payroll-print-footer{break-inside:avoid}}`;
+  function payrollReportHtmlDocument(title, markup){
+    return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${payrollReportPrintStyle}</style></head><body>${markup}<script>window.addEventListener('load',()=>setTimeout(()=>{try{window.focus();window.print();}catch(e){}},350));<\/script></body></html>`;
+  }
+  function ensurePayrollInlinePrintStyle(){
+    let style = document.getElementById('payrollInlinePrintStyle');
+    if (style) return style;
+    style = document.createElement('style');
+    style.id = 'payrollInlinePrintStyle';
+    style.textContent = `#payrollInlinePrintRoot{display:none}@media print{@page{size:A4 landscape;margin:7mm}body.payroll-inline-printing>*:not(#payrollInlinePrintRoot){display:none!important}body.payroll-inline-printing #payrollInlinePrintRoot{display:block!important;position:static!important;width:100%!important;margin:0!important;padding:0!important;background:#fff!important}}`;
+    document.head.appendChild(style);
+    return style;
+  }
+  function printPayrollReportInCurrentPage(markup){
+    ensurePayrollInlinePrintStyle();
+    let root = document.getElementById('payrollInlinePrintRoot');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'payrollInlinePrintRoot';
+      document.body.appendChild(root);
+    }
+    root.innerHTML = `<style>${payrollReportPrintStyle}</style>${markup}`;
+    document.body.classList.add('payroll-inline-printing');
+    const cleanup = () => {
+      document.body.classList.remove('payroll-inline-printing');
+      try { root.remove(); } catch(_) {}
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => { try { window.focus(); window.print(); } catch(_) { cleanup(); } }, 80);
+    setTimeout(() => { if (document.body.classList.contains('payroll-inline-printing')) cleanup(); }, 120000);
+  }
+  function showPayrollPopupHelp(title, markup, mode){
+    let modal = document.getElementById('payrollPopupHelpModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'payrollPopupHelpModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:18px;direction:rtl;font-family:Almarai,Arial,sans-serif';
+    modal.innerHTML = `<div style="width:min(520px,100%);background:#fff;border-radius:18px;box-shadow:0 22px 70px rgba(15,23,42,.28);border:1px solid #dbe7e8;padding:20px;text-align:right"><h3 style="margin:0 0 8px;color:#0f5f59;font-size:20px">تم منع نافذة التقرير</h3><p style="margin:0 0 14px;color:#475569;line-height:1.8;font-size:14px">المتصفح منع فتح نافذة ${mode === 'pdf' ? 'تصدير PDF' : 'الطباعة'}. اسمح بالنوافذ المنبثقة لهذا الموقع، أو استخدم زر الطباعة البديل أدناه لطباعة نفس التقرير من هذه الصفحة.</p><div style="display:flex;gap:10px;justify-content:flex-start;flex-wrap:wrap"><button type="button" id="payrollInlinePrintBtn" style="border:0;border-radius:12px;padding:10px 16px;background:linear-gradient(135deg,#0f766e,#0891b2);color:white;font-weight:800;cursor:pointer">طباعة التقرير من هذه الصفحة</button><button type="button" id="payrollClosePopupHelpBtn" style="border:1px solid #cbd5e1;border-radius:12px;padding:10px 16px;background:#fff;color:#334155;font-weight:800;cursor:pointer">إغلاق</button></div></div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('#payrollInlinePrintBtn')?.addEventListener('click', () => { modal.remove(); printPayrollReportInCurrentPage(markup); });
+    modal.querySelector('#payrollClosePopupHelpBtn')?.addEventListener('click', () => modal.remove());
+    try { showToast('المتصفح منع نافذة التقرير؛ اسمح بالنوافذ المنبثقة أو استخدم الطباعة من هذه الصفحة'); } catch(_) {}
+  }
   function openPayrollReport(mode = 'print'){
     try {
       const key = monthKey();
       const markup = payrollReportMarkup(key);
       const title = `${mode === 'pdf' ? 'تصدير PDF' : 'طباعة'} مسير رواتب ${payrollMonthLabel(key)}`;
-      if (typeof printHtmlDocument === 'function') {
-        printHtmlDocument(title, markup, payrollReportPrintStyle);
-      } else {
-        const w = window.open('', '_blank');
-        if (!w) { showToast('تعذر فتح نافذة الطباعة'); return; }
-        w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${payrollReportPrintStyle}</style></head><body>${markup}<script>window.addEventListener('load',()=>setTimeout(()=>{window.focus();window.print();},250));<\/script></body></html>`);
+      const w = window.open('', '_blank', 'noopener,noreferrer');
+      if (!w || w.closed || typeof w.closed === 'undefined') {
+        showPayrollPopupHelp(title, markup, mode);
+        return;
+      }
+      try {
+        w.document.open();
+        w.document.write(payrollReportHtmlDocument(title, markup));
         w.document.close();
+      } catch (writeError) {
+        try { w.close(); } catch(_) {}
+        showPayrollPopupHelp(title, markup, mode);
       }
     } catch (error) {
       console.error(error);
