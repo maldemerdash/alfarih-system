@@ -10916,11 +10916,7 @@ document.addEventListener("click", function(event) {
     if (!view) return;
     const leaveList = visibleLeavesFixed();
     const travelList = visibleTravelsFixed();
-    view.innerHTML = `<div class="leave-travel-hero">
-      <button type="button" class="request-card request-card-leave" id="newLeaveBtn"><span data-icon="calendar"></span><strong>طلب إجازة</strong><small>إنشاء طلب إجازة جديد</small></button>
-      <button type="button" class="request-card request-card-travel" id="newTravelBtn"><span data-icon="plane"></span><strong>طلب سفر</strong><small>إنشاء طلب سفر بتاريخ عودة أو بدون عودة</small></button>
-    </div>
-    <div class="leave-tabs leave-tabs-fixed">
+    view.innerHTML = `<div class="leave-tabs leave-tabs-fixed">
       ${tab('all','جميع الإجازات', leaveList.length)}
       ${tab('pending','إجازات بانتظار الموافقة', leaveList.filter((leave) => leave.status === 'pending').length)}
       ${tab('approved','إجازات معتمدة', leaveList.filter((leave) => leave.status === 'approved').length)}
@@ -10928,8 +10924,8 @@ document.addEventListener("click", function(event) {
       ${tab('travel-pending','طلبات سفر معلقة', travelList.filter((travel) => travel.status === 'pending').length)}
     </div>
     <div class="leave-travel-tables">
-      <article class="panel travel-table-panel travel-colored-panel"><div class="panel-head"><div><h3>المسافرون</h3><p>طلبات السفر وحالة المباشرة</p></div></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>تاريخ المباشرة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${travelRowsHtml(travelList)}</tbody></table></div></article>
-      <article class="panel leave-table-panel leave-colored-panel"><div class="panel-head"><div><h3>الإجازات</h3><p>طلبات الإجازة حسب الحالة</p></div></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>نوع الإجازة</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${leaveRowsHtml(leaveList)}</tbody></table></div></article>
+      <article class="panel travel-table-panel travel-colored-panel half-page-panel"><div class="panel-head"><div><h3>المسافرون</h3><p>طلبات السفر وحالة المباشرة</p></div><button type="button" class="primary-btn" id="newTravelBtn">${icon("plus")}طلب سفر</button></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>تاريخ المباشرة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${travelRowsHtml(travelList)}</tbody></table></div></article>
+      <article class="panel leave-table-panel leave-colored-panel half-page-panel"><div class="panel-head"><div><h3>الإجازات</h3><p>طلبات الإجازة حسب الحالة</p></div><button type="button" class="primary-btn" id="newLeaveBtn">${icon("plus")}طلب إجازة</button></div><div class="table-wrap"><table><thead><tr><th>الموظف</th><th>نوع الإجازة</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>${leaveRowsHtml(leaveList)}</tbody></table></div></article>
     </div>`;
     try { if (typeof hydrateIcons === 'function') hydrateIcons(view); } catch(_) {}
     refreshRequestEmployeeSelects();
