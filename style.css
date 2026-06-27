@@ -9037,3 +9037,159 @@ body.auth-locked .app-shell {
     grid-template-columns: 1fr 1fr !important;
   }
 }
+
+/* Final payroll tables compact fix: no horizontal scroll, keep advances logic */
+#payrollAdvancesPanel .payroll-advances-table-wrap,
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap {
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+}
+
+/* Advances summary must stay compact: employee + arrow in one row, total nearby */
+#payrollAdvancesPanel .payroll-advances-table {
+  width: min(620px, 100%) !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+  margin-right: 0 !important;
+  margin-left: auto !important;
+  border-collapse: collapse !important;
+}
+#payrollAdvancesPanel .payroll-advances-table th:first-child,
+#payrollAdvancesPanel .payroll-advances-table td:first-child {
+  width: 58% !important;
+}
+#payrollAdvancesPanel .payroll-advances-table th:nth-child(2),
+#payrollAdvancesPanel .payroll-advances-table td:nth-child(2) {
+  width: 42% !important;
+  text-align: center !important;
+}
+#payrollAdvancesPanel .payroll-advances-table th,
+#payrollAdvancesPanel .payroll-advances-table td {
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  white-space: normal !important;
+}
+#payrollAdvancesPanel .advance-summary-row td {
+  height: 38px !important;
+  min-height: 38px !important;
+}
+#payrollAdvancesPanel .advance-employee-cell {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+}
+#payrollAdvancesPanel .advance-toggle-btn {
+  flex: 0 0 24px !important;
+  width: 24px !important;
+  min-width: 24px !important;
+  height: 24px !important;
+  margin: 0 !important;
+}
+#payrollAdvancesPanel .advance-employee-compact {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+#payrollAdvancesPanel .advance-employee-compact .employee-cell,
+#payrollAdvancesPanel .advance-employee-compact .employee-mini,
+#payrollAdvancesPanel .advance-employee-compact .employee-info {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+#payrollAdvancesPanel .advance-employee-compact .employee-name-link,
+#payrollAdvancesPanel .advance-employee-compact .employee-name {
+  display: block !important;
+  max-width: 170px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+#payrollAdvancesPanel .advance-employee-compact small,
+#payrollAdvancesPanel .advance-employee-compact .muted,
+#payrollAdvancesPanel .advance-employee-compact .employee-id {
+  display: block !important;
+  max-width: 170px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+#payrollAdvancesPanel .advance-total-cell strong {
+  font-size: 12px !important;
+  white-space: nowrap !important;
+}
+#payrollAdvancesPanel .advance-detail-box table {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+
+/* Payroll details: fit all columns inside the card without a scrollbar */
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap table {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th,
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td {
+  padding: 7px 4px !important;
+  font-size: 10.5px !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th {
+  font-size: 10px !important;
+  font-weight: 900 !important;
+}
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(1),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(1) { width: 13.5% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(2),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(2) { width: 9.5% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(3),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(3) { width: 7.5% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(4),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(4) { width: 7.5% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(5),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(5) { width: 7.5% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(6),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(6) { width: 8.5% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(7),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(7) { width: 8.5% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(8),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(8) { width: 9.5% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(9),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(9) { width: 10.5% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(10),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(10) { width: 7% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap th:nth-child(11),
+#payrollView .panel:not(#payrollAdvancesPanel) .table-wrap td:nth-child(11) { width: 10% !important; }
+#payrollView .panel:not(#payrollAdvancesPanel) .employee-name-link,
+#payrollView .panel:not(#payrollAdvancesPanel) .employee-name {
+  max-width: 90px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+#payrollView .panel:not(#payrollAdvancesPanel) .employee-cell,
+#payrollView .panel:not(#payrollAdvancesPanel) .employee-mini,
+#payrollView .panel:not(#payrollAdvancesPanel) .employee-info {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+#payrollTableBody .payroll-money-cell,
+#payrollTableBody .payroll-money-cell strong {
+  white-space: nowrap !important;
+  font-size: 10.5px !important;
+}
+#payrollTableBody .status-badge {
+  padding: 4px 7px !important;
+  font-size: 9.5px !important;
+  white-space: nowrap !important;
+}
