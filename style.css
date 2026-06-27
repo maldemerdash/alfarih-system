@@ -8200,3 +8200,140 @@ body.auth-locked .app-shell {
   gap: 18px !important;
 }
 
+
+/* Final correction: clickable leave/travel tabs and clean table headers */
+#leavesView .final-clickable-tabs,
+#leavesView .definitive-leave-travel-tabs{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:10px !important;
+  padding:10px !important;
+  margin:0 0 18px !important;
+  background:#ffffff !important;
+  border:1px solid rgba(14,165,168,.22) !important;
+  border-radius:22px !important;
+  position:relative !important;
+  z-index:50 !important;
+  pointer-events:auto !important;
+}
+#leavesView .final-clickable-tabs button,
+#leavesView .definitive-leave-travel-tabs button{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:8px !important;
+  min-height:42px !important;
+  padding:0 18px !important;
+  border:1px solid rgba(14,165,168,.28) !important;
+  border-radius:999px !important;
+  background:#ffffff !important;
+  color:#475569 !important;
+  font-weight:700 !important;
+  cursor:pointer !important;
+  pointer-events:auto !important;
+  user-select:none !important;
+  position:relative !important;
+  z-index:60 !important;
+}
+#leavesView .final-clickable-tabs button.active,
+#leavesView .definitive-leave-travel-tabs button.active,
+#leavesView .leave-tabs button.active{
+  background:linear-gradient(135deg,#0f766e,#0891b2,#2563eb) !important;
+  color:#ffffff !important;
+  border-color:transparent !important;
+  box-shadow:0 12px 26px rgba(8,145,178,.22) !important;
+}
+#leavesView .final-clickable-tabs button span,
+#leavesView .definitive-leave-travel-tabs button span{
+  min-width:22px !important;
+  height:22px !important;
+  display:inline-grid !important;
+  place-items:center !important;
+  border-radius:999px !important;
+  background:rgba(15,23,42,.08) !important;
+  color:inherit !important;
+  font-size:11px !important;
+}
+#leavesView .final-clickable-tabs button.active span,
+#leavesView .definitive-leave-travel-tabs button.active span{
+  background:rgba(255,255,255,.22) !important;
+  color:#ffffff !important;
+}
+#leavesView .final-leave-travel-layout{
+  display:grid !important;
+  grid-template-rows:minmax(300px,1fr) minmax(300px,1fr) !important;
+  gap:18px !important;
+  height:calc(100vh - 220px) !important;
+  min-height:680px !important;
+}
+#leavesView .half-page-panel{
+  min-height:0 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  overflow:hidden !important;
+  border-radius:24px !important;
+}
+#leavesView .final-table-head,
+#leavesView .travel-table-panel .panel-head.final-table-head,
+#leavesView .leave-table-panel .panel-head.final-table-head{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:16px !important;
+  min-height:76px !important;
+  margin:0 !important;
+  padding:18px 22px !important;
+  border-radius:0 !important;
+  box-sizing:border-box !important;
+}
+#leavesView .panel-title-block{
+  min-width:0 !important;
+  flex:1 1 auto !important;
+  text-align:right !important;
+}
+#leavesView .panel-title-block h3{
+  margin:0 0 4px !important;
+  line-height:1.25 !important;
+  font-size:18px !important;
+  color:#0f172a !important;
+}
+#leavesView .panel-title-block p{
+  margin:0 !important;
+  line-height:1.35 !important;
+  font-size:12px !important;
+  color:#64748b !important;
+}
+#leavesView .compact-table-action{
+  flex:0 0 auto !important;
+  min-width:118px !important;
+  height:42px !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:8px !important;
+  padding:0 16px !important;
+  border-radius:12px !important;
+  margin:0 !important;
+  white-space:nowrap !important;
+  box-shadow:none !important;
+}
+#leavesView .travel-table-panel .table-wrap,
+#leavesView .leave-table-panel .table-wrap{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  overflow:auto !important;
+}
+#leavesView .travel-table-panel thead th,
+#leavesView .leave-table-panel thead th{
+  height:46px !important;
+  vertical-align:middle !important;
+  white-space:nowrap !important;
+  font-weight:800 !important;
+}
+@media(max-width:860px){
+  #leavesView .final-leave-travel-layout{height:auto !important;min-height:0 !important;grid-template-rows:auto auto !important;}
+  #leavesView .final-table-head{align-items:flex-start !important;flex-direction:column !important;}
+  #leavesView .compact-table-action{width:100% !important;}
+}
