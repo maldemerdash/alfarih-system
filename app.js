@@ -457,7 +457,8 @@ function buildCloudState() {
     workSettings,
     absencePolicySettings,
     minuteTemplateSettings,
-    orgStructure: getOrgStructure()
+    orgStructure: getOrgStructure(),
+    travelRequests: loadLocalData("nawah-travel-requests", [])
   };
 }
 
@@ -470,6 +471,7 @@ function applyCloudState(state) {
   if (state.workSettings) workSettings = normalizeWorkSettings(state.workSettings);
   if (state.absencePolicySettings) absencePolicySettings = normalizeAbsencePolicySettings(state.absencePolicySettings);
   if (state.minuteTemplateSettings) minuteTemplateSettings = normalizeMinuteTemplateSettings(state.minuteTemplateSettings);
+  if (Array.isArray(state.travelRequests)) localStorage.setItem("nawah-travel-requests", JSON.stringify(state.travelRequests));
   if (state.orgStructure) localStorage.setItem("nawah-org-structure", JSON.stringify(normalizeOrgStructure(state.orgStructure)));
   localStorage.setItem("nawah-leaves", JSON.stringify(leaves));
   localStorage.setItem("nawah-job-titles", JSON.stringify(jobTitles));
@@ -4939,9 +4941,11 @@ async function init() {
   setupEvents();
   try {
     await initStorage();
+    window.__nawahEmployeesReady = true;
   } catch (error) {
     console.error(error);
     employees = seedEmployees.map(normalizeEmployee);
+    window.__nawahEmployeesReady = true;
     showToast("تعذر فتح قاعدة البيانات؛ تم تشغيل نسخة مؤقتة");
   }
   populateFormOptions();
@@ -8330,8 +8334,14 @@ document.addEventListener("click", function(event) {
       if (!Array.isArray(travelRequests)) travelRequests = [];
     } catch (_) { travelRequests = []; }
   }
-  function saveTravelRequests(){ localStorage.setItem(TRAVEL_KEY, JSON.stringify(travelRequests)); }
+  function saveTravelRequests(){
+    localStorage.setItem(TRAVEL_KEY, JSON.stringify(travelRequests));
+    try { if (typeof queueCloudStateSave === "function") queueCloudStateSave(); } catch (_) {}
+  }
   function cleanOrphanTravelRequests() {
+    if (!window.__nawahEmployeesReady) return;
+    const employeeListReady = Array.isArray(employees) && employees.length > 0;
+    if (!employeeListReady) return;
     const before = travelRequests.length;
     travelRequests = travelRequests.filter((travel) => Boolean(employeeById(travel.employeeId)));
     if (travelRequests.length !== before) saveTravelRequests();
@@ -9132,7 +9142,7 @@ document.addEventListener("click", function(event) {
   function allEmployees(){ return Array.isArray(window.employees) ? window.employees : (typeof employees !== "undefined" ? employees : []); }
   function loadTravel(){ try { const raw = localStorage.getItem(TRAVEL_KEY); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; } catch(_) { return []; } }
   function saveTravel(list){ try { localStorage.setItem(TRAVEL_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch(_) {} }
-  function cleanTravelOrphansForDashboard(){ const list = loadTravel(); const cleaned = list.filter(t => Boolean(empById(t.employeeId))); if (cleaned.length !== list.length) saveTravel(cleaned); return cleaned; }
+  function cleanTravelOrphansForDashboard(){ const list = loadTravel(); if (!window.__nawahEmployeesReady) return list; const cleaned = list.filter(t => Boolean(empById(t.employeeId))); if (cleaned.length !== list.length) saveTravel(cleaned); return cleaned; }
   function loadEstDocs(){ try { const raw = localStorage.getItem(EST_DOC_KEY); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; } catch(_) { return []; } }
   function dateLabel(){
     const d = today();
@@ -11292,11 +11302,12 @@ document.addEventListener("click", function(event) {
     let list = [];
     try { list = JSON.parse(localStorage.getItem(TRAVEL_KEY) || '[]'); } catch(_) { list = []; }
     if (!Array.isArray(list)) list = [];
-    const clean = list.filter(function(item){ return item && employeeById(item.employeeId); });
-    if (clean.length !== list.length) {
+    const clean = list.filter(function(item){ return item && (!window.__nawahEmployeesReady || employeeById(item.employeeId)); });
+    if (window.__nawahEmployeesReady && clean.length !== list.length) {
       try { localStorage.setItem(TRAVEL_KEY, JSON.stringify(clean)); } catch(_) {}
+      try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch(_) {}
     }
-    return clean.filter(function(item){ return canSeeEmployee(item.employeeId); });
+    return clean.filter(function(item){ return !window.__nawahEmployeesReady || canSeeEmployee(item.employeeId); });
   }
   function currentTab(){
     const tab = window.__leaveTravelSelectedTab || window.__leaveTravelActiveTab || 'all';
@@ -11457,4 +11468,44 @@ document.addEventListener("click", function(event) {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderPage, 120); });
   else setTimeout(renderPage, 120);
+})();
+
+
+/* Final travel persistence guard: do not delete travel requests during early boot; keep them in cloud state and local storage */
+(function finalTravelPersistenceGuard(){
+  const TRAVEL_KEY = 'nawah-travel-requests';
+  function load(){ try { const list = JSON.parse(localStorage.getItem(TRAVEL_KEY) || '[]'); return Array.isArray(list) ? list : []; } catch(_) { return []; } }
+  function save(list){ try { localStorage.setItem(TRAVEL_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch(_) {} try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch(_) {} }
+  function employeesReady(){ try { return Boolean(window.__nawahEmployeesReady && Array.isArray(employees) && employees.length); } catch(_) { return false; } }
+  const oldBuild = typeof buildCloudState === 'function' ? buildCloudState : null;
+  if (oldBuild && !oldBuild.__travelPersistenceWrapped) {
+    const wrappedBuild = function(){
+      const state = oldBuild.apply(this, arguments) || {};
+      state.travelRequests = load();
+      return state;
+    };
+    wrappedBuild.__travelPersistenceWrapped = true;
+    try { buildCloudState = wrappedBuild; } catch(_) {}
+    window.buildCloudState = wrappedBuild;
+  }
+  const oldApply = typeof applyCloudState === 'function' ? applyCloudState : null;
+  if (oldApply && !oldApply.__travelPersistenceWrapped) {
+    const wrappedApply = function(state){
+      const result = oldApply.apply(this, arguments);
+      if (state && Array.isArray(state.travelRequests)) save(state.travelRequests);
+      return result;
+    };
+    wrappedApply.__travelPersistenceWrapped = true;
+    try { applyCloudState = wrappedApply; } catch(_) {}
+    window.applyCloudState = wrappedApply;
+  }
+  window.cleanTravelOrphansSafely = function(){
+    if (!employeesReady()) return load();
+    const before = load();
+    const after = before.filter(function(item){
+      try { return item && (typeof getEmployee === 'function' ? getEmployee(item.employeeId) : employees.find(e => String(e.id) === String(item.employeeId))); } catch(_) { return true; }
+    });
+    if (after.length !== before.length) save(after);
+    return after;
+  };
 })();

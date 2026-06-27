@@ -8337,3 +8337,103 @@ body.auth-locked .app-shell {
   #leavesView .final-table-head{align-items:flex-start !important;flex-direction:column !important;}
   #leavesView .compact-table-action{width:100% !important;}
 }
+
+/* Compact travel request modal: same width, less vertical scroll */
+#travelRequestModal .travel-modal-card{
+  max-height:calc(100vh - 42px);
+  overflow:auto;
+}
+#travelRequestModal .travel-request-shell .travel-modal-head{
+  padding:18px 26px 12px;
+}
+#travelRequestModal .travel-modal-kicker{
+  margin-bottom:6px;
+  padding:4px 10px;
+  font-size:11px;
+}
+#travelRequestModal .travel-request-shell .travel-modal-head h3{
+  font-size:26px;
+}
+#travelRequestModal .travel-request-shell .travel-modal-head p{
+  margin-top:5px;
+  font-size:12px;
+  line-height:1.55;
+}
+#travelRequestModal .travel-modal-body{
+  gap:10px;
+  padding:14px 26px 6px;
+}
+#travelRequestModal .travel-form-section{
+  padding:12px 14px;
+  border-radius:18px;
+}
+#travelRequestModal .travel-section-title{
+  margin-bottom:8px;
+  align-items:center;
+}
+#travelRequestModal .travel-section-title strong{
+  font-size:14px;
+}
+#travelRequestModal .travel-section-title small{
+  font-size:11px;
+}
+#travelRequestModal .travel-form-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+#travelRequestModal .travel-form-grid label,
+#travelRequestModal .travel-return-planner .travel-summary-box{
+  min-height:74px;
+}
+#travelRequestModal .travel-form-grid label{
+  padding:8px 10px;
+  border-radius:14px;
+}
+#travelRequestModal .travel-form-grid label>span{
+  font-size:11px;
+  margin-bottom:4px;
+}
+#travelRequestModal .travel-form-grid input,
+#travelRequestModal .travel-form-grid select,
+#travelRequestModal .travel-form-grid textarea{
+  min-height:38px;
+  border-radius:11px;
+  padding:7px 10px;
+  font-size:13px;
+}
+#travelRequestModal .travel-summary-box{
+  padding:9px 11px;
+  border-radius:14px;
+}
+#travelRequestModal .travel-summary-box strong{
+  font-size:12px;
+}
+#travelRequestModal .travel-summary-box small{
+  font-size:11px;
+  line-height:1.45;
+}
+#travelRequestModal .full-field,
+#travelRequestModal label.full-field{
+  grid-column:1 / -1;
+  min-height:auto;
+}
+#travelRequestModal .travel-form-grid textarea{
+  min-height:64px;
+  rows:2;
+}
+#travelRequestModal .travel-modal-actions{
+  padding:10px 26px 14px;
+}
+#travelRequestModal .travel-modal-actions .primary-btn,
+#travelRequestModal .travel-modal-actions .secondary-btn{
+  min-height:40px;
+  border-radius:12px;
+  padding-inline:18px;
+  font-size:13px;
+}
+@media (max-width: 980px){
+  #travelRequestModal .travel-form-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width: 640px){
+  #travelRequestModal .travel-form-grid{grid-template-columns:1fr;}
+}
