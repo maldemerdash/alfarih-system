@@ -11546,8 +11546,85 @@ document.addEventListener("click", function(event) {
   function esc(value){ try { return typeof escapeHtml === 'function' ? escapeHtml(value ?? '') : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch])); } catch(_) { return String(value ?? ''); } }
   function money(value){ try { return typeof formatCurrencyEn === 'function' ? formatCurrencyEn(Number(value || 0)) : `${Number(value || 0).toFixed(2)} ر.س`; } catch(_) { return `${Number(value || 0).toFixed(2)} ر.س`; } }
   function inputDate(date){ try { return typeof formatInputDate === 'function' ? formatInputDate(date) : new Date(date).toISOString().slice(0,10); } catch(_) { return new Date().toISOString().slice(0,10); } }
-  function payrollDate(){ try { return typeof todayAtNoon === 'function' ? todayAtNoon() : new Date(); } catch(_) { return new Date(); } }
-  function monthKey(date = payrollDate()){ const d = date instanceof Date ? date : new Date(date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+  const SELECTED_PAYROLL_MONTH_STORAGE = 'nawah-selected-payroll-month';
+  function actualPayrollToday(){ try { return typeof todayAtNoon === 'function' ? todayAtNoon() : new Date(); } catch(_) { return new Date(); } }
+  function makeMonthKey(date){ const d = date instanceof Date ? date : new Date(date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+  function isValidMonthKey(value){ return /^\d{4}-\d{2}$/.test(String(value || '')); }
+  function currentPayrollMonthKey(){ return makeMonthKey(actualPayrollToday()); }
+  function selectedPayrollMonthKey(){
+    try { const saved = localStorage.getItem(SELECTED_PAYROLL_MONTH_STORAGE); if (isValidMonthKey(saved)) return saved; } catch(_) {}
+    return currentPayrollMonthKey();
+  }
+  function setSelectedPayrollMonthKey(key){
+    const safeKey = isValidMonthKey(key) ? key : currentPayrollMonthKey();
+    try { localStorage.setItem(SELECTED_PAYROLL_MONTH_STORAGE, safeKey); } catch(_) {}
+    return safeKey;
+  }
+  function payrollDate(){
+    const key = selectedPayrollMonthKey();
+    const parts = key.split('-').map(Number);
+    return new Date(parts[0], parts[1] - 1, 27, 12);
+  }
+  function monthKey(date = payrollDate()){ return makeMonthKey(date); }
+  function payrollMonthLabel(key = selectedPayrollMonthKey()){
+    const parts = String(key || currentPayrollMonthKey()).split('-').map(Number);
+    try { return new Intl.DateTimeFormat('ar-SA', { month: 'long', year: 'numeric' }).format(new Date(parts[0], parts[1]-1, 1, 12)); } catch(_) { return key; }
+  }
+  function ensurePayrollPeriodControls(){
+    const view = document.getElementById('payrollView');
+    const hero = view?.querySelector('.payroll-hero');
+    if (!view || !hero) return null;
+    let controls = document.getElementById('payrollPeriodControls');
+    const currentYear = actualPayrollToday().getFullYear();
+    const selectedKey = selectedPayrollMonthKey();
+    const [selectedYear, selectedMonth] = selectedKey.split('-').map(Number);
+    if (!controls) {
+      controls = document.createElement('div');
+      controls.id = 'payrollPeriodControls';
+      controls.className = 'payroll-period-controls';
+      controls.innerHTML = `<label><span>الشهر</span><select id="payrollMonthSelect"></select></label><label><span>السنة</span><select id="payrollYearSelect"></select></label><button type="button" class="secondary-btn payroll-period-apply" id="payrollPeriodApplyBtn">عرض المسير</button>`;
+      const processBtn = hero.querySelector('#processPayrollBtn');
+      if (processBtn) processBtn.insertAdjacentElement('beforebegin', controls); else hero.appendChild(controls);
+      controls.querySelector('#payrollPeriodApplyBtn')?.addEventListener('click', () => {
+        const month = String(controls.querySelector('#payrollMonthSelect')?.value || selectedMonth).padStart(2, '0');
+        const year = controls.querySelector('#payrollYearSelect')?.value || selectedYear;
+        setSelectedPayrollMonthKey(`${year}-${month}`);
+        renderPayrollWithAdvances();
+      });
+      controls.querySelector('#payrollMonthSelect')?.addEventListener('change', () => controls.querySelector('#payrollPeriodApplyBtn')?.click());
+      controls.querySelector('#payrollYearSelect')?.addEventListener('change', () => controls.querySelector('#payrollPeriodApplyBtn')?.click());
+    }
+    const monthSelect = controls.querySelector('#payrollMonthSelect');
+    const yearSelect = controls.querySelector('#payrollYearSelect');
+    if (monthSelect && !monthSelect.options.length) {
+      monthSelect.innerHTML = Array.from({ length: 12 }, (_, idx) => {
+        const month = idx + 1;
+        const label = new Intl.DateTimeFormat('ar-SA', { month: 'long' }).format(new Date(2026, idx, 1, 12));
+        return `<option value="${String(month).padStart(2,'0')}">${label}</option>`;
+      }).join('');
+    }
+    if (yearSelect && !yearSelect.options.length) {
+      const years = [];
+      for (let year = currentYear - 5; year <= currentYear + 1; year++) years.push(year);
+      yearSelect.innerHTML = years.map(year => `<option value="${year}">${year}</option>`).join('');
+    }
+    if (monthSelect) monthSelect.value = String(selectedMonth).padStart(2, '0');
+    if (yearSelect) {
+      if (![...yearSelect.options].some(option => option.value === String(selectedYear))) yearSelect.insertAdjacentHTML('beforeend', `<option value="${selectedYear}">${selectedYear}</option>`);
+      yearSelect.value = String(selectedYear);
+    }
+    return controls;
+  }
+  function updatePayrollPeriodLabels(){
+    const key = selectedPayrollMonthKey();
+    const label = payrollMonthLabel(key);
+    const heroTitle = document.querySelector('#payrollView .payroll-hero > div:first-child span');
+    if (heroTitle) heroTitle.textContent = `مسير رواتب ${label}`;
+    const panelSub = document.querySelector('#payrollAdvancesPanel .payroll-advances-head p');
+    if (panelSub) panelSub.textContent = `إجمالي السلفيات المعتمدة خلال ${label}`;
+    const detailSub = document.querySelector('#payrollView .panel:not(#payrollAdvancesPanel) .panel-head p');
+    if (detailSub && detailSub.textContent.includes('تفاصيل رواتب')) detailSub.textContent = `تفاصيل رواتب الموظفين لشهر ${label}`;
+  }
   function dayName(dateValue){ try { return new Intl.DateTimeFormat('ar-SA', { weekday: 'long' }).format(new Date(dateValue)); } catch(_) { return ''; } }
   function dateLabel(dateValue){ try { return typeof formatDateEn === 'function' ? formatDateEn(dateValue) : String(dateValue || ''); } catch(_) { return String(dateValue || ''); } }
   function parseMoney(value){
@@ -11569,7 +11646,7 @@ document.addEventListener("click", function(event) {
     dialog = document.createElement('dialog');
     dialog.className = 'modal small-modal advance-modal';
     dialog.id = 'advanceModal';
-    dialog.innerHTML = `<form id="advanceForm" method="dialog"><div class="modal-head advance-modal-head"><div><h2>إضافة سلفة</h2><p>تسجل السلفة كاعتماد مباشر ضمن مسير الشهر الحالي</p></div><button type="button" class="icon-btn" data-close-advance-modal><span data-icon="x"></span></button></div><div class="modal-body advance-modal-body"><label><span>الموظف</span><select id="advanceEmployeeSelect" required></select></label><label><span>قيمة السلفة</span><input id="advanceAmountInput" type="number" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required /></label></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-advance-modal>إلغاء</button><button type="submit" class="primary-btn advance-submit-btn">اعتماد السلفة</button></div></form>`;
+    dialog.innerHTML = `<form id="advanceForm" method="dialog"><div class="modal-head advance-modal-head"><div><h2>إضافة سلفة</h2><p>تسجل السلفة كاعتماد مباشر ضمن شهر المسير المعروض</p></div><button type="button" class="icon-btn" data-close-advance-modal><span data-icon="x"></span></button></div><div class="modal-body advance-modal-body"><label><span>الموظف</span><select id="advanceEmployeeSelect" required></select></label><label><span>قيمة السلفة</span><input id="advanceAmountInput" type="number" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required /></label></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-advance-modal>إلغاء</button><button type="submit" class="primary-btn advance-submit-btn">اعتماد السلفة</button></div></form>`;
     document.body.appendChild(dialog);
     dialog.querySelectorAll('[data-close-advance-modal]').forEach(btn => btn.addEventListener('click', () => dialog.close()));
     dialog.querySelector('#advanceForm').addEventListener('submit', handleAdvanceSubmit);
@@ -11582,6 +11659,7 @@ document.addEventListener("click", function(event) {
     const amount = dialog.querySelector('#advanceAmountInput');
     if (select) select.innerHTML = `<option value="">اختر الموظف</option>${employeeOptions()}`;
     if (amount) amount.value = '';
+    const subtitle = dialog.querySelector('.advance-modal-head p'); if (subtitle) subtitle.textContent = `تسجل السلفة كاعتماد مباشر ضمن ${payrollMonthLabel()}`;
     if (!select?.options?.length || select.options.length <= 1) { try { showToast('لا يوجد موظفون متاحون لتسجيل السلفة'); } catch(_) {} return; }
     if (!dialog.open) dialog.showModal();
     setTimeout(() => select?.focus(), 50);
@@ -11660,6 +11738,7 @@ document.addEventListener("click", function(event) {
     try { if (typeof hydrateIcons === 'function') hydrateIcons(panel); } catch(_) {}
   }
   function renderPayrollWithAdvances(){
+    ensurePayrollPeriodControls();
     const key = monthKey(); const list = getEmployees();
     const totals = list.reduce((acc, employee) => { const line = calcPayrollLine(employee, key); acc.base += line.baseSalary; acc.allowance += line.allowance; acc.advances += line.advanceDeduction; acc.deductions += line.insuranceDeduction + line.absenceDeduction + line.advanceDeduction; acc.net += line.net; return acc; }, { base: 0, allowance: 0, advances: 0, deductions: 0, net: 0 });
     const hero = document.querySelector('#payrollHeroTotal'); const count = document.querySelector('#payrollEmployeeCount'); const baseEl = document.querySelector('#baseSalaryTotal'); const allowanceEl = document.querySelector('#allowanceTotal'); const advanceEl = document.querySelector('#advanceTotal'); const deductionEl = document.querySelector('#deductionTotal');
@@ -11675,6 +11754,7 @@ document.addEventListener("click", function(event) {
       const head = body.closest('table')?.querySelector('thead tr'); if (head) head.innerHTML = `<th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المبلغ المحول للموظف</th><th>المبلغ المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th>`;
     }
     renderAdvanceSummary();
+    updatePayrollPeriodLabels();
     try { if (typeof hydrateIcons === 'function') hydrateIcons(document.getElementById('payrollView') || document); } catch(_) {}
   }
   try { renderPayroll = renderPayrollWithAdvances; } catch(_) {}
@@ -11685,9 +11765,9 @@ document.addEventListener("click", function(event) {
   if (oldApply && !oldApply.__payrollAdvancesWrapped) { const wrappedApply = function(state){ const result = oldApply.apply(this, arguments); if (state && Array.isArray(state.payrollAdvances)) saveAdvances(state.payrollAdvances); return result; }; wrappedApply.__payrollAdvancesWrapped = true; try { applyCloudState = wrappedApply; } catch(_) {} window.applyCloudState = wrappedApply; }
   document.addEventListener('click', function(event){
     const dashboard = event.target.closest('#dashboardAdvanceBtn');
-    if (dashboard) { event.preventDefault(); event.stopPropagation(); openAdvanceModal(); return; }
+    if (dashboard) { event.preventDefault(); event.stopPropagation(); setSelectedPayrollMonthKey(currentPayrollMonthKey()); openAdvanceModal(); return; }
     const exportBtn = event.target.closest('#payrollExportBtn');
-    if (exportBtn) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation(); const key = monthKey(); try { exportCsv('payroll.csv', [["الموظف", "الراتب الأساسي", "البدلات", "التأمينات", "حسم الغياب", "السلفيات", "صافي الراتب", "المبلغ المحول للموظف", "المبلغ المطلوب من الموظف", "سحب البطاقة"], ...getEmployees().map(employee => { const line = calcPayrollLine(employee, key); return [employee.name, line.baseSalary, line.allowance, line.insuranceDeduction, line.absenceDeduction, line.advanceDeduction, line.net, line.transfer, line.required > 0 ? line.required : '', line.cardWithdraw ? 'نعم' : '']; })]); } catch(_) {} }
+    if (exportBtn) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation(); const key = monthKey(); try { exportCsv(`payroll-${key}.csv`, [["الموظف", "الراتب الأساسي", "البدلات", "التأمينات", "حسم الغياب", "السلفيات", "صافي الراتب", "المبلغ المحول للموظف", "المبلغ المطلوب من الموظف", "سحب البطاقة"], ...getEmployees().map(employee => { const line = calcPayrollLine(employee, key); return [employee.name, line.baseSalary, line.allowance, line.insuranceDeduction, line.absenceDeduction, line.advanceDeduction, line.net, line.transfer, line.required > 0 ? line.required : '', line.cardWithdraw ? 'نعم' : '']; })]); } catch(_) {} }
   }, true);
   document.addEventListener('DOMContentLoaded', function(){ ensureAdvanceModal(); try { renderPayrollWithAdvances(); } catch(_) {} });
   setTimeout(function(){ try { ensureAdvanceModal(); renderPayrollWithAdvances(); } catch(_) {} }, 200);
