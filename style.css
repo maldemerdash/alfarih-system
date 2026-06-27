@@ -7942,3 +7942,71 @@ body {
   .dashboard-welcome-compact .welcome-copy { padding-left: 0 !important; padding-top: 38px !important; flex-wrap: wrap !important; }
   .dashboard-welcome-compact .eyebrow { top: 8px !important; transform: none !important; left: 18px !important; font-size: 16px !important; }
 }
+
+
+/* Identity refinement: login, dashboard welcome gradient, and colored main cards */
+body.auth-locked .app-shell {
+  filter: none !important;
+}
+.auth-gate {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255,255,255,.20), transparent 28%),
+    radial-gradient(circle at 82% 78%, rgba(255,255,255,.16), transparent 30%),
+    linear-gradient(135deg, #14b8a6 0%, #0ea5c6 52%, #1294b8 100%) !important;
+}
+.auth-card {
+  box-shadow: 0 32px 92px rgba(8, 44, 62, .28) !important;
+}
+.auth-logo,
+.auth-submit {
+  background: linear-gradient(135deg, #14b8a6, #1294b8) !important;
+}
+.dashboard-welcome-compact {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(255,255,255,.20), transparent 28%),
+    linear-gradient(100deg, #14b8a6 0%, #0ea5c6 50%, #1294b8 100%) !important;
+}
+.dashboard-grid > .panel {
+  position: relative;
+  overflow: hidden;
+}
+.dashboard-grid > .panel::before {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 5px;
+  content: "";
+  pointer-events: none;
+}
+.leave-panel::before {
+  background: linear-gradient(100deg, #f59e0b, #f7c948) !important;
+}
+.travelers-dashboard-panel::before {
+  background: linear-gradient(100deg, #1294b8, #14b8a6) !important;
+}
+#dashboardEstDocsPanel::before {
+  background: linear-gradient(100deg, #8b5cf6, #337bbd) !important;
+}
+#dashboardEmployeeDocsPanel::before {
+  background: linear-gradient(100deg, #20c86e, #14b8a6) !important;
+}
+.leave-panel {
+  background: linear-gradient(180deg, rgba(245,158,11,.045), #fff 38%) !important;
+}
+.travelers-dashboard-panel {
+  background: linear-gradient(180deg, rgba(18,148,184,.055), #fff 38%) !important;
+}
+#dashboardEstDocsPanel {
+  background: linear-gradient(180deg, rgba(139,92,246,.055), #fff 38%) !important;
+}
+#dashboardEmployeeDocsPanel {
+  background: linear-gradient(180deg, rgba(32,200,110,.055), #fff 38%) !important;
+}
+.traveler-request-row .leave-preview-info,
+.dashboard-request-item .leave-preview-info {
+  gap: 3px !important;
+}
+.traveler-request-row .employee-name-link,
+.dashboard-request-item .employee-name-link {
+  color: #13778c !important;
+  font-weight: 900 !important;
+}

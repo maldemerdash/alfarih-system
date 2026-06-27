@@ -212,17 +212,17 @@ function ensureAuthStyles() {
   style.id = "authGateStyles";
   style.textContent = `
     body.auth-locked { overflow: hidden; }
-    body.auth-locked .app-shell { filter: blur(2px); pointer-events: none; user-select: none; }
-    .auth-gate { position: fixed; inset: 0; z-index: 99999; display: grid; place-items: center; padding: 24px; background: linear-gradient(135deg, rgba(13, 23, 44, .96), rgba(14, 116, 144, .88)); direction: rtl; }
+    body.auth-locked .app-shell { filter: none; pointer-events: none; user-select: none; }
+    .auth-gate { position: fixed; inset: 0; z-index: 99999; display: grid; place-items: center; padding: 24px; background: linear-gradient(135deg, rgba(20, 184, 166, .97), rgba(14, 165, 198, .94) 52%, rgba(18, 148, 184, .97)); direction: rtl; }
     .auth-card { width: min(440px, 100%); background: #fff; border-radius: 28px; padding: 28px; box-shadow: 0 30px 90px rgba(15, 23, 42, .35); border: 1px solid rgba(255,255,255,.3); }
-    .auth-logo { width: 62px; height: 62px; border-radius: 22px; display: grid; place-items: center; margin-bottom: 16px; background: linear-gradient(135deg, #0f766e, #14b8a6); color: #fff; font-weight: 900; font-size: 26px; }
+    .auth-logo { width: 62px; height: 62px; border-radius: 22px; display: grid; place-items: center; margin-bottom: 16px; background: linear-gradient(135deg, #14b8a6, #1294b8); color: #fff; font-weight: 900; font-size: 26px; }
     .auth-card h2 { margin: 0 0 8px; color: #0f172a; font-size: 25px; }
     .auth-card p { margin: 0 0 20px; color: #64748b; line-height: 1.8; }
     .auth-form { display: grid; gap: 14px; }
     .auth-field { display: grid; gap: 7px; color: #334155; font-weight: 800; font-size: 13px; }
     .auth-field input { height: 48px; border-radius: 15px; border: 1px solid #dbe3ef; padding: 0 14px; font-family: inherit; font-size: 15px; outline: none; direction: ltr; text-align: left; }
     .auth-field input:focus { border-color: #14b8a6; box-shadow: 0 0 0 4px rgba(20,184,166,.14); }
-    .auth-submit { height: 50px; border: 0; border-radius: 16px; background: linear-gradient(135deg, #0f766e, #14b8a6); color: #fff; font-family: inherit; font-size: 16px; font-weight: 900; cursor: pointer; }
+    .auth-submit { height: 50px; border: 0; border-radius: 16px; background: linear-gradient(135deg, #14b8a6, #1294b8); color: #fff; font-family: inherit; font-size: 16px; font-weight: 900; cursor: pointer; }
     .auth-submit:disabled { opacity: .65; cursor: wait; }
     .auth-error { display: none; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 14px; padding: 11px 13px; font-size: 13px; line-height: 1.7; }
     .auth-error.show { display: block; }
@@ -2866,6 +2866,7 @@ function updateAllFormCalculations() {
 }
 
 async function openEmployeeModal(employeeId = null) {
+  if (!employeeId && !canCreateEmployeeFromCurrentPermissions()) return denyCreateEmployeeWithoutPermission();
   const form = document.querySelector("#employeeForm");
   form.reset();
   populateFormOptions();
@@ -3947,7 +3948,28 @@ function safeCallEmployeeModalStep(callback) {
   }
 }
 
+function canCreateEmployeeFromCurrentPermissions() {
+  try {
+    if (window.employeePermissionMatrix && typeof window.employeePermissionMatrix.can === "function") {
+      return Boolean(window.employeePermissionMatrix.can("employees.create"));
+    }
+  } catch (error) {
+    console.warn("تعذر التحقق من صلاحية إضافة الموظف", error);
+  }
+  try {
+    const role = String(window.authProfile?.role || authProfile?.role || "").trim();
+    if (role === "admin") return true;
+  } catch {}
+  return false;
+}
+
+function denyCreateEmployeeWithoutPermission() {
+  try { showToast("لا تملك صلاحية إضافة موظف جديد"); } catch {}
+  return false;
+}
+
 async function openNewEmployeeModalSafely() {
+  if (!canCreateEmployeeFromCurrentPermissions()) return denyCreateEmployeeWithoutPermission();
   const form = document.querySelector("#employeeForm");
   const modal = document.querySelector("#employeeModal");
   if (!form || !modal) return;
@@ -4018,6 +4040,7 @@ async function handleOpenNewEmployeeClick(event) {
     event.preventDefault();
     event.stopPropagation();
   }
+  if (!canCreateEmployeeFromCurrentPermissions()) return denyCreateEmployeeWithoutPermission();
   try {
     await openEmployeeModal();
   } catch (error) {
@@ -4388,8 +4411,24 @@ function setupEvents() {
     if (deleteAbsence) await deleteAbsenceRecord(deleteAbsence.dataset.deleteAbsence);
   });
 
+  function employeeHasOpenDependencies(employeeId) {
+    const pendingLeave = (Array.isArray(leaves) ? leaves : []).some((leave) => String(leave.employeeId) === String(employeeId) && leave.status === "pending");
+    const activeLeave = (Array.isArray(leaves) ? leaves : []).some((leave) => String(leave.employeeId) === String(employeeId) && leave.status === "approved" && !leave.returnDate);
+    const travelGuard = typeof window.employeeTravelDeleteGuard === "function" ? window.employeeTravelDeleteGuard(employeeId) : { pending: false, active: false };
+    if (pendingLeave || travelGuard.pending) return { blocked: true, reason: "لا يمكن حذف الموظف لوجود طلبات إجازة أو سفر بانتظار الموافقة" };
+    if (activeLeave || travelGuard.active) return { blocked: true, reason: "لا يمكن حذف الموظف لأنه حاليًا في إجازة أو مسافر ولم تتم مباشرة العمل" };
+    return { blocked: false, reason: "" };
+  }
+
   document.querySelector("#cancelDeleteBtn").addEventListener("click", () => document.querySelector("#confirmModal").close());
   document.querySelector("#confirmDeleteBtn").addEventListener("click", async () => {
+    const dependency = employeeHasOpenDependencies(deleteTargetId);
+    if (dependency.blocked) {
+      document.querySelector("#confirmModal").close();
+      showToast(dependency.reason);
+      deleteTargetId = null;
+      return;
+    }
     await dbDeleteEmployee(deleteTargetId);
     employees = employees.filter((employee) => employee.id !== deleteTargetId);
     leaves = leaves.filter((leave) => leave.employeeId !== deleteTargetId);
@@ -8284,6 +8323,20 @@ document.addEventListener("click", function(event) {
     } catch (_) { travelRequests = []; }
   }
   function saveTravelRequests(){ localStorage.setItem(TRAVEL_KEY, JSON.stringify(travelRequests)); }
+  function cleanOrphanTravelRequests() {
+    const before = travelRequests.length;
+    travelRequests = travelRequests.filter((travel) => Boolean(employeeById(travel.employeeId)));
+    if (travelRequests.length !== before) saveTravelRequests();
+  }
+  function travelDeleteGuard(employeeId) {
+    const related = travelRequests.filter((travel) => String(travel.employeeId) === String(employeeId));
+    return {
+      pending: related.some((travel) => travel.status === "pending"),
+      active: related.some((travel) => travel.status === "approved" && !travel.workResumeDate)
+    };
+  }
+  window.employeeTravelDeleteGuard = travelDeleteGuard;
+  window.cleanOrphanTravelRequests = cleanOrphanTravelRequests;
   function safeEl(selector){ return document.querySelector(selector); }
   function setText(selector, value){ const el = safeEl(selector); if (el) el.textContent = value; }
   function htmlEscape(value){ return typeof escapeHtml === "function" ? escapeHtml(value || "") : String(value || "").replace(/[&<>\"]/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m])); }
@@ -8616,7 +8669,7 @@ document.addEventListener("click", function(event) {
     renderAll();
     showToast("تم حفظ طلب السفر");
   }
-  function activeTravelRequests(){ return travelRequests.filter((t) => t.status === "approved"); }
+  function activeTravelRequests(){ cleanOrphanTravelRequests(); return travelRequests.filter((t) => t.status === "approved" && !t.workResumeDate && Boolean(employeeById(t.employeeId))); }
   function renderTravelTable(){
     const body = travelRequests.length ? travelRequests.map((travel) => {
       const employee = employeeById(travel.employeeId);
@@ -8835,6 +8888,7 @@ document.addEventListener("click", function(event) {
     return null;
   }
   function dashboardPendingRequests(){
+    cleanOrphanTravelRequests();
     const leaveItems = (Array.isArray(leaves) ? leaves : [])
       .filter((leave) => leave.status === "pending")
       .map((leave) => findDashboardRequest(requestKey("leave", leave.id)))
@@ -9025,6 +9079,7 @@ document.addEventListener("click", function(event) {
   }
   function initTravelPatch(){
     loadTravelRequests();
+    cleanOrphanTravelRequests();
     patchLabels();
     ensureTravelModals();
     ensureDashboardRequestModal();
@@ -9068,6 +9123,8 @@ document.addEventListener("click", function(event) {
   function empById(id){ return (Array.isArray(window.employees) ? window.employees : (typeof employees !== "undefined" ? employees : [])).find(e => String(e.id) === String(id)); }
   function allEmployees(){ return Array.isArray(window.employees) ? window.employees : (typeof employees !== "undefined" ? employees : []); }
   function loadTravel(){ try { const raw = localStorage.getItem(TRAVEL_KEY); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; } catch(_) { return []; } }
+  function saveTravel(list){ try { localStorage.setItem(TRAVEL_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch(_) {} }
+  function cleanTravelOrphansForDashboard(){ const list = loadTravel(); const cleaned = list.filter(t => Boolean(empById(t.employeeId))); if (cleaned.length !== list.length) saveTravel(cleaned); return cleaned; }
   function loadEstDocs(){ try { const raw = localStorage.getItem(EST_DOC_KEY); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; } catch(_) { return []; } }
   function dateLabel(){
     const d = today();
@@ -9117,11 +9174,12 @@ document.addEventListener("click", function(event) {
   function renderTravelCardAligned(){
     const panel = document.querySelector(".travelers-dashboard-panel") || document.querySelector(".attendance-panel");
     if (!panel) return;
-    const travels = loadTravel().filter(t => ["approved","pending"].includes(t.status) && !t.workResumeDate).sort((a,b) => String(b.createdAt || b.travelDate || "").localeCompare(String(a.createdAt || a.travelDate || "")));
+    const travels = cleanTravelOrphansForDashboard().filter(t => t.status === "approved" && !t.workResumeDate && Boolean(empById(t.employeeId))).sort((a,b) => String(b.createdAt || b.travelDate || "").localeCompare(String(a.createdAt || a.travelDate || "")));
     panel.classList.add("travelers-dashboard-panel");
     panel.innerHTML = `<div class="panel-head"><div><h3>المسافرون</h3><p>الموظفون المسافرون وحالة العودة والمباشرة</p></div><button class="text-btn" data-go-view="leaves">عرض الكل</button></div><div class="travelers-dashboard-list dashboard-list-ordered">${travels.length ? travels.slice(0, 7).map(travel => {
-      const employee = empById(travel.employeeId) || { id: travel.employeeId || "", name: travel.employeeName || "موظف" };
-      const status = travel.status === "pending" ? "بانتظار الموافقة" : "معتمد";
+      const employee = empById(travel.employeeId);
+      if (!employee) return "";
+      const status = "معتمد";
       const detail = `سفر · ${status} · ${travel.travelDate ? formatDate(travel.travelDate) : "غير محدد"}${travel.returnDate ? ` - ${formatDate(travel.returnDate)}` : ""}`;
       return `<div class="leave-preview-item dashboard-request-item traveler-request-row">
         ${typeof avatar === "function" ? avatar(employee) : ""}
@@ -10088,7 +10146,7 @@ document.addEventListener("click", function(event) {
     document.querySelectorAll('[data-leave-return], [data-travel-resume]').forEach((b) => b.classList.toggle('is-permission-hidden', !can('leaves.resume')));
     document.querySelectorAll('[data-delete-employee]').forEach((b) => b.classList.toggle('is-permission-hidden', !can('employees.delete')));
     document.querySelectorAll('[data-edit-employee]').forEach((b) => { const id = b.dataset.editEmployee; b.classList.toggle('is-permission-hidden', !isAdmin() && !can('employees.edit') && !isLinkedEmployee(id)); });
-    document.querySelector('#addEmployeeBtn')?.classList.toggle('is-permission-hidden', !can('employees.create'));
+    document.querySelectorAll('.add-employee-btn, #quickAddBtn, [data-open-employee-modal="new"]').forEach((b) => b.classList.toggle('is-permission-hidden', !can('employees.create')));
     document.querySelector('#hardAddEstDocBtn, #branchAddEstDocBtn, #addEstablishmentDocumentBtn')?.classList.toggle('is-permission-hidden', !can('documents.create'));
     ensureEmployeeLinkWarning();
   }
