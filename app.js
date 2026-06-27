@@ -4792,12 +4792,11 @@ async function saveUserProfileFromForm(form) {
       if (error) throw error;
       if (data && data.error) throw new Error(data.error);
       const createdUserId = data?.user_id || data?.userId || null;
-      const { error: upsertError } = await supabaseClient
-        .from("app_user_profiles")
-        .upsert({ ...payload, user_id: createdUserId, created_at: new Date().toISOString() }, { onConflict: "email" });
-      if (upsertError) console.warn("تم إنشاء حساب الدخول لكن تعذر تحديث جدول الصلاحيات من الواجهة", upsertError);
-      appUserProfilesCache.unshift({ id: createdUserId || `local-${Date.now()}`, user_id: createdUserId, ...payload, created_at: new Date().toISOString() });
-      renderAppUserProfiles();
+      if (!createdUserId) {
+        console.error("Edge function response without user_id", data);
+        throw new Error("لم يتم إنشاء حساب الدخول في Supabase Authentication، لذلك لم يتم حفظ المستخدم في قائمة الصلاحيات");
+      }
+      await renderUsersManagement();
     }
     resetUserProfileForm();
     document.querySelector("#userProfileModal")?.close();

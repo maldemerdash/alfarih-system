@@ -1,21 +1,9 @@
-# نشر دالة إنشاء المستخدم من داخل الموقع
+# تحديث دالة admin-create-user
 
-هذه الدالة تجعل شاشة إدارة المستخدمين تنشئ حساب Supabase Authentication وكلمة المرور من داخل الموقع، بدون الدخول إلى Supabase Users في كل مرة.
+انسخ كود الملف التالي إلى Edge Function باسم `admin-create-user` داخل ملف `index.ts` ثم اضغط Deploy:
 
-## الخطوات السريعة من Supabase Dashboard
+`supabase/functions/admin-create-user/index.ts`
 
-1. افتح مشروع Supabase.
-2. من القائمة اليسار افتح Edge Functions.
-3. اختر New Function.
-4. سم الدالة بالضبط:
-   admin-create-user
-5. انسخ كود الملف:
-   supabase/functions/admin-create-user/index.ts
-6. الصقه في محرر الدالة.
-7. Deploy.
+هذه النسخة تطبع الخطأ الحقيقي في Logs وتدعم المتغيرات الافتراضية في Supabase.
 
-بعد النشر، افتح الموقع بحساب مدير، ثم إدارة المستخدمين، واضغط إضافة مستخدم وضع الاسم والبريد وكلمة المرور والصلاحية.
-
-## ملاحظة أمان
-
-لا تضع مفتاح service_role داخل ملفات الموقع. الدالة فقط هي التي تستخدمه داخل Supabase بشكل آمن.
+بعد النشر احذف أي مستخدم في `app_user_profiles` لديه `user_id = NULL` ثم أعد إضافته من الموقع.
