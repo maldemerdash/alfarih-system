@@ -11661,12 +11661,13 @@ document.addEventListener("click", function(event) {
   }
   function renderPayrollWithAdvances(){
     const key = monthKey(); const list = getEmployees();
-    const totals = list.reduce((acc, employee) => { const line = calcPayrollLine(employee, key); acc.base += line.baseSalary; acc.allowance += line.allowance; acc.deductions += line.insuranceDeduction + line.absenceDeduction + line.advanceDeduction; acc.net += line.net; return acc; }, { base: 0, allowance: 0, deductions: 0, net: 0 });
-    const hero = document.querySelector('#payrollHeroTotal'); const count = document.querySelector('#payrollEmployeeCount'); const baseEl = document.querySelector('#baseSalaryTotal'); const allowanceEl = document.querySelector('#allowanceTotal'); const deductionEl = document.querySelector('#deductionTotal');
+    const totals = list.reduce((acc, employee) => { const line = calcPayrollLine(employee, key); acc.base += line.baseSalary; acc.allowance += line.allowance; acc.advances += line.advanceDeduction; acc.deductions += line.insuranceDeduction + line.absenceDeduction + line.advanceDeduction; acc.net += line.net; return acc; }, { base: 0, allowance: 0, advances: 0, deductions: 0, net: 0 });
+    const hero = document.querySelector('#payrollHeroTotal'); const count = document.querySelector('#payrollEmployeeCount'); const baseEl = document.querySelector('#baseSalaryTotal'); const allowanceEl = document.querySelector('#allowanceTotal'); const advanceEl = document.querySelector('#advanceTotal'); const deductionEl = document.querySelector('#deductionTotal');
     if (hero) hero.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.net) : money(totals.net);
     if (count) count.textContent = (typeof arabicNumber === 'function') ? arabicNumber(list.length) : String(list.length);
     if (baseEl) baseEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.base) : money(totals.base);
     if (allowanceEl) allowanceEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.allowance) : money(totals.allowance);
+    if (advanceEl) advanceEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.advances) : money(totals.advances);
     if (deductionEl) deductionEl.textContent = (typeof formatCurrency === 'function') ? formatCurrency(totals.deductions) : money(totals.deductions);
     const body = document.querySelector('#payrollTableBody');
     if (body) {
