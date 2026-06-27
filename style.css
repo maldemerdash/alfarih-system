@@ -8441,34 +8441,58 @@ body.auth-locked .app-shell {
 /* Payroll advances action button in dashboard welcome bar */
 .dashboard-welcome-compact .banner-advance-action,
 #dashboardAdvanceBtn {
+  position: relative !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 8px !important;
-  min-height: 40px !important;
-  padding: 0 16px !important;
-  border: 1px solid rgba(255, 255, 255, .32) !important;
-  border-radius: 14px !important;
-  background: linear-gradient(135deg, #14b8a6 0%, #0ea5c6 52%, #1294b8 100%) !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  min-height: 44px !important;
+  padding: 0 20px !important;
+  border: 2px solid rgba(255, 255, 255, .92) !important;
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, #00b894 0%, #00a7c7 48%, #0077b6 100%) !important;
   color: #fff !important;
-  font-weight: 900 !important;
+  font-weight: 950 !important;
   letter-spacing: -.01em !important;
-  box-shadow: 0 14px 28px rgba(14, 165, 198, .30), 0 4px 12px rgba(20, 184, 166, .22) !important;
+  text-shadow: 0 1px 3px rgba(0, 58, 80, .42) !important;
+  box-shadow:
+    0 0 0 4px rgba(0, 184, 148, .18),
+    0 16px 34px rgba(0, 119, 182, .42),
+    inset 0 1px 0 rgba(255, 255, 255, .35) !important;
+  transform: translateY(-1px) !important;
+}
+.dashboard-welcome-compact .banner-advance-action::after,
+#dashboardAdvanceBtn::after {
+  content: "" !important;
+  position: absolute !important;
+  inset: 3px !important;
+  border-radius: 13px !important;
+  border: 1px solid rgba(255, 255, 255, .22) !important;
+  pointer-events: none !important;
 }
 .dashboard-welcome-compact .banner-advance-action:hover,
 #dashboardAdvanceBtn:hover {
-  background: linear-gradient(135deg, #0f9f92 0%, #0d96b5 54%, #0f7fa0 100%) !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 18px 34px rgba(14, 165, 198, .36), 0 6px 16px rgba(20, 184, 166, .28) !important;
+  background: linear-gradient(135deg, #00c9a7 0%, #00b4d8 48%, #006daa 100%) !important;
+  transform: translateY(-3px) !important;
+  box-shadow:
+    0 0 0 5px rgba(0, 180, 216, .22),
+    0 20px 42px rgba(0, 119, 182, .50),
+    inset 0 1px 0 rgba(255, 255, 255, .42) !important;
+}
+.dashboard-welcome-compact .banner-advance-action:active,
+#dashboardAdvanceBtn:active {
+  transform: translateY(0) !important;
 }
 .dashboard-welcome-compact .banner-advance-action svg,
 #dashboardAdvanceBtn svg {
-  width: 17px !important;
-  height: 17px !important;
+  width: 18px !important;
+  height: 18px !important;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.22)) !important;
 }
 @media (max-width: 1100px) {
   .dashboard-welcome-compact .banner-advance-action,
   #dashboardAdvanceBtn {
-    min-height: 38px !important;
-    padding: 0 13px !important;
+    min-height: 40px !important;
+    padding: 0 15px !important;
   }
 }
