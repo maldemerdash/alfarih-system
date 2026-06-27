@@ -9904,3 +9904,139 @@ document.addEventListener("click", function(event) {
     if (document.body.classList.contains("app-loading")) finishStartup();
   }, 8000);
 })();
+
+/* =========================================================
+   Users management hard loading fix v2
+   يمنع بقاء صفحة إدارة المستخدمين على "جاري التحميل" بسبب تكرار الطلبات أو انتظار Supabase.
+   ========================================================= */
+(function usersManagementHardLoadingFixV2(){
+  let usersLoadInFlight = null;
+  const USERS_LOAD_TIMEOUT_MS = 10000;
+
+  function escLocal(value){
+    if (typeof escapeHtml === "function") return escapeHtml(value ?? "");
+    return String(value ?? "").replace(/[&<>'"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[ch]));
+  }
+
+  function safeRoleBadgeLocal(role){
+    try {
+      if (typeof roleBadge === "function") return roleBadge(role === "admin" ? "admin" : "employee");
+    } catch (_) {}
+    return `<span class="status-badge status-approved">${role === "admin" ? "مدير النظام" : "موظف"}</span>`;
+  }
+
+  function safeIconLocal(name){
+    try { if (typeof iconSvg === "function") return iconSvg(name); } catch (_) {}
+    const fallback = { edit:"✎", "user-x":"⏸", check:"✓", trash:"×" };
+    return fallback[name] || "•";
+  }
+
+  function timeoutPromise(ms){
+    return new Promise((_, reject) => setTimeout(() => reject(new Error("انتهت مهلة تحميل المستخدمين من Supabase")), ms));
+  }
+
+  function normalizeUserProfileForList(profile){
+    const role = profile?.role === "admin" ? "admin" : "employee";
+    let perms = profile?.permissions;
+    try {
+      if (typeof normalizePermissions === "function") perms = normalizePermissions(perms, role);
+      else if (!perms || typeof perms !== "object") perms = {};
+    } catch (_) { perms = {}; }
+    return { ...profile, role, permissions: perms };
+  }
+
+  async function queryUsersOnce(){
+    if (!supabaseClient) throw new Error("Supabase غير متصل");
+    let result = await Promise.race([
+      supabaseClient
+        .from("app_user_profiles")
+        .select("id,user_id,full_name,email,role,is_active,permissions,created_at,updated_at")
+        .order("created_at", { ascending: false }),
+      timeoutPromise(USERS_LOAD_TIMEOUT_MS)
+    ]);
+
+    if (result.error && /permissions|column/i.test(String(result.error.message || ""))) {
+      result = await Promise.race([
+        supabaseClient
+          .from("app_user_profiles")
+          .select("id,user_id,full_name,email,role,is_active,created_at,updated_at")
+          .order("created_at", { ascending: false }),
+        timeoutPromise(USERS_LOAD_TIMEOUT_MS)
+      ]);
+    }
+    if (result.error) throw result.error;
+    return (Array.isArray(result.data) ? result.data : []).map(normalizeUserProfileForList);
+  }
+
+  function drawUsersRows(){
+    const body = document.querySelector("#appUserProfilesBody");
+    if (!body) return;
+    const users = Array.isArray(appUserProfilesCache) ? appUserProfilesCache : [];
+    if (!users.length) {
+      body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>لا يوجد مستخدمون بعد</strong><p>اضغط إضافة مستخدم لإنشاء حساب دخول وصلاحية.</p></div></td></tr>`;
+      return;
+    }
+    body.innerHTML = users.map((profile) => `
+      <tr>
+        <td><strong>${escLocal(profile.full_name || "—")}</strong></td>
+        <td dir="ltr">${escLocal(profile.email || "—")}</td>
+        <td>${safeRoleBadgeLocal(profile.role)}</td>
+        <td><span class="${profile.is_active ? "user-status-active" : "user-status-disabled"}">${profile.is_active ? "مفعل" : "موقوف"}</span></td>
+        <td><span class="user-action-row">
+          <button type="button" class="quick-view-btn" data-edit-user-profile="${escLocal(profile.id)}" title="تعديل">${safeIconLocal("edit")}</button>
+          <button type="button" class="quick-view-btn ${profile.is_active ? "warning-inline-btn" : ""}" data-toggle-user-profile="${escLocal(profile.id)}" title="${profile.is_active ? "إيقاف" : "تنشيط"}">${safeIconLocal(profile.is_active ? "user-x" : "check")}</button>
+          <button type="button" class="quick-view-btn danger-inline-btn" data-delete-user-profile="${escLocal(profile.id)}" title="حذف">${safeIconLocal("trash")}</button>
+        </span></td>
+      </tr>`).join("");
+  }
+
+  loadAppUserProfiles = async function loadAppUserProfilesHardFix(){
+    if (usersLoadInFlight) return usersLoadInFlight;
+    usersLoadInFlight = queryUsersOnce()
+      .then((users) => {
+        appUserProfilesCache = users;
+        return users;
+      })
+      .finally(() => { usersLoadInFlight = null; });
+    return usersLoadInFlight;
+  };
+
+  renderAppUserProfiles = drawUsersRows;
+
+  renderUsersManagement = async function renderUsersManagementHardFix(){
+    try { ensureUsersManagementView(); } catch (error) { console.warn(error); }
+    const body = document.querySelector("#appUserProfilesBody");
+
+    // إذا يوجد طلب قيد التنفيذ لا نعيد تصفير الجدول كل ثانية؛ هذا كان سبب بقاء "جاري التحميل".
+    if (!usersLoadInFlight && body) {
+      body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>جاري تحميل المستخدمين...</strong><p>يتم قراءة المستخدمين والصلاحيات من Supabase.</p></div></td></tr>`;
+    }
+
+    try {
+      await loadAppUserProfiles();
+      drawUsersRows();
+      try { if (typeof hydrateIcons === "function") hydrateIcons(document.querySelector("#usersView") || document); } catch (_) {}
+    } catch (error) {
+      console.error("تعذر تحميل المستخدمين", error);
+      if (body) {
+        body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>تعذر تحميل المستخدمين</strong><p>${escLocal(error?.message || "خطأ غير معروف")}</p><button type="button" class="secondary-btn" id="retryUsersLoadBtn">إعادة المحاولة</button></div></td></tr>`;
+      }
+      try { if (typeof showToast === "function") showToast("تعذر تحميل المستخدمين: " + String(error?.message || "")); } catch (_) {}
+    }
+  };
+
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("#retryUsersLoadBtn")) {
+      event.preventDefault();
+      usersLoadInFlight = null;
+      renderUsersManagement();
+    }
+  }, true);
+
+  // عند فتح صفحة المستخدمين، حاول التحميل مرة واحدة فقط بعد اكتمال الرسم.
+  setTimeout(() => {
+    const usersView = document.querySelector("#usersView.active");
+    const body = document.querySelector("#appUserProfilesBody");
+    if (usersView && body && /جاري/.test(body.textContent || "")) renderUsersManagement();
+  }, 600);
+})();
