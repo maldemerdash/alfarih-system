@@ -8171,3 +8171,32 @@ body.auth-locked .app-shell {
     min-height:420px !important;
   }
 }
+
+/* Definitive: make leave/travel tabs truly clickable and visually active */
+#leavesView .leave-tabs,
+#leavesView .definitive-leave-travel-tabs{
+  position: relative !important;
+  z-index: 5 !important;
+  pointer-events: auto !important;
+}
+#leavesView .leave-tabs button,
+#leavesView .definitive-leave-travel-tabs button,
+#leavesView .travel-tab-info{
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  position: relative !important;
+  z-index: 6 !important;
+}
+#leavesView .definitive-leave-travel-tabs button.active{
+  background: linear-gradient(135deg, #0f766e, #0891b2) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: 0 10px 22px rgba(8,145,178,.20) !important;
+}
+#leavesView .definitive-leave-travel-layout{
+  display: grid !important;
+  grid-template-rows: minmax(300px, 1fr) minmax(300px, 1fr) !important;
+  gap: 18px !important;
+}
+
