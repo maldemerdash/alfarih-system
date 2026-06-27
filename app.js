@@ -10040,3 +10040,175 @@ document.addEventListener("click", function(event) {
     if (usersView && body && /جاري/.test(body.textContent || "")) renderUsersManagement();
   }, 600);
 })();
+
+/* =========================================================
+   Users management via Edge Function fix v3
+   يقرأ ويدير المستخدمين عبر دالة admin-create-user لتجاوز تعليق RLS/PostgREST.
+   ========================================================= */
+(function usersManagementEdgeFunctionFixV3(){
+  let userAdminInFlight = null;
+  const EDGE_TIMEOUT_MS = 18000;
+
+  function escUser(value){
+    if (typeof escapeHtml === "function") return escapeHtml(value ?? "");
+    return String(value ?? "").replace(/[&<>'"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[ch]));
+  }
+  function timeoutAfter(ms){
+    return new Promise((_, reject) => setTimeout(() => reject(new Error("انتهت مهلة الاتصال بدالة إدارة المستخدمين")), ms));
+  }
+  function roleNorm(role){
+    try { return typeof normalizeRole === "function" ? normalizeRole(role) : (role === "admin" ? "admin" : "employee"); }
+    catch (_) { return role === "admin" ? "admin" : "employee"; }
+  }
+  function permsNorm(perms, role){
+    try { return typeof normalizePermissions === "function" ? normalizePermissions(perms, roleNorm(role)) : (perms && typeof perms === "object" ? perms : {}); }
+    catch (_) { return {}; }
+  }
+  function badgeSafe(role){
+    try { return typeof roleBadge === "function" ? roleBadge(roleNorm(role)) : `<span>${roleNorm(role) === "admin" ? "مدير النظام" : "موظف"}</span>`; }
+    catch (_) { return `<span>${roleNorm(role) === "admin" ? "مدير النظام" : "موظف"}</span>`; }
+  }
+  function iconSafe(name){
+    try { return typeof iconSvg === "function" ? iconSvg(name) : ""; } catch (_) { return ""; }
+  }
+  function normalizeProfile(profile){
+    const role = roleNorm(profile?.role);
+    return { ...profile, role, permissions: permsNorm(profile?.permissions, role), is_active: profile?.is_active !== false };
+  }
+
+  async function invokeUserAdmin(action, payload = {}){
+    if (!supabaseClient) throw new Error("Supabase غير متصل");
+    const call = supabaseClient.functions.invoke("admin-create-user", {
+      body: { action, ...payload }
+    });
+    const { data, error } = await Promise.race([call, timeoutAfter(EDGE_TIMEOUT_MS)]);
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data || {};
+  }
+
+  loadAppUserProfiles = async function loadAppUserProfilesViaEdge(){
+    if (userAdminInFlight) return userAdminInFlight;
+    userAdminInFlight = invokeUserAdmin("list-users")
+      .then((data) => {
+        const rows = Array.isArray(data.users) ? data.users : (Array.isArray(data.data) ? data.data : []);
+        appUserProfilesCache = rows.map(normalizeProfile);
+        return appUserProfilesCache;
+      })
+      .finally(() => { userAdminInFlight = null; });
+    return userAdminInFlight;
+  };
+
+  renderAppUserProfiles = function renderAppUserProfilesViaEdge(){
+    const body = document.querySelector("#appUserProfilesBody");
+    if (!body) return;
+    const rows = Array.isArray(appUserProfilesCache) ? appUserProfilesCache : [];
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>لا يوجد مستخدمون بعد</strong><p>اضغط إضافة مستخدم لإنشاء حساب دخول وصلاحية.</p></div></td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map((profile) => `
+      <tr>
+        <td><strong>${escUser(profile.full_name || "—")}</strong></td>
+        <td dir="ltr">${escUser(profile.email || "—")}</td>
+        <td>${badgeSafe(profile.role)}</td>
+        <td><span class="${profile.is_active ? "user-status-active" : "user-status-disabled"}">${profile.is_active ? "مفعل" : "موقوف"}</span></td>
+        <td><span class="user-action-row">
+          <button type="button" class="quick-view-btn" data-edit-user-profile="${escUser(profile.id)}" title="تعديل">${iconSafe("edit")}</button>
+          <button type="button" class="quick-view-btn ${profile.is_active ? "warning-inline-btn" : ""}" data-toggle-user-profile="${escUser(profile.id)}" title="${profile.is_active ? "إيقاف" : "تنشيط"}">${iconSafe(profile.is_active ? "user-x" : "check")}</button>
+          <button type="button" class="quick-view-btn danger-inline-btn" data-delete-user-profile="${escUser(profile.id)}" title="حذف">${iconSafe("trash")}</button>
+        </span></td>
+      </tr>`).join("");
+    try { if (typeof hydrateIcons === "function") hydrateIcons(body); } catch (_) {}
+  };
+
+  renderUsersManagement = async function renderUsersManagementViaEdge(){
+    try { ensureUsersManagementView(); } catch (error) { console.warn(error); }
+    const body = document.querySelector("#appUserProfilesBody");
+    if (body && !userAdminInFlight) {
+      body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>جاري تحميل المستخدمين...</strong><p>يتم جلب القائمة من دالة الإدارة الآمنة.</p></div></td></tr>`;
+    }
+    try {
+      await loadAppUserProfiles();
+      renderAppUserProfiles();
+    } catch (error) {
+      console.error("تعذر تحميل المستخدمين عبر Edge Function", error);
+      if (body) body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><strong>تعذر تحميل المستخدمين</strong><p>${escUser(error?.message || "خطأ غير معروف")}</p><button type="button" class="secondary-btn" id="retryUsersLoadBtn">إعادة المحاولة</button></div></td></tr>`;
+      try { if (typeof showToast === "function") showToast("تعذر تحميل المستخدمين: " + String(error?.message || "")); } catch (_) {}
+    }
+  };
+
+  saveUserProfileFromForm = async function saveUserProfileFromFormViaEdge(form){
+    if (typeof currentRoleKey === "function" && currentRoleKey() !== "admin") return showToast("هذه الشاشة للمدير فقط");
+    const profileId = form.elements.profileId.value.trim();
+    const role = roleNorm(form.elements.role.value);
+    const payload = {
+      id: profileId,
+      fullName: form.elements.fullName.value.trim(),
+      full_name: form.elements.fullName.value.trim(),
+      email: form.elements.email.value.trim().toLowerCase(),
+      role,
+      isActive: form.elements.isActive.value === "true",
+      is_active: form.elements.isActive.value === "true",
+      permissions: typeof readPermissionsFromForm === "function" ? readPermissionsFromForm(form) : {}
+    };
+    const password = form.elements.password?.value || "";
+    if (!payload.fullName || !payload.email) return showToast("أدخل الاسم والبريد");
+    if (!profileId && password.length < 6) return showToast("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+    try {
+      if (profileId) {
+        await invokeUserAdmin("update-user", payload);
+      } else {
+        const data = await invokeUserAdmin("create-user", { ...payload, password });
+        const createdUserId = data?.user_id || data?.userId;
+        if (!createdUserId) throw new Error("لم يتم إنشاء حساب الدخول في Authentication");
+      }
+      try { resetUserProfileForm(); } catch (_) {}
+      document.querySelector("#userProfileModal")?.close();
+      await renderUsersManagement();
+      showToast(profileId ? "تم تحديث المستخدم والصلاحيات" : "تم إنشاء المستخدم والصلاحيات");
+    } catch (error) {
+      console.error(error);
+      showToast(String(error?.message || "تعذر حفظ المستخدم أو إنشاء حساب الدخول").slice(0, 160));
+    }
+  };
+
+  toggleUserProfile = async function toggleUserProfileViaEdge(id){
+    if (typeof currentRoleKey === "function" && currentRoleKey() !== "admin") return showToast("هذه الشاشة للمدير فقط");
+    const profile = (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []).find((item) => item.id === id);
+    if (!profile) return;
+    if (authProfile?.id === profile.id && profile.is_active) return showToast("لا يمكنك إيقاف حسابك الحالي من هذه الشاشة");
+    try {
+      await invokeUserAdmin("toggle-user", { id: profile.id, isActive: !profile.is_active });
+      await renderUsersManagement();
+      showToast(profile.is_active ? "تم إيقاف المستخدم" : "تم تفعيل المستخدم");
+    } catch (error) {
+      console.error(error);
+      showToast("تعذر تغيير حالة المستخدم: " + String(error?.message || ""));
+    }
+  };
+
+  deleteUserProfile = async function deleteUserProfileViaEdge(id){
+    if (typeof currentRoleKey === "function" && currentRoleKey() !== "admin") return showToast("هذه الشاشة للمدير فقط");
+    const profile = (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []).find((item) => item.id === id);
+    if (!profile) return;
+    if (authProfile?.id === profile.id) return showToast("لا يمكنك حذف حسابك الحالي من هذه الشاشة");
+    if (!confirm(`هل تريد حذف المستخدم ${profile.full_name || profile.email} نهائيًا من الصلاحيات وحسابات الدخول؟`)) return;
+    try {
+      await invokeUserAdmin("delete-user", { id: profile.id });
+      appUserProfilesCache = (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []).filter((item) => item.id !== profile.id);
+      renderAppUserProfiles();
+      showToast("تم حذف المستخدم");
+    } catch (error) {
+      console.error(error);
+      showToast("تعذر حذف المستخدم: " + String(error?.message || ""));
+    }
+  };
+
+  // إذا كانت صفحة المستخدمين مفتوحة بعد تحميل الملف، أعد المحاولة مرة واحدة بالدالة الجديدة.
+  setTimeout(() => {
+    const body = document.querySelector("#appUserProfilesBody");
+    const usersView = document.querySelector("#usersView.active");
+    if (usersView && body && /تعذر|جاري/.test(body.textContent || "")) renderUsersManagement();
+  }, 700);
+})();
