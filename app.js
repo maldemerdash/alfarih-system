@@ -16673,205 +16673,400 @@ document.addEventListener("click", function(event) {
 })();
 
 /* =========================================================
-   v11 focused employee attachment isolation + fast logout
-   Base: v5 stable. Scope only:
-   1) Employee-file attachments must belong to the opened employee only.
-   2) The attachment id is written immediately into that employee record.
-   3) Logout does not wait for slow network saves.
+   v7 focused repair: employee attachment persistence + modal/logout safety
+   - Does not change permissions, menus, or page rendering.
+   - Keeps employee attachment IDs after logout/login, even when the attachments
+     table insert is blocked by RLS but Storage upload succeeds.
+   - Restores close buttons and logout using a targeted safety handler only.
    ========================================================= */
-(function employeeAttachmentIsolationAndFastLogoutV11(){
-  if (window.__employeeAttachmentIsolationAndFastLogoutV11) return;
-  window.__employeeAttachmentIsolationAndFastLogoutV11 = true;
+(function employeeAttachmentsAndUiSafetyV7(){
+  if (window.__employeeAttachmentsAndUiSafetyV7) return;
+  window.__employeeAttachmentsAndUiSafetyV7 = true;
 
-  const EMPLOYEE_ATTACHMENT_CATEGORIES_V11 = new Set([
-    'identity', 'employee-photo', 'signature', 'fingerprint',
-    'passport', 'iban-certificate', 'iban-approval', 'document', 'consent'
-  ]);
-
-  function toastV11(message){ try { if (typeof showToast === 'function') showToast(message); } catch (_) {} }
-  function uuidOrNullV11(value){
-    const text = String(value || '').trim();
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text) ? text : null;
-  }
-  function safeNameV11(name){
-    try { return typeof sanitizeStorageName === 'function' ? sanitizeStorageName(name) : String(name || 'file').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-120); }
-    catch (_) { return 'file'; }
-  }
-  function bucketV11(category){
-    try { return typeof bucketForAttachmentCategory === 'function' ? bucketForAttachmentCategory(category) : (String(category || '').includes('establishment') || String(category || '').includes('company') ? 'company-documents' : 'employee-attachments'); }
-    catch (_) { return 'employee-attachments'; }
-  }
-  function activeEmployeeIdV11(){
-    const form = document.querySelector('#employeeForm');
-    return String(form?.elements?.employeeId?.value || employeeFormState?.employeeId || '').trim();
-  }
-  function isEmployeeModalTargetV11(target){
-    return Boolean(target?.closest?.('#employeeModal'));
-  }
-  function attachmentIdsFromEmployeeStateV11(){
-    const ids = new Set();
-    const s = typeof employeeFormState !== 'undefined' ? employeeFormState : null;
-    if (!s) return ids;
-    ['identityAttachmentId', 'photoAttachmentId', 'signatureAttachmentId', 'fingerprintAttachmentId'].forEach((key) => { if (s[key]) ids.add(String(s[key])); });
-    if (Array.isArray(s.passports)) s.passports.forEach((item) => { if (item?.attachmentId) ids.add(String(item.attachmentId)); });
-    if (Array.isArray(s.bankAccounts)) s.bankAccounts.forEach((item) => {
-      if (item?.certificateAttachmentId) ids.add(String(item.certificateAttachmentId));
-      if (item?.approvalAttachmentId) ids.add(String(item.approvalAttachmentId));
-    });
-    if (Array.isArray(s.documents)) s.documents.forEach((item) => { if (item?.attachmentId) ids.add(String(item.attachmentId)); });
-    if (s.consent?.attachmentId) ids.add(String(s.consent.attachmentId));
-    return ids;
-  }
-  function clearMatchingIdsFromOtherEmployeeV11(employee, ids){
-    let changed = false;
-    ['identityAttachmentId', 'photoAttachmentId', 'signatureAttachmentId', 'fingerprintAttachmentId'].forEach((key) => {
-      if (employee?.[key] && ids.has(String(employee[key]))) { employee[key] = ''; changed = true; }
-    });
-    if (Array.isArray(employee.passports)) employee.passports.forEach((item) => { if (item?.attachmentId && ids.has(String(item.attachmentId))) { item.attachmentId = ''; changed = true; } });
-    if (Array.isArray(employee.bankAccounts)) employee.bankAccounts.forEach((item) => {
-      if (item?.certificateAttachmentId && ids.has(String(item.certificateAttachmentId))) { item.certificateAttachmentId = ''; changed = true; }
-      if (item?.approvalAttachmentId && ids.has(String(item.approvalAttachmentId))) { item.approvalAttachmentId = ''; changed = true; }
-    });
-    if (Array.isArray(employee.documents)) employee.documents.forEach((item) => { if (item?.attachmentId && ids.has(String(item.attachmentId))) { item.attachmentId = ''; changed = true; } });
-    if (employee.consent?.attachmentId && ids.has(String(employee.consent.attachmentId))) { employee.consent = { ...employee.consent, attachmentId: '' }; changed = true; }
-    return changed;
+  function v7SafeToast(message){
+    try { if (typeof showToast === 'function') showToast(message); } catch (_) {}
   }
 
-  async function persistActiveEmployeeAttachmentsV11(reason){
-    try {
-      const employeeId = activeEmployeeIdV11();
-      if (!employeeId) {
-        if (reason === 'upload') toastV11('احفظ الموظف أولًا، ثم ارفع المرفق حتى يتم ربطه بملفه فقط.');
-        return false;
-      }
-      if (!Array.isArray(employees)) return false;
-      const index = employees.findIndex((employee) => String(employee.id) === String(employeeId));
-      if (index < 0) return false;
-      const current = employees[index] || {};
-      const s = employeeFormState || {};
-      const merged = {
-        ...current,
-        identityAttachmentId: s.identityAttachmentId || '',
-        photoAttachmentId: s.photoAttachmentId || '',
-        legacyPhoto: s.legacyPhoto || '',
-        signatureAttachmentId: s.signatureAttachmentId || '',
-        fingerprintAttachmentId: s.fingerprintAttachmentId || '',
-        passports: Array.isArray(s.passports) ? JSON.parse(JSON.stringify(s.passports)) : [],
-        bankAccounts: Array.isArray(s.bankAccounts) ? JSON.parse(JSON.stringify(s.bankAccounts)) : [],
-        documents: Array.isArray(s.documents) ? JSON.parse(JSON.stringify(s.documents)) : [],
-        consent: s.consent ? JSON.parse(JSON.stringify(s.consent)) : null
-      };
-      const record = typeof normalizeEmployee === 'function' ? normalizeEmployee(merged) : merged;
-      const ids = attachmentIdsFromEmployeeStateV11();
-      employees = employees.map((employee, employeeIndex) => {
-        if (employeeIndex === index) return record;
-        const copy = JSON.parse(JSON.stringify(employee));
-        return clearMatchingIdsFromOtherEmployeeV11(copy, ids) ? (typeof normalizeEmployee === 'function' ? normalizeEmployee(copy) : copy) : employee;
-      });
-      if (typeof dbSaveEmployee === 'function') {
-        await dbSaveEmployee(record);
-        const changedOthers = employees.filter((employee, employeeIndex) => employeeIndex !== index && employee !== (Array.isArray(employees) ? employees[employeeIndex] : employee));
-        // The map above already wrote the array. Save all employees once only when duplicates were actually removed.
-        if (ids.size) {
-          const saveList = employees.filter((employee, employeeIndex) => employeeIndex !== index && JSON.stringify(employee).includes([...ids][0] || '___no_id___') === false);
-          void saveList;
+  function v7Encode(value){
+    try { return encodeURIComponent(String(value || '')); } catch (_) { return ''; }
+  }
+
+  function v7Decode(value){
+    try { return decodeURIComponent(String(value || '')); } catch (_) { return String(value || ''); }
+  }
+
+  function v7MakeCloudRef(storagePath, fileName, fileType, fileSize){
+    return `cloud-file::${String(storagePath || '')}::${v7Encode(fileName)}::${v7Encode(fileType)}::${Number(fileSize || 0)}`;
+  }
+
+  function v7ParseCloudRef(id){
+    const text = String(id || '');
+    if (!text.startsWith('cloud-file::')) return null;
+    const parts = text.split('::');
+    return {
+      id: text,
+      name: v7Decode(parts[2] || 'مرفق'),
+      type: v7Decode(parts[3] || 'application/octet-stream'),
+      size: Number(parts[4] || 0),
+      storagePath: parts[1] || '',
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  const originalGetAttachment = typeof getAttachment === 'function' ? getAttachment : null;
+  if (originalGetAttachment && !originalGetAttachment.__v7CloudRefAware) {
+    const wrappedGetAttachment = async function(id){
+      const cloudRef = v7ParseCloudRef(id);
+      if (cloudRef) return cloudRef;
+      return originalGetAttachment(id);
+    };
+    wrappedGetAttachment.__v7CloudRefAware = true;
+    try { getAttachment = wrappedGetAttachment; window.getAttachment = wrappedGetAttachment; } catch (_) {}
+  }
+
+  const originalSaveAttachment = typeof saveAttachment === 'function' ? saveAttachment : null;
+  if (originalSaveAttachment && !originalSaveAttachment.__v7StorageFallback) {
+    const wrappedSaveAttachment = async function(file, category){
+      if (!file) return '';
+      if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof cloudReady !== 'undefined' && cloudReady) {
+        let bucket = '';
+        let storagePath = '';
+        try {
+          bucket = typeof bucketForAttachmentCategory === 'function' ? bucketForAttachmentCategory(category) : 'employee-attachments';
+          const safeName = typeof sanitizeStorageName === 'function' ? sanitizeStorageName(file.name) : String(file.name || 'file').replace(/[^a-zA-Z0-9._-]+/g, '-');
+          storagePath = `${category || 'attachment'}/${Date.now()}-${Math.random().toString(16).slice(2)}-${safeName}`;
+          const uploadResult = await supabaseClient.storage
+            .from(bucket)
+            .upload(storagePath, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream' });
+          if (uploadResult?.error) throw uploadResult.error;
+          const fullStoragePath = `${bucket}/${storagePath}`;
+
+          try {
+            const insertResult = await supabaseClient
+              .from('attachments')
+              .insert({
+                related_table: category || 'general',
+                related_id: null,
+                file_name: file.name,
+                file_type: file.type || 'application/octet-stream',
+                file_size: file.size || 0,
+                storage_path: fullStoragePath,
+                uploaded_by: 'web'
+              })
+              .select('id, file_name, file_type, file_size, storage_path, created_at')
+              .single();
+            if (insertResult?.error) throw insertResult.error;
+            return insertResult?.data?.id || v7MakeCloudRef(fullStoragePath, file.name, file.type, file.size);
+          } catch (insertError) {
+            console.warn('تم رفع الملف إلى Storage لكن تعذر تسجيله في جدول attachments. سيتم حفظ مسار الملف السحابي مباشرة داخل سجل الموظف.', insertError);
+            v7SafeToast('تم رفع الملف، وسيتم حفظ رابط التحميل داخل ملف الموظف مباشرة');
+            return v7MakeCloudRef(fullStoragePath, file.name, file.type, file.size);
+          }
+        } catch (uploadError) {
+          console.warn('تعذر رفع المرفق إلى Supabase Storage. سيتم استخدام الحفظ الأصلي.', uploadError);
         }
       }
+      return originalSaveAttachment(file, category);
+    };
+    wrappedSaveAttachment.__v7StorageFallback = true;
+    try { saveAttachment = wrappedSaveAttachment; window.saveAttachment = wrappedSaveAttachment; } catch (_) {}
+  }
+
+  function v7BuildEmployeeAttachmentRecord(current){
+    if (!current || typeof employeeFormState === 'undefined' || !employeeFormState) return null;
+    const merged = {
+      ...current,
+      identityAttachmentId: employeeFormState.identityAttachmentId || current.identityAttachmentId || '',
+      photoAttachmentId: employeeFormState.photoAttachmentId || current.photoAttachmentId || '',
+      legacyPhoto: employeeFormState.legacyPhoto || current.legacyPhoto || '',
+      signatureAttachmentId: employeeFormState.signatureAttachmentId || current.signatureAttachmentId || '',
+      fingerprintAttachmentId: employeeFormState.fingerprintAttachmentId || current.fingerprintAttachmentId || '',
+      passports: Array.isArray(employeeFormState.passports) ? employeeFormState.passports.map((item) => ({ ...item })) : (current.passports || []),
+      bankAccounts: Array.isArray(employeeFormState.bankAccounts) ? employeeFormState.bankAccounts.map((item) => ({ ...item })) : (current.bankAccounts || []),
+      documents: Array.isArray(employeeFormState.documents) ? employeeFormState.documents.map((item) => ({ ...item })) : (current.documents || []),
+      consent: employeeFormState.consent ? { ...employeeFormState.consent } : (current.consent || null)
+    };
+    return typeof normalizeEmployee === 'function' ? normalizeEmployee(merged) : merged;
+  }
+
+  async function v7PersistCurrentEmployeeAttachments(reason){
+    try {
+      const form = document.querySelector('#employeeForm');
+      const employeeId = form?.elements?.employeeId?.value || '';
+      if (!employeeId || !Array.isArray(employees)) return;
+      const index = employees.findIndex((employee) => String(employee.id) === String(employeeId));
+      if (index < 0) return;
+      const record = v7BuildEmployeeAttachmentRecord(employees[index]);
+      if (!record) return;
+      const snapshot = JSON.stringify({
+        id: record.id,
+        identityAttachmentId: record.identityAttachmentId || '',
+        photoAttachmentId: record.photoAttachmentId || '',
+        signatureAttachmentId: record.signatureAttachmentId || '',
+        fingerprintAttachmentId: record.fingerprintAttachmentId || '',
+        passports: record.passports || [],
+        bankAccounts: record.bankAccounts || [],
+        documents: record.documents || [],
+        consent: record.consent || null
+      });
+      if (snapshot === window.__v7LastEmployeeAttachmentSnapshot) return;
+      employees[index] = record;
+      if (typeof dbSaveEmployee === 'function') await dbSaveEmployee(record);
       if (typeof saveCloudStateNow === 'function') await saveCloudStateNow({ force: true });
       else if (typeof queueCloudStateSave === 'function') queueCloudStateSave();
-      return true;
+      window.__v7LastEmployeeAttachmentSnapshot = snapshot;
+      if (reason === 'manual') v7SafeToast('تم تثبيت المرفق في ملف الموظف');
     } catch (error) {
-      console.error('V11: failed to persist employee attachment to exact employee', error);
-      toastV11('تعذر تثبيت المرفق داخل ملف الموظف الحالي');
-      return false;
+      console.warn('تعذر تثبيت مرفق الموظف بعد الرفع.', error);
     }
   }
-  window.persistActiveEmployeeAttachmentsV11 = persistActiveEmployeeAttachmentsV11;
 
-  const previousSaveAttachmentV11 = typeof saveAttachment === 'function' ? saveAttachment : null;
-  async function saveAttachmentV11(file, category){
-    if (!file) return '';
-    const employeeScoped = EMPLOYEE_ATTACHMENT_CATEGORIES_V11.has(String(category || '')) && Boolean(activeEmployeeIdV11());
-    if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof cloudReady !== 'undefined' && cloudReady) {
-      const bucket = bucketV11(category);
-      const employeePart = employeeScoped ? `${activeEmployeeIdV11()}/` : '';
-      const objectPath = `${employeePart}${category || 'attachment'}/${Date.now()}-${Math.random().toString(16).slice(2)}-${safeNameV11(file.name)}`;
-      const fullStoragePath = `${bucket}/${objectPath}`;
-      try {
-        const upload = await supabaseClient.storage
-          .from(bucket)
-          .upload(objectPath, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream' });
-        if (upload?.error) throw upload.error;
-        const rowPayload = {
-          related_table: employeeScoped ? 'employees' : (category || 'general'),
-          related_id: employeeScoped ? uuidOrNullV11(activeEmployeeIdV11()) : null,
-          file_name: file.name || 'attachment',
-          file_type: file.type || 'application/octet-stream',
-          file_size: Number(file.size || 0),
-          storage_path: fullStoragePath,
-          file_url: null
-        };
-        const inserted = await supabaseClient
-          .from('attachments')
-          .insert(rowPayload)
-          .select('id, related_table, related_id, file_name, file_type, file_size, storage_path, file_url, created_at')
-          .single();
-        if (inserted?.error) throw inserted.error;
-        if (!inserted?.data?.id) throw new Error('Supabase did not return attachment id');
-        return inserted.data.id;
-      } catch (error) {
-        console.error('V11: attachment cloud save failed', error);
-        toastV11('فشل حفظ المرفق في Supabase. لن يتم حفظه مؤقتًا حتى لا يظهر ثم يختفي.');
-        return '';
-      }
-    }
-    return previousSaveAttachmentV11 ? previousSaveAttachmentV11.apply(this, arguments) : '';
+  window.persistCurrentEmployeeAttachmentsV7 = v7PersistCurrentEmployeeAttachments;
+
+  function v7SchedulePersist(){
+    [300, 900, 1800, 3500, 6500].forEach((delay) => {
+      setTimeout(() => v7PersistCurrentEmployeeAttachments('attachment'), delay);
+    });
   }
-  try { saveAttachment = saveAttachmentV11; window.saveAttachment = saveAttachmentV11; } catch (_) {}
 
-  document.addEventListener('change', (event) => {
+  document.addEventListener('change', function(event){
     const target = event.target;
-    if (!isEmployeeModalTargetV11(target)) return;
-    if (target.matches('[data-single-attachment], [data-passport-attachment], [data-bank-certificate-attachment], [data-bank-approval-attachment], [data-document-attachment], #employeePhotoInput')) {
-      setTimeout(() => persistActiveEmployeeAttachmentsV11('upload'), 900);
-      setTimeout(() => persistActiveEmployeeAttachmentsV11('upload'), 1800);
-      setTimeout(() => { try { if (typeof normalizeDownloadButtonsV5 === 'function') normalizeDownloadButtonsV5(document); } catch (_) {} }, 1000);
+    if (target?.matches?.('[data-passport-attachment], [data-bank-certificate-attachment], [data-bank-approval-attachment], [data-document-attachment], [data-single-attachment], #employeePhotoInput')) {
+      v7SchedulePersist();
     }
   }, false);
 
-  // Fast logout: do not wait for cloud save/signOut when the network is slow.
-  document.addEventListener('click', (event) => {
+  document.addEventListener('submit', function(event){
+    if (event.target?.matches?.('#employeeForm')) {
+      setTimeout(() => v7PersistCurrentEmployeeAttachments('attachment'), 600);
+    }
+  }, true);
+
+  document.addEventListener('click', async function(event){
+    const closeButton = event.target.closest?.('[data-close-modal]');
+    if (closeButton) {
+      const modalId = closeButton.dataset.closeModal;
+      const dialog = modalId ? document.getElementById(modalId) : closeButton.closest('dialog');
+      if (dialog?.close) {
+        event.preventDefault();
+        dialog.close();
+        return;
+      }
+    }
+
+    const logoutButton = event.target.closest?.('.logout-btn');
+    if (logoutButton) {
+      event.preventDefault();
+      try { await v7PersistCurrentEmployeeAttachments('attachment'); } catch (_) {}
+      try { if (typeof saveCloudStateNow === 'function') await saveCloudStateNow({ force: true }); } catch (_) {}
+      try { if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth?.signOut) await supabaseClient.auth.signOut(); } catch (_) {}
+      try { localStorage.removeItem('nawah-auth-session'); } catch (_) {}
+      window.location.reload();
+    }
+  }, true);
+
+  setTimeout(() => {
+    try { if (typeof normalizeDownloadButtonsV5 === 'function') normalizeDownloadButtonsV5(document); } catch (_) {}
+  }, 900);
+})();
+
+/* =========================================================
+   v12 surgical fix: exact employee attachment ownership + instant logout
+   - Built over v7 because v7 already fixed modal close buttons.
+   - Does not touch permissions, menus, finance, or employee rendering logic.
+   ========================================================= */
+(function employeeAttachmentExactOwnerV12(){
+  if (window.__employeeAttachmentExactOwnerV12) return;
+  window.__employeeAttachmentExactOwnerV12 = true;
+
+  const EMPLOYEE_ATTACHMENT_CATEGORIES = new Set([
+    'identity', 'employee-photo', 'signature', 'fingerprint',
+    'passport', 'iban-certificate', 'iban-approval', 'document', 'consent'
+  ]);
+  const FIELD_KEYS = ['identityAttachmentId', 'photoAttachmentId', 'signatureAttachmentId', 'fingerprintAttachmentId'];
+
+  function toast(message){ try { if (typeof showToast === 'function') showToast(message); } catch (_) {} }
+  function cleanId(value){ return String(value || '').trim(); }
+  function isUuid(value){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanId(value)); }
+  function formEmployeeId(){
+    try { return cleanId(document.querySelector('#employeeForm')?.elements?.employeeId?.value || ''); } catch (_) { return ''; }
+  }
+  function sanitizeName(name){
+    try { return typeof sanitizeStorageName === 'function' ? sanitizeStorageName(name) : String(name || 'file').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-120); }
+    catch (_) { return 'file'; }
+  }
+  function categoryBucket(category){
+    try { return typeof bucketForAttachmentCategory === 'function' ? bucketForAttachmentCategory(category) : 'employee-attachments'; }
+    catch (_) { return 'employee-attachments'; }
+  }
+  function clone(value){ try { return JSON.parse(JSON.stringify(value)); } catch (_) { return value; } }
+  function normalize(record){ try { return typeof normalizeEmployee === 'function' ? normalizeEmployee(record) : record; } catch (_) { return record; } }
+
+  function collectStateAttachmentIds(){
+    const ids = new Set();
+    const s = typeof employeeFormState !== 'undefined' ? employeeFormState : null;
+    if (!s) return ids;
+    FIELD_KEYS.forEach((key) => { if (s[key]) ids.add(cleanId(s[key])); });
+    if (Array.isArray(s.passports)) s.passports.forEach((item) => { if (item?.attachmentId) ids.add(cleanId(item.attachmentId)); });
+    if (Array.isArray(s.bankAccounts)) s.bankAccounts.forEach((item) => {
+      if (item?.certificateAttachmentId) ids.add(cleanId(item.certificateAttachmentId));
+      if (item?.approvalAttachmentId) ids.add(cleanId(item.approvalAttachmentId));
+    });
+    if (Array.isArray(s.documents)) s.documents.forEach((item) => { if (item?.attachmentId) ids.add(cleanId(item.attachmentId)); });
+    if (s.consent?.attachmentId) ids.add(cleanId(s.consent.attachmentId));
+    ids.delete('');
+    return ids;
+  }
+
+  function removeIdsFromEmployee(employee, ids){
+    if (!employee || !ids || !ids.size) return { employee, changed: false };
+    const copy = clone(employee) || employee;
+    let changed = false;
+    FIELD_KEYS.forEach((key) => {
+      if (copy[key] && ids.has(cleanId(copy[key]))) { copy[key] = ''; changed = true; }
+    });
+    if (Array.isArray(copy.passports)) copy.passports.forEach((item) => {
+      if (item?.attachmentId && ids.has(cleanId(item.attachmentId))) { item.attachmentId = ''; changed = true; }
+    });
+    if (Array.isArray(copy.bankAccounts)) copy.bankAccounts.forEach((item) => {
+      if (item?.certificateAttachmentId && ids.has(cleanId(item.certificateAttachmentId))) { item.certificateAttachmentId = ''; changed = true; }
+      if (item?.approvalAttachmentId && ids.has(cleanId(item.approvalAttachmentId))) { item.approvalAttachmentId = ''; changed = true; }
+    });
+    if (Array.isArray(copy.documents)) copy.documents.forEach((item) => {
+      if (item?.attachmentId && ids.has(cleanId(item.attachmentId))) { item.attachmentId = ''; changed = true; }
+    });
+    if (copy.consent?.attachmentId && ids.has(cleanId(copy.consent.attachmentId))) {
+      copy.consent = { ...copy.consent, attachmentId: '' };
+      changed = true;
+    }
+    return { employee: changed ? normalize(copy) : employee, changed };
+  }
+
+  function buildCurrentEmployeeFromState(current){
+    const s = typeof employeeFormState !== 'undefined' ? employeeFormState : null;
+    if (!current || !s) return current;
+    return normalize({
+      ...current,
+      identityAttachmentId: s.identityAttachmentId || '',
+      photoAttachmentId: s.photoAttachmentId || '',
+      legacyPhoto: s.legacyPhoto || '',
+      signatureAttachmentId: s.signatureAttachmentId || '',
+      fingerprintAttachmentId: s.fingerprintAttachmentId || '',
+      passports: Array.isArray(s.passports) ? clone(s.passports) : [],
+      bankAccounts: Array.isArray(s.bankAccounts) ? clone(s.bankAccounts) : [],
+      documents: Array.isArray(s.documents) ? clone(s.documents) : [],
+      consent: s.consent ? clone(s.consent) : null
+    });
+  }
+
+  async function persistExactEmployeeAttachments(reason){
+    const employeeId = formEmployeeId();
+    if (!employeeId) {
+      if (reason === 'upload') toast('احفظ الموظف أولًا، ثم ارفع المرفق حتى لا ينتقل لموظف آخر.');
+      return false;
+    }
+    if (!Array.isArray(employees)) return false;
+    const index = employees.findIndex((emp) => cleanId(emp?.id) === employeeId);
+    if (index < 0) return false;
+
+    const ids = collectStateAttachmentIds();
+    const currentRecord = buildCurrentEmployeeFromState(employees[index]);
+    const saves = [];
+    employees = employees.map((emp, i) => {
+      if (i === index) return currentRecord;
+      const result = removeIdsFromEmployee(emp, ids);
+      if (result.changed) saves.push(result.employee);
+      return result.employee;
+    });
+
+    try { if (typeof dbSaveEmployee === 'function') await dbSaveEmployee(currentRecord); } catch (error) { console.warn('v12 current employee save failed', error); }
+    for (const item of saves) {
+      try { if (typeof dbSaveEmployee === 'function') await dbSaveEmployee(item); } catch (error) { console.warn('v12 duplicate cleanup save failed', error); }
+    }
+    try { if (typeof saveCloudStateNow === 'function') await saveCloudStateNow({ force: true }); else if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch (error) { console.warn('v12 cloud save failed', error); }
+    return true;
+  }
+  window.persistExactEmployeeAttachmentsV12 = persistExactEmployeeAttachments;
+
+  const originalSaveAttachment = typeof saveAttachment === 'function' ? saveAttachment : null;
+  async function saveAttachmentV12(file, category){
+    if (!file) return '';
+    const categoryText = String(category || 'attachment');
+    const employeeCategory = EMPLOYEE_ATTACHMENT_CATEGORIES.has(categoryText);
+    const ownerId = formEmployeeId();
+    if (employeeCategory && !ownerId) {
+      toast('احفظ الموظف أولًا قبل رفع المرفق.');
+      return '';
+    }
+    if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof cloudReady !== 'undefined' && cloudReady) {
+      try {
+        const bucket = categoryBucket(categoryText);
+        const ownerPart = employeeCategory ? `employees/${ownerId}/` : '';
+        const path = `${ownerPart}${categoryText}/${Date.now()}-${Math.random().toString(16).slice(2)}-${sanitizeName(file.name)}`;
+        const upload = await supabaseClient.storage
+          .from(bucket)
+          .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream' });
+        if (upload?.error) throw upload.error;
+        const fullPath = `${bucket}/${path}`;
+        const payload = {
+          related_table: employeeCategory ? 'employees' : categoryText,
+          related_id: employeeCategory && isUuid(ownerId) ? ownerId : null,
+          file_name: file.name || 'attachment',
+          file_type: file.type || 'application/octet-stream',
+          file_size: Number(file.size || 0),
+          storage_path: fullPath
+        };
+        const inserted = await supabaseClient
+          .from('attachments')
+          .insert(payload)
+          .select('id, file_name, file_type, file_size, storage_path, created_at')
+          .single();
+        if (inserted?.error) throw inserted.error;
+        if (!inserted?.data?.id) throw new Error('Attachment row was not created');
+        return inserted.data.id;
+      } catch (error) {
+        console.error('v12 attachment save failed', error);
+        toast('فشل حفظ المرفق في Supabase، لذلك لم يتم حفظه مؤقتًا.');
+        return '';
+      }
+    }
+    if (employeeCategory) {
+      toast('الاتصال بقاعدة البيانات غير جاهز، لم يتم حفظ المرفق.');
+      return '';
+    }
+    return originalSaveAttachment ? originalSaveAttachment.apply(this, arguments) : '';
+  }
+  try { saveAttachment = saveAttachmentV12; window.saveAttachment = saveAttachmentV12; } catch (_) {}
+
+  function schedulePersist(){
+    [250, 800, 1600, 3000].forEach((delay) => setTimeout(() => persistExactEmployeeAttachments('upload'), delay));
+  }
+  document.addEventListener('change', (event) => {
+    const target = event.target;
+    if (!target?.matches?.('[data-single-attachment], [data-passport-attachment], [data-bank-certificate-attachment], [data-bank-approval-attachment], [data-document-attachment], #employeePhotoInput, #consentAttachmentInput')) return;
+    if (!target.closest?.('#employeeModal') && target.id !== 'consentAttachmentInput') return;
+    schedulePersist();
+  }, false);
+
+  document.addEventListener('submit', (event) => {
+    if (event.target?.matches?.('#employeeForm')) setTimeout(() => persistExactEmployeeAttachments('submit'), 500);
+  }, true);
+
+  window.addEventListener('click', (event) => {
     const btn = event.target?.closest?.('.logout-btn, [data-logout], #logoutBtn');
     if (!btn) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
     try { btn.disabled = true; } catch (_) {}
-    try { persistActiveEmployeeAttachmentsV11('logout'); } catch (_) {}
-    try { saveCloudStateNow?.({ force: true }); } catch (_) {}
-    try {
-      const p = supabaseClient?.auth?.signOut?.({ scope: 'local' });
-      if (p && typeof p.catch === 'function') p.catch(() => {});
-    } catch (_) {}
+    try { persistExactEmployeeAttachments('logout'); } catch (_) {}
+    try { supabaseClient?.auth?.signOut?.({ scope: 'local' })?.catch?.(() => {}); } catch (_) {}
     try {
       Object.keys(localStorage).forEach((key) => {
-        if (/^sb-.*-auth-token$/.test(key) || key.includes('supabase.auth.token')) localStorage.removeItem(key);
+        if (/^sb-.*-auth-token$/.test(key) || key.includes('supabase.auth.token') || key === 'nawah-auth-session') localStorage.removeItem(key);
       });
       sessionStorage.clear();
     } catch (_) {}
-    setTimeout(() => { window.location.href = window.location.pathname + window.location.search; }, 80);
-  }, true);
-
-  // Modal close safety without touching other button logic.
-  document.addEventListener('click', (event) => {
-    const close = event.target?.closest?.('[data-close-modal]');
-    if (!close) return;
-    const id = close.dataset.closeModal;
-    if (!id) return;
-    const dialog = document.getElementById(id);
-    if (!dialog || typeof dialog.close !== 'function') return;
-    event.preventDefault();
-    event.stopPropagation();
-    try { dialog.close(); } catch (_) {}
+    setTimeout(() => { window.location.replace(window.location.pathname + window.location.search); }, 60);
   }, true);
 })();
