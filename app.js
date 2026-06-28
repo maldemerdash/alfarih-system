@@ -14019,14 +14019,25 @@ document.addEventListener("click", function(event) {
   }
 
   function createNoteInput(type, index, value) {
-    const input = document.createElement("input");
-    input.type = "text";
+    const input = document.createElement("textarea");
+    input.rows = 2;
     input.placeholder = "البيان";
     input.dataset.financeTableInput = type;
     input.dataset.financeIndex = String(index);
     input.dataset.financeField = "note";
     input.value = value || "";
+    setTimeout(() => autoResizeFinanceNote(input), 0);
     return input;
+  }
+
+  function autoResizeFinanceNote(input) {
+    if (!input || input.tagName !== "TEXTAREA") return;
+    input.style.height = "auto";
+    input.style.height = Math.max(34, input.scrollHeight) + "px";
+  }
+
+  function autoResizeFinanceNotes(scope = document) {
+    scope.querySelectorAll?.('#financeView textarea[data-finance-field="note"]').forEach(autoResizeFinanceNote);
   }
 
   function appendTableRow(tbody, type, row, index) {
@@ -14055,6 +14066,7 @@ document.addEventListener("click", function(event) {
 
   function renderFinanceTables() {
     TABLE_TYPES.forEach(renderTable);
+    autoResizeFinanceNotes(document.getElementById("financeView") || document);
   }
 
   function collectTable(type) {
@@ -14148,6 +14160,44 @@ document.addEventListener("click", function(event) {
     }, nextKey);
   }
 
+  function showFinanceCloseConfirmModal(details, onConfirm) {
+    let dialog = document.getElementById("financeCloseConfirmModal");
+    if (!dialog) {
+      dialog = document.createElement("dialog");
+      dialog.id = "financeCloseConfirmModal";
+      dialog.className = "modal small-modal finance-close-confirm-modal";
+      document.body.appendChild(dialog);
+    }
+    dialog.innerHTML = `
+      <div class="modal-head finance-close-confirm-head">
+        <div class="finance-close-confirm-icon"><span data-icon="check-circle"></span></div>
+        <div>
+          <h2>تأكيد إغلاق اليوم المالي</h2>
+          <p>راجع بيانات اليوم قبل اعتماد الإغلاق والترحيل.</p>
+        </div>
+      </div>
+      <div class="modal-body finance-close-confirm-body">
+        <div class="finance-close-confirm-summary">
+          <div><span>اليوم الحالي</span><strong>${escapeFinanceText(details.currentDay)}</strong></div>
+          <div><span>اليوم التالي</span><strong>${escapeFinanceText(details.nextDay)}</strong></div>
+          <div><span>المبلغ المرحل</span><strong>${escapeFinanceText(details.carriedAmount)}</strong></div>
+          <div><span>المبلغ المرحل الجديد</span><strong>${escapeFinanceText(details.newCarriedAmount)}</strong></div>
+        </div>
+        <p class="finance-close-confirm-note">بعد الاعتماد سيتم تجميد اليوم الحالي وفتح اليوم التالي تلقائيًا.</p>
+      </div>
+      <div class="modal-actions finance-close-confirm-actions">
+        <button type="button" class="secondary-btn" data-finance-close-cancel>إلغاء</button>
+        <button type="button" class="primary-btn" data-finance-close-confirm><span data-icon="check-circle"></span>اعتماد إغلاق اليوم</button>
+      </div>`;
+    try { hydrateIcons(dialog); } catch (_) {}
+    dialog.querySelector('[data-finance-close-cancel]')?.addEventListener('click', () => dialog.close());
+    dialog.querySelector('[data-finance-close-confirm]')?.addEventListener('click', () => {
+      dialog.close();
+      onConfirm?.();
+    });
+    try { dialog.showModal(); } catch (_) { onConfirm?.(); }
+  }
+
   function handleFinanceCloseDay(event) {
     if (event) {
       event.preventDefault?.();
@@ -14168,33 +14218,37 @@ document.addEventListener("click", function(event) {
     const currentParts = getArabicDateParts(financeDateKey);
     const nextKey = getNextFinanceBusinessDate(financeDateKey);
     const nextParts = getArabicDateParts(nextKey);
-    const message = `سيتم إغلاق يوم ${currentParts.dayName} ${currentParts.dateLabel}، وترحيل مبلغ ${moneyText(totals.newCarriedAmount)} إلى يوم ${nextParts.dayName} ${nextParts.dateLabel}. هل تريد المتابعة؟`;
-    if (!window.confirm(message)) return;
+    showFinanceCloseConfirmModal({
+      currentDay: `${currentParts.dayName} ${currentParts.dateLabel}`,
+      nextDay: `${nextParts.dayName} ${nextParts.dateLabel}`,
+      carriedAmount: moneyText(totals.carriedAmount),
+      newCarriedAmount: moneyText(totals.newCarriedAmount)
+    }, () => {
+      commitFinanceDayCloseSnapshots(totals, nextKey);
+      financeDailyDays[financeDateKey] = normalizeFinanceDaily(financeDaily, financeDateKey);
 
-    commitFinanceDayCloseSnapshots(totals, nextKey);
-    financeDailyDays[financeDateKey] = normalizeFinanceDaily(financeDaily, financeDateKey);
+      const nextDay = financeDailyDays[nextKey] ? normalizeFinanceDaily(financeDailyDays[nextKey], nextKey) : null;
+      if (!nextDay || nextDay.isClosed) {
+        financeDailyDays[nextKey] = buildFinanceDayAfterClose(nextKey, totals.newCarriedAmount, financeDaily.pending);
+      } else {
+        nextDay.carriedAmountOverride = totals.newCarriedAmount;
+        nextDay.pending = normalizeRows(financeDaily.pending);
+        nextDay.expenses = normalizeRows([]);
+        nextDay.cashSales = normalizeRows([]);
+        nextDay.cardSales = normalizeRows([]);
+        nextDay.budgetAmount = '';
+        nextDay.manualCashAmount = '';
+        nextDay.updatedAt = new Date().toISOString();
+        financeDailyDays[nextKey] = normalizeFinanceDaily(nextDay, nextKey);
+      }
 
-    const nextDay = financeDailyDays[nextKey] ? normalizeFinanceDaily(financeDailyDays[nextKey], nextKey) : null;
-    if (!nextDay || nextDay.isClosed) {
-      financeDailyDays[nextKey] = buildFinanceDayAfterClose(nextKey, totals.newCarriedAmount, financeDaily.pending);
-    } else {
-      nextDay.carriedAmountOverride = totals.newCarriedAmount;
-      nextDay.pending = normalizeRows(financeDaily.pending);
-      nextDay.expenses = normalizeRows([]);
-      nextDay.cashSales = normalizeRows([]);
-      nextDay.cardSales = normalizeRows([]);
-      nextDay.budgetAmount = '';
-      nextDay.manualCashAmount = '';
-      nextDay.updatedAt = new Date().toISOString();
-      financeDailyDays[nextKey] = normalizeFinanceDaily(nextDay, nextKey);
-    }
-
-    localStorage.setItem(DAILY_DAYS_STORAGE_KEY, JSON.stringify(financeDailyDays));
-    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(financeDailyDays[nextKey]));
-    try { saveLocalMeta(); } catch (_) { try { queueCloudStateSave(); } catch (__) {} }
-    setFinanceDate(nextKey);
-    refreshFinanceDailyUi(true);
-    try { showToast(`تم إغلاق اليوم وفتح ${nextParts.dayName} ${nextParts.dateLabel}`); } catch (_) {}
+      localStorage.setItem(DAILY_DAYS_STORAGE_KEY, JSON.stringify(financeDailyDays));
+      localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(financeDailyDays[nextKey]));
+      try { saveLocalMeta(); } catch (_) { try { queueCloudStateSave(); } catch (__) {} }
+      setFinanceDate(nextKey);
+      refreshFinanceDailyUi(true);
+      try { showToast(`تم إغلاق اليوم وفتح ${nextParts.dayName} ${nextParts.dateLabel}`); } catch (_) {}
+    });
   }
 
   const previousBuildCloudState = typeof buildCloudState === "function" ? buildCloudState : null;
@@ -14271,8 +14325,10 @@ document.addEventListener("click", function(event) {
       }
     }
     if (tableInput && TABLE_TYPES.includes(tableInput)) {
+      if (event.target?.dataset?.financeField === "note") autoResizeFinanceNote(event.target);
       collectTable(tableInput);
       reconcileTableRows(tableInput);
+      autoResizeFinanceNotes(document.getElementById("financeView") || document);
       persistFinanceDaily();
       renderFinanceCards();
       try { saveLocalMeta(); } catch (_) { try { queueCloudStateSave(); } catch (__) {} }
