@@ -41,10 +41,6 @@
             <span class="nav-icon" data-icon="wallet"></span>
             <span>المالية</span>
           </button>
-          <div class="finance-side-subnav" aria-label="قوائم المالية الفرعية">
-            <button type="button" class="finance-side-subnav-btn" data-view="finance" data-finance-jump="advances">السلفيات</button>
-            <button type="button" class="finance-side-subnav-btn" data-view="finance" data-finance-jump="pending">المبالغ المعلقة</button>
-          </div>
           <button class="nav-item" data-view="payroll">
             <span class="nav-icon" data-icon="wallet"></span>
             <span>الرواتب</span>
@@ -411,6 +407,7 @@
                     <button type="button" class="ghost-btn finance-day-today-btn" data-finance-day-nav="today">اليوم</button>
                     <button type="button" class="ghost-btn finance-day-nav-btn" data-finance-day-nav="next" aria-label="اليوم التالي"><span data-icon="chevron-left"></span></button>
                   </div>
+                  <button type="button" class="primary-btn finance-header-advance-btn" id="financeAddAdvanceBtn"><span data-icon="wallet"></span>إدخال سلفة</button>
                 </div>
               </div>
 
@@ -418,9 +415,9 @@
                 <div class="finance-row finance-row-five finance-top-totals">
                   <article class="panel finance-summary-card finance-positive" data-finance-card="dailyDebit"><span>مجموع المدين اليومي</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>إجمالي الإضافات اليومية</small></article>
                   <article class="panel finance-summary-card finance-negative" data-finance-card="dailyCredit"><span>مجموع الدائن اليومي</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>إجمالي الخصومات اليومية</small></article>
-                  <article class="panel finance-summary-card finance-positive" data-finance-card="carriedAmount"><span>المبلغ المرحل</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من المبلغ الافتتاحي في إعدادات المالية</small></article>
+                  <article class="panel finance-summary-card finance-fund-highlight finance-carried-highlight" data-finance-card="carriedAmount"><span>المبلغ المرحل</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من المبلغ الافتتاحي في إعدادات المالية</small></article>
                   <article class="panel finance-summary-card finance-positive" data-finance-card="custodyAmount"><span>مبلغ العهدة</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من إعدادات المالية للأيام القادمة</small></article>
-                  <article class="panel finance-summary-card finance-result" data-finance-card="newCarriedAmount"><span>المبلغ المرحل الجديد</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>يتجمد عند إغلاق اليوم لاحقًا</small></article>
+                  <article class="panel finance-summary-card finance-new-carried-highlight" data-finance-card="newCarriedAmount"><span>المبلغ المرحل الجديد</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>يتجمد عند إغلاق اليوم لاحقًا</small></article>
                 </div>
 
                 <div class="finance-row finance-row-five finance-month-totals">
@@ -475,7 +472,6 @@
                       <h3>السلفيات</h3>
                       <p>عرض السلفيات المعتمدة لهذا الشهر من شاشة الرواتب.</p>
                     </div>
-                    <button type="button" class="primary-btn" id="financeAddAdvanceBtn"><span data-icon="wallet"></span>إدخال سلفة</button>
                   </div>
                   <div class="table-wrap"><table class="compact-data-table finance-advances-table"><thead><tr><th>الموظف</th><th>التاريخ</th><th>المبلغ</th></tr></thead><tbody id="financeAdvancesTableBody"><tr><td colspan="3">لا توجد سلفيات لهذا الشهر</td></tr></tbody></table></div>
                 </section>
@@ -968,6 +964,6 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260628-finance-full-logic-final"></script>
+    <script src="app.js?v=20260628-finance-polish-final"></script>
   </body>
 </html>

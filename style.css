@@ -10166,3 +10166,106 @@ body.auth-locked .app-shell {
 .nav-item[data-view="finance"].active + .finance-side-subnav{
   display:flex!important;
 }
+
+
+/* Finance final polish: requested 18px numeric size, header advance button, no submenu, card colors */
+#financeView .finance-summary-card strong,
+#financeView .finance-summary-card strong.money-with-symbol,
+#financeView .finance-summary-card [data-finance-money],
+#financeView .finance-card-field input,
+#financeView .finance-entry-table input[type="number"],
+#financeView .finance-settings-grid input[type="number"],
+#financeView .finance-inline-field input[type="number"],
+#financeView .finance-advances-table strong,
+#financeView .finance-advances-table td:nth-child(2),
+#financeView .finance-advances-table td:nth-child(3){
+  font-size:18px!important;
+  line-height:1.18!important;
+  font-weight:900!important;
+  letter-spacing:-0.01em!important;
+}
+#financeView .finance-card-field input,
+#financeView .finance-entry-table input[type="number"]{
+  height:34px!important;
+  min-height:34px!important;
+}
+#financeView .finance-entry-table input:not([type="number"]){
+  height:34px!important;
+  min-height:34px!important;
+  font-size:14px!important;
+}
+#financeView .finance-summary-card .sar-symbol,
+#financeView .finance-card-field .sar-symbol{
+  width:16px!important;
+  height:16px!important;
+}
+#financeView .finance-card-field{
+  flex-direction:row-reverse!important;
+  justify-content:flex-start!important;
+  direction:ltr!important;
+}
+#financeView .finance-card-field input{
+  flex:1 1 auto!important;
+}
+#financeView .finance-header-advance-btn{
+  order:4!important;
+  height:42px!important;
+  min-height:42px!important;
+  padding:0 14px!important;
+  border-radius:13px!important;
+  white-space:nowrap!important;
+  font-weight:900!important;
+  box-shadow:0 6px 14px rgba(20,184,166,.12)!important;
+}
+#financeView .finance-day-title{
+  padding-left:560px!important;
+}
+#financeView .finance-day-controls{
+  max-width:560px!important;
+}
+.finance-side-subnav{
+  display:none!important;
+}
+#financeView .finance-summary-card.finance-carried-highlight{
+  background:linear-gradient(135deg,#ecfdf5 0%,#ffffff 46%,#dcfce7 100%)!important;
+  border-color:rgba(22,163,74,.34)!important;
+  box-shadow:0 12px 26px rgba(22,163,74,.14)!important;
+}
+#financeView .finance-summary-card.finance-carried-highlight::before{
+  background:linear-gradient(180deg,#15803d,#22c55e,#86efac)!important;
+  height:42px!important;
+}
+#financeView .finance-summary-card.finance-carried-highlight span{color:#15803d!important;}
+#financeView .finance-summary-card.finance-carried-highlight strong{color:#14532d!important;}
+#financeView .finance-summary-card.finance-carried-highlight small{color:#166534!important;}
+#financeView .finance-summary-card.finance-new-carried-highlight{
+  background:linear-gradient(135deg,#eff6ff 0%,#ffffff 46%,#dbeafe 100%)!important;
+  border-color:rgba(37,99,235,.32)!important;
+  box-shadow:0 12px 26px rgba(37,99,235,.12)!important;
+}
+#financeView .finance-summary-card.finance-new-carried-highlight::before{
+  background:linear-gradient(180deg,#1d4ed8,#3b82f6,#93c5fd)!important;
+  height:42px!important;
+}
+#financeView .finance-summary-card.finance-new-carried-highlight span{color:#1d4ed8!important;}
+#financeView .finance-summary-card.finance-new-carried-highlight strong{color:#1e3a8a!important;}
+#financeView .finance-summary-card.finance-new-carried-highlight small{color:#1d4ed8!important;}
+#financeView .finance-summary-card.finance-new-carried-highlight::after{
+  content:"";
+  position:absolute;
+  inset-inline-end:-28px;
+  top:-34px;
+  width:92px;
+  height:92px;
+  border-radius:999px;
+  background:radial-gradient(circle,rgba(59,130,246,.18),rgba(59,130,246,0) 68%);
+  pointer-events:none;
+}
+@media(max-width:1200px){
+  #financeView .finance-day-title{padding-left:0!important;}
+  #financeView .finance-day-controls{max-width:none!important;}
+}
+@media(max-width:760px){
+  #financeView .finance-day-controls{flex-wrap:wrap!important;}
+  #financeView .finance-header-advance-btn{width:100%!important;justify-content:center!important;}
+}
