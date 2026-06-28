@@ -10838,3 +10838,49 @@ body.auth-locked .app-shell {
     max-height: 112px !important;
   }
 }
+
+
+/* Finance identity confirmation modal: replaces browser confirm */
+.finance-site-confirm-modal {
+  border: 1px solid rgba(15, 118, 110, 0.16) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #fff !important;
+}
+.finance-site-confirm-modal::backdrop {
+  background: rgba(15, 23, 42, 0.42) !important;
+  backdrop-filter: blur(5px) !important;
+}
+.finance-site-confirm-head {
+  background: linear-gradient(135deg, rgba(20,184,166,.12), rgba(14,165,233,.10)) !important;
+  border-bottom: 1px solid rgba(15,118,110,.14) !important;
+}
+.finance-site-confirm-head h2 {
+  color: #0f5f59 !important;
+  font-weight: 900 !important;
+}
+.finance-site-confirm-head p {
+  color: #64748b !important;
+}
+.finance-site-confirm-body {
+  padding: 18px 20px !important;
+}
+.finance-site-confirm-text {
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(20, 184, 166, 0.18) !important;
+  background: rgba(240, 253, 250, 0.85) !important;
+  color: #0f3f4a !important;
+  line-height: 1.9 !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+.finance-site-confirm-actions {
+  border-top: 1px solid rgba(15,118,110,.10) !important;
+  background: #fff !important;
+  justify-content: flex-start !important;
+}
+.finance-site-confirm-actions .primary-btn {
+  background: linear-gradient(135deg, #0f766e, #0ea5e9) !important;
+}

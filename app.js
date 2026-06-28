@@ -14206,7 +14206,49 @@ document.addEventListener("click", function(event) {
       </div>`;
   }
 
-  function deletePendingRow(index) {
+
+  function financeSiteConfirmDialog(message, options = {}) {
+    return new Promise((resolve) => {
+      let dialog = document.getElementById('financeSiteConfirmModal');
+      if (!dialog) {
+        dialog = document.createElement('dialog');
+        dialog.id = 'financeSiteConfirmModal';
+        dialog.className = 'modal small-modal finance-site-confirm-modal';
+        dialog.innerHTML = `
+          <div class="modal-head finance-site-confirm-head">
+            <div>
+              <h2 id="financeSiteConfirmTitle">تأكيد الإجراء</h2>
+              <p id="financeSiteConfirmSubtitle">رسالة من نظام إدارة الموظفين</p>
+            </div>
+          </div>
+          <div class="modal-body finance-site-confirm-body">
+            <p id="financeSiteConfirmText" class="finance-site-confirm-text"></p>
+          </div>
+          <div class="modal-actions finance-site-confirm-actions">
+            <button type="button" class="secondary-btn" id="financeSiteConfirmCancel">إلغاء</button>
+            <button type="button" class="primary-btn" id="financeSiteConfirmOk">تأكيد</button>
+          </div>`;
+        document.body.appendChild(dialog);
+      }
+      dialog.querySelector('#financeSiteConfirmTitle').textContent = options.title || 'تأكيد الإجراء';
+      dialog.querySelector('#financeSiteConfirmSubtitle').textContent = options.subtitle || 'رسالة من نظام إدارة الموظفين';
+      dialog.querySelector('#financeSiteConfirmText').textContent = message;
+      dialog.querySelector('#financeSiteConfirmOk').textContent = options.okText || 'تأكيد';
+      dialog.querySelector('#financeSiteConfirmCancel').textContent = options.cancelText || 'إلغاء';
+      const cleanup = (value) => {
+        dialog.querySelector('#financeSiteConfirmOk').onclick = null;
+        dialog.querySelector('#financeSiteConfirmCancel').onclick = null;
+        if (dialog.open) dialog.close();
+        resolve(value);
+      };
+      dialog.querySelector('#financeSiteConfirmOk').onclick = () => cleanup(true);
+      dialog.querySelector('#financeSiteConfirmCancel').onclick = () => cleanup(false);
+      dialog.oncancel = (event) => { event.preventDefault(); cleanup(false); };
+      if (!dialog.open) dialog.showModal();
+    });
+  }
+
+  async function deletePendingRow(index) {
     if (financeDaily.isClosed) { try { showToast("لا يمكن حذف مبلغ معلق من يوم مالي مغلق"); } catch (_) {} return; }
     collectTable('pending');
     financeDaily = normalizeFinanceDaily(financeDaily, financeDateKey);
@@ -14214,7 +14256,7 @@ document.addEventListener("click", function(event) {
     const row = rows[index];
     if (!row || !rowHasValue(row)) return;
     const amount = toNumber(row.amount);
-    const ok = window.confirm(`سيتم حذف مبلغ معلق بقيمة ${moneyText(amount)} وإضافته إلى مبلغ الصندوق. هل تريد المتابعة؟`);
+    const ok = await financeSiteConfirmDialog(`سيتم حذف مبلغ معلق بقيمة ${moneyText(amount)} وإضافته إلى مبلغ الصندوق. هل تريد المتابعة؟`, { title: 'حذف مبلغ معلق', subtitle: 'سيضاف المبلغ المحذوف إلى مبلغ الصندوق', okText: 'حذف وإضافة للصندوق', cancelText: 'إلغاء' });
     if (!ok) return;
     rows.splice(index, 1);
     financeDaily.pending = normalizeRows(rows);
