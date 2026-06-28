@@ -16194,3 +16194,232 @@ document.addEventListener("click", function(event) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 50)); else setTimeout(boot, 50);
   setTimeout(boot, 500); setTimeout(boot, 1500); setInterval(applyVisibility, 500);
 })();
+
+/* =========================================================
+   Attachment download + cloud persistence + topbar employee photo fix
+   - Keeps attachment IDs visible after logout/login and across users by syncing document localStorage keys in app_state.
+   - Converts attachment action buttons from text labels to a compact download icon.
+   - Downloads attachments instead of showing a visual "عرض" action.
+   - Shows the linked employee photo in the topbar when available.
+   ========================================================= */
+(function finalAttachmentPersistenceAndTopbarPhotoFix(){
+  if (window.__finalAttachmentPersistenceAndTopbarPhotoFix) return;
+  window.__finalAttachmentPersistenceAndTopbarPhotoFix = true;
+
+  const SYNCED_DOCUMENT_KEYS = [
+    'nawah-document-type-settings',
+    'nawah-establishment-documents',
+    'nawah-branches'
+  ];
+
+  function safeJsonParse(value, fallback){
+    try {
+      if (value === null || value === undefined || value === '') return fallback;
+      return JSON.parse(value);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function readSyncedLocalState(){
+    const data = {};
+    SYNCED_DOCUMENT_KEYS.forEach((key) => {
+      try { data[key] = safeJsonParse(localStorage.getItem(key), key === 'nawah-document-type-settings' ? {} : []); } catch (_) {}
+    });
+    return data;
+  }
+
+  function writeSyncedLocalState(data){
+    if (!data || typeof data !== 'object') return;
+    SYNCED_DOCUMENT_KEYS.forEach((key) => {
+      if (!Object.prototype.hasOwnProperty.call(data, key)) return;
+      try { localStorage.setItem(key, JSON.stringify(data[key])); } catch (_) {}
+    });
+  }
+
+  const previousBuildCloudState = typeof buildCloudState === 'function' ? buildCloudState : null;
+  if (previousBuildCloudState && !previousBuildCloudState.__attachmentDocumentPersistenceWrapped) {
+    const wrappedBuildCloudState = function(){
+      const state = previousBuildCloudState.apply(this, arguments) || {};
+      state.documentLocalState = readSyncedLocalState();
+      return state;
+    };
+    wrappedBuildCloudState.__attachmentDocumentPersistenceWrapped = true;
+    try { buildCloudState = wrappedBuildCloudState; } catch (_) {}
+    try { window.buildCloudState = wrappedBuildCloudState; } catch (_) {}
+  }
+
+  const previousApplyCloudState = typeof applyCloudState === 'function' ? applyCloudState : null;
+  if (previousApplyCloudState && !previousApplyCloudState.__attachmentDocumentPersistenceWrapped) {
+    const wrappedApplyCloudState = function(state){
+      const result = previousApplyCloudState.apply(this, arguments);
+      if (state && state.documentLocalState) writeSyncedLocalState(state.documentLocalState);
+      return result;
+    };
+    wrappedApplyCloudState.__attachmentDocumentPersistenceWrapped = true;
+    try { applyCloudState = wrappedApplyCloudState; } catch (_) {}
+    try { window.applyCloudState = wrappedApplyCloudState; } catch (_) {}
+  }
+
+  const originalSetItem = Storage.prototype.setItem;
+  if (!Storage.prototype.setItem.__attachmentDocumentPersistenceWrapped) {
+    const wrappedSetItem = function(key, value){
+      const result = originalSetItem.apply(this, arguments);
+      try {
+        if (this === window.localStorage && SYNCED_DOCUMENT_KEYS.includes(String(key)) && typeof queueCloudStateSave === 'function') {
+          queueCloudStateSave();
+        }
+      } catch (_) {}
+      return result;
+    };
+    wrappedSetItem.__attachmentDocumentPersistenceWrapped = true;
+    Storage.prototype.setItem = wrappedSetItem;
+  }
+
+  function icon(name){
+    try { return typeof iconSvg === 'function' ? iconSvg(name) : '<span data-icon="download"></span>'; } catch (_) { return '<span data-icon="download"></span>'; }
+  }
+
+  function normalizeAttachmentButtons(root = document){
+    try {
+      root.querySelectorAll('[data-view-attachment], [data-view-single-attachment]').forEach((button) => {
+        button.classList.add('attachment-download-btn');
+        button.setAttribute('title', 'تحميل المرفق');
+        button.setAttribute('aria-label', 'تحميل المرفق');
+        if (button.dataset.attachmentDownloadReady !== '1') {
+          button.innerHTML = icon('download');
+          button.dataset.attachmentDownloadReady = '1';
+        }
+      });
+      root.querySelectorAll('[data-hard-open-attachment], [data-branch-open-doc-attachment]').forEach((button) => {
+        button.classList.add('attachment-download-btn');
+        button.setAttribute('title', 'تحميل المرفق');
+        button.setAttribute('aria-label', 'تحميل المرفق');
+        if (button.dataset.attachmentDownloadReady !== '1') {
+          button.innerHTML = icon('download');
+          button.dataset.attachmentDownloadReady = '1';
+        }
+      });
+      if (typeof hydrateIcons === 'function') hydrateIcons(root);
+    } catch (_) {}
+  }
+
+  const previousAttachmentControlHtml = typeof attachmentControlHtml === 'function' ? attachmentControlHtml : null;
+  if (previousAttachmentControlHtml && !previousAttachmentControlHtml.__downloadIconWrapped) {
+    const wrappedAttachmentControlHtml = function(kind, index, attachmentId, label){
+      const base = previousAttachmentControlHtml.apply(this, arguments);
+      if (!attachmentId) return base;
+      return String(base).replace(/<button([^>]*(?:data-view-attachment|data-view-single-attachment)[^>]*)>[\s\S]*?<\/button>/g, function(_, attrs){
+        return `<button${attrs} class="attachment-view-btn attachment-download-btn" title="تحميل المرفق" aria-label="تحميل المرفق">${icon('download')}</button>`;
+      });
+    };
+    wrappedAttachmentControlHtml.__downloadIconWrapped = true;
+    try { attachmentControlHtml = wrappedAttachmentControlHtml; } catch (_) {}
+    try { window.attachmentControlHtml = wrappedAttachmentControlHtml; } catch (_) {}
+  }
+
+  async function downloadAttachmentById(id){
+    if (!id) {
+      try { showToast('لا يوجد مرفق محفوظ'); } catch (_) {}
+      return;
+    }
+    let record = null;
+    let url = '';
+    try { record = typeof getAttachment === 'function' ? await getAttachment(id) : null; } catch (_) {}
+    try { url = typeof attachmentUrl === 'function' ? await attachmentUrl(id) : ''; } catch (_) {}
+    if (!url) {
+      try { showToast('لا يوجد مرفق محفوظ'); } catch (_) {}
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = record?.name || record?.file_name || 'attachment';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  document.addEventListener('click', async function(event){
+    const direct = event.target.closest('[data-view-attachment]');
+    const single = event.target.closest('[data-view-single-attachment]');
+    if (direct || single) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      await downloadAttachmentById(direct?.dataset.viewAttachment || single?.dataset.attachmentId || '');
+      return;
+    }
+    const hard = event.target.closest('[data-hard-open-attachment], [data-branch-open-doc-attachment]');
+    if (hard) normalizeAttachmentButtons(document);
+  }, true);
+
+  function linkedEmployeeForTopbar(){
+    try {
+      const linked = window.employeePermissionMatrix?.linkedEmployee?.();
+      if (linked) return linked;
+    } catch (_) {}
+    try {
+      const linkedId = authProfile?.employee_id || authProfile?.employeeId || '';
+      if (linkedId && typeof getEmployee === 'function') return getEmployee(linkedId);
+      if (linkedId && Array.isArray(employees)) return employees.find((employee) => String(employee.id) === String(linkedId));
+    } catch (_) {}
+    return null;
+  }
+
+  function applyTopbarEmployeePhoto(){
+    const mark = document.querySelector('.topbar-user-mark');
+    if (!mark) return;
+    const employee = linkedEmployeeForTopbar();
+    const photoId = employee?.photoAttachmentId || '';
+    const legacyPhoto = employee?.legacyPhoto || employee?.photo || '';
+    if (photoId) {
+      mark.classList.add('has-employee-photo');
+      mark.innerHTML = `<img data-attachment-image="${String(photoId).replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}" alt="" />`;
+      try { if (typeof hydrateAttachmentImages === 'function') hydrateAttachmentImages(mark); } catch (_) {}
+      return;
+    }
+    if (legacyPhoto) {
+      mark.classList.add('has-employee-photo');
+      mark.innerHTML = `<img src="${String(legacyPhoto).replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}" alt="" />`;
+      return;
+    }
+    mark.classList.remove('has-employee-photo');
+  }
+
+  const previousUpdateTopbarUser = typeof updateTopbarUser === 'function' ? updateTopbarUser : null;
+  if (previousUpdateTopbarUser && !previousUpdateTopbarUser.__employeePhotoWrapped) {
+    const wrappedUpdateTopbarUser = function(){
+      const result = previousUpdateTopbarUser.apply(this, arguments);
+      applyTopbarEmployeePhoto();
+      return result;
+    };
+    wrappedUpdateTopbarUser.__employeePhotoWrapped = true;
+    try { updateTopbarUser = wrappedUpdateTopbarUser; } catch (_) {}
+    try { window.updateTopbarUser = wrappedUpdateTopbarUser; } catch (_) {}
+  }
+
+  const previousRenderAll = typeof renderAll === 'function' ? renderAll : null;
+  if (previousRenderAll && !previousRenderAll.__attachmentButtonsWrapped) {
+    const wrappedRenderAll = function(){
+      const result = previousRenderAll.apply(this, arguments);
+      setTimeout(() => { normalizeAttachmentButtons(document); applyTopbarEmployeePhoto(); }, 0);
+      return result;
+    };
+    wrappedRenderAll.__attachmentButtonsWrapped = true;
+    try { renderAll = wrappedRenderAll; } catch (_) {}
+  }
+
+  const observer = new MutationObserver((mutations) => {
+    let shouldNormalize = false;
+    for (const mutation of mutations) {
+      if (mutation.addedNodes && mutation.addedNodes.length) { shouldNormalize = true; break; }
+    }
+    if (shouldNormalize) setTimeout(() => { normalizeAttachmentButtons(document); applyTopbarEmployeePhoto(); }, 0);
+  });
+  try { observer.observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
+
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => { normalizeAttachmentButtons(document); applyTopbarEmployeePhoto(); }, 50));
+  window.addEventListener('load', () => setTimeout(() => { normalizeAttachmentButtons(document); applyTopbarEmployeePhoto(); }, 100));
+  setTimeout(() => { normalizeAttachmentButtons(document); applyTopbarEmployeePhoto(); }, 500);
+})();
