@@ -10913,3 +10913,59 @@ body.auth-locked .app-shell {
   box-sizing: border-box !important;
   text-align: center !important;
 }
+
+/* Final finance visual tune: shorter four finance cards and compact advance amounts */
+#financeView .finance-linked-block > .finance-summary-card{
+  height: 92px !important;
+  min-height: 92px !important;
+  max-height: 92px !important;
+  padding: 14px 16px !important;
+  align-content: space-between !important;
+}
+#financeView .finance-linked-block > .finance-summary-card span{
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+}
+#financeView .finance-linked-block > .finance-summary-card strong,
+#financeView .finance-linked-block > .finance-summary-card .money-with-symbol{
+  min-height: 24px !important;
+  font-size: 16px !important;
+  line-height: 1.15 !important;
+}
+#financeView .finance-linked-block > .finance-summary-card small{
+  font-size: 10px !important;
+  line-height: 1.15 !important;
+}
+#financeView .finance-linked-block > .finance-summary-card .sar-symbol{
+  width: 16px !important;
+  height: 16px !important;
+}
+#financeView #financeAdvancesPanel .advance-total-cell strong,
+#financeView #financeAdvancesPanel .finance-advance-summary-row .advance-total-cell strong,
+#financeView #financeAdvancesPanel .advance-detail-box td strong{
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+}
+#financeView #financeAdvancesPanel .payroll-advances-table th,
+#financeView #financeAdvancesPanel .payroll-advances-table td{
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+}
+#financeView #financeAdvancesPanel .payroll-name-only-cell .employee-name,
+#financeView #financeAdvancesPanel .advance-employee-compact .employee-name{
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+}
+#financeView #financeAdvancesPanel .advance-summary-row td{
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+@media(max-width:1500px){
+  #financeView .finance-linked-block > .finance-summary-card{
+    height: 88px !important;
+    min-height: 88px !important;
+    max-height: 88px !important;
+    padding: 12px 14px !important;
+  }
+}
