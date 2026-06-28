@@ -14667,3 +14667,79 @@ document.addEventListener("click", function(event) {
   }, true);
   setTimeout(scheduleBlank, 1000);
 })();
+
+/* Payroll run unapproval reset: make current saved payroll run editable/unapproved once */
+(function payrollRunUnapproveResetV1(){
+  const VERSION = '20260628-payroll-unapprove-v1';
+  const RESET_KEY = 'nawah-payroll-run-unapprove-reset-version';
+  const PAYROLL_RUNS_KEY = 'nawah-payroll-runs';
+
+  function needsReset(){
+    try { return localStorage.getItem(RESET_KEY) !== VERSION; } catch (_) { return true; }
+  }
+
+  function clearLocalPayrollRuns(){
+    try { localStorage.removeItem(PAYROLL_RUNS_KEY); } catch (_) {}
+    try { localStorage.setItem(PAYROLL_RUNS_KEY, '[]'); } catch (_) {}
+  }
+
+  function cleanStateObject(state){
+    if (!state || typeof state !== 'object') return state;
+    if (!needsReset()) return state;
+    try { delete state.payrollRuns; } catch (_) {}
+    return state;
+  }
+
+  if (needsReset()) clearLocalPayrollRuns();
+
+  const previousBuildCloudState = typeof buildCloudState === 'function' ? buildCloudState : null;
+  if (previousBuildCloudState && !previousBuildCloudState.__payrollRunUnapproveResetV1) {
+    const wrappedBuildCloudState = function(){
+      const state = previousBuildCloudState.apply(this, arguments) || {};
+      return cleanStateObject(state);
+    };
+    wrappedBuildCloudState.__payrollRunUnapproveResetV1 = true;
+    try { buildCloudState = wrappedBuildCloudState; } catch (_) {}
+    window.buildCloudState = wrappedBuildCloudState;
+  }
+
+  const previousApplyCloudState = typeof applyCloudState === 'function' ? applyCloudState : null;
+  if (previousApplyCloudState && !previousApplyCloudState.__payrollRunUnapproveResetV1) {
+    const wrappedApplyCloudState = function(state){
+      const result = previousApplyCloudState.apply(this, [cleanStateObject(state || {})]);
+      if (needsReset()) clearLocalPayrollRuns();
+      return result;
+    };
+    wrappedApplyCloudState.__payrollRunUnapproveResetV1 = true;
+    try { applyCloudState = wrappedApplyCloudState; } catch (_) {}
+    window.applyCloudState = wrappedApplyCloudState;
+  }
+
+  const previousInitStorage = typeof initStorage === 'function' ? initStorage : null;
+  if (previousInitStorage && !previousInitStorage.__payrollRunUnapproveResetV1) {
+    const wrappedInitStorage = async function(){
+      const resetNow = needsReset();
+      if (resetNow) clearLocalPayrollRuns();
+      const result = await previousInitStorage.apply(this, arguments);
+      if (resetNow) {
+        clearLocalPayrollRuns();
+        try { localStorage.setItem(RESET_KEY, VERSION); } catch (_) {}
+        try { await saveCloudStateNow({ force: true }); } catch (_) {}
+        try { if (typeof renderPayroll === 'function') renderPayroll(); } catch (_) {}
+        try { if (typeof showToast === 'function') showToast('تم إرجاع مسير الرواتب إلى غير معتمد'); } catch (_) {}
+      }
+      return result;
+    };
+    wrappedInitStorage.__payrollRunUnapproveResetV1 = true;
+    try { initStorage = wrappedInitStorage; } catch (_) {}
+    window.initStorage = wrappedInitStorage;
+  }
+
+  function refreshPayrollIfNeeded(){
+    if (!needsReset()) return;
+    clearLocalPayrollRuns();
+    try { if (typeof renderPayroll === 'function') renderPayroll(); } catch (_) {}
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(refreshPayrollIfNeeded, 300); });
+})();
