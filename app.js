@@ -432,9 +432,17 @@ function attachAuthGlobalEvents() {
     const logout = event.target.closest(".logout-btn");
     if (logout) {
       event.preventDefault();
-      try { await saveCloudStateNow(); } catch (_) {}
-      try { await supabaseClient?.auth.signOut(); } catch (_) {}
-      window.location.reload();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      try { logout.disabled = true; logout.setAttribute("aria-busy", "true"); } catch (_) {}
+      try { supabaseClient?.auth?.signOut?.({ scope: "local" })?.catch?.(() => {}); } catch (_) {}
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (/^sb-.*-auth-token$/.test(key) || key.includes("supabase.auth.token") || key === "nawah-auth-session") localStorage.removeItem(key);
+        });
+        sessionStorage.clear();
+      } catch (_) {}
+      setTimeout(() => window.location.replace(window.location.pathname + window.location.search), 30);
       return;
     }
     const target = event.target.closest("[data-view], [data-go-view]");
@@ -1191,7 +1199,7 @@ function nextEmployeeSequence() {
 function buildEmployeeNumber(identityNumber, phone, sequence = 0) {
   const identity = normalizeNumerals(identityNumber).replace(/\D/g, "");
   const mobile = normalizeNumerals(phone).replace(/\D/g, "");
-  return `${identity.slice(-2).padStart(2, "0")}-${mobile.slice(-2).padStart(2, "0")}`;
+  return `${identity.slice(-2).padStart(2, "0")}${mobile.slice(-2).padStart(2, "0")}`;
 }
 
 function ibanDigits(value) {
@@ -16673,362 +16681,285 @@ document.addEventListener("click", function(event) {
 })();
 
 /* =========================================================
-   v13 precise fix: isolate employee attachments by employee id
-   - Fixes identity/photo/document attachments being shown for every employee.
-   - Does not touch permissions, menus, finance, or unrelated screens.
-   - Employee attachments are valid only when their Storage path belongs to
-     the currently opened employee: employee-attachments/employees/{employeeId}/{field}/...
-   - Logout is immediate and does not wait for slow cloud sync.
+   v13 removed in v15
+   Reason: v13 isolated attachments by internal employee.id, while v14/v15 uses
+   the approved employee owner key: last 2 identity digits + last 2 phone digits.
+   Keeping both caused valid attachments to be cleaned from the correct employee
+   and could make attachment IDs appear inconsistent across employees.
    ========================================================= */
-(function employeeAttachmentIsolationV13(){
-  if (window.__employeeAttachmentIsolationV13) return;
-  window.__employeeAttachmentIsolationV13 = true;
+
+/* =========================================================
+   v14 focused fix: employee attachment owner key + instant logout
+   - Owner key is employee number without dash: last 2 identity + last 2 phone.
+   - Employee attachment storage path: employee-attachments/employees/{ownerKey}/{field}/...
+   - Attachment display is allowed only when the path/related_table belongs to the same ownerKey.
+   - Logout does not wait for Supabase/cloud sync.
+   ========================================================= */
+(function employeeAttachmentOwnerKeyV14(){
+  if (window.__employeeAttachmentOwnerKeyV14) return;
+  window.__employeeAttachmentOwnerKeyV14 = true;
 
   const EMPLOYEE_ATTACHMENT_CATEGORIES = new Set([
     'identity', 'employee-photo', 'signature', 'fingerprint',
     'passport', 'iban-certificate', 'iban-approval', 'document', 'consent'
   ]);
-  const SINGLE_FIELDS = {
-    identity: 'identityAttachmentId',
-    'employee-photo': 'photoAttachmentId',
-    signature: 'signatureAttachmentId',
-    fingerprint: 'fingerprintAttachmentId'
-  };
 
-  function v13Toast(message){ try { if (typeof showToast === 'function') showToast(message); } catch (_) {} }
-  function v13Text(value){ return String(value || '').trim(); }
-  function v13FormEmployeeId(){
-    try { return v13Text(document.querySelector('#employeeForm')?.elements?.employeeId?.value || ''); } catch (_) { return ''; }
+  function text(v){ return String(v || '').trim(); }
+  function digits(v){
+    try { return normalizeNumerals(v).replace(/\D/g, ''); }
+    catch (_) { return String(v || '').replace(/\D/g, ''); }
   }
-  function v13SafeName(name){
+  function ownerKeyFromIdentityPhone(identity, phone){
+    const id = digits(identity);
+    const ph = digits(phone);
+    if (id.length >= 2 && ph.length >= 2) return `${id.slice(-2)}${ph.slice(-2)}`;
+    return '';
+  }
+  function ownerKeyFromEmployee(emp){
+    const byData = ownerKeyFromIdentityPhone(emp?.identityNumber, emp?.phone);
+    if (byData) return byData;
+    const n = digits(emp?.employeeNumber);
+    if (n.length >= 4) return n.slice(-4);
+    return text(emp?.id || '');
+  }
+  function formOwnerKey(){
+    try {
+      const form = document.querySelector('#employeeForm');
+      if (!form) return '';
+      const byData = ownerKeyFromIdentityPhone(form.elements.identityNumber?.value, form.elements.phone?.value);
+      if (byData) return byData;
+      const empId = text(form.elements.employeeId?.value);
+      const emp = (typeof getEmployee === 'function' ? getEmployee(empId) : null) || (Array.isArray(employees) ? employees.find((item) => String(item.id) === empId) : null);
+      return ownerKeyFromEmployee(emp);
+    } catch (_) { return ''; }
+  }
+  function formEmployeeId(){
+    try { return text(document.querySelector('#employeeForm')?.elements?.employeeId?.value || ''); } catch (_) { return ''; }
+  }
+  function safeName(name){
     try { return typeof sanitizeStorageName === 'function' ? sanitizeStorageName(name) : String(name || 'file').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-120); }
     catch (_) { return 'file'; }
   }
-  function v13Bucket(category){
+  function bucketFor(category){
     try { return typeof bucketForAttachmentCategory === 'function' ? bucketForAttachmentCategory(category) : 'employee-attachments'; }
     catch (_) { return 'employee-attachments'; }
   }
-  function v13NormalizeEmployee(record){
-    try { return typeof normalizeEmployee === 'function' ? normalizeEmployee(record) : record; } catch (_) { return record; }
-  }
-  function v13Clone(value){ try { return JSON.parse(JSON.stringify(value)); } catch (_) { return value; } }
+  function toast(message){ try { if (typeof showToast === 'function') showToast(message); } catch (_) {} }
+  function clone(value){ try { return JSON.parse(JSON.stringify(value)); } catch (_) { return value; } }
+  function normalize(record){ try { return typeof normalizeEmployee === 'function' ? normalizeEmployee(record) : record; } catch (_) { return record; } }
 
-  function v13CloudRef(storagePath, fileName, fileType, fileSize){
-    const enc = (value) => encodeURIComponent(String(value || ''));
-    return `cloud-file-v13::${String(storagePath || '')}::${enc(fileName || 'مرفق')}::${enc(fileType || 'application/octet-stream')}::${Number(fileSize || 0)}`;
+  function cloudRef(storagePath, fileName, fileType, fileSize){
+    const enc = (v) => encodeURIComponent(String(v || ''));
+    return `cloud-file-v14::${storagePath || ''}::${enc(fileName || 'مرفق')}::${enc(fileType || 'application/octet-stream')}::${Number(fileSize || 0)}`;
   }
-  function v13ParseCloudRef(id){
-    const text = String(id || '');
-    if (!text.startsWith('cloud-file-v13::') && !text.startsWith('cloud-file::')) return null;
-    const parts = text.split('::');
-    const dec = (value) => { try { return decodeURIComponent(String(value || '')); } catch (_) { return String(value || ''); } };
-    return {
-      id: text,
-      name: dec(parts[2] || 'مرفق'),
-      type: dec(parts[3] || 'application/octet-stream'),
-      size: Number(parts[4] || 0),
-      storagePath: parts[1] || '',
-      storage_path: parts[1] || '',
-      createdAt: new Date().toISOString()
-    };
+  function parseCloudRef(id){
+    const raw = String(id || '');
+    if (!raw.startsWith('cloud-file-v14::') && !raw.startsWith('cloud-file-v13::') && !raw.startsWith('cloud-file::')) return null;
+    const parts = raw.split('::');
+    const dec = (v) => { try { return decodeURIComponent(String(v || '')); } catch (_) { return String(v || ''); } };
+    return { id: raw, name: dec(parts[2] || 'مرفق'), type: dec(parts[3] || 'application/octet-stream'), size: Number(parts[4] || 0), storagePath: parts[1] || '', storage_path: parts[1] || '' };
   }
 
-  const previousGetAttachmentV13 = typeof getAttachment === 'function' ? getAttachment : null;
-  async function getAttachmentV13(id){
-    const ref = v13ParseCloudRef(id);
+  const previousGetAttachment = typeof getAttachment === 'function' ? getAttachment : null;
+  async function getAttachmentV14(id){
+    const ref = parseCloudRef(id);
     if (ref) return ref;
-    return previousGetAttachmentV13 ? previousGetAttachmentV13(id) : null;
+    const rec = previousGetAttachment ? await previousGetAttachment(id) : null;
+    return rec;
   }
-  try { getAttachment = getAttachmentV13; window.getAttachment = getAttachmentV13; } catch (_) {}
+  try { getAttachment = getAttachmentV14; window.getAttachment = getAttachmentV14; } catch (_) {}
 
-  async function v13AttachmentRecord(id){
-    if (!id) return null;
-    try { return await getAttachmentV13(id); } catch (_) { return null; }
-  }
-
-  function v13StoragePath(record){
-    return v13Text(record?.storagePath || record?.storage_path || record?.file_path || record?.path || '');
-  }
-
-  async function v13AttachmentBelongsToEmployee(attachmentId, employeeId, category){
-    attachmentId = v13Text(attachmentId);
-    employeeId = v13Text(employeeId);
-    if (!attachmentId || !employeeId) return false;
-    const record = await v13AttachmentRecord(attachmentId);
+  function storagePathOf(record){ return text(record?.storagePath || record?.storage_path || record?.file_path || record?.path || ''); }
+  async function attachmentRecord(id){ try { return id ? await getAttachmentV14(id) : null; } catch (_) { return null; } }
+  async function attachmentBelongsToOwner(id, ownerKey, category){
+    id = text(id); ownerKey = text(ownerKey);
+    if (!id || !ownerKey) return false;
+    const record = await attachmentRecord(id);
     if (!record) return false;
-    const storagePath = v13StoragePath(record);
-    const relatedTable = v13Text(record.related_table || record.relatedTable || '');
-    const expectedOwner = `/employees/${employeeId}/`;
-    const expectedStart = `employee-attachments/employees/${employeeId}/`;
-    const expectedCategory = category ? `/${category}/` : '';
-
-    if (storagePath) {
-      const ownerOk = storagePath.includes(expectedOwner) || storagePath.startsWith(expectedStart);
-      const categoryOk = !expectedCategory || storagePath.includes(expectedCategory);
-      return Boolean(ownerOk && categoryOk);
+    const path = storagePathOf(record);
+    const rel = text(record.related_table || record.relatedTable || '');
+    const categoryNeedle = category ? `/${category}/` : '';
+    if (path) {
+      const ownerOk = path.includes(`/employees/${ownerKey}/`);
+      const categoryOk = !categoryNeedle || path.includes(categoryNeedle);
+      return ownerOk && categoryOk;
     }
-
-    // New rows can also store owner in related_table when related_id cannot hold text ids.
-    if (relatedTable && relatedTable.includes(employeeId)) return !category || relatedTable.includes(category);
-
-    // Any employee attachment without an employee owner is unsafe: do not show it for all employees.
+    if (rel) return rel.includes(`employees:${ownerKey}:`) && (!category || rel.includes(`:${category}`));
     return false;
   }
 
-  async function v13SanitizeEmployeeAttachments(employee){
-    if (!employee?.id) return { employee, changed: false };
-    const copy = v13Clone(employee) || employee;
+  function employeeAttachmentKeys(){ return [
+    ['identityAttachmentId','identity'], ['photoAttachmentId','employee-photo'],
+    ['signatureAttachmentId','signature'], ['fingerprintAttachmentId','fingerprint']
+  ]; }
+  async function cleanEmployeeObject(emp){
+    if (!emp) return { employee: emp, changed: false };
+    const owner = ownerKeyFromEmployee(emp);
+    const copy = clone(emp) || emp;
     let changed = false;
-    async function checkField(key, category){
+    async function clearIfWrong(key, category){
       if (!copy[key]) return;
-      const ok = await v13AttachmentBelongsToEmployee(copy[key], copy.id, category);
-      if (!ok) { copy[key] = ''; changed = true; }
+      if (!(await attachmentBelongsToOwner(copy[key], owner, category))) { copy[key] = ''; changed = true; }
     }
-    await checkField('identityAttachmentId', 'identity');
-    await checkField('photoAttachmentId', 'employee-photo');
-    await checkField('signatureAttachmentId', 'signature');
-    await checkField('fingerprintAttachmentId', 'fingerprint');
-    if (Array.isArray(copy.passports)) {
-      for (const item of copy.passports) {
-        if (item?.attachmentId && !(await v13AttachmentBelongsToEmployee(item.attachmentId, copy.id, 'passport'))) { item.attachmentId = ''; changed = true; }
-      }
+    for (const [key, cat] of employeeAttachmentKeys()) await clearIfWrong(key, cat);
+    if (Array.isArray(copy.passports)) for (const item of copy.passports) if (item?.attachmentId && !(await attachmentBelongsToOwner(item.attachmentId, owner, 'passport'))) { item.attachmentId=''; changed=true; }
+    if (Array.isArray(copy.bankAccounts)) for (const item of copy.bankAccounts) {
+      if (item?.certificateAttachmentId && !(await attachmentBelongsToOwner(item.certificateAttachmentId, owner, 'iban-certificate'))) { item.certificateAttachmentId=''; changed=true; }
+      if (item?.approvalAttachmentId && !(await attachmentBelongsToOwner(item.approvalAttachmentId, owner, 'iban-approval'))) { item.approvalAttachmentId=''; changed=true; }
     }
-    if (Array.isArray(copy.bankAccounts)) {
-      for (const item of copy.bankAccounts) {
-        if (item?.certificateAttachmentId && !(await v13AttachmentBelongsToEmployee(item.certificateAttachmentId, copy.id, 'iban-certificate'))) { item.certificateAttachmentId = ''; changed = true; }
-        if (item?.approvalAttachmentId && !(await v13AttachmentBelongsToEmployee(item.approvalAttachmentId, copy.id, 'iban-approval'))) { item.approvalAttachmentId = ''; changed = true; }
-      }
-    }
-    if (Array.isArray(copy.documents)) {
-      for (const item of copy.documents) {
-        if (item?.attachmentId && !(await v13AttachmentBelongsToEmployee(item.attachmentId, copy.id, 'document'))) { item.attachmentId = ''; changed = true; }
-      }
-    }
-    if (copy.consent?.attachmentId && !(await v13AttachmentBelongsToEmployee(copy.consent.attachmentId, copy.id, 'consent'))) {
-      copy.consent = { ...copy.consent, attachmentId: '' };
-      changed = true;
-    }
-    return { employee: changed ? v13NormalizeEmployee(copy) : employee, changed };
+    if (Array.isArray(copy.documents)) for (const item of copy.documents) if (item?.attachmentId && !(await attachmentBelongsToOwner(item.attachmentId, owner, 'document'))) { item.attachmentId=''; changed=true; }
+    if (copy.consent?.attachmentId && !(await attachmentBelongsToOwner(copy.consent.attachmentId, owner, 'consent'))) { copy.consent = { ...copy.consent, attachmentId: '' }; changed = true; }
+    const expectedNoDash = ownerKeyFromIdentityPhone(copy.identityNumber, copy.phone);
+    if (expectedNoDash && copy.employeeNumber !== expectedNoDash) { copy.employeeNumber = expectedNoDash; changed = true; }
+    return { employee: changed ? normalize(copy) : emp, changed };
   }
 
-  async function v13SanitizeOpenForm(){
-    const employeeId = v13FormEmployeeId();
-    if (!employeeId || typeof employeeFormState === 'undefined' || !employeeFormState) return;
+  async function cleanOpenForm(){
+    if (typeof employeeFormState === 'undefined' || !employeeFormState) return false;
+    const owner = formOwnerKey();
+    const empId = formEmployeeId();
+    if (!owner || !empId) return false;
     let changed = false;
-    async function cleanStateField(key, category){
+    async function clearState(key, category){
       if (!employeeFormState[key]) return;
-      const ok = await v13AttachmentBelongsToEmployee(employeeFormState[key], employeeId, category);
-      if (!ok) { employeeFormState[key] = ''; changed = true; }
+      if (!(await attachmentBelongsToOwner(employeeFormState[key], owner, category))) { employeeFormState[key] = ''; changed = true; }
     }
-    await cleanStateField('identityAttachmentId', 'identity');
-    await cleanStateField('photoAttachmentId', 'employee-photo');
-    await cleanStateField('signatureAttachmentId', 'signature');
-    await cleanStateField('fingerprintAttachmentId', 'fingerprint');
-    if (Array.isArray(employeeFormState.passports)) {
-      for (const item of employeeFormState.passports) {
-        if (item?.attachmentId && !(await v13AttachmentBelongsToEmployee(item.attachmentId, employeeId, 'passport'))) { item.attachmentId = ''; changed = true; }
-      }
+    for (const [key, cat] of employeeAttachmentKeys()) await clearState(key, cat);
+    if (Array.isArray(employeeFormState.passports)) for (const item of employeeFormState.passports) if (item?.attachmentId && !(await attachmentBelongsToOwner(item.attachmentId, owner, 'passport'))) { item.attachmentId=''; changed=true; }
+    if (Array.isArray(employeeFormState.bankAccounts)) for (const item of employeeFormState.bankAccounts) {
+      if (item?.certificateAttachmentId && !(await attachmentBelongsToOwner(item.certificateAttachmentId, owner, 'iban-certificate'))) { item.certificateAttachmentId=''; changed=true; }
+      if (item?.approvalAttachmentId && !(await attachmentBelongsToOwner(item.approvalAttachmentId, owner, 'iban-approval'))) { item.approvalAttachmentId=''; changed=true; }
     }
-    if (Array.isArray(employeeFormState.bankAccounts)) {
-      for (const item of employeeFormState.bankAccounts) {
-        if (item?.certificateAttachmentId && !(await v13AttachmentBelongsToEmployee(item.certificateAttachmentId, employeeId, 'iban-certificate'))) { item.certificateAttachmentId = ''; changed = true; }
-        if (item?.approvalAttachmentId && !(await v13AttachmentBelongsToEmployee(item.approvalAttachmentId, employeeId, 'iban-approval'))) { item.approvalAttachmentId = ''; changed = true; }
-      }
-    }
-    if (Array.isArray(employeeFormState.documents)) {
-      for (const item of employeeFormState.documents) {
-        if (item?.attachmentId && !(await v13AttachmentBelongsToEmployee(item.attachmentId, employeeId, 'document'))) { item.attachmentId = ''; changed = true; }
-      }
-    }
-    if (employeeFormState.consent?.attachmentId && !(await v13AttachmentBelongsToEmployee(employeeFormState.consent.attachmentId, employeeId, 'consent'))) {
-      employeeFormState.consent = { ...employeeFormState.consent, attachmentId: '' };
-      changed = true;
-    }
+    if (Array.isArray(employeeFormState.documents)) for (const item of employeeFormState.documents) if (item?.attachmentId && !(await attachmentBelongsToOwner(item.attachmentId, owner, 'document'))) { item.attachmentId=''; changed=true; }
+    if (employeeFormState.consent?.attachmentId && !(await attachmentBelongsToOwner(employeeFormState.consent.attachmentId, owner, 'consent'))) { employeeFormState.consent = { ...employeeFormState.consent, attachmentId: '' }; changed = true; }
     if (changed) {
-      try { if (typeof updateSingleAttachmentControl === 'function') updateSingleAttachmentControl('identity', employeeFormState.identityAttachmentId || ''); } catch (_) {}
-      try { if (typeof renderEmployeePhoto === 'function') await renderEmployeePhoto(); } catch (_) {}
-      try { if (typeof renderPassports === 'function') renderPassports(); } catch (_) {}
-      try { if (typeof renderBankAccounts === 'function') renderBankAccounts(); } catch (_) {}
-      try { if (typeof renderDocuments === 'function') renderDocuments(); } catch (_) {}
-      try { if (typeof renderDocumentation === 'function') renderDocumentation(); } catch (_) {}
-      const idx = Array.isArray(employees) ? employees.findIndex((emp) => String(emp.id) === String(employeeId)) : -1;
+      try { updateSingleAttachmentControl?.('identity', employeeFormState.identityAttachmentId || ''); } catch (_) {}
+      try { await renderEmployeePhoto?.(); } catch (_) {}
+      try { renderPassports?.(); } catch (_) {}
+      try { renderBankAccounts?.(); } catch (_) {}
+      try { renderDocuments?.(); } catch (_) {}
+      try { renderDocumentation?.(); } catch (_) {}
+      const idx = Array.isArray(employees) ? employees.findIndex((e) => String(e.id) === String(empId)) : -1;
       if (idx >= 0) {
-        const result = await v13SanitizeEmployeeAttachments(employees[idx]);
-        if (result.changed) {
-          employees[idx] = result.employee;
-          try { if (typeof dbSaveEmployee === 'function') await dbSaveEmployee(result.employee); } catch (_) {}
-          try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch (_) {}
-        }
+        const cleaned = await cleanEmployeeObject({ ...employees[idx],
+          identityAttachmentId: employeeFormState.identityAttachmentId || '',
+          photoAttachmentId: employeeFormState.photoAttachmentId || '',
+          signatureAttachmentId: employeeFormState.signatureAttachmentId || '',
+          fingerprintAttachmentId: employeeFormState.fingerprintAttachmentId || '',
+          passports: clone(employeeFormState.passports || []), bankAccounts: clone(employeeFormState.bankAccounts || []), documents: clone(employeeFormState.documents || []), consent: clone(employeeFormState.consent || null)
+        });
+        employees[idx] = cleaned.employee;
+        try { await dbSaveEmployee?.(cleaned.employee); } catch (_) {}
       }
     }
+    return changed;
   }
 
-  const previousOpenEmployeeModalV13 = typeof openEmployeeModal === 'function' ? openEmployeeModal : window.openEmployeeModal;
-  if (typeof previousOpenEmployeeModalV13 === 'function') {
-    const wrappedOpenEmployeeModalV13 = async function(employeeId = null){
-      if (employeeId && Array.isArray(employees)) {
-        const idx = employees.findIndex((emp) => String(emp.id) === String(employeeId));
-        if (idx >= 0) {
-          const cleaned = await v13SanitizeEmployeeAttachments(employees[idx]);
-          if (cleaned.changed) {
-            employees[idx] = cleaned.employee;
-            try { if (typeof dbSaveEmployee === 'function') await dbSaveEmployee(cleaned.employee); } catch (_) {}
-          }
-        }
-      }
-      const result = await previousOpenEmployeeModalV13.apply(this, arguments);
-      setTimeout(() => { v13SanitizeOpenForm(); }, 60);
-      setTimeout(() => { v13SanitizeOpenForm(); }, 450);
-      return result;
-    };
-    wrappedOpenEmployeeModalV13.__v13AttachmentIsolation = true;
-    try { openEmployeeModal = wrappedOpenEmployeeModalV13; window.openEmployeeModal = wrappedOpenEmployeeModalV13; } catch (_) {}
-  }
-
-  const previousSaveAttachmentV13 = typeof saveAttachment === 'function' ? saveAttachment : null;
-  async function saveAttachmentV13(file, category){
+  const previousSaveAttachment = typeof saveAttachment === 'function' ? saveAttachment : null;
+  async function saveAttachmentV14(file, category){
     if (!file) return '';
-    const categoryText = v13Text(category || 'attachment');
-    const isEmployeeAttachment = EMPLOYEE_ATTACHMENT_CATEGORIES.has(categoryText);
-    const ownerId = v13FormEmployeeId();
-    if (isEmployeeAttachment && !ownerId) {
-      v13Toast('احفظ الموظف أولًا، ثم ارفع المرفق حتى يرتبط بالموظف الصحيح.');
-      return '';
+    const categoryText = text(category || 'attachment');
+    const isEmp = EMPLOYEE_ATTACHMENT_CATEGORIES.has(categoryText);
+    if (!isEmp) return previousSaveAttachment ? previousSaveAttachment.apply(this, arguments) : '';
+    const owner = formOwnerKey();
+    if (!owner) { toast('أدخل رقم الهوية والجوال أولًا حتى يتم تكوين رقم الموظف وربط المرفق به.'); return ''; }
+    if (!(typeof supabaseClient !== 'undefined' && supabaseClient && typeof cloudReady !== 'undefined' && cloudReady)) {
+      toast('الاتصال بقاعدة البيانات غير جاهز، لم يتم حفظ المرفق.'); return '';
     }
-    if (isEmployeeAttachment && typeof supabaseClient !== 'undefined' && supabaseClient && typeof cloudReady !== 'undefined' && cloudReady) {
+    try {
+      const bucket = bucketFor(categoryText);
+      const path = `employees/${owner}/${categoryText}/${Date.now()}-${Math.random().toString(16).slice(2)}-${safeName(file.name)}`;
+      const upload = await supabaseClient.storage.from(bucket).upload(path, file, { cacheControl:'3600', upsert:false, contentType:file.type || 'application/octet-stream' });
+      if (upload?.error) throw upload.error;
+      const fullPath = `${bucket}/${path}`;
+      const payload = { related_table: `employees:${owner}:${categoryText}`, related_id: null, file_name: file.name || 'attachment', file_type: file.type || 'application/octet-stream', file_size: Number(file.size || 0), storage_path: fullPath, file_url: null, uploaded_by: null };
       try {
-        const bucket = v13Bucket(categoryText);
-        const storagePath = `employees/${ownerId}/${categoryText}/${Date.now()}-${Math.random().toString(16).slice(2)}-${v13SafeName(file.name)}`;
-        const upload = await supabaseClient.storage
-          .from(bucket)
-          .upload(storagePath, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream' });
-        if (upload?.error) throw upload.error;
-        const fullPath = `${bucket}/${storagePath}`;
-        const payload = {
-          related_table: `employees:${ownerId}:${categoryText}`,
-          related_id: null,
-          file_name: file.name || 'attachment',
-          file_type: file.type || 'application/octet-stream',
-          file_size: Number(file.size || 0),
-          storage_path: fullPath,
-          file_url: null,
-          uploaded_by: null
-        };
-        try {
-          const inserted = await supabaseClient
-            .from('attachments')
-            .insert(payload)
-            .select('id, file_name, file_type, file_size, storage_path, related_table, related_id, created_at')
-            .single();
-          if (inserted?.error) throw inserted.error;
-          if (inserted?.data?.id) return inserted.data.id;
-        } catch (insertError) {
-          console.warn('v13: Storage upload succeeded, attachments row insert failed. Using owned cloud reference.', insertError);
-          return v13CloudRef(fullPath, file.name, file.type, file.size);
-        }
-        return v13CloudRef(fullPath, file.name, file.type, file.size);
+        const inserted = await supabaseClient.from('attachments').insert(payload).select('id, file_name, file_type, file_size, storage_path, related_table, created_at').single();
+        if (inserted?.error) throw inserted.error;
+        if (inserted?.data?.id) return inserted.data.id;
       } catch (error) {
-        console.error('v13: employee attachment upload failed', error);
-        v13Toast('فشل حفظ المرفق في Supabase، لم يتم ربطه بأي موظف.');
-        return '';
+        console.warn('v14 attachment row insert failed; using owned cloud ref', error);
+        return cloudRef(fullPath, file.name, file.type, file.size);
       }
-    }
-    if (isEmployeeAttachment) {
-      v13Toast('الاتصال بقاعدة البيانات غير جاهز، لم يتم حفظ المرفق.');
+      return cloudRef(fullPath, file.name, file.type, file.size);
+    } catch (error) {
+      console.error('v14 employee attachment upload failed', error);
+      toast('فشل رفع المرفق إلى Supabase، لم يتم ربطه بأي موظف.');
       return '';
     }
-    return previousSaveAttachmentV13 ? previousSaveAttachmentV13.apply(this, arguments) : '';
   }
-  try { saveAttachment = saveAttachmentV13; window.saveAttachment = saveAttachmentV13; } catch (_) {}
+  try { saveAttachment = saveAttachmentV14; window.saveAttachment = saveAttachmentV14; } catch (_) {}
 
-  function v13AttachmentIdsFromState(){
-    const ids = new Set();
-    const s = typeof employeeFormState !== 'undefined' ? employeeFormState : null;
-    if (!s) return ids;
-    ['identityAttachmentId', 'photoAttachmentId', 'signatureAttachmentId', 'fingerprintAttachmentId'].forEach((key) => { if (s[key]) ids.add(v13Text(s[key])); });
-    if (Array.isArray(s.passports)) s.passports.forEach((item) => { if (item?.attachmentId) ids.add(v13Text(item.attachmentId)); });
-    if (Array.isArray(s.bankAccounts)) s.bankAccounts.forEach((item) => { if (item?.certificateAttachmentId) ids.add(v13Text(item.certificateAttachmentId)); if (item?.approvalAttachmentId) ids.add(v13Text(item.approvalAttachmentId)); });
-    if (Array.isArray(s.documents)) s.documents.forEach((item) => { if (item?.attachmentId) ids.add(v13Text(item.attachmentId)); });
-    if (s.consent?.attachmentId) ids.add(v13Text(s.consent.attachmentId));
-    ids.delete('');
-    return ids;
-  }
-
-  function v13RemoveIdsFromOtherEmployee(emp, ids){
-    const copy = v13Clone(emp) || emp;
-    let changed = false;
-    function clear(key){ if (copy[key] && ids.has(v13Text(copy[key]))) { copy[key] = ''; changed = true; } }
-    clear('identityAttachmentId'); clear('photoAttachmentId'); clear('signatureAttachmentId'); clear('fingerprintAttachmentId');
-    if (Array.isArray(copy.passports)) copy.passports.forEach((item) => { if (item?.attachmentId && ids.has(v13Text(item.attachmentId))) { item.attachmentId = ''; changed = true; } });
-    if (Array.isArray(copy.bankAccounts)) copy.bankAccounts.forEach((item) => {
-      if (item?.certificateAttachmentId && ids.has(v13Text(item.certificateAttachmentId))) { item.certificateAttachmentId = ''; changed = true; }
-      if (item?.approvalAttachmentId && ids.has(v13Text(item.approvalAttachmentId))) { item.approvalAttachmentId = ''; changed = true; }
-    });
-    if (Array.isArray(copy.documents)) copy.documents.forEach((item) => { if (item?.attachmentId && ids.has(v13Text(item.attachmentId))) { item.attachmentId = ''; changed = true; } });
-    if (copy.consent?.attachmentId && ids.has(v13Text(copy.consent.attachmentId))) { copy.consent = { ...copy.consent, attachmentId: '' }; changed = true; }
-    return { changed, employee: changed ? v13NormalizeEmployee(copy) : emp };
-  }
-
-  async function v13PersistCurrentEmployeeOnly(){
-    const employeeId = v13FormEmployeeId();
-    if (!employeeId || !Array.isArray(employees) || typeof employeeFormState === 'undefined') return false;
-    await v13SanitizeOpenForm();
-    const idx = employees.findIndex((emp) => String(emp.id) === String(employeeId));
+  async function persistCurrentOnly(){
+    const empId = formEmployeeId();
+    if (!empId || typeof employeeFormState === 'undefined' || !Array.isArray(employees)) return false;
+    await cleanOpenForm();
+    const idx = employees.findIndex((e) => String(e.id) === String(empId));
     if (idx < 0) return false;
-    const current = v13NormalizeEmployee({
-      ...employees[idx],
-      identityAttachmentId: employeeFormState.identityAttachmentId || '',
-      photoAttachmentId: employeeFormState.photoAttachmentId || '',
-      legacyPhoto: employeeFormState.legacyPhoto || '',
-      signatureAttachmentId: employeeFormState.signatureAttachmentId || '',
-      fingerprintAttachmentId: employeeFormState.fingerprintAttachmentId || '',
-      passports: Array.isArray(employeeFormState.passports) ? v13Clone(employeeFormState.passports) : [],
-      bankAccounts: Array.isArray(employeeFormState.bankAccounts) ? v13Clone(employeeFormState.bankAccounts) : [],
-      documents: Array.isArray(employeeFormState.documents) ? v13Clone(employeeFormState.documents) : [],
-      consent: employeeFormState.consent ? v13Clone(employeeFormState.consent) : null
+    const owner = formOwnerKey();
+    const current = normalize({ ...employees[idx], employeeNumber: owner || employees[idx].employeeNumber,
+      identityAttachmentId: employeeFormState.identityAttachmentId || '', photoAttachmentId: employeeFormState.photoAttachmentId || '', legacyPhoto: employeeFormState.legacyPhoto || '',
+      signatureAttachmentId: employeeFormState.signatureAttachmentId || '', fingerprintAttachmentId: employeeFormState.fingerprintAttachmentId || '',
+      passports: clone(employeeFormState.passports || []), bankAccounts: clone(employeeFormState.bankAccounts || []), documents: clone(employeeFormState.documents || []), consent: clone(employeeFormState.consent || null)
     });
-    const ids = v13AttachmentIdsFromState();
+    const currentIds = new Set();
+    ['identityAttachmentId','photoAttachmentId','signatureAttachmentId','fingerprintAttachmentId'].forEach(k => { if (current[k]) currentIds.add(text(current[k])); });
+    (current.passports || []).forEach(x => { if (x?.attachmentId) currentIds.add(text(x.attachmentId)); });
+    (current.bankAccounts || []).forEach(x => { if (x?.certificateAttachmentId) currentIds.add(text(x.certificateAttachmentId)); if (x?.approvalAttachmentId) currentIds.add(text(x.approvalAttachmentId)); });
+    (current.documents || []).forEach(x => { if (x?.attachmentId) currentIds.add(text(x.attachmentId)); });
+    if (current.consent?.attachmentId) currentIds.add(text(current.consent.attachmentId));
     const saveList = [current];
     employees = employees.map((emp, i) => {
       if (i === idx) return current;
-      const cleaned = v13RemoveIdsFromOtherEmployee(emp, ids);
-      if (cleaned.changed) saveList.push(cleaned.employee);
-      return cleaned.employee;
+      const copy = clone(emp) || emp; let changed = false;
+      ['identityAttachmentId','photoAttachmentId','signatureAttachmentId','fingerprintAttachmentId'].forEach(k => { if (copy[k] && currentIds.has(text(copy[k]))) { copy[k]=''; changed=true; } });
+      if (Array.isArray(copy.passports)) copy.passports.forEach(x => { if (x?.attachmentId && currentIds.has(text(x.attachmentId))) { x.attachmentId=''; changed=true; } });
+      if (Array.isArray(copy.bankAccounts)) copy.bankAccounts.forEach(x => { if (x?.certificateAttachmentId && currentIds.has(text(x.certificateAttachmentId))) { x.certificateAttachmentId=''; changed=true; } if (x?.approvalAttachmentId && currentIds.has(text(x.approvalAttachmentId))) { x.approvalAttachmentId=''; changed=true; } });
+      if (Array.isArray(copy.documents)) copy.documents.forEach(x => { if (x?.attachmentId && currentIds.has(text(x.attachmentId))) { x.attachmentId=''; changed=true; } });
+      if (copy.consent?.attachmentId && currentIds.has(text(copy.consent.attachmentId))) { copy.consent = { ...copy.consent, attachmentId: '' }; changed=true; }
+      if (changed) { const fixed = normalize(copy); saveList.push(fixed); return fixed; }
+      return emp;
     });
-    for (const item of saveList) {
-      try { if (typeof dbSaveEmployee === 'function') await dbSaveEmployee(item); } catch (error) { console.warn('v13 employee save failed', error); }
-    }
-    try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch (_) {}
+    for (const emp of saveList) { try { await dbSaveEmployee?.(emp); } catch (_) {} }
+    try { queueCloudStateSave?.(); } catch (_) {}
     return true;
   }
-  window.v13PersistCurrentEmployeeOnly = v13PersistCurrentEmployeeOnly;
+  window.v14PersistCurrentEmployeeOnly = persistCurrentOnly;
 
-  function v13SchedulePersist(){ [250, 900, 1800, 3500].forEach((delay) => setTimeout(() => v13PersistCurrentEmployeeOnly(), delay)); }
+  const prevOpen = typeof openEmployeeModal === 'function' ? openEmployeeModal : window.openEmployeeModal;
+  if (typeof prevOpen === 'function') {
+    const wrappedOpen = async function(employeeId = null){
+      if (employeeId && Array.isArray(employees)) {
+        const idx = employees.findIndex((e) => String(e.id) === String(employeeId));
+        if (idx >= 0) {
+          const cleaned = await cleanEmployeeObject(employees[idx]);
+          if (cleaned.changed) { employees[idx] = cleaned.employee; try { await dbSaveEmployee?.(cleaned.employee); } catch (_) {} }
+        }
+      }
+      const result = await prevOpen.apply(this, arguments);
+      setTimeout(cleanOpenForm, 80);
+      setTimeout(cleanOpenForm, 500);
+      return result;
+    };
+    try { openEmployeeModal = wrappedOpen; window.openEmployeeModal = wrappedOpen; } catch (_) {}
+  }
+
   document.addEventListener('change', (event) => {
     const target = event.target;
     if (!target?.matches?.('[data-single-attachment], [data-passport-attachment], [data-bank-certificate-attachment], [data-bank-approval-attachment], [data-document-attachment], #employeePhotoInput, #consentAttachmentInput')) return;
     if (!target.closest?.('#employeeModal') && target.id !== 'consentAttachmentInput') return;
-    v13SchedulePersist();
+    [250, 900, 1800].forEach((delay) => setTimeout(persistCurrentOnly, delay));
   }, false);
+  document.addEventListener('submit', (event) => { if (event.target?.matches?.('#employeeForm')) setTimeout(persistCurrentOnly, 250); }, true);
 
-  document.addEventListener('submit', (event) => {
-    if (event.target?.matches?.('#employeeForm')) setTimeout(() => v13PersistCurrentEmployeeOnly(), 300);
-  }, true);
-
-  document.addEventListener('click', (event) => {
+  // Last-line fast logout guard. This is intentionally synchronous.
+  document.addEventListener('pointerdown', (event) => {
     const logout = event.target?.closest?.('.logout-btn, [data-logout], #logoutBtn');
     if (!logout) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    try { logout.disabled = true; } catch (_) {}
-    try { supabaseClient?.auth?.signOut?.({ scope: 'local' })?.catch?.(() => {}); } catch (_) {}
-    try {
-      Object.keys(localStorage).forEach((key) => {
-        if (/^sb-.*-auth-token$/.test(key) || key.includes('supabase.auth.token') || key === 'nawah-auth-session') localStorage.removeItem(key);
-      });
-      sessionStorage.clear();
-    } catch (_) {}
-    setTimeout(() => window.location.replace(window.location.pathname + window.location.search), 80);
+    event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
+    try { logout.disabled = true; logout.setAttribute('aria-busy','true'); } catch (_) {}
+    try { supabaseClient?.auth?.signOut?.({ scope:'local' })?.catch?.(() => {}); } catch (_) {}
+    try { Object.keys(localStorage).forEach((key) => { if (/^sb-.*-auth-token$/.test(key) || key.includes('supabase.auth.token') || key === 'nawah-auth-session') localStorage.removeItem(key); }); sessionStorage.clear(); } catch (_) {}
+    setTimeout(() => window.location.replace(window.location.pathname + window.location.search), 20);
   }, true);
 })();
