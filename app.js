@@ -16672,3 +16672,278 @@ document.addEventListener("click", function(event) {
   window.addEventListener('load', () => setTimeout(() => { normalizeFinalAttachmentButtons(document); updateStableTopbarUser(); }, 120));
   setTimeout(() => { normalizeFinalAttachmentButtons(document); updateStableTopbarUser(); }, 600);
 })();
+
+/* =========================================================
+   v4 decisive repair: no header flicker, direct downloads for all document types,
+   and employee attachment buttons inline beside the upload control.
+   ========================================================= */
+(function(){
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const icon = (name) => { try { return typeof iconSvg === 'function' ? iconSvg(name) : '<span data-icon="download"></span>'; } catch (_) { return '<span data-icon="download"></span>'; } };
+  let headerRun = 0;
+  let headerTimer = null;
+
+  function currentName(){
+    return String(authProfile?.full_name || authProfile?.email || authUser?.email || 'مستخدم').split('@')[0].trim() || 'مستخدم';
+  }
+  function currentRoleLabel(){
+    try { return (String(authProfile?.role || '').trim() === 'admin') ? 'مدير النظام' : 'موظف'; } catch (_) { return 'مستخدم'; }
+  }
+  function allEmployees(){ return Array.isArray(employees) ? employees : []; }
+  function linkedEmployee(){
+    try {
+      const emp = window.employeePermissionMatrix?.linkedEmployee?.();
+      if (emp) return emp;
+    } catch (_) {}
+    const linkedIds = [authProfile?.employee_id, authProfile?.employeeId, authProfile?.linked_employee_id, authProfile?.linkedEmployeeId].filter(Boolean).map(String);
+    for (const id of linkedIds) {
+      const found = allEmployees().find((e) => [e.id, e.employeeId, e.employee_id, e.employeeNumber, e.identityNumber].some((v) => String(v || '') === id));
+      if (found) return found;
+    }
+    const email = String(authUser?.email || authProfile?.email || '').trim().toLowerCase();
+    if (email) {
+      const found = allEmployees().find((e) => String(e.email || '').trim().toLowerCase() === email);
+      if (found) return found;
+    }
+    const name = currentName().toLowerCase();
+    if (name) {
+      const found = allEmployees().find((e) => String(e.name || '').trim().toLowerCase() === name || String(e.name || '').trim().toLowerCase().includes(name));
+      if (found) return found;
+    }
+    return null;
+  }
+  function fallbackHeader(mark){
+    if (!mark) return;
+    if (mark.dataset.v4Mode === 'photo' && mark.querySelector('img')) return;
+    const initial = currentName().charAt(0) || 'م';
+    mark.dataset.v4Mode = 'initial';
+    mark.dataset.v4PhotoKey = '';
+    mark.classList.remove('has-employee-photo');
+    mark.textContent = initial;
+  }
+  async function attachmentUrlForHeader(id){
+    if (!id) return '';
+    try {
+      if (window.__headerPhotoCache && window.__headerPhotoCache.id === String(id) && window.__headerPhotoCache.url) return window.__headerPhotoCache.url;
+      const url = typeof attachmentUrl === 'function' ? await attachmentUrl(id) : '';
+      if (url) window.__headerPhotoCache = { id: String(id), url };
+      return url || '';
+    } catch (_) { return ''; }
+  }
+  async function applyHeaderPhotoStable(){
+    const myRun = ++headerRun;
+    const mark = document.querySelector('.topbar-user-mark');
+    const copy = document.querySelector('.topbar-user-copy');
+    const name = currentName();
+    if (copy) copy.innerHTML = `<strong>${esc(name)}</strong><span>${esc(currentRoleLabel())}</span>`;
+    if (!mark) return;
+    const emp = linkedEmployee();
+    const photoId = emp?.photoAttachmentId || '';
+    const legacy = emp?.legacyPhoto || emp?.photo || '';
+    if (photoId) {
+      const key = `photo:${photoId}`;
+      if (mark.dataset.v4Mode === 'photo' && mark.dataset.v4PhotoKey === key && mark.querySelector('img')) return;
+      const url = await attachmentUrlForHeader(photoId);
+      if (myRun !== headerRun) return;
+      if (url) {
+        mark.dataset.v4Mode = 'photo';
+        mark.dataset.v4PhotoKey = key;
+        mark.classList.add('has-employee-photo');
+        mark.innerHTML = `<img src="${esc(url)}" alt="" />`;
+        return;
+      }
+    }
+    if (legacy) {
+      const key = `legacy:${legacy}`;
+      if (mark.dataset.v4Mode === 'photo' && mark.dataset.v4PhotoKey === key && mark.querySelector('img')) return;
+      mark.dataset.v4Mode = 'photo';
+      mark.dataset.v4PhotoKey = key;
+      mark.classList.add('has-employee-photo');
+      mark.innerHTML = `<img src="${esc(legacy)}" alt="" />`;
+      return;
+    }
+    fallbackHeader(mark);
+  }
+  function scheduleHeader(){
+    clearTimeout(headerTimer);
+    headerTimer = setTimeout(applyHeaderPhotoStable, 80);
+  }
+  try {
+    updateTopbarUser = function(){ scheduleHeader(); };
+    window.updateTopbarUser = updateTopbarUser;
+    window.__applyStableTopbarPhoto = applyHeaderPhotoStable;
+  } catch (_) {}
+
+  function fileNameFromRecord(record, fallback = 'attachment'){
+    const raw = String(record?.name || record?.file_name || record?.fileName || record?.attachmentName || fallback || 'attachment');
+    if (/\.[a-z0-9]{2,8}$/i.test(raw)) return raw;
+    const type = String(record?.type || record?.file_type || '').toLowerCase();
+    if (type.includes('pdf')) return `${raw}.pdf`;
+    if (type.includes('png')) return `${raw}.png`;
+    if (type.includes('jpeg') || type.includes('jpg')) return `${raw}.jpg`;
+    if (type.includes('webp')) return `${raw}.webp`;
+    return raw;
+  }
+  async function blobFromDataUrl(dataUrl){
+    const res = await fetch(dataUrl);
+    return await res.blob();
+  }
+  function localEstDocById(id){
+    try {
+      const list = JSON.parse(localStorage.getItem('nawah-establishment-documents') || '[]');
+      return Array.isArray(list) ? list.find((d) => String(d.id) === String(id)) : null;
+    } catch (_) { return null; }
+  }
+  async function blobFromRecord(record, id){
+    if (!record) return null;
+    if (record.blob) return record.blob;
+    if (record.attachmentData || record.dataUrl) return await blobFromDataUrl(record.attachmentData || record.dataUrl);
+    const storagePath = record.storagePath || record.storage_path || '';
+    if (storagePath && typeof supabaseClient !== 'undefined' && supabaseClient) {
+      const [bucket, ...parts] = String(storagePath).split('/');
+      const path = parts.join('/');
+      if (bucket && path) {
+        try {
+          const result = await supabaseClient.storage.from(bucket).download(path);
+          if (!result.error && result.data) return result.data;
+        } catch (_) {}
+        try {
+          const signed = await supabaseClient.storage.from(bucket).createSignedUrl(path, 60 * 10);
+          const signedUrl = signed?.data?.signedUrl;
+          if (signedUrl) {
+            const response = await fetch(signedUrl, { cache: 'no-store' });
+            if (response.ok) return await response.blob();
+          }
+        } catch (_) {}
+      }
+    }
+    const url = typeof attachmentUrl === 'function' ? await attachmentUrl(id) : '';
+    if (url) {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (response.ok) return await response.blob();
+    }
+    return null;
+  }
+  async function downloadBlob(blob, name){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name || 'attachment';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  }
+  async function downloadByAttachmentId(id){
+    if (!id) { try { showToast('لا يوجد مرفق محفوظ'); } catch (_) {} return; }
+    let record = null;
+    try { record = typeof getAttachment === 'function' ? await getAttachment(id) : null; } catch (_) { record = null; }
+    const blob = await blobFromRecord(record, id);
+    if (!blob) { try { showToast('تعذر تحميل المرفق. تأكد من صلاحيات Storage في Supabase.'); } catch (_) {} return; }
+    await downloadBlob(blob, fileNameFromRecord(record, `attachment-${id}`));
+  }
+  async function downloadLocalDocument(docId){
+    const doc = localEstDocById(docId);
+    if (!doc) { try { showToast('لا يوجد مرفق محفوظ'); } catch (_) {} return; }
+    if (doc.attachmentData || doc.dataUrl) {
+      const blob = await blobFromDataUrl(doc.attachmentData || doc.dataUrl);
+      await downloadBlob(blob, fileNameFromRecord(doc, doc.attachmentName || doc.title || doc.number || 'document'));
+      return;
+    }
+    if (doc.attachmentId) return downloadByAttachmentId(doc.attachmentId);
+    try { showToast('لا يوجد مرفق محفوظ'); } catch (_) {}
+  }
+  async function directDownload(id){ return downloadByAttachmentId(id); }
+  try { window.directDownloadAttachment = directDownload; openAttachment = directDownload; } catch (_) {}
+
+  function resolveSingleId(button){
+    if (!button) return '';
+    if (button.dataset.attachmentId) return button.dataset.attachmentId;
+    const key = button.dataset.viewSingleAttachment;
+    const map = { identity: 'identityAttachmentId', signature: 'signatureAttachmentId', fingerprint: 'fingerprintAttachmentId' };
+    return employeeFormState?.[map[key]] || '';
+  }
+  function makeIconButton(button){
+    if (!button) return;
+    button.classList.add('attachment-download-btn');
+    button.setAttribute('title', 'تحميل المرفق');
+    button.setAttribute('aria-label', 'تحميل المرفق');
+    button.innerHTML = icon('download');
+  }
+  function inlineSingleControls(root = document){
+    root.querySelectorAll('[data-view-single-attachment]').forEach((button) => {
+      makeIconButton(button);
+      const label = button.closest('label');
+      if (!label || button.closest('.employee-attachment-inline-wrap')) return;
+      const control = label.querySelector('.compact-file-control');
+      if (!control) return;
+      const wrap = document.createElement('span');
+      wrap.className = 'employee-attachment-inline-wrap employee-single-attachment-inline-wrap';
+      control.parentNode.insertBefore(wrap, control);
+      wrap.appendChild(control);
+      wrap.appendChild(button);
+    });
+  }
+  function normalizeButtons(root = document){
+    try {
+      root.querySelectorAll('[data-view-attachment], [data-view-single-attachment], [data-hard-open-attachment], [data-branch-open-doc-attachment]').forEach(makeIconButton);
+      inlineSingleControls(root);
+      if (typeof hydrateIcons === 'function') hydrateIcons(root);
+    } catch (_) {}
+  }
+  try {
+    attachmentControlHtml = function(kind, index, attachmentId){
+      const id = attachmentId || '';
+      const control = `<span class="compact-file-control ${id ? 'has-file' : ''}">${icon('file')}<span>${id ? 'تم الإرفاق' : 'إرفاق'}</span><input type="file" data-${esc(kind)}-attachment="${esc(index)}" accept="image/*,.pdf" /></span>`;
+      const download = id ? `<button type="button" class="attachment-view-btn attachment-download-btn employee-attachment-download-inline" data-view-attachment="${esc(id)}" title="تحميل المرفق" aria-label="تحميل المرفق">${icon('download')}</button>` : '';
+      return `<span class="employee-attachment-inline-wrap">${control}${download}</span>`;
+    };
+    window.attachmentControlHtml = attachmentControlHtml;
+  } catch (_) {}
+
+  document.addEventListener('click', async function(event){
+    const hard = event.target.closest('[data-hard-open-attachment]');
+    const branch = event.target.closest('[data-branch-open-doc-attachment]');
+    const direct = event.target.closest('[data-view-attachment]');
+    const single = event.target.closest('[data-view-single-attachment]');
+    if (hard || branch || direct || single) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      try {
+        if (hard) await downloadLocalDocument(hard.dataset.hardOpenAttachment);
+        else if (branch) await downloadLocalDocument(branch.dataset.branchOpenDocAttachment);
+        else if (direct) await downloadByAttachmentId(direct.dataset.viewAttachment);
+        else await downloadByAttachmentId(resolveSingleId(single));
+      } catch (error) {
+        console.warn('direct attachment download failed', error);
+        try { showToast('تعذر تحميل المرفق مباشرة'); } catch (_) {}
+      }
+    }
+  }, true);
+
+  document.addEventListener('change', (event) => {
+    if (event.target?.matches?.('[data-passport-attachment], [data-bank-certificate-attachment], [data-bank-approval-attachment], [data-document-attachment], [data-single-attachment]')) {
+      setTimeout(() => { normalizeButtons(document); try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch (_) {} }, 80);
+    }
+  }, true);
+
+  const oldRenderAll = typeof renderAll === 'function' ? renderAll : null;
+  if (oldRenderAll && !oldRenderAll.__v4AttachmentHeaderRepair) {
+    const wrapped = function(){
+      const result = oldRenderAll.apply(this, arguments);
+      setTimeout(() => { normalizeButtons(document); scheduleHeader(); }, 0);
+      return result;
+    };
+    wrapped.__v4AttachmentHeaderRepair = true;
+    try { renderAll = wrapped; } catch (_) {}
+  }
+  const observer = new MutationObserver((mutations) => {
+    if (mutations.some((m) => m.addedNodes?.length)) setTimeout(() => { normalizeButtons(document); scheduleHeader(); }, 60);
+  });
+  try { observer.observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => { normalizeButtons(document); scheduleHeader(); }, 120));
+  window.addEventListener('load', () => setTimeout(() => { normalizeButtons(document); scheduleHeader(); }, 200));
+  setTimeout(() => { normalizeButtons(document); scheduleHeader(); }, 700);
+})();

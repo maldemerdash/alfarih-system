@@ -11224,3 +11224,39 @@ body.auth-locked .app-shell {
 .topbar-user-mark.has-employee-photo {
   color: transparent !important;
 }
+
+/* v4: keep employee attachment download beside the upload control and stop header-photo visual flicker */
+.employee-attachment-inline-wrap,
+.employee-single-attachment-inline-wrap {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+.employee-attachment-inline-wrap .compact-file-control,
+.employee-single-attachment-inline-wrap .compact-file-control {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+.employee-attachment-inline-wrap .attachment-download-btn,
+.employee-single-attachment-inline-wrap .attachment-download-btn {
+  flex: 0 0 30px !important;
+  margin: 0 !important;
+}
+.employee-form-section label > .attachment-download-btn[data-view-single-attachment] {
+  margin-top: 0 !important;
+}
+.topbar-user-mark.has-employee-photo {
+  overflow: hidden !important;
+  color: transparent !important;
+  background: #fff !important;
+  padding: 0 !important;
+}
+.topbar-user-mark.has-employee-photo img {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  object-fit: cover !important;
+}
