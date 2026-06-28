@@ -188,6 +188,61 @@ let cloudSaveTimer = null;
 let cloudLoadAttempted = false;
 let cloudSaveAllowed = false;
 
+const FINANCE_EMPTY_RESET_VERSION = "20260628-finance-empty-data-v2-force";
+const FINANCE_EMPTY_RESET_KEY = "nawah-finance-empty-reset-version";
+const ADVANCE_FIELD_RESET_KEY = "nawah-advance-fields-reset-version";
+
+function clearFinanceAndAdvanceLocalDataOnce() {
+  try {
+    if (localStorage.getItem(FINANCE_EMPTY_RESET_KEY) === FINANCE_EMPTY_RESET_VERSION) return false;
+
+    const keysToRemove = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key) continue;
+      const isFinanceDayData = key === "nawah-finance-daily-open" || key === "nawah-finance-daily-days" || key.startsWith("nawah-finance-daily-");
+      const isAdvanceData = key === "nawah-payroll-advances";
+      if (isFinanceDayData || isAdvanceData) keysToRemove.push(key);
+    }
+
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    localStorage.setItem("nawah-payroll-advances", "[]");
+    localStorage.setItem(FINANCE_EMPTY_RESET_KEY, FINANCE_EMPTY_RESET_VERSION);
+    return true;
+  } catch (error) {
+    console.warn("تعذر تفريغ بيانات المالية والسلفيات محليًا.", error);
+    return false;
+  }
+}
+
+async function clearEmployeeAdvanceFieldsOnce() {
+  try {
+    if (localStorage.getItem(ADVANCE_FIELD_RESET_KEY) === FINANCE_EMPTY_RESET_VERSION) return;
+
+    clearFinanceAndAdvanceLocalDataOnce();
+
+    if (Array.isArray(employees)) {
+      employees = employees.map((employee) => ({
+        ...employee,
+        salaryAdvance: 0,
+        advanceDeduction: 0
+      }));
+      try { await Promise.all(employees.map(dbSaveEmployee)); } catch (error) { console.warn("تعذر حفظ تصفير السلفيات داخل بيانات الموظفين.", error); }
+    }
+
+    localStorage.removeItem("nawah-finance-daily-open");
+    localStorage.removeItem("nawah-finance-daily-days");
+    localStorage.setItem("nawah-payroll-advances", "[]");
+    localStorage.setItem(ADVANCE_FIELD_RESET_KEY, FINANCE_EMPTY_RESET_VERSION);
+    try { queueCloudStateSave(); } catch (_) {}
+    setTimeout(() => { try { saveCloudStateNow({ force: true }); } catch (_) {} }, 800);
+  } catch (error) {
+    console.warn("تعذر تصفير حقول السلفيات داخل بيانات الموظفين.", error);
+  }
+}
+
+clearFinanceAndAdvanceLocalDataOnce();
+
 let authUser = null;
 let authProfile = null;
 const AUTH_ROLES = {
@@ -4942,6 +4997,7 @@ async function init() {
   setupEvents();
   try {
     await initStorage();
+    await clearEmployeeAdvanceFieldsOnce();
     window.__nawahEmployeesReady = true;
   } catch (error) {
     console.error(error);
