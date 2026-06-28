@@ -11198,3 +11198,29 @@ body.auth-locked .app-shell {
   display: block;
   object-fit: cover;
 }
+
+
+/* Final v3 layout for employee attachment controls */
+.employee-attachment-inline-wrap {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+.employee-attachment-inline-wrap .compact-file-control {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+.employee-attachment-inline-wrap .employee-attachment-download-inline,
+.employee-attachment-download-inline {
+  flex: 0 0 30px !important;
+  margin: 0 !important;
+}
+.repeatable-row label .employee-attachment-inline-wrap,
+.employee-form-section label .employee-attachment-inline-wrap {
+  margin-top: 0 !important;
+}
+.topbar-user-mark.has-employee-photo {
+  color: transparent !important;
+}
