@@ -14743,3 +14743,231 @@ document.addEventListener("click", function(event) {
 
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(refreshPayrollIfNeeded, 300); });
 })();
+
+/* =========================================================
+   Final permissions alignment: Finance + Establishment Documents
+   - Adds Finance as a real selectable permission in the permissions screen.
+   - Keeps Establishment Documents hidden/blocked unless its permissions are selected.
+   - Preserves current design and does not change page calculations.
+   ========================================================= */
+(function finalFinanceAndEstablishmentDocumentsPermissionFix(){
+  if (window.__finalFinanceAndEstablishmentDocumentsPermissionFix) return;
+  window.__finalFinanceAndEstablishmentDocumentsPermissionFix = true;
+
+  const FINANCE_KEYS = {
+    'nav.finance': false,
+    'finance.view': false,
+    'finance.settings': false,
+    'finance.daily.view': false,
+    'finance.daily.manage': false,
+    'finance.closeDay': false
+  };
+  const DOCUMENT_KEYS = {
+    'nav.establishmentDocuments': false,
+    'documents.view': false,
+    'documents.create': false,
+    'documents.edit': false,
+    'documents.delete': false,
+    'documents.upload': false
+  };
+  const moneyIcon = 'wallet';
+
+  function isAdminRole(){
+    try { return String(authProfile?.role || '').trim() === 'admin'; } catch (_) { return false; }
+  }
+  function matrix(){
+    try { return window.employeePermissionMatrix || null; } catch (_) { return null; }
+  }
+  function hasItem(group, key){
+    return Boolean(group && Array.isArray(group.items) && group.items.some((item) => item && item[0] === key));
+  }
+  function insertItemBefore(group, beforeKey, item){
+    if (!group || !Array.isArray(group.items) || hasItem(group, item[0])) return;
+    const index = group.items.findIndex((row) => row && row[0] === beforeKey);
+    if (index >= 0) group.items.splice(index, 0, item);
+    else group.items.push(item);
+  }
+  function ensureGroup(groups, id, title, items, beforeId){
+    if (!Array.isArray(groups)) return null;
+    let group = groups.find((entry) => entry && entry.id === id);
+    if (!group) {
+      group = { id, title, items: [] };
+      const beforeIndex = groups.findIndex((entry) => entry && entry.id === beforeId);
+      if (beforeIndex >= 0) groups.splice(beforeIndex, 0, group);
+      else groups.push(group);
+    }
+    group.title = title;
+    if (!Array.isArray(group.items)) group.items = [];
+    items.forEach((item) => { if (!hasItem(group, item[0])) group.items.push(item); });
+    return group;
+  }
+  function ensurePermissionMatrix(){
+    const m = matrix();
+    if (!m) return null;
+    if (!Array.isArray(m.groups)) m.groups = [];
+    const groups = m.groups;
+    let sidebar = groups.find((entry) => entry && entry.id === 'sidebar');
+    if (!sidebar) {
+      sidebar = { id: 'sidebar', title: 'القوائم اليمنى', items: [] };
+      groups.unshift(sidebar);
+    }
+    if (!Array.isArray(sidebar.items)) sidebar.items = [];
+    insertItemBefore(sidebar, 'nav.payroll', ['nav.finance', 'إظهار المالية']);
+    insertItemBefore(sidebar, 'nav.departments', ['nav.establishmentDocuments', 'إظهار وثائق المنشأة']);
+
+    ensureGroup(groups, 'finance', 'المالية', [
+      ['finance.view', 'عرض صفحة المالية'],
+      ['finance.settings', 'إدارة إعدادات المالية'],
+      ['finance.daily.view', 'عرض اليومية المالية'],
+      ['finance.daily.manage', 'إضافة وتعديل اليومية المالية'],
+      ['finance.closeDay', 'إغلاق اليوم المالي']
+    ], 'payroll');
+
+    ensureGroup(groups, 'documents', 'وثائق المنشأة', [
+      ['documents.view', 'عرض وثائق المنشأة'],
+      ['documents.create', 'إضافة وثيقة منشأة'],
+      ['documents.edit', 'تعديل وثيقة منشأة'],
+      ['documents.delete', 'حذف وثيقة منشأة'],
+      ['documents.upload', 'رفع مرفقات وثائق المنشأة']
+    ], 'organization');
+
+    m.defaults = m.defaults && typeof m.defaults === 'object' ? m.defaults : {};
+    Object.entries({ ...FINANCE_KEYS, ...DOCUMENT_KEYS }).forEach(([key, value]) => {
+      if (!Object.prototype.hasOwnProperty.call(m.defaults, key)) m.defaults[key] = value;
+    });
+
+    if (!m.__finalFinanceDocsNormalizeWrapped) {
+      const oldNormalize = typeof m.normalizePermissions === 'function' ? m.normalizePermissions.bind(m) : null;
+      const oldCan = typeof m.can === 'function' ? m.can.bind(m) : null;
+      m.normalizePermissions = function(permissions, role){
+        const base = oldNormalize ? oldNormalize(permissions, role) : { ...(m.defaults || {}) };
+        Object.entries({ ...FINANCE_KEYS, ...DOCUMENT_KEYS }).forEach(([key, fallback]) => {
+          if (!Object.prototype.hasOwnProperty.call(base, key)) base[key] = fallback;
+        });
+        const source = permissions && typeof permissions === 'object' && !Array.isArray(permissions) ? permissions : {};
+        Object.keys({ ...FINANCE_KEYS, ...DOCUMENT_KEYS }).forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(source, key)) base[key] = Boolean(source[key]);
+        });
+        if (String(role || '').trim() === 'admin') Object.keys(base).forEach((key) => { base[key] = true; });
+        return base;
+      };
+      m.can = function(key){
+        if (isAdminRole()) return true;
+        if (oldCan && oldCan(key)) return true;
+        return Boolean(m.normalizePermissions(authProfile?.permissions, authProfile?.role)[key]);
+      };
+      m.__finalFinanceDocsNormalizeWrapped = true;
+    }
+    return m;
+  }
+
+  function can(key){
+    const m = ensurePermissionMatrix();
+    try { return Boolean(m?.can?.(key)); } catch (_) { return false; }
+  }
+  function canOpenFinance(){
+    return isAdminRole() || (can('nav.finance') && can('finance.view'));
+  }
+  function canOpenEstablishmentDocuments(){
+    return isAdminRole() || (can('nav.establishmentDocuments') && can('documents.view'));
+  }
+  function ensureFinancePageMeta(){
+    try { pageMeta.finance = ['المالية', 'متابعة البنية المالية اليومية والصلاحيات']; } catch (_) {}
+    try { pageMeta.establishmentDocuments = ['وثائق المنشأة', 'إدارة وثائق المنشأة وتواريخ انتهائها']; } catch (_) {}
+  }
+  function ensureFinanceNavButton(){
+    const nav = document.querySelector('.main-nav');
+    if (!nav || nav.querySelector('[data-view="finance"]')) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'nav-item';
+    button.dataset.view = 'finance';
+    button.innerHTML = `<span class="nav-icon" data-icon="${moneyIcon}"></span><span>المالية</span>`;
+    const payroll = nav.querySelector('[data-view="payroll"]');
+    if (payroll) nav.insertBefore(button, payroll);
+    else nav.appendChild(button);
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(button); } catch (_) {}
+  }
+  function patchRoleCanOpen(){
+    if (typeof roleCanOpen !== 'function' || roleCanOpen.__finalFinanceDocsWrapped) return;
+    const oldRoleCanOpen = roleCanOpen;
+    const wrapped = function(viewName){
+      if (viewName === 'finance') return canOpenFinance();
+      if (viewName === 'establishmentDocuments') return canOpenEstablishmentDocuments();
+      return oldRoleCanOpen.apply(this, arguments);
+    };
+    wrapped.__finalFinanceDocsWrapped = true;
+    try { roleCanOpen = wrapped; } catch (_) {}
+    try { window.roleCanOpen = wrapped; } catch (_) {}
+  }
+  function applyFinalVisibility(){
+    ensurePermissionMatrix();
+    ensureFinancePageMeta();
+    ensureFinanceNavButton();
+    patchRoleCanOpen();
+    document.querySelectorAll('[data-view="finance"], [data-go-view="finance"]').forEach((element) => {
+      element.classList.toggle('is-permission-hidden', !canOpenFinance());
+    });
+    document.querySelectorAll('[data-view="establishmentDocuments"], [data-go-view="establishmentDocuments"]').forEach((element) => {
+      element.classList.toggle('is-permission-hidden', !canOpenEstablishmentDocuments());
+    });
+    document.querySelectorAll('#hardAddEstDocBtn, #branchAddEstDocBtn, #addEstablishmentDocumentBtn').forEach((button) => {
+      button.classList.toggle('is-permission-hidden', !(isAdminRole() || can('documents.create')));
+    });
+  }
+
+  const oldApplyRolePermissions = typeof applyRolePermissions === 'function' ? applyRolePermissions : null;
+  if (oldApplyRolePermissions && !oldApplyRolePermissions.__finalFinanceDocsApplied) {
+    const wrappedApply = function(){
+      const result = oldApplyRolePermissions.apply(this, arguments);
+      applyFinalVisibility();
+      return result;
+    };
+    wrappedApply.__finalFinanceDocsApplied = true;
+    try { applyRolePermissions = wrappedApply; } catch (_) {}
+    try { window.applyRolePermissions = wrappedApply; } catch (_) {}
+  }
+
+  document.addEventListener('click', function(event){
+    const target = event.target.closest?.('[data-view], [data-go-view]');
+    const view = target?.dataset?.view || target?.dataset?.goView || '';
+    if (view === 'finance' && !canOpenFinance()) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      try { showToast('ليست لديك صلاحية الدخول إلى المالية'); } catch (_) {}
+      applyFinalVisibility();
+      return;
+    }
+    if (view === 'establishmentDocuments' && !canOpenEstablishmentDocuments()) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      try { showToast('ليست لديك صلاحية الدخول إلى وثائق المنشأة'); } catch (_) {}
+      applyFinalVisibility();
+    }
+  }, true);
+
+  document.addEventListener('click', function(event){
+    if (event.target.closest?.('[data-settings-section="permissions"]')) {
+      ensurePermissionMatrix();
+      setTimeout(applyFinalVisibility, 120);
+    }
+  }, true);
+  document.addEventListener('change', function(event){
+    if (event.target?.matches?.('#securityUserSelectFinal, #fixedSecurityEmployeeSelect, #resolvedSecurityEmployeeSelect, #securityUserSelect')) {
+      ensurePermissionMatrix();
+      setTimeout(applyFinalVisibility, 120);
+    }
+  }, true);
+
+  function boot(){
+    ensurePermissionMatrix();
+    ensureFinancePageMeta();
+    ensureFinanceNavButton();
+    patchRoleCanOpen();
+    applyFinalVisibility();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 100));
+  else setTimeout(boot, 100);
+  setTimeout(boot, 800);
+  setInterval(applyFinalVisibility, 1200);
+})();
