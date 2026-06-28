@@ -15197,3 +15197,300 @@ document.addEventListener("click", function(event) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleApply);
   else scheduleApply();
 })();
+
+/* =========================================================
+   Final authority permissions logic lock - 2026-06-28
+   - Any enabled child permission automatically enables its sidebar parent.
+   - Sidebar visibility is derived from effective permissions, not stale checkboxes.
+   - Establishment Documents are hidden and blocked unless explicitly permitted.
+   - The user only sees actions/cards allowed by the selected child permissions.
+   ========================================================= */
+(function finalAuthorityPermissionsLogicLock(){
+  if (window.__finalAuthorityPermissionsLogicLock) return;
+  window.__finalAuthorityPermissionsLogicLock = true;
+
+  const SIDEBAR_TO_CHILDREN = {
+    'nav.dashboard': [
+      'dashboard.stats', 'dashboard.attendanceOverview', 'dashboard.reviewRequests', 'dashboard.reviewActions',
+      'dashboard.establishmentExpiringDocs', 'dashboard.employeeExpiringDocs', 'dashboard.recentEmployees',
+      'dashboard.absenceShortcut', 'dashboard.reviewShortcut', 'dashboard.advanceShortcut'
+    ],
+    'nav.employees': ['employees.viewSelf', 'employees.viewAll', 'employees.create', 'employees.edit', 'employees.delete', 'employees.attachments'],
+    'nav.attendance': ['attendance.viewSelf', 'attendance.viewAll', 'attendance.markAbsent', 'attendance.deleteAbsence', 'attendance.export'],
+    'nav.leaves': ['leaves.viewOwn', 'leaves.viewAll', 'leaves.createLeave', 'leaves.createTravel', 'leaves.createForAll', 'leaves.approve', 'leaves.reject', 'leaves.resume', 'leaves.viewTravelers'],
+    'nav.finance': ['finance.view', 'finance.settings', 'finance.daily.view', 'finance.daily.manage', 'finance.closeDay', 'finance.manage'],
+    'nav.payroll': ['payroll.viewSelf', 'payroll.viewAll', 'payroll.periods.select', 'payroll.advances.viewSelf', 'payroll.advances.viewAll', 'payroll.advances.create', 'payroll.runs.process', 'payroll.runs.print', 'payroll.edit', 'payroll.commissions', 'payroll.printClearance'],
+    'nav.establishmentDocuments': ['documents.view', 'documents.create', 'documents.edit', 'documents.delete', 'documents.upload'],
+    'nav.departments': ['organization.view', 'organization.manage'],
+    'nav.settings': ['settings.view', 'security.manage', 'users.manage']
+  };
+  const VIEW_TO_NAV = {
+    dashboard: 'nav.dashboard',
+    employees: 'nav.employees',
+    attendance: 'nav.attendance',
+    leaves: 'nav.leaves',
+    finance: 'nav.finance',
+    payroll: 'nav.payroll',
+    establishmentDocuments: 'nav.establishmentDocuments',
+    departments: 'nav.departments',
+    settings: 'nav.settings',
+    users: 'nav.settings'
+  };
+  const VIEW_REQUIRED_CHILDREN = {
+    dashboard: SIDEBAR_TO_CHILDREN['nav.dashboard'],
+    employees: ['employees.viewSelf', 'employees.viewAll', 'employees.create', 'employees.edit', 'employees.delete', 'employees.attachments'],
+    attendance: ['attendance.viewSelf', 'attendance.viewAll', 'attendance.markAbsent', 'attendance.deleteAbsence', 'attendance.export'],
+    leaves: ['leaves.viewOwn', 'leaves.viewAll', 'leaves.createLeave', 'leaves.createTravel', 'leaves.createForAll', 'leaves.approve', 'leaves.reject', 'leaves.resume', 'leaves.viewTravelers'],
+    finance: ['finance.view', 'finance.settings', 'finance.daily.view', 'finance.daily.manage', 'finance.closeDay', 'finance.manage'],
+    payroll: SIDEBAR_TO_CHILDREN['nav.payroll'],
+    establishmentDocuments: SIDEBAR_TO_CHILDREN['nav.establishmentDocuments'],
+    departments: ['organization.view', 'organization.manage'],
+    settings: ['settings.view', 'security.manage', 'users.manage'],
+    users: ['users.manage']
+  };
+
+  function isAdmin(){
+    try { return String(authProfile?.role || '').trim() === 'admin'; } catch (_) { return false; }
+  }
+  function matrix(){
+    try { return window.employeePermissionMatrix || null; } catch (_) { return null; }
+  }
+  function safeEscape(value){
+    try { return CSS.escape(value); } catch (_) { return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&'); }
+  }
+  function unique(list){ return [...new Set((Array.isArray(list) ? list : []).filter(Boolean))]; }
+  function allPermissionKeys(){
+    const m = matrix();
+    const groupKeys = Array.isArray(m?.groups) ? m.groups.flatMap((group) => Array.isArray(group?.items) ? group.items.map((item) => item?.[0]).filter(Boolean) : []) : [];
+    return unique([...Object.keys(m?.defaults || {}), ...groupKeys, ...Object.keys(SIDEBAR_TO_CHILDREN), ...Object.values(SIDEBAR_TO_CHILDREN).flat()]);
+  }
+  function hasAnyChild(perms, navKey){
+    return (SIDEBAR_TO_CHILDREN[navKey] || []).some((key) => Boolean(perms?.[key]));
+  }
+  function enforceParentPermissions(perms, role){
+    const out = { ...(perms || {}) };
+    if (String(role || '').trim() === 'admin') {
+      allPermissionKeys().forEach((key) => { out[key] = true; });
+      return out;
+    }
+    Object.keys(SIDEBAR_TO_CHILDREN).forEach((navKey) => {
+      if (hasAnyChild(out, navKey)) out[navKey] = true;
+    });
+    return out;
+  }
+  function effectivePermissions(raw, role){
+    const m = matrix();
+    let normalized = {};
+    try {
+      if (typeof m?.normalizePermissions === 'function') normalized = m.normalizePermissions(raw, role);
+      else normalized = { ...(m?.defaults || {}), ...(raw || {}) };
+    } catch (_) {
+      normalized = { ...(m?.defaults || {}), ...(raw || {}) };
+    }
+    return enforceParentPermissions(normalized, role);
+  }
+  function currentPermissions(){
+    return effectivePermissions(authProfile?.permissions, authProfile?.role);
+  }
+  function canKey(key){
+    if (isAdmin()) return true;
+    return Boolean(currentPermissions()[key]);
+  }
+  function canOpenView(view){
+    if (isAdmin()) return true;
+    const navKey = VIEW_TO_NAV[view];
+    const required = VIEW_REQUIRED_CHILDREN[view] || [];
+    if (view === 'users') return canKey('users.manage');
+    if (!navKey) return false;
+    return canKey(navKey) && required.some((key) => canKey(key));
+  }
+
+  function ensureMatrixParentLogic(){
+    const m = matrix();
+    if (!m || m.__authorityParentLogicLocked) return;
+    const oldNormalize = typeof m.normalizePermissions === 'function' ? m.normalizePermissions.bind(m) : null;
+    const oldCan = typeof m.can === 'function' ? m.can.bind(m) : null;
+    m.normalizePermissions = function(permissions, role){
+      let base = oldNormalize ? oldNormalize(permissions, role) : { ...(m.defaults || {}), ...(permissions || {}) };
+      base = enforceParentPermissions(base, role);
+      return base;
+    };
+    m.can = function(key){
+      if (isAdmin()) return true;
+      if (String(key || '').startsWith('nav.')) return Boolean(m.normalizePermissions(authProfile?.permissions, authProfile?.role)[key]);
+      try {
+        const normalized = m.normalizePermissions(authProfile?.permissions, authProfile?.role);
+        if (Object.prototype.hasOwnProperty.call(normalized, key)) return Boolean(normalized[key]);
+      } catch (_) {}
+      return Boolean(oldCan && oldCan(key));
+    };
+    m.__authorityParentLogicLocked = true;
+  }
+
+  function syncSidebarCheckboxes(scope){
+    const root = scope || document;
+    Object.keys(SIDEBAR_TO_CHILDREN).forEach((navKey) => {
+      const shouldCheck = (SIDEBAR_TO_CHILDREN[navKey] || []).some((childKey) => {
+        const box = root.querySelector(`[data-full-security-permission="${safeEscape(childKey)}"], [data-fixed-security-permission="${safeEscape(childKey)}"], [data-resolved-security-permission="${safeEscape(childKey)}"], [data-security-permission="${safeEscape(childKey)}"]`);
+        return Boolean(box?.checked);
+      });
+      const navBox = root.querySelector(`[data-full-security-permission="${safeEscape(navKey)}"], [data-fixed-security-permission="${safeEscape(navKey)}"], [data-resolved-security-permission="${safeEscape(navKey)}"], [data-security-permission="${safeEscape(navKey)}"]`);
+      if (navBox && shouldCheck) navBox.checked = true;
+    });
+  }
+
+  function patchPermissionEditor(){
+    ensureMatrixParentLogic();
+    syncSidebarCheckboxes(document);
+    const editor = document.querySelector('#securityPermissionsEditorFinal, #securityPermissionsEditorFixed, #securityPermissionsEditorResolved, #securityPermissionsEditor');
+    if (editor) syncSidebarCheckboxes(editor);
+  }
+
+  function collectEditorPermissions(){
+    patchPermissionEditor();
+    const boxes = document.querySelectorAll('[data-full-security-permission], [data-fixed-security-permission], [data-resolved-security-permission], [data-security-permission]');
+    const permissions = {};
+    boxes.forEach((box) => {
+      const key = box.dataset.fullSecurityPermission || box.dataset.fixedSecurityPermission || box.dataset.resolvedSecurityPermission || box.dataset.securityPermission;
+      if (key) permissions[key] = Boolean(box.checked);
+    });
+    return enforceParentPermissions(permissions, 'employee');
+  }
+
+  function selectedPermissionProfile(){
+    const ids = ['securityUserSelectFinal', 'fixedSecurityEmployeeSelect', 'resolvedSecurityEmployeeSelect', 'securityUserSelect'];
+    const id = ids.map((selectId) => document.getElementById(selectId)?.value).find(Boolean);
+    return (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []).find((profile) => String(profile.id) === String(id));
+  }
+
+  async function savePermissionsWithParents(event){
+    const saveButton = event.target.closest?.('#saveSecurityPermissionsFinal, #saveFixedSecurityPermissions, #saveResolvedSecurityPermissions, #saveSecurityPermissions');
+    if (!saveButton) return;
+    const profile = selectedPermissionProfile();
+    if (!profile) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const permissions = effectivePermissions(collectEditorPermissions(), 'employee');
+    try {
+      const body = {
+        action: 'update-user',
+        id: profile.id,
+        email: profile.email,
+        fullName: profile.full_name,
+        role: 'employee',
+        isActive: profile.is_active,
+        employeeId: profile.employee_id || null,
+        employee_id: profile.employee_id || null,
+        permissions
+      };
+      const { data, error } = await supabaseClient.functions.invoke('admin-create-user', { body });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      profile.permissions = permissions;
+      if (authProfile && String(authProfile.id) === String(profile.id)) authProfile.permissions = permissions;
+      patchPermissionEditor();
+      applyAuthorityVisibility();
+      try { showToast('تم حفظ الصلاحيات وتفعيل القوائم المرتبطة تلقائيًا'); } catch (_) {}
+    } catch (error) {
+      console.error(error);
+      try { showToast('تعذر حفظ الصلاحيات'); } catch (_) {}
+    }
+  }
+
+  function setHidden(element, hidden){
+    if (!element) return;
+    element.classList.toggle('is-permission-hidden', Boolean(hidden));
+    element.dataset.permissionHidden = hidden ? 'true' : 'false';
+  }
+  function applyActionVisibility(){
+    const perms = currentPermissions();
+    setHidden(document.querySelector('#statsGrid'), !perms['dashboard.stats']);
+    document.querySelectorAll('#dashboardEstDocsPanel, [data-go-view="establishmentDocuments"]').forEach((el) => {
+      const view = el.dataset?.goView;
+      if (view === 'establishmentDocuments' || el.id === 'dashboardEstDocsPanel') setHidden(el, !canOpenView('establishmentDocuments'));
+    });
+    document.querySelectorAll('#hardAddEstDocBtn, #branchAddEstDocBtn, #addEstablishmentDocumentBtn').forEach((btn) => setHidden(btn, !canKey('documents.create')));
+    document.querySelectorAll('[data-remove-est-doc], [data-hard-remove-est-doc], [data-delete-establishment-document]').forEach((btn) => setHidden(btn, !canKey('documents.delete')));
+    document.querySelectorAll('[data-edit-est-doc], [data-hard-edit-est-doc], [data-edit-establishment-document]').forEach((btn) => setHidden(btn, !canKey('documents.edit')));
+  }
+  function applyAuthorityVisibility(){
+    ensureMatrixParentLogic();
+    document.querySelectorAll('.nav-item[data-view]').forEach((button) => setHidden(button, !canOpenView(button.dataset.view)));
+    document.querySelectorAll('[data-go-view]').forEach((element) => {
+      const view = element.dataset.goView;
+      if (view && pageMeta?.[view]) setHidden(element, !canOpenView(view));
+    });
+    document.querySelectorAll('[data-view="establishmentDocuments"], [data-go-view="establishmentDocuments"]').forEach((element) => setHidden(element, !canOpenView('establishmentDocuments')));
+    applyActionVisibility();
+  }
+
+  if (typeof roleCanOpen === 'function' && !roleCanOpen.__authorityLogicLocked) {
+    const originalRoleCanOpen = roleCanOpen;
+    const wrappedRoleCanOpen = function(viewName){
+      if (Object.prototype.hasOwnProperty.call(VIEW_REQUIRED_CHILDREN, viewName)) return canOpenView(viewName);
+      return originalRoleCanOpen.apply(this, arguments);
+    };
+    wrappedRoleCanOpen.__authorityLogicLocked = true;
+    try { roleCanOpen = wrappedRoleCanOpen; } catch (_) {}
+    try { window.roleCanOpen = wrappedRoleCanOpen; } catch (_) {}
+  }
+
+  if (typeof applyRolePermissions === 'function' && !applyRolePermissions.__authorityLogicLocked) {
+    const originalApplyRolePermissions = applyRolePermissions;
+    const wrappedApplyRolePermissions = function(){
+      let result;
+      try { result = originalApplyRolePermissions.apply(this, arguments); } catch (_) {}
+      applyAuthorityVisibility();
+      return result;
+    };
+    wrappedApplyRolePermissions.__authorityLogicLocked = true;
+    try { applyRolePermissions = wrappedApplyRolePermissions; } catch (_) {}
+    try { window.applyRolePermissions = wrappedApplyRolePermissions; } catch (_) {}
+  }
+
+  if (typeof switchView === 'function' && !switchView.__authorityLogicLocked) {
+    const originalSwitchView = switchView;
+    const wrappedSwitchView = function(viewName){
+      if (pageMeta?.[viewName] && !canOpenView(viewName)) {
+        try { showToast('ليست لديك صلاحية الدخول إلى هذا القسم'); } catch (_) {}
+        applyAuthorityVisibility();
+        return;
+      }
+      return originalSwitchView.apply(this, arguments);
+    };
+    wrappedSwitchView.__authorityLogicLocked = true;
+    try { switchView = wrappedSwitchView; } catch (_) {}
+    try { window.switchView = wrappedSwitchView; } catch (_) {}
+  }
+
+  document.addEventListener('change', function(event){
+    if (event.target?.matches?.('[data-full-security-permission], [data-fixed-security-permission], [data-resolved-security-permission], [data-security-permission]')) {
+      patchPermissionEditor();
+    }
+    if (event.target?.matches?.('#securityUserSelectFinal, #fixedSecurityEmployeeSelect, #resolvedSecurityEmployeeSelect, #securityUserSelect')) {
+      setTimeout(patchPermissionEditor, 60);
+    }
+  }, true);
+  document.addEventListener('click', function(event){
+    if (event.target.closest?.('[data-full-security-group], [data-fixed-security-group], [data-resolved-security-group], [data-security-group]')) {
+      setTimeout(patchPermissionEditor, 20);
+    }
+    if (event.target.closest?.('[data-view="establishmentDocuments"], [data-go-view="establishmentDocuments"]') && !canOpenView('establishmentDocuments')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      try { showToast('ليست لديك صلاحية الدخول إلى وثائق المنشأة'); } catch (_) {}
+      applyAuthorityVisibility();
+    }
+  }, true);
+  document.addEventListener('click', savePermissionsWithParents, true);
+
+  function boot(){
+    ensureMatrixParentLogic();
+    patchPermissionEditor();
+    applyAuthorityVisibility();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 120));
+  else setTimeout(boot, 120);
+  setTimeout(boot, 700);
+  setInterval(applyAuthorityVisibility, 1000);
+})();
