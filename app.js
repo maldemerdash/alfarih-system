@@ -13826,18 +13826,72 @@ document.addEventListener("click", function(event) {
     }
   }
 
+  function financeAdvanceEmployeeName(item) {
+    try {
+      const employee = typeof getEmployeeById === 'function' ? getEmployeeById(item.employeeId) : null;
+      return employee?.name || item.employeeName || item.employee?.name || item.employeeId || 'موظف';
+    } catch (_) {
+      return item.employeeName || item.employee?.name || item.employeeId || 'موظف';
+    }
+  }
+
+  function financeAdvanceEmployeeCell(item) {
+    try {
+      const employee = typeof getEmployeeById === 'function' ? getEmployeeById(item.employeeId) : null;
+      if (employee && typeof employeeCell === 'function') return employeeCell(employee);
+    } catch (_) {}
+    return escapeFinanceText(financeAdvanceEmployeeName(item));
+  }
+
+  function financeAdvanceDayName(dateValue) {
+    if (!dateValue) return '';
+    try { return getArabicDateParts(String(dateValue).slice(0, 10)).dayName; }
+    catch (_) { return ''; }
+  }
+
   function renderFinanceAdvancesPanel() {
     const body = document.getElementById('financeAdvancesTableBody');
     if (!body) return;
     const rows = financeAdvanceRows();
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="3"><div class="empty-state"><strong>لا توجد سلفيات معتمدة لهذا الشهر</strong></div></td></tr>';
+      body.innerHTML = '<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات معتمدة لهذا الشهر</strong></div></td></tr>';
       return;
     }
-    body.innerHTML = rows.map((item) => {
-      const name = item.employeeName || item.employee?.name || item.employeeId || 'موظف';
-      return `<tr><td>${escapeFinanceText(name)}</td><td>${escapeFinanceText(financeDateLabel(item.date))}</td><td><strong>${moneyText(item.amount)}</strong></td></tr>`;
+
+    const grouped = new Map();
+    rows.forEach((item) => {
+      const key = String(item.employeeId || item.employeeName || item.employee?.name || 'employee');
+      const group = grouped.get(key) || { key, employeeSample: item, total: 0, items: [] };
+      group.total += toNumber(item.amount);
+      group.items.push(item);
+      grouped.set(key, group);
+    });
+
+    body.innerHTML = Array.from(grouped.values()).map((group, groupIndex) => {
+      const safeKey = `finance-advance-${groupIndex}`;
+      const detailsId = `finance-advance-detail-${safeKey}`;
+      const detailsRows = group.items
+        .slice()
+        .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+        .map((item) => `<tr><td>${escapeFinanceText(financeDateLabel(item.date))}</td><td>${escapeFinanceText(item.dayName || financeAdvanceDayName(item.date))}</td><td><strong>${moneyText(item.amount)}</strong></td></tr>`)
+        .join('');
+      return `<tr class="advance-summary-row finance-advance-summary-row" data-toggle-finance-advance-details="${safeKey}"><td class="advance-employee-cell"><button type="button" class="advance-toggle-btn" aria-expanded="false" aria-label="عرض تفاصيل السلفيات"><span class="advance-arrow">▾</span></button><div class="advance-employee-compact">${financeAdvanceEmployeeCell(group.employeeSample)}</div></td><td class="advance-total-cell"><strong>${moneyText(group.total)}</strong></td></tr><tr class="advance-detail-row finance-advance-detail-row" id="${detailsId}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>التاريخ</th><th>اليوم</th><th>المبلغ</th></tr></thead><tbody>${detailsRows}</tbody></table></div></td></tr>`;
     }).join('');
+
+    body.querySelectorAll('[data-toggle-finance-advance-details]').forEach((row) => {
+      row.addEventListener('click', (event) => {
+        event.preventDefault();
+        const id = row.dataset.toggleFinanceAdvanceDetails || '';
+        const detail = document.getElementById(`finance-advance-detail-${id}`);
+        const btn = row.querySelector('.advance-toggle-btn');
+        const arrow = row.querySelector('.advance-arrow');
+        if (!detail) return;
+        const open = detail.hasAttribute('hidden');
+        detail.toggleAttribute('hidden', !open);
+        btn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (arrow) arrow.textContent = open ? '▴' : '▾';
+      });
+    });
   }
 
   function setFinanceCardValue(cardKey, value) {
