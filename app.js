@@ -6291,6 +6291,7 @@ document.addEventListener("click", function(event) {
     return normalizeFinanceDaily({
       financeDate: nextKey,
       pending: normalizeRows(pendingRows),
+      deletedPending: [],
       expenses: [],
       cashSales: [],
       cardSales: [],
@@ -6387,6 +6388,7 @@ document.addEventListener("click", function(event) {
     return normalizeFinanceDaily({
       financeDate: nextKey,
       pending: normalizeRows(pendingRows),
+      deletedPending: [],
       expenses: [],
       cashSales: [],
       cardSales: [],
@@ -13646,9 +13648,14 @@ document.addEventListener("click", function(event) {
     return Number.isFinite(number) && number >= 0 ? number : 0;
   }
 
+  function sourceRowAmount(row) {
+    const source = row && typeof row === "object" ? row : {};
+    return source.amount === 0 ? "0" : String(source.amount || "").trim();
+  }
+
   function normalizeRow(row) {
     const source = row && typeof row === "object" ? row : {};
-    const amount = source.amount === 0 ? "0" : String(source.amount || "").trim();
+    const amount = sourceRowAmount(source);
     const note = String(source.note || "").trim();
     return { amount, note };
   }
@@ -13689,6 +13696,14 @@ document.addEventListener("click", function(event) {
       isClosed: Boolean(source.isClosed),
       closedAt: source.closedAt || "",
       nextFinanceDate: source.nextFinanceDate || "",
+      deletedPending: Array.isArray(source.deletedPending) ? source.deletedPending.map((item) => ({
+        id: item?.id || `deleted-pending-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        amount: sourceRowAmount(item),
+        note: String(item?.note || "").trim(),
+        deletedBy: String(item?.deletedBy || "النظام").trim() || "النظام",
+        deletedAt: item?.deletedAt || new Date().toISOString(),
+        financeDate: item?.financeDate || source.financeDate || dateKey || getFinanceDateKey()
+      })).filter((item) => item.amount !== "" || item.note !== "") : [],
       updatedAt: source.updatedAt || ""
     };
   }
@@ -13968,6 +13983,7 @@ document.addEventListener("click", function(event) {
   function calculateTotals() {
     const settings = readFinanceSettings();
     const pendingTotal = sumRows(financeDaily.pending);
+    const deletedPendingTotal = Array.isArray(financeDaily.deletedPending) ? financeDaily.deletedPending.reduce((sum, item) => sum + toNumber(item.amount), 0) : 0;
     const expensesTotal = sumRows(financeDaily.expenses);
     const cashSalesTotal = sumRows(financeDaily.cashSales);
     const cardSalesTotal = sumRows(financeDaily.cardSales);
@@ -13991,7 +14007,7 @@ document.addEventListener("click", function(event) {
     // مبلغ الصندوق لا يغير منطق العهدة المتفق عليه سابقًا:
     // الصندوق = المرحل + العهدة + النقديات المدخلة - المبالغ المعلقة - المصروفات - السلفيات.
     const baseFund = carriedAmount + custodyAmount;
-    const fundAmount = baseFund + cashSalesTotal + manualCashAmount - pendingTotal - expensesTotal - advancesTotal;
+    const fundAmount = baseFund + cashSalesTotal + manualCashAmount + deletedPendingTotal - pendingTotal - expensesTotal - advancesTotal;
     if (!financeDaily.isClosed) {
       financeDaily.carriedAmountSnapshot = carriedAmount;
       financeDaily.custodyAmountSnapshot = custodyAmount;
@@ -14001,6 +14017,7 @@ document.addEventListener("click", function(event) {
     return {
       settings: { openingAmount: carriedAmount, custodyAmount },
       pendingTotal,
+      deletedPendingTotal,
       expensesTotal,
       cashSalesTotal,
       cardSalesTotal,
@@ -14114,12 +14131,32 @@ document.addEventListener("click", function(event) {
       noteTd.appendChild(createNoteInput(type, index, row.note));
       tr.appendChild(noteTd);
     }
+    if (type === "pending") {
+      const actionTd = document.createElement("td");
+      actionTd.className = "finance-pending-delete-cell";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "finance-pending-delete-btn";
+      button.dataset.financeDeletePendingIndex = String(index);
+      button.title = "حذف المبلغ المعلق";
+      button.setAttribute("aria-label", "حذف المبلغ المعلق");
+      button.innerHTML = (typeof iconSvg === "function" ? iconSvg("trash") : "×");
+      button.disabled = !rowHasValue(row);
+      actionTd.appendChild(button);
+      tr.appendChild(actionTd);
+    }
     tbody.appendChild(tr);
   }
 
   function renderTable(type) {
     const table = document.querySelector(`[data-finance-table="${type}"]`);
     if (!table) return;
+    const headRow = table.querySelector("thead tr");
+    if (headRow) {
+      if (type === "pending") headRow.innerHTML = "<th>المبلغ</th><th>البيان</th><th>حذف</th>";
+      else if (type === "expenses") headRow.innerHTML = "<th>المبلغ</th><th>البيان</th>";
+      else headRow.innerHTML = "<th>المبلغ</th>";
+    }
     const tbody = table.querySelector("tbody");
     if (!tbody) return;
     tbody.innerHTML = "";
@@ -14128,8 +14165,77 @@ document.addEventListener("click", function(event) {
     rows.forEach((row, index) => appendTableRow(tbody, type, row, index));
   }
 
+  function currentFinanceUserName() {
+    try { if (typeof authProfile !== "undefined" && authProfile?.full_name) return authProfile.full_name; } catch (_) {}
+    try { if (typeof authUser !== "undefined" && authUser?.email) return authUser.email; } catch (_) {}
+    return "النظام";
+  }
+
+  function formatFinanceDeletionDate(value) {
+    try {
+      if (typeof formatDateTime === "function") return formatDateTime(value);
+      return new Date(value).toLocaleString("ar-SA");
+    } catch (_) { return value || "—"; }
+  }
+
+  function ensurePendingDeletionLogPanel() {
+    const table = document.querySelector('[data-finance-table="pending"]');
+    const block = table?.closest?.('.finance-linked-block');
+    if (!block) return null;
+    let panel = block.querySelector('[data-finance-pending-delete-log]');
+    if (!panel) {
+      panel = document.createElement('article');
+      panel.className = 'panel finance-pending-delete-log';
+      panel.dataset.financePendingDeleteLog = 'true';
+      block.appendChild(panel);
+    }
+    return panel;
+  }
+
+  function renderPendingDeletionLog() {
+    const panel = ensurePendingDeletionLogPanel();
+    if (!panel) return;
+    const rows = Array.isArray(financeDaily.deletedPending) ? financeDaily.deletedPending.slice().reverse() : [];
+    panel.innerHTML = `
+      <div class="panel-head finance-delete-log-head"><div><h3>سجل المبالغ المعلقة المحذوفة</h3><p>أي مبلغ محذوف من المعلقات يضاف إلى مبلغ الصندوق.</p></div></div>
+      <div class="table-wrap finance-delete-log-wrap">
+        <table class="finance-delete-log-table"><thead><tr><th>المبلغ</th><th>البيان</th><th>حذف بواسطة</th><th>التاريخ</th></tr></thead><tbody>
+          ${rows.length ? rows.map((item) => `<tr><td><strong>${moneyText(toNumber(item.amount))}</strong></td><td>${escapeFinanceText(item.note || '—')}</td><td>${escapeFinanceText(item.deletedBy || 'النظام')}</td><td>${escapeFinanceText(formatFinanceDeletionDate(item.deletedAt))}</td></tr>`).join('') : `<tr><td colspan="4" class="finance-delete-log-empty">لا توجد مبالغ معلقة محذوفة لهذا اليوم.</td></tr>`}
+        </tbody></table>
+      </div>`;
+  }
+
+  function deletePendingRow(index) {
+    if (financeDaily.isClosed) { try { showToast("لا يمكن حذف مبلغ معلق من يوم مالي مغلق"); } catch (_) {} return; }
+    collectTable('pending');
+    financeDaily = normalizeFinanceDaily(financeDaily, financeDateKey);
+    const rows = Array.isArray(financeDaily.pending) ? financeDaily.pending.slice() : [];
+    const row = rows[index];
+    if (!row || !rowHasValue(row)) return;
+    const amount = toNumber(row.amount);
+    const ok = window.confirm(`سيتم حذف مبلغ معلق بقيمة ${moneyText(amount)} وإضافته إلى مبلغ الصندوق. هل تريد المتابعة؟`);
+    if (!ok) return;
+    rows.splice(index, 1);
+    financeDaily.pending = normalizeRows(rows);
+    financeDaily.deletedPending = Array.isArray(financeDaily.deletedPending) ? financeDaily.deletedPending : [];
+    financeDaily.deletedPending.push({
+      id: `deleted-pending-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      amount: String(amount),
+      note: row.note || "",
+      deletedBy: currentFinanceUserName(),
+      deletedAt: new Date().toISOString(),
+      financeDate: financeDateKey
+    });
+    financeDaily.updatedAt = new Date().toISOString();
+    persistFinanceDaily();
+    refreshFinanceDailyUi(true);
+    try { saveLocalMeta(); } catch (_) { try { queueCloudStateSave(); } catch (__) {} }
+    try { showToast("تم حذف المبلغ المعلق وإضافته إلى مبلغ الصندوق"); } catch (_) {}
+  }
+
   function renderFinanceTables() {
     TABLE_TYPES.forEach(renderTable);
+    renderPendingDeletionLog();
     autoResizeFinanceNotes(document.getElementById("financeView") || document);
   }
 
@@ -14213,6 +14319,7 @@ document.addEventListener("click", function(event) {
     return normalizeFinanceDaily({
       financeDate: nextKey,
       pending: normalizeRows(pendingRows),
+      deletedPending: [],
       expenses: [],
       cashSales: [],
       cardSales: [],
@@ -14419,6 +14526,14 @@ document.addEventListener("click", function(event) {
   }, true);
 
   document.addEventListener("click", function(event) {
+    const deletePendingButton = event.target?.closest?.('[data-finance-delete-pending-index]');
+    if (deletePendingButton) {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      event.stopImmediatePropagation?.();
+      deletePendingRow(Number(deletePendingButton.dataset.financeDeletePendingIndex));
+      return;
+    }
     const financeJump = event.target?.closest?.('[data-finance-jump]');
     if (financeJump) {
       const target = financeJump.dataset.financeJump;
