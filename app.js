@@ -191,6 +191,7 @@ let cloudSaveAllowed = false;
 const FINANCE_EMPTY_RESET_VERSION = "20260628-finance-full-empty-v4-clean-cloud";
 const FINANCE_EMPTY_RESET_KEY = "nawah-finance-empty-reset-version";
 const ADVANCE_FIELD_RESET_KEY = "nawah-advance-fields-reset-version";
+// Payroll advances must persist; finance empty reset must not clear payroll advance records.
 
 function clearFinanceAndAdvanceLocalDataOnce() {
   try {
@@ -202,12 +203,10 @@ function clearFinanceAndAdvanceLocalDataOnce() {
       if (!key) continue;
       const isFinanceDayData = key === "nawah-finance-daily-open" || key === "nawah-finance-daily-days" || key.startsWith("nawah-finance-daily-");
       const isFinanceSettingsData = key === "nawah-finance-settings" || key.startsWith("nawah-finance-settings-");
-      const isAdvanceData = key === "nawah-payroll-advances";
-      if (isFinanceDayData || isFinanceSettingsData || isAdvanceData) keysToRemove.push(key);
+      if (isFinanceDayData || isFinanceSettingsData) keysToRemove.push(key);
     }
 
     keysToRemove.forEach((key) => localStorage.removeItem(key));
-    localStorage.setItem("nawah-payroll-advances", "[]");
     localStorage.setItem("nawah-finance-settings", JSON.stringify({ openingAmount: 0, custodyAmount: 0, updatedAt: "" }));
     localStorage.removeItem("nawah-finance-daily-open");
     localStorage.removeItem("nawah-finance-daily-days");
@@ -221,28 +220,12 @@ function clearFinanceAndAdvanceLocalDataOnce() {
 
 async function clearEmployeeAdvanceFieldsOnce() {
   try {
+    // لا يتم تصفير السلفيات عند تحديث الصفحة؛ هذا الروتين أصبح خاصًا بتثبيت علامة الترحيل فقط.
     if (localStorage.getItem(ADVANCE_FIELD_RESET_KEY) === FINANCE_EMPTY_RESET_VERSION) return;
-
     clearFinanceAndAdvanceLocalDataOnce();
-
-    if (Array.isArray(employees)) {
-      employees = employees.map((employee) => ({
-        ...employee,
-        salaryAdvance: 0,
-        advanceDeduction: 0
-      }));
-      try { await Promise.all(employees.map(dbSaveEmployee)); } catch (error) { console.warn("تعذر حفظ تصفير السلفيات داخل بيانات الموظفين.", error); }
-    }
-
-    localStorage.removeItem("nawah-finance-daily-open");
-    localStorage.removeItem("nawah-finance-daily-days");
-    localStorage.setItem("nawah-finance-settings", JSON.stringify({ openingAmount: 0, custodyAmount: 0, updatedAt: "" }));
-    localStorage.setItem("nawah-payroll-advances", "[]");
     localStorage.setItem(ADVANCE_FIELD_RESET_KEY, FINANCE_EMPTY_RESET_VERSION);
-    try { queueCloudStateSave(); } catch (_) {}
-    setTimeout(() => { try { saveCloudStateNow({ force: true }); } catch (_) {} }, 800);
   } catch (error) {
-    console.warn("تعذر تصفير حقول السلفيات داخل بيانات الموظفين.", error);
+    console.warn("تعذر تثبيت إعداد حماية السلفيات من الحذف.", error);
   }
 }
 
@@ -530,14 +513,9 @@ function applyCloudState(state) {
     delete state.financeDailyOpen;
     delete state.financeDailyDays;
     delete state.financeDailyCurrentDate;
-    delete state.payrollAdvances;
-    if (Array.isArray(state.employees)) {
-      state.employees = state.employees.map((employee) => ({ ...employee, salaryAdvance: 0, advanceDeduction: 0 }));
-    }
     localStorage.setItem("nawah-finance-settings", JSON.stringify({ openingAmount: 0, custodyAmount: 0, updatedAt: "" }));
     localStorage.removeItem("nawah-finance-daily-open");
     localStorage.removeItem("nawah-finance-daily-days");
-    localStorage.setItem("nawah-payroll-advances", "[]");
   }
   if (Array.isArray(state.employees)) employees = state.employees.map(normalizeEmployee);
   if (Array.isArray(state.leaves)) leaves = state.leaves;
@@ -11755,7 +11733,7 @@ document.addEventListener("click", function(event) {
       const requiredText = Number(line.required || 0) > 0 ? money(line.required) : '';
       return `<tr class="${line.cardWithdraw ? 'payroll-row-card-withdraw' : ''}"><td class="payroll-employee-cell payroll-report-employee">${line.cardWithdraw ? `<span class="payroll-risk-marker"></span><span class="payroll-risk-name">${esc(payrollPlainEmployeeName(row))}</span>` : esc(payrollPlainEmployeeName(row))}</td><td class="payroll-money-cell payroll-base-amount">${money(line.baseSalary)}</td><td class="payroll-money-cell payroll-allowance-amount">${money(line.allowance)}</td><td class="payroll-money-cell payroll-deduction-amount">${money(line.insuranceDeduction)}</td><td class="payroll-money-cell payroll-deduction-amount">${money(line.absenceDeduction)}</td><td class="payroll-money-cell payroll-deduction-amount">${money(line.advanceDeduction)}</td><td class="payroll-money-cell payroll-net-amount">${money(line.net)}</td><td class="payroll-money-cell payroll-transfer-cell">${money(line.transfer)}</td><td class="payroll-money-cell payroll-required-cell">${requiredText}</td><td class="payroll-card-withdraw-cell">${line.cardWithdraw ? 'نعم' : ''}</td><td><span class="status-badge status-paid">${payrollRunForMonth(key) ? 'مصروف' : 'جاهز للصرف'}</span></td></tr>`;
     }).join('');
-    return `<main class="payroll-print-sheet"><h1 class="payroll-print-title">مسير رواتب ${esc(payrollMonthLabel(key))}</h1><table class="payroll-print-table"><thead><tr><th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المبلغ المحول للموظف</th><th>المبلغ المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th></tr></thead><tbody>${tableRows || `<tr><td colspan="11">لا توجد بيانات في هذا المسير</td></tr>`}</tbody></table><div class="payroll-print-footer"><div></div><p>يحتوي هذا التقرير على ${pages} صفحة، وتمت الطباعة في تاريخ ${payrollReportDateTime(printedAt)}، وتم اعتماد المسير في تاريخ ${payrollReportDateTime(approvedAt)}</p></div></main>`;
+    return `<main class="payroll-print-sheet"><h1 class="payroll-print-title">مسير رواتب ${esc(payrollMonthLabel(key))}</h1><table class="payroll-print-table"><thead><tr><th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المحول للموظف</th><th>المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th></tr></thead><tbody>${tableRows || `<tr><td colspan="11">لا توجد بيانات في هذا المسير</td></tr>`}</tbody></table><div class="payroll-print-footer"><div></div><p>يحتوي هذا التقرير على ${pages} صفحة، وتمت الطباعة في تاريخ ${payrollReportDateTime(printedAt)}، وتم اعتماد المسير في تاريخ ${payrollReportDateTime(approvedAt)}</p></div></main>`;
   }
   const payrollReportPrintStyle = `@page{size:A4 landscape;margin:7mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{direction:rtl;font-family:Almarai,Arial,Tahoma,sans-serif;color:#172226;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.payroll-print-sheet{width:100%;padding:0}.payroll-print-title{margin:0 0 6px;text-align:center;color:#0f5f59;font-size:13px;font-weight:900;line-height:1.3}.payroll-print-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:8px;line-height:1.25;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden}.payroll-print-table th{background:#f3f8f8;color:#0f5f59;font-weight:800;border-bottom:1px solid #dfe7e9;padding:5px 3px;text-align:center;white-space:normal}.payroll-print-table td{border-bottom:1px solid #edf2f3;padding:4px 3px;text-align:center;vertical-align:middle;white-space:normal;word-break:break-word}.payroll-print-table tr:last-child td{border-bottom:0}.payroll-print-table th:nth-child(1),.payroll-print-table td:nth-child(1){width:16%;text-align:right}.payroll-print-table th:nth-child(8),.payroll-print-table td:nth-child(8){width:10%}.payroll-print-table th:nth-child(9),.payroll-print-table td:nth-child(9){width:10%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.status-badge{display:inline-block;font-size:7px;line-height:1;border-radius:999px;padding:3px 5px;background:#dcfce7;color:#166534;font-weight:800}.payroll-row-card-withdraw .payroll-report-employee{background:transparent;color:#991b1b}.payroll-row-card-withdraw .payroll-required-cell{background:transparent;color:#b91c1c}.payroll-risk-marker{display:inline-block;width:4px;height:18px;border-radius:999px;background:#dc2626;margin-left:6px;vertical-align:middle}.payroll-risk-name{display:inline-block;vertical-align:middle;color:#991b1b;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.payroll-print-footer{margin-top:6px;border-top:1.5px solid #172226;padding-top:5px;font-size:8px;color:#334155;text-align:center}.payroll-print-footer p{margin:0}.payroll-print-table tr.payroll-row-card-withdraw td{background:#fff!important;box-shadow:none!important}.payroll-print-table tr.payroll-row-card-withdraw td.payroll-report-employee,.payroll-print-table tr.payroll-row-card-withdraw td.payroll-required-cell{background:#fff!important;box-shadow:none!important}.payroll-risk-marker{display:inline-block!important;width:4px!important;height:18px!important;border-radius:999px!important;background:#dc2626!important;margin-left:10px!important;vertical-align:middle!important}.payroll-risk-name{display:inline-block!important;vertical-align:middle!important;color:#991b1b!important;font-weight:900!important}@media print{body{background:#fff}.payroll-print-table{font-size:7.5px}.payroll-print-table th{padding:4px 2px}.payroll-print-table td{padding:3px 2px}.payroll-print-footer{break-inside:avoid}}`;
   function payrollReportHtmlDocument(title, markup){
@@ -12123,9 +12101,12 @@ document.addEventListener("click", function(event) {
   }
   function employeeCellForPayroll(row){
     const current = getEmployeeById(row.employeeId);
-    if (current && typeof employeeCell === 'function') return employeeCell(current);
-    const employee = row.employee || {};
-    return `<div class="employee-mini"><div class="avatar sm">${esc(employee.initials || (employee.name || 'م').slice(0,1))}</div><div><strong>${esc(employee.name || 'موظف')}</strong>${employee.phone ? `<small>${esc(employee.phone)}</small>` : ''}</div></div>`;
+    const employee = current || row.employee || {};
+    const name = employee.name || 'موظف';
+    const initials = employee.initials || (name || 'م').slice(0,1);
+    const color = employee.color || 'teal';
+    const avatarMarkup = `<div class="avatar avatar-${esc(color)}">${esc(initials)}</div>`;
+    return `<div class="employee-cell payroll-name-only-cell">${avatarMarkup}<div><strong class="employee-name">${esc(name)}</strong></div></div>`;
   }
   function saveCurrentPayrollRun(){
     if (!canProcessPayrollRuns()) { try { showToast('ليست لديك صلاحية اعتماد وصرف مسير الرواتب'); } catch(_) {} return; }
@@ -12159,7 +12140,7 @@ document.addEventListener("click", function(event) {
     const addAdvanceButton = canCreateAdvances() ? `<button type="button" class="primary-btn payroll-add-advance-btn" id="payrollAddAdvanceBtn"><span data-icon="wallet"></span>إضافة سلفة</button>` : '';
     const printButton = canPrintPayrollRuns() ? `<button type="button" class="secondary-btn payroll-print-btn" id="payrollPrintBtn"><span data-icon="printer"></span>طباعة</button>` : '';
     panel.classList.toggle('is-permission-hidden', !canShowAdvanceTable && !canCreateAdvances());
-    panel.innerHTML = `<div class="panel-head payroll-advances-head"><div><h3>السلفيات</h3><p>إجمالي السلفيات المعتمدة خلال شهر المسير</p></div><div class="payroll-advances-actions">${addAdvanceButton}${printButton}</div></div>${canShowAdvanceTable ? `<div class="table-wrap payroll-advances-table-wrap"><table class="payroll-advances-table"><thead><tr><th>الموظف</th><th>إجمالي السلفيات</th></tr></thead><tbody>${groups.length ? groups.map(group => `<tr class="advance-summary-row" data-toggle-advance-details="${esc(group.employee.id)}"><td class="advance-employee-cell"><button type="button" class="advance-toggle-btn" aria-expanded="false" aria-label="عرض تفاصيل السلفيات"><span class="advance-arrow">▾</span></button><div class="advance-employee-compact">${typeof employeeCell === 'function' ? employeeCell(group.employee) : esc(group.employee.name)}</div></td><td class="advance-total-cell"><strong>${money(group.total)}</strong></td></tr><tr class="advance-detail-row" id="advance-detail-${esc(group.employee.id)}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>التاريخ</th><th>اليوم</th><th>القيمة</th></tr></thead><tbody>${group.items.sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(item => `<tr><td>${esc(dateLabel(item.date))}</td><td>${esc(item.dayName || dayName(item.date))}</td><td><strong>${money(item.amount)}</strong></td></tr>`).join('')}</tbody></table></div></td></tr>`).join('') : `<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات مسجلة لهذا الشهر</strong></div></td></tr>`}</tbody></table></div>` : `<div class="empty-state"><strong>لا تملك صلاحية عرض جدول السلفيات</strong></div>`}`;
+    panel.innerHTML = `<div class="panel-head payroll-advances-head"><div><h3>السلفيات</h3><p>إجمالي السلفيات المعتمدة خلال شهر المسير</p></div><div class="payroll-advances-actions">${addAdvanceButton}${printButton}</div></div>${canShowAdvanceTable ? `<div class="table-wrap payroll-advances-table-wrap"><table class="payroll-advances-table"><thead><tr><th>الموظف</th><th>إجمالي السلفيات</th></tr></thead><tbody>${groups.length ? groups.map(group => `<tr class="advance-summary-row" data-toggle-advance-details="${esc(group.employee.id)}"><td class="advance-employee-cell"><button type="button" class="advance-toggle-btn" aria-expanded="false" aria-label="عرض تفاصيل السلفيات"><span class="advance-arrow">▾</span></button><div class="advance-employee-compact">${employeeCellForPayroll({ employeeId: group.employee.id, employee: group.employee })}</div></td><td class="advance-total-cell"><strong>${money(group.total)}</strong></td></tr><tr class="advance-detail-row" id="advance-detail-${esc(group.employee.id)}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>التاريخ</th><th>اليوم</th><th>القيمة</th></tr></thead><tbody>${group.items.sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(item => `<tr><td>${esc(dateLabel(item.date))}</td><td>${esc(item.dayName || dayName(item.date))}</td><td><strong>${money(item.amount)}</strong></td></tr>`).join('')}</tbody></table></div></td></tr>`).join('') : `<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات مسجلة لهذا الشهر</strong></div></td></tr>`}</tbody></table></div>` : `<div class="empty-state"><strong>لا تملك صلاحية عرض جدول السلفيات</strong></div>`}`;
     panel.querySelector('#payrollAddAdvanceBtn')?.addEventListener('click', openAdvanceModal);
     panel.querySelector('#payrollPrintBtn')?.addEventListener('click', () => openPayrollReport('print'));
     panel.querySelectorAll('[data-toggle-advance-details]').forEach(row => { row.addEventListener('click', (event) => { event.preventDefault(); const id = row.dataset.toggleAdvanceDetails; const detail = panel.querySelector(`#advance-detail-${CSS.escape(id)}`); const btn = row.querySelector('.advance-toggle-btn'); const arrow = row.querySelector('.advance-arrow'); if (!detail) return; const open = detail.hasAttribute('hidden'); detail.toggleAttribute('hidden', !open); btn?.setAttribute('aria-expanded', open ? 'true' : 'false'); if (arrow) arrow.textContent = open ? '▴' : '▾'; }); });
@@ -12189,7 +12170,7 @@ document.addEventListener("click", function(event) {
     const body = document.querySelector('#payrollTableBody');
     if (body) {
       body.innerHTML = rows.map(row => { const line = row.line || {}; const requiredText = Number(line.required || 0) > 0 ? `<strong class="payroll-required-amount">${money(line.required)}</strong>` : ''; const withdrawText = line.cardWithdraw ? `<span class="payroll-card-withdraw-text">نعم</span>` : ''; return `<tr class="${line.cardWithdraw ? 'payroll-row-card-withdraw' : ''}"><td class="payroll-employee-cell">${employeeCellForPayroll(row)}</td><td class="payroll-money-cell payroll-base-amount">${money(line.baseSalary)}</td><td class="payroll-money-cell payroll-allowance-amount">${money(line.allowance)}</td><td class="payroll-money-cell payroll-deduction-amount"><strong>${money(line.insuranceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong class="absence-money-deduction">${money(line.absenceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong>${money(line.advanceDeduction)}</strong></td><td class="payroll-money-cell payroll-net-amount"><strong>${money(line.net)}</strong></td><td class="payroll-money-cell payroll-transfer-cell"><strong class="payroll-transfer-amount">${money(line.transfer)}</strong></td><td class="payroll-money-cell payroll-required-cell">${requiredText}</td><td class="payroll-card-withdraw-cell">${withdrawText}</td><td><span class="status-badge status-paid">${savedRun ? 'مصروف' : 'جاهز للصرف'}</span></td></tr>`; }).join('');
-      const head = body.closest('table')?.querySelector('thead tr'); if (head) head.innerHTML = `<th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المبلغ المحول للموظف</th><th>المبلغ المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th>`;
+      const head = body.closest('table')?.querySelector('thead tr'); if (head) head.innerHTML = `<th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المحول للموظف</th><th>المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th>`;
     }
     renderAdvanceSummary();
     updatePayrollPeriodLabels();
@@ -12234,7 +12215,7 @@ document.addEventListener("click", function(event) {
       const requiredText = Number(line.required || 0) > 0 ? money(line.required) : '';
       return `<tr class="${line.cardWithdraw ? 'payroll-row-card-withdraw' : ''}"><td class="payroll-report-employee">${line.cardWithdraw ? `<span class="payroll-risk-marker"></span><span class="payroll-risk-name">${esc(payrollPlainEmployeeName(row))}</span>` : esc(payrollPlainEmployeeName(row))}</td><td class="payroll-base-amount">${money(line.baseSalary)}</td><td class="payroll-allowance-amount">${money(line.allowance)}</td><td class="payroll-deduction-amount">${money(line.insuranceDeduction)}</td><td class="payroll-deduction-amount">${money(line.absenceDeduction)}</td><td class="payroll-deduction-amount">${money(line.advanceDeduction)}</td><td class="payroll-net-amount">${money(line.net)}</td><td class="payroll-transfer-cell">${money(line.transfer)}</td><td class="payroll-required-cell">${requiredText}</td><td class="payroll-card-withdraw-cell">${line.cardWithdraw ? 'نعم' : ''}</td><td><span class="status-badge">${savedRun ? 'مصروف' : 'جاهز للصرف'}</span></td></tr>`;
     }).join('');
-    return `<main class="payroll-print-sheet"><h1 class="payroll-print-title">مسير رواتب ${esc(payrollMonthLabel(key))}</h1><table class="payroll-print-table"><thead><tr><th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المبلغ المحول للموظف</th><th>المبلغ المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th></tr></thead><tbody>${tableRows || `<tr><td colspan="11">لا توجد بيانات في هذا المسير</td></tr>`}</tbody></table><div class="payroll-print-footer"><p>يحتوي هذا التقرير على ${pages} صفحة، وتمت الطباعة في تاريخ ${payrollReportDateTime(printedAt)}، وتم اعتماد المسير في تاريخ ${payrollReportDateTime(approvedAt)}</p></div></main>`;
+    return `<main class="payroll-print-sheet"><h1 class="payroll-print-title">مسير رواتب ${esc(payrollMonthLabel(key))}</h1><table class="payroll-print-table"><thead><tr><th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>صافي الراتب</th><th>المحول للموظف</th><th>المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th></tr></thead><tbody>${tableRows || `<tr><td colspan="11">لا توجد بيانات في هذا المسير</td></tr>`}</tbody></table><div class="payroll-print-footer"><p>يحتوي هذا التقرير على ${pages} صفحة، وتمت الطباعة في تاريخ ${payrollReportDateTime(printedAt)}، وتم اعتماد المسير في تاريخ ${payrollReportDateTime(approvedAt)}</p></div></main>`;
   }
   const payrollReportPrintCss = `@page{size:A4 landscape;margin:7mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{direction:rtl;font-family:Almarai,Arial,Tahoma,sans-serif;color:#172226;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.payroll-print-sheet{width:100%;padding:0}.payroll-print-title{margin:0 0 6px;text-align:center;color:#0f5f59;font-size:13px;font-weight:900;line-height:1.3}.payroll-print-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:8px;line-height:1.25;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden}.payroll-print-table th{background:#f3f8f8;color:#0f5f59;font-weight:800;border-bottom:1px solid #dfe7e9;padding:5px 3px;text-align:center;white-space:normal}.payroll-print-table td{border-bottom:1px solid #edf2f3;padding:4px 3px;text-align:center;vertical-align:middle;white-space:normal;word-break:break-word}.payroll-print-table tr:last-child td{border-bottom:0}.payroll-print-table th:nth-child(1),.payroll-print-table td:nth-child(1){width:16%;text-align:right}.payroll-print-table th:nth-child(8),.payroll-print-table td:nth-child(8){width:10%}.payroll-print-table th:nth-child(9),.payroll-print-table td:nth-child(9){width:10%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.status-badge{display:inline-block;font-size:7px;line-height:1;border-radius:999px;padding:3px 5px;background:#dcfce7;color:#166534;font-weight:800}.payroll-row-card-withdraw .payroll-report-employee{background:transparent;color:#991b1b}.payroll-row-card-withdraw .payroll-required-cell{background:transparent;color:#b91c1c}.payroll-risk-marker{display:inline-block;width:4px;height:18px;border-radius:999px;background:#dc2626;margin-left:6px;vertical-align:middle}.payroll-risk-name{display:inline-block;vertical-align:middle;color:#991b1b;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.payroll-print-footer{margin-top:6px;border-top:1.5px solid #172226;padding-top:5px;font-size:8px;color:#334155;text-align:center}.payroll-print-footer p{margin:0}.payroll-print-table tr.payroll-row-card-withdraw td{background:#fff!important;box-shadow:none!important}.payroll-print-table tr.payroll-row-card-withdraw td.payroll-report-employee,.payroll-print-table tr.payroll-row-card-withdraw td.payroll-required-cell{background:#fff!important;box-shadow:none!important}.payroll-risk-marker{display:inline-block!important;width:4px!important;height:18px!important;border-radius:999px!important;background:#dc2626!important;margin-left:10px!important;vertical-align:middle!important}.payroll-risk-name{display:inline-block!important;vertical-align:middle!important;color:#991b1b!important;font-weight:900!important}@media print{body{background:#fff}.payroll-print-table{font-size:7.5px}.payroll-print-table th{padding:4px 2px}.payroll-print-table td{padding:3px 2px}.payroll-print-footer{break-inside:avoid}}`;
   function payrollReportDocumentHtml(title, markup){
@@ -13916,7 +13897,12 @@ document.addEventListener("click", function(event) {
   function financeAdvanceEmployeeCell(item) {
     try {
       const employee = typeof getEmployeeById === 'function' ? getEmployeeById(item.employeeId) : null;
-      if (employee && typeof employeeCell === 'function') return employeeCell(employee);
+      if (employee) {
+        const name = employee.name || financeAdvanceEmployeeName(item);
+        const initials = employee.initials || (name || 'م').slice(0,1);
+        const color = employee.color || 'teal';
+        return `<div class="employee-cell payroll-name-only-cell"><div class="avatar avatar-${escapeFinanceText(color)}">${escapeFinanceText(initials)}</div><div><strong class="employee-name">${escapeFinanceText(name)}</strong></div></div>`;
+      }
     } catch (_) {}
     return escapeFinanceText(financeAdvanceEmployeeName(item));
   }
@@ -14495,15 +14481,13 @@ document.addEventListener("click", function(event) {
   const FINANCE_KEYS = [
     'nawah-finance-settings',
     'nawah-finance-daily-open',
-    'nawah-finance-daily-days',
-    'nawah-payroll-advances'
+    'nawah-finance-daily-days'
   ];
   const FINANCE_STATE_KEYS = [
     'financeSettings',
     'financeDailyOpen',
     'financeDailyDays',
     'financeDailyCurrentDate',
-    'payrollAdvances',
     'financeSettingsUpdatedAt'
   ];
 
@@ -14533,8 +14517,6 @@ document.addEventListener("click", function(event) {
   function hasMeaningfulFinanceData() {
     const settings = safeJson(localStorage.getItem('nawah-finance-settings'), null);
     if (settings && (toNumber(settings.openingAmount) > 0 || toNumber(settings.custodyAmount) > 0)) return true;
-    const advances = safeJson(localStorage.getItem('nawah-payroll-advances'), []);
-    if (Array.isArray(advances) && advances.length > 0) return true;
     const openDay = safeJson(localStorage.getItem('nawah-finance-daily-open'), null);
     if (dayHasData(openDay)) return true;
     const days = safeJson(localStorage.getItem('nawah-finance-daily-days'), null);
@@ -14549,12 +14531,11 @@ document.addEventListener("click", function(event) {
       for (let index = 0; index < localStorage.length; index += 1) {
         const key = localStorage.key(index);
         if (!key) continue;
-        if (key.includes('finance') || key.includes('payroll-advances') || key.includes('advance-fields-reset') || key.includes('finance-empty-reset')) {
+        if (key.includes('finance') || key.includes('finance-empty-reset')) {
           keysToRemove.push(key);
         }
       }
       [...new Set([...keysToRemove, ...FINANCE_KEYS])].forEach((key) => localStorage.removeItem(key));
-      localStorage.setItem('nawah-payroll-advances', '[]');
       localStorage.setItem('nawah-finance-settings', JSON.stringify({ openingAmount: '', custodyAmount: '', updatedAt: '' }));
       localStorage.setItem(RESET_KEY, VERSION);
     } catch (error) {
@@ -14565,13 +14546,6 @@ document.addEventListener("click", function(event) {
   function cleanStateObject(state) {
     if (!state || typeof state !== 'object') return state;
     FINANCE_STATE_KEYS.forEach((key) => { try { delete state[key]; } catch (_) {} });
-    if (Array.isArray(state.employees)) {
-      state.employees = state.employees.map((employee) => ({
-        ...employee,
-        salaryAdvance: 0,
-        advanceDeduction: 0
-      }));
-    }
     return state;
   }
 
