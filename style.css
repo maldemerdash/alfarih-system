@@ -9653,3 +9653,21 @@ body.auth-locked .app-shell {
 .finance-entry-table td{vertical-align:middle;min-width:95px}
 .finance-balance-mini.is-match{color:#166534!important;background:rgba(22,163,74,.10);border:1px solid rgba(22,163,74,.22);border-radius:999px;padding:3px 8px;width:max-content;max-width:100%}
 .finance-balance-mini.is-unmatch{color:#991b1b!important;background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.22);border-radius:999px;padding:3px 8px;width:max-content;max-width:100%}
+
+/* Finance cards numbers - larger readable amount text */
+.finance-summary-card strong{
+  font-size:27px;
+  line-height:1.03;
+}
+.finance-summary-card strong.money-with-symbol{
+  font-size:32px;
+  line-height:1.02;
+}
+.finance-card-field input{
+  font-size:22px;
+  font-weight:900;
+}
+.finance-summary-card .sar-symbol{
+  width:18px;
+  height:18px;
+}
