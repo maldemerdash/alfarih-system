@@ -13677,6 +13677,18 @@ document.addEventListener("click", function(event) {
     financeDaily[type] = normalizeRows(rows);
   }
 
+  function readDomRows(type) {
+    const table = document.querySelector(`[data-finance-table="${type}"]`);
+    return Array.from(table?.querySelectorAll("tbody tr") || []).map((tr) => ({
+      amount: tr.querySelector('[data-finance-field="amount"]')?.value || "",
+      note: tr.querySelector('[data-finance-field="note"]')?.value || ""
+    }));
+  }
+
+  function hasEmptyRowBeforeLast(rows) {
+    return rows.some((row, index) => index < rows.length - 1 && !rowHasValue(row));
+  }
+
   function ensureTrailingBlankRow(type) {
     const table = document.querySelector(`[data-finance-table="${type}"]`);
     const tbody = table?.querySelector("tbody");
@@ -13693,6 +13705,19 @@ document.addEventListener("click", function(event) {
     };
     if (rowHasValue(lastRow)) {
       appendTableRow(tbody, type, BLANK_ROW, trList.length);
+    }
+  }
+
+  function reconcileTableRows(type) {
+    const domRows = readDomRows(type);
+    const normalizedRows = normalizeRows(domRows);
+    financeDaily[type] = normalizedRows;
+    if (normalizedRows.length < domRows.length || hasEmptyRowBeforeLast(domRows)) {
+      renderTable(type);
+      return;
+    }
+    if (normalizedRows.length > domRows.length) {
+      ensureTrailingBlankRow(type);
     }
   }
 
@@ -13753,7 +13778,7 @@ document.addEventListener("click", function(event) {
     const tableInput = event.target?.dataset?.financeTableInput;
     if (tableInput && TABLE_TYPES.includes(tableInput)) {
       collectTable(tableInput);
-      ensureTrailingBlankRow(tableInput);
+      reconcileTableRows(tableInput);
       persistFinanceDaily();
       renderFinanceCards();
       try { saveLocalMeta(); } catch (_) { try { queueCloudStateSave(); } catch (__) {} }
