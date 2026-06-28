@@ -9565,7 +9565,7 @@ body.auth-locked .app-shell {
 .finance-entry-card.finance-negative,.finance-table-card.finance-negative{border-color:rgba(220,38,38,.20)}
 
 /* Finance Saudi Riyal symbol */
-.money-with-symbol{display:inline-flex;align-items:center;justify-content:flex-end;gap:5px;direction:ltr;white-space:nowrap}
-.money-with-symbol .sar-symbol{width:18px;height:18px;object-fit:contain;display:inline-block;flex:0 0 auto}
-.finance-summary-card strong.money-with-symbol{font-size:20px;line-height:1.1}
+.money-with-symbol{display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;direction:ltr;flex-direction:row-reverse;white-space:nowrap}
+.money-with-symbol .sar-symbol{width:19px;height:19px;object-fit:contain;display:inline-block;flex:0 0 auto}
+.finance-summary-card strong.money-with-symbol{font-size:22px;line-height:1.08}
 @media(max-width:640px){.money-with-symbol .sar-symbol{width:16px;height:16px}}
