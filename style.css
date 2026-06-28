@@ -11006,3 +11006,66 @@ body.auth-locked .app-shell {
   padding-top: 8px !important;
   padding-bottom: 8px !important;
 }
+
+/* Final finance correction: compact finance table rows to show more rows */
+#financeView .finance-entry-table th,
+#financeView .finance-entry-table td{
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  line-height: 1.05 !important;
+  vertical-align: middle !important;
+}
+#financeView .finance-entry-table input[data-finance-field="amount"],
+#financeView .finance-entry-table input[type="number"],
+#financeView .finance-entry-table textarea[data-finance-field="note"],
+#financeView .finance-entry-table input:not([type="number"]){
+  height: 30px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  line-height: 1.05 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+#financeView .finance-entry-table textarea[data-finance-field="note"]{
+  padding: 6px 10px !important;
+  resize: none !important;
+  overflow: hidden !important;
+}
+#financeView .finance-entry-table input[data-finance-field="amount"],
+#financeView .finance-entry-table input[type="number"]{
+  padding: 0 8px !important;
+}
+#financeView .finance-entry-table[data-finance-table="cashSales"] th,
+#financeView .finance-entry-table[data-finance-table="cashSales"] td,
+#financeView .finance-entry-table[data-finance-table="cardSales"] th,
+#financeView .finance-entry-table[data-finance-table="cardSales"] td{
+  padding: 4px 14px !important;
+}
+#financeView .finance-entry-table[data-finance-table="cashSales"] input[data-finance-field="amount"],
+#financeView .finance-entry-table[data-finance-table="cardSales"] input[data-finance-field="amount"]{
+  height: 30px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+  padding: 0 12px !important;
+}
+#financeView .finance-entry-table[data-finance-table="pending"] th,
+#financeView .finance-entry-table[data-finance-table="pending"] td,
+#financeView .finance-entry-table[data-finance-table="expenses"] th,
+#financeView .finance-entry-table[data-finance-table="expenses"] td{
+  padding: 3px 4px !important;
+}
+#financeView .finance-pending-delete-btn{
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  border-radius: 8px !important;
+}
+#financeView .finance-pending-delete-btn svg{
+  width: 12px !important;
+  height: 12px !important;
+}
+#financeView .finance-table-card .panel-head{
+  padding-bottom: 4px !important;
+}
