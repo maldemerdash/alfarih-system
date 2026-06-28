@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=20260628-finance-header-left-final" />
+    <link rel="stylesheet" href="style.css?v=20260628-finance-header-calendar-final" />
   </head>
   <body>
     <div class="app-shell">
@@ -400,6 +400,8 @@
                     <span data-finance-day-name>اليوم</span>
                     <strong data-finance-date-label>--/--/----</strong>
                   </div>
+                  <button type="button" class="ghost-btn finance-calendar-btn" data-finance-calendar-btn aria-label="اختيار تاريخ المالية"><span data-icon="calendar"></span></button>
+                  <input class="finance-hidden-date-input" type="date" data-finance-date-picker aria-label="اختيار تاريخ المالية" />
                   <div class="finance-day-nav">
                     <button type="button" class="ghost-btn finance-day-nav-btn" data-finance-day-nav="prev" aria-label="اليوم السابق"><span data-icon="chevron-right"></span></button>
                     <button type="button" class="ghost-btn finance-day-today-btn" data-finance-day-nav="today">اليوم</button>
@@ -949,6 +951,6 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260628-finance-header-left-final"></script>
+    <script src="app.js?v=20260628-finance-header-calendar-final"></script>
   </body>
 </html>

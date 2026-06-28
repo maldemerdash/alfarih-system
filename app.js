@@ -13601,6 +13601,9 @@ document.addEventListener("click", function(event) {
       button.disabled = financeDateKey === todayKey;
       button.classList.toggle('is-active', financeDateKey === todayKey);
     });
+    document.querySelectorAll('[data-finance-date-picker]').forEach((input) => {
+      if (document.activeElement !== input) input.value = financeDateKey;
+    });
   }
 
   function setFinanceDate(dateKey) {
@@ -13932,6 +13935,16 @@ document.addEventListener("click", function(event) {
   }, true);
 
   document.addEventListener("click", function(event) {
+    const calendarButton = event.target?.closest?.('[data-finance-calendar-btn]');
+    if (calendarButton) {
+      const picker = document.querySelector('[data-finance-date-picker]');
+      if (picker) {
+        picker.value = financeDateKey;
+        try { picker.showPicker(); }
+        catch (_) { try { picker.focus(); picker.click(); } catch (__) {} }
+      }
+      return;
+    }
     const dayButton = event.target?.closest?.('[data-finance-day-nav]');
     if (dayButton) {
       const action = dayButton.dataset.financeDayNav;
@@ -13941,6 +13954,12 @@ document.addEventListener("click", function(event) {
       return;
     }
     if (event.target?.closest?.('[data-view="finance"]')) setTimeout(() => refreshFinanceDailyUi(true), 100);
+  }, true);
+
+  document.addEventListener("change", function(event) {
+    if (!event.target?.matches?.('[data-finance-date-picker]')) return;
+    const value = event.target.value;
+    if (value) setFinanceDate(value);
   }, true);
 
   if (document.readyState === "loading") {
