@@ -9569,3 +9569,18 @@ body.auth-locked .app-shell {
 .money-with-symbol .sar-symbol{width:19px;height:19px;object-fit:contain;display:inline-block;flex:0 0 auto}
 .finance-summary-card strong.money-with-symbol{font-size:22px;line-height:1.08}
 @media(max-width:640px){.money-with-symbol .sar-symbol{width:16px;height:16px}}
+
+/* Finance layout refinement - grouped cards above matching tables */
+.finance-row-three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.finance-top-totals{align-items:stretch}
+.finance-linked-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:start}
+.finance-linked-block{display:grid;gap:8px;min-width:0}
+.finance-linked-block .finance-summary-card{min-height:76px}
+.finance-linked-block .finance-table-card{min-height:178px}
+.finance-linked-grid .panel-head{padding:12px 14px 8px}
+.finance-linked-grid .panel-head h3{font-size:13px}
+.finance-linked-grid .panel-head p{font-size:10px}
+.finance-balance-status.is-match{border-color:rgba(22,163,74,.28);background:rgba(240,253,244,.88);color:#166534}
+.finance-balance-status.is-mismatch{border-color:rgba(220,38,38,.26);background:rgba(254,242,242,.90);color:#991b1b}
+@media(max-width:1500px){.finance-linked-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1200px){.finance-row-three{grid-template-columns:1fr}.finance-linked-grid{grid-template-columns:1fr}}
