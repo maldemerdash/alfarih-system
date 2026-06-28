@@ -11113,3 +11113,52 @@ body.auth-locked .app-shell {
 #financeView .finance-entry-table[data-finance-table="cardSales"] td{
   padding-inline: 8px !important;
 }
+
+/* Final fix: employee documents delete icon alignment */
+#documentsList .repeatable-row.document-row {
+  grid-template-columns: minmax(150px, 1.15fr) minmax(120px, .9fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(92px, .62fr) 42px !important;
+  align-items: end !important;
+  gap: 10px !important;
+}
+#documentsList .repeatable-row.document-row [data-remove-document] {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  margin: 0 !important;
+  align-self: end !important;
+  justify-self: center !important;
+  border-radius: 11px !important;
+  background: rgba(239, 68, 68, 0.10) !important;
+  color: #dc2626 !important;
+  border: 1px solid rgba(239, 68, 68, 0.16) !important;
+  box-shadow: none !important;
+}
+#documentsList .repeatable-row.document-row [data-remove-document] svg {
+  width: 15px !important;
+  height: 15px !important;
+}
+#documentsList .repeatable-row.document-row [data-remove-document]:hover {
+  background: rgba(239, 68, 68, 0.16) !important;
+  transform: translateY(-1px);
+}
+@media (max-width: 1120px) {
+  #documentsList .repeatable-row.document-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) 42px !important;
+  }
+  #documentsList .repeatable-row.document-row [data-remove-document] {
+    grid-column: 3 !important;
+    grid-row: 1 / span 2 !important;
+    align-self: center !important;
+  }
+}
+@media (max-width: 760px) {
+  #documentsList .repeatable-row.document-row {
+    grid-template-columns: 1fr !important;
+  }
+  #documentsList .repeatable-row.document-row [data-remove-document] {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    justify-self: start !important;
+    align-self: start !important;
+  }
+}
