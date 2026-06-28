@@ -13111,7 +13111,7 @@ document.addEventListener("click", function(event) {
           <div><h2 class="section-title">المالية</h2><p class="section-description">بنية شاشة المالية والصلاحية المستقلة جاهزة، وسيتم تفعيل الحسابات والجداول في الخطوات التالية.</p></div>
           <button type="button" class="danger-btn finance-close-day-btn" disabled><span data-icon="check-circle"></span>إغلاق اليوم</button>
         </div>
-        <div class="finance-summary-grid"><article class="panel finance-summary-card"><span>المبلغ المرحل</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article><article class="panel finance-summary-card"><span>مبلغ العهدة</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article><article class="panel finance-summary-card"><span>المبلغ المرحل الجديد</span><strong>٠ ر.س</strong><small>جاهز للتجميد لاحقًا</small></article><article class="panel finance-summary-card"><span>إجمالي السلفيات</span><strong>٠ ر.س</strong><small>سلفيات الشهر</small></article><article class="panel finance-summary-card"><span>إجمالي المبالغ المعلقة</span><strong>٠ ر.س</strong><small>مستمرة خلال الشهر</small></article><article class="panel finance-summary-card"><span>مبلغ الصندوق</span><strong>٠ ر.س</strong><small>ناتج الحساب النهائي</small></article></div>
+        <div class="finance-summary-grid"><article class="panel finance-summary-card"><span>المبلغ المرحل</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article><article class="panel finance-summary-card"><span>مبلغ العهدة</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article><article class="panel finance-summary-card"><span>المبلغ المرحل الجديد</span><strong>٠ ر.س</strong><small>جاهز للتجميد لاحقًا</small></article><article class="panel finance-summary-card"><span>إجمالي السلفيات</span><strong>٠ ر.س</strong><small>سلفيات الشهر</small></article><article class="panel finance-summary-card"><span>إجمالي المبالغ المعلقة</span><strong>٠ ر.س</strong><small>مستمرة خلال الشهر</small></article><article class="panel finance-summary-card" data-finance-card="fundAmount"><span>مبلغ الصندوق</span><strong><span data-finance-money>٠</span> ر.س</strong><small>ناتج الحساب النهائي</small></article></div>
         <article class="panel"><div class="panel-head"><div><h3>هيكل المالية</h3><p>تم تجهيز الشاشة فقط دون تفعيل منطق الحسابات.</p></div></div></article>
       </div>`;
     payrollView.parentElement.insertBefore(section, payrollView);
@@ -13341,9 +13341,14 @@ document.addEventListener("click", function(event) {
     target.textContent = moneyText(value);
   }
 
+  function calculateBaseFundAmount() {
+    return toNumber(financeSettings.openingAmount) + toNumber(financeSettings.custodyAmount);
+  }
+
   function renderFinanceAmountsCards() {
     setFinanceCardValue("carriedAmount", financeSettings.openingAmount);
     setFinanceCardValue("custodyAmount", financeSettings.custodyAmount);
+    setFinanceCardValue("fundAmount", calculateBaseFundAmount());
   }
 
   function renderFinanceSettingsForm() {
