@@ -11069,3 +11069,47 @@ body.auth-locked .app-shell {
 #financeView .finance-table-card .panel-head{
   padding-bottom: 4px !important;
 }
+
+/* FINAL finance alignment: make cash/network table cards match expenses/pending from the bottom */
+#financeView .finance-linked-grid{
+  align-items: stretch !important;
+}
+#financeView .finance-linked-block{
+  display: grid !important;
+  grid-template-rows: 92px minmax(0, 1fr) !important;
+  height: 100% !important;
+  align-content: stretch !important;
+  align-items: stretch !important;
+}
+#financeView .finance-linked-block > .finance-summary-card{
+  height: 92px !important;
+  min-height: 92px !important;
+  max-height: 92px !important;
+}
+#financeView .finance-linked-block > .finance-table-card{
+  align-self: stretch !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+}
+#financeView .finance-linked-block > .finance-table-card > .panel-head{
+  flex: 0 0 auto !important;
+}
+#financeView .finance-linked-block > .finance-table-card > .table-wrap{
+  flex: 1 1 auto !important;
+  display: block !important;
+  align-self: stretch !important;
+  margin-top: 0 !important;
+}
+#financeView .finance-entry-table[data-finance-table="cashSales"],
+#financeView .finance-entry-table[data-finance-table="cardSales"]{
+  height: auto !important;
+}
+#financeView .finance-entry-table[data-finance-table="cashSales"] th,
+#financeView .finance-entry-table[data-finance-table="cashSales"] td,
+#financeView .finance-entry-table[data-finance-table="cardSales"] th,
+#financeView .finance-entry-table[data-finance-table="cardSales"] td{
+  padding-inline: 8px !important;
+}
