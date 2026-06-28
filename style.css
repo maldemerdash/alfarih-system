@@ -10115,3 +10115,54 @@ body.auth-locked .app-shell {
     justify-content:flex-start!important;
   }
 }
+
+/* Finance final logic: side submenu and linked display panels */
+.finance-side-subnav{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin:-4px 18px 8px 0;
+  padding-right:18px;
+  border-right:2px solid rgba(14,165,233,.16);
+}
+.finance-side-subnav-btn{
+  border:0;
+  background:transparent;
+  color:#64748b;
+  font:inherit;
+  font-size:13px;
+  font-weight:800;
+  text-align:right;
+  padding:7px 10px;
+  border-radius:10px;
+  cursor:pointer;
+}
+.finance-side-subnav-btn:hover,
+.finance-side-subnav-btn:focus{
+  background:rgba(14,165,233,.08);
+  color:#0f766e;
+  outline:none;
+}
+#financeView .finance-extra-panels{
+  margin-top:14px;
+  display:grid;
+  gap:14px;
+}
+#financeView .finance-advances-view .panel-head{
+  align-items:center;
+}
+#financeView .finance-advances-table td,
+#financeView .finance-advances-table th{
+  text-align:right;
+}
+#financeView .finance-advances-table strong{
+  font-size:25px;
+  font-weight:900;
+}
+.nav-item[data-view="finance"].is-permission-hidden + .finance-side-subnav,
+.nav-item[data-view="finance"]:not(.active) + .finance-side-subnav{
+  display:none!important;
+}
+.nav-item[data-view="finance"].active + .finance-side-subnav{
+  display:flex!important;
+}
