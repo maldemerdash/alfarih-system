@@ -16671,3 +16671,108 @@ document.addEventListener("click", function(event) {
   window.addEventListener('load', runLater);
   setTimeout(() => { normalizeDownloadButtonsV5(document); applyStableTopbarPhotoV5(); }, 700);
 })();
+
+/* =========================================================
+   v6 employee attachment persistence fix
+   Keeps employee-file attachment IDs after logout/login by saving the
+   current employee record immediately after an attachment upload.
+   ========================================================= */
+(function employeeAttachmentPersistenceV6(){
+  if (window.__employeeAttachmentPersistenceV6) return;
+  window.__employeeAttachmentPersistenceV6 = true;
+
+  const attachmentSnapshot = () => {
+    try {
+      return JSON.stringify({
+        employeeId: document.querySelector('#employeeForm [name="employeeId"]')?.value || '',
+        identityAttachmentId: employeeFormState?.identityAttachmentId || '',
+        photoAttachmentId: employeeFormState?.photoAttachmentId || '',
+        signatureAttachmentId: employeeFormState?.signatureAttachmentId || '',
+        fingerprintAttachmentId: employeeFormState?.fingerprintAttachmentId || '',
+        consentAttachmentId: employeeFormState?.consent?.attachmentId || '',
+        passports: (employeeFormState?.passports || []).map((item) => ({
+          number: item.number || '',
+          startDate: item.startDate || '',
+          expiryDate: item.expiryDate || '',
+          attachmentId: item.attachmentId || ''
+        })),
+        bankAccounts: (employeeFormState?.bankAccounts || []).map((item) => ({
+          bankName: item.bankName || '',
+          iban: item.iban || '',
+          certificateAttachmentId: item.certificateAttachmentId || '',
+          approvalAttachmentId: item.approvalAttachmentId || ''
+        })),
+        documents: (employeeFormState?.documents || []).map((item) => ({
+          id: item.id || '',
+          number: item.number || '',
+          startDate: item.startDate || '',
+          expiryDate: item.expiryDate || '',
+          attachmentId: item.attachmentId || ''
+        }))
+      });
+    } catch (_) {
+      return '';
+    }
+  };
+
+  async function persistCurrentEmployeeAttachmentsV6(reason = 'attachment'){
+    try {
+      const form = document.querySelector('#employeeForm');
+      const employeeId = form?.elements?.employeeId?.value || '';
+      if (!employeeId || !Array.isArray(employees)) return;
+      const index = employees.findIndex((employee) => String(employee.id) === String(employeeId));
+      if (index < 0) return;
+
+      const snap = attachmentSnapshot();
+      if (!snap || window.__lastEmployeeAttachmentPersistV6 === snap) return;
+
+      const current = employees[index];
+      const merged = {
+        ...current,
+        identityAttachmentId: employeeFormState.identityAttachmentId || '',
+        photoAttachmentId: employeeFormState.photoAttachmentId || '',
+        legacyPhoto: employeeFormState.legacyPhoto || current.legacyPhoto || '',
+        signatureAttachmentId: employeeFormState.signatureAttachmentId || '',
+        fingerprintAttachmentId: employeeFormState.fingerprintAttachmentId || '',
+        passports: Array.isArray(employeeFormState.passports) ? employeeFormState.passports.map((item) => ({ ...item })) : (current.passports || []),
+        bankAccounts: Array.isArray(employeeFormState.bankAccounts) ? employeeFormState.bankAccounts.map((item) => ({ ...item })) : (current.bankAccounts || []),
+        documents: Array.isArray(employeeFormState.documents) ? employeeFormState.documents.map((item) => ({ ...item })) : (current.documents || []),
+        consent: employeeFormState.consent ? { ...employeeFormState.consent } : (current.consent || null)
+      };
+      const record = typeof normalizeEmployee === 'function' ? normalizeEmployee(merged) : merged;
+      employees[index] = record;
+      if (typeof dbSaveEmployee === 'function') await dbSaveEmployee(record);
+      if (typeof saveCloudStateNow === 'function') await saveCloudStateNow();
+      else if (typeof queueCloudStateSave === 'function') queueCloudStateSave();
+      window.__lastEmployeeAttachmentPersistV6 = snap;
+      if (reason === 'manual') {
+        try { showToast('تم حفظ المرفق في ملف الموظف'); } catch (_) {}
+      }
+    } catch (error) {
+      console.warn('تعذر تثبيت مرفق الموظف بعد الرفع.', error);
+    }
+  }
+
+  window.persistCurrentEmployeeAttachmentsV6 = persistCurrentEmployeeAttachmentsV6;
+
+  function scheduleAttachmentPersistV6(){
+    // Uploads to Supabase may take longer than the change event itself.
+    // Re-try a few times; snapshot protection prevents duplicate writes.
+    [500, 1500, 3500, 6500].forEach((delay) => {
+      setTimeout(() => persistCurrentEmployeeAttachmentsV6('attachment'), delay);
+    });
+  }
+
+  document.addEventListener('change', function(event){
+    if (event.target?.matches?.('[data-passport-attachment], [data-bank-certificate-attachment], [data-bank-approval-attachment], [data-document-attachment], [data-single-attachment], #employeePhotoInput')) {
+      scheduleAttachmentPersistV6();
+    }
+  }, false);
+
+  document.addEventListener('click', function(event){
+    const saveButton = event.target.closest?.('#saveEmployeeBtn, [data-save-employee], button[type="submit"]');
+    if (saveButton && saveButton.closest?.('#employeeForm')) {
+      setTimeout(() => persistCurrentEmployeeAttachmentsV6('attachment'), 300);
+    }
+  }, true);
+})();
