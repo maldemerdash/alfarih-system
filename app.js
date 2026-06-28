@@ -6316,6 +6316,71 @@ document.addEventListener("click", function(event) {
     if (closeMinute) { event.preventDefault(); event.stopImmediatePropagation(); closeMinuteBuilder(); return; }
   }, true);
 
+  function commitFinanceClosedSnapshots(totals, nextKey) {
+    financeDaily.isClosed = true;
+    financeDaily.closedAt = new Date().toISOString();
+    financeDaily.nextFinanceDate = nextKey;
+    financeDaily.carriedAmountSnapshot = totals.settings.openingAmount;
+    financeDaily.custodyAmountSnapshot = totals.settings.custodyAmount;
+    financeDaily.fundAmountSnapshot = totals.fundAmount;
+    financeDaily.newCarriedAmountSnapshot = totals.newCarriedAmount;
+    financeDaily.updatedAt = new Date().toISOString();
+  }
+
+  function buildFinanceNextDay(nextKey, carriedAmount, pendingRows) {
+    return normalizeFinanceDaily({
+      financeDate: nextKey,
+      pending: normalizeRows(pendingRows),
+      expenses: [],
+      cashSales: [],
+      cardSales: [],
+      budgetAmount: "",
+      manualCashAmount: "",
+      carriedAmountOverride: carriedAmount,
+      isClosed: false,
+      updatedAt: new Date().toISOString()
+    }, nextKey);
+  }
+
+  function handleFinanceCloseDay() {
+    ensureCurrentFinanceDate();
+    TABLE_TYPES.forEach(collectTable);
+    financeDaily = normalizeFinanceDaily(financeDaily, financeDateKey);
+
+    if (financeDaily.isClosed) {
+      try { showToast("هذا اليوم المالي مغلق مسبقًا"); } catch (_) {}
+      refreshFinanceDailyUi(true);
+      return;
+    }
+
+    const totals = calculateTotals();
+    const currentParts = getArabicDateParts(financeDateKey);
+    const nextKey = getNextFinanceBusinessDate(financeDateKey);
+    const nextParts = getArabicDateParts(nextKey);
+    const confirmed = window.confirm(`سيتم إغلاق يوم ${currentParts.dayName} ${currentParts.dateLabel} وترحيل مبلغ ${moneyText(totals.newCarriedAmount)} إلى يوم ${nextParts.dayName} ${nextParts.dateLabel}. هل تريد المتابعة؟`);
+    if (!confirmed) return;
+
+    commitFinanceClosedSnapshots(totals, nextKey);
+    financeDailyDays[financeDateKey] = normalizeFinanceDaily(financeDaily, financeDateKey);
+
+    const existingNext = financeDailyDays[nextKey] ? normalizeFinanceDaily(financeDailyDays[nextKey], nextKey) : null;
+    if (!existingNext || existingNext.isClosed) {
+      financeDailyDays[nextKey] = buildFinanceNextDay(nextKey, totals.newCarriedAmount, financeDaily.pending);
+    } else {
+      existingNext.carriedAmountOverride = totals.newCarriedAmount;
+      existingNext.pending = normalizeRows(financeDaily.pending);
+      existingNext.updatedAt = new Date().toISOString();
+      financeDailyDays[nextKey] = normalizeFinanceDaily(existingNext, nextKey);
+    }
+
+    localStorage.setItem(DAILY_DAYS_STORAGE_KEY, JSON.stringify(financeDailyDays));
+    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(financeDailyDays[nextKey]));
+    try { saveLocalMeta(); } catch (_) { try { queueCloudStateSave(); } catch (__) {} }
+    setFinanceDate(nextKey);
+    refreshFinanceDailyUi(true);
+    try { showToast(`تم إغلاق اليوم وفتح ${nextParts.dayName} ${nextParts.dateLabel}`); } catch (_) {}
+  }
+
   document.addEventListener("input", function(event) {
     const field = event.target.closest("[data-document-field]");
     if (field) {
@@ -13712,6 +13777,26 @@ document.addEventListener("click", function(event) {
     return (Array.isArray(rows) ? rows : []).reduce((total, row) => total + toNumber(row.amount), 0);
   }
 
+  function financeMonthKey(dateKey = financeDateKey) {
+    return String(dateKey || getFinanceDateKey()).slice(0, 7);
+  }
+
+  function calculateFinanceAdvancesTotal() {
+    const month = financeMonthKey();
+    try {
+      const rows = JSON.parse(localStorage.getItem("nawah-payroll-advances") || "[]");
+      if (!Array.isArray(rows)) return 0;
+      return rows.reduce((sum, item) => {
+        if (!item || item.status !== "approved") return sum;
+        const itemMonth = item.monthKey || String(item.date || "").slice(0, 7);
+        if (itemMonth !== month) return sum;
+        return sum + toNumber(item.amount);
+      }, 0);
+    } catch (_) {
+      return 0;
+    }
+  }
+
   function setFinanceCardValue(cardKey, value) {
     document.querySelectorAll(`[data-finance-card="${cardKey}"]`).forEach((card) => {
       const target = card.querySelector("[data-finance-money]") || card.querySelector("strong span") || card.querySelector("strong");
@@ -13726,7 +13811,7 @@ document.addEventListener("click", function(event) {
     const cashSalesTotal = sumRows(financeDaily.cashSales);
     const cardSalesTotal = sumRows(financeDaily.cardSales);
     const salesTotal = cashSalesTotal + cardSalesTotal;
-    const advancesTotal = 0;
+    const advancesTotal = calculateFinanceAdvancesTotal();
     const manualCashAmount = toNumber(financeDaily.manualCashAmount);
     const budgetAmount = toNumber(financeDaily.budgetAmount);
     const carriedAmount = financeDaily.isClosed
