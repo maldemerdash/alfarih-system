@@ -14101,7 +14101,7 @@ document.addEventListener("click", function(event) {
 
   function createNoteInput(type, index, value) {
     const input = document.createElement("textarea");
-    input.rows = 2;
+    input.rows = 1;
     input.placeholder = "البيان";
     input.dataset.financeTableInput = type;
     input.dataset.financeIndex = String(index);
@@ -14113,8 +14113,7 @@ document.addEventListener("click", function(event) {
 
   function autoResizeFinanceNote(input) {
     if (!input || input.tagName !== "TEXTAREA") return;
-    input.style.height = "auto";
-    input.style.height = Math.max(34, input.scrollHeight) + "px";
+    input.style.height = "46px";
   }
 
   function autoResizeFinanceNotes(scope = document) {
@@ -14141,7 +14140,6 @@ document.addEventListener("click", function(event) {
       button.title = "حذف المبلغ المعلق";
       button.setAttribute("aria-label", "حذف المبلغ المعلق");
       button.innerHTML = (typeof iconSvg === "function" ? iconSvg("trash") : "×");
-      button.disabled = !rowHasValue(row);
       actionTd.appendChild(button);
       tr.appendChild(actionTd);
     }
@@ -14179,15 +14177,18 @@ document.addEventListener("click", function(event) {
   }
 
   function ensurePendingDeletionLogPanel() {
-    const table = document.querySelector('[data-finance-table="pending"]');
-    const block = table?.closest?.('.finance-linked-block');
-    if (!block) return null;
-    let panel = block.querySelector('[data-finance-pending-delete-log]');
+    const root = document.getElementById('financeView') || document;
+    const advancesPanel = document.getElementById('financeAdvancesPanel');
+    let panel = root.querySelector('[data-finance-pending-delete-log]');
     if (!panel) {
       panel = document.createElement('article');
       panel.className = 'panel finance-pending-delete-log';
       panel.dataset.financePendingDeleteLog = 'true';
-      block.appendChild(panel);
+    }
+    if (advancesPanel && panel.previousElementSibling !== advancesPanel) {
+      advancesPanel.insertAdjacentElement('afterend', panel);
+    } else if (!advancesPanel && !panel.parentElement) {
+      root.appendChild(panel);
     }
     return panel;
   }

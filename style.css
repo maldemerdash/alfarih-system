@@ -10758,3 +10758,83 @@ body.auth-locked .app-shell {
   color: #94a3b8 !important;
   font-weight: 800 !important;
 }
+
+
+/* Final finance visual fix: fixed top cards, active pending delete, equal row field heights, log under advances */
+#financeView .finance-linked-block > .finance-summary-card{
+  height: 118px !important;
+  min-height: 118px !important;
+  max-height: 118px !important;
+  align-content: space-between !important;
+  overflow: hidden !important;
+}
+#financeView .finance-linked-block > .finance-summary-card strong,
+#financeView .finance-linked-block > .finance-summary-card .money-with-symbol{
+  min-height: 34px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+#financeView .finance-entry-table[data-finance-table="pending"] th,
+#financeView .finance-entry-table[data-finance-table="pending"] td,
+#financeView .finance-entry-table[data-finance-table="expenses"] th,
+#financeView .finance-entry-table[data-finance-table="expenses"] td{
+  padding: 7px 5px !important;
+  vertical-align: middle !important;
+}
+#financeView .finance-entry-table[data-finance-table="pending"] th:first-child,
+#financeView .finance-entry-table[data-finance-table="pending"] td:first-child,
+#financeView .finance-entry-table[data-finance-table="expenses"] th:first-child,
+#financeView .finance-entry-table[data-finance-table="expenses"] td:first-child{
+  width: 92px !important;
+  min-width: 92px !important;
+  max-width: 92px !important;
+}
+#financeView .finance-entry-table[data-finance-table="pending"] th:nth-child(3),
+#financeView .finance-entry-table[data-finance-table="pending"] td:nth-child(3){
+  width: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+}
+#financeView .finance-entry-table input[data-finance-field="amount"],
+#financeView .finance-entry-table textarea[data-finance-field="note"]{
+  height: 46px !important;
+  min-height: 46px !important;
+  max-height: 46px !important;
+  box-sizing: border-box !important;
+  line-height: 1.25 !important;
+  margin: 0 !important;
+}
+#financeView .finance-entry-table input[data-finance-field="amount"]{
+  width: 84px !important;
+  padding: 0 8px !important;
+  text-align: center !important;
+}
+#financeView .finance-entry-table textarea[data-finance-field="note"]{
+  width: 100% !important;
+  resize: none !important;
+  overflow: hidden !important;
+  padding: 11px 12px !important;
+  display: block !important;
+}
+#financeView .finance-pending-delete-btn,
+#financeView .finance-pending-delete-btn:disabled{
+  opacity: 1 !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+#financeView .finance-pending-delete-log{
+  margin-top: 12px !important;
+  width: 100% !important;
+  padding: 14px 16px !important;
+  border-radius: 22px !important;
+}
+#financeView #financeAdvancesPanel + .finance-pending-delete-log{
+  display: block !important;
+}
+@media(max-width:1500px){
+  #financeView .finance-linked-block > .finance-summary-card{
+    height: 112px !important;
+    min-height: 112px !important;
+    max-height: 112px !important;
+  }
+}
