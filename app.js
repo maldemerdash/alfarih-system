@@ -13292,3 +13292,163 @@ document.addEventListener("click", function(event) {
     if (event.target.closest?.('[data-settings-section="permissions"]')) setTimeout(syncFinanceCheckboxes, 300);
   }, true);
 })();
+
+/* Step 2: financial amounts settings and finance cards binding */
+(function financeAmountsSettingsStep2(){
+  const STORAGE_KEY = "nawah-finance-settings";
+  const DEFAULT_FINANCE_SETTINGS = { openingAmount: 0, custodyAmount: 0, updatedAt: "" };
+
+  function toNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : 0;
+  }
+
+  function normalizeFinanceSettings(value) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      openingAmount: toNumber(source.openingAmount),
+      custodyAmount: toNumber(source.custodyAmount),
+      updatedAt: source.updatedAt || ""
+    };
+  }
+
+  function loadFinanceSettings() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return normalizeFinanceSettings(stored ? JSON.parse(stored) : DEFAULT_FINANCE_SETTINGS);
+    } catch (_) {
+      return normalizeFinanceSettings(DEFAULT_FINANCE_SETTINGS);
+    }
+  }
+
+  let financeSettings = loadFinanceSettings();
+
+  function persistFinanceSettings() {
+    financeSettings.updatedAt = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(financeSettings));
+  }
+
+  function moneyText(value) {
+    try { return arabicNumber(toNumber(value)); }
+    catch (_) { return String(toNumber(value).toLocaleString("en-US")); }
+  }
+
+  function setFinanceCardValue(cardKey, value) {
+    const card = document.querySelector(`[data-finance-card="${cardKey}"]`);
+    if (!card) return;
+    const target = card.querySelector("[data-finance-money]") || card.querySelector("strong span") || card.querySelector("strong");
+    if (!target) return;
+    target.textContent = moneyText(value);
+  }
+
+  function renderFinanceAmountsCards() {
+    setFinanceCardValue("carriedAmount", financeSettings.openingAmount);
+    setFinanceCardValue("custodyAmount", financeSettings.custodyAmount);
+  }
+
+  function renderFinanceSettingsForm() {
+    const form = document.querySelector("#financeSettingsForm");
+    if (!form) return;
+    const opening = form.elements.openingAmount;
+    const custody = form.elements.custodyAmount;
+    if (opening && document.activeElement !== opening) opening.value = financeSettings.openingAmount || "";
+    if (custody && document.activeElement !== custody) custody.value = financeSettings.custodyAmount || "";
+  }
+
+  function refreshFinanceAmountsUi() {
+    renderFinanceAmountsCards();
+    renderFinanceSettingsForm();
+  }
+
+  const previousBuildCloudState = typeof buildCloudState === "function" ? buildCloudState : null;
+  if (previousBuildCloudState && !previousBuildCloudState.__financeAmountsWrapped) {
+    const wrappedBuildCloudState = function() {
+      const state = previousBuildCloudState.apply(this, arguments) || {};
+      state.financeSettings = normalizeFinanceSettings(financeSettings);
+      return state;
+    };
+    wrappedBuildCloudState.__financeAmountsWrapped = true;
+    buildCloudState = wrappedBuildCloudState;
+  }
+
+  const previousApplyCloudState = typeof applyCloudState === "function" ? applyCloudState : null;
+  if (previousApplyCloudState && !previousApplyCloudState.__financeAmountsWrapped) {
+    const wrappedApplyCloudState = function(state) {
+      const result = previousApplyCloudState.apply(this, arguments);
+      if (state && state.financeSettings) {
+        financeSettings = normalizeFinanceSettings(state.financeSettings);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(financeSettings));
+      }
+      refreshFinanceAmountsUi();
+      return result;
+    };
+    wrappedApplyCloudState.__financeAmountsWrapped = true;
+    applyCloudState = wrappedApplyCloudState;
+  }
+
+  const previousRenderSettings = typeof renderSettings === "function" ? renderSettings : null;
+  if (previousRenderSettings && !previousRenderSettings.__financeAmountsWrapped) {
+    const wrappedRenderSettings = function() {
+      const result = previousRenderSettings.apply(this, arguments);
+      renderFinanceSettingsForm();
+      return result;
+    };
+    wrappedRenderSettings.__financeAmountsWrapped = true;
+    renderSettings = wrappedRenderSettings;
+  }
+
+  const previousRenderAll = typeof renderAll === "function" ? renderAll : null;
+  if (previousRenderAll && !previousRenderAll.__financeAmountsWrapped) {
+    const wrappedRenderAll = function() {
+      const result = previousRenderAll.apply(this, arguments);
+      refreshFinanceAmountsUi();
+      return result;
+    };
+    wrappedRenderAll.__financeAmountsWrapped = true;
+    renderAll = wrappedRenderAll;
+  }
+
+  const previousSwitchView = typeof switchView === "function" ? switchView : null;
+  if (previousSwitchView && !previousSwitchView.__financeAmountsWrapped) {
+    const wrappedSwitchView = function(viewName) {
+      const result = previousSwitchView.apply(this, arguments);
+      if (viewName === "finance" || viewName === "settings") setTimeout(refreshFinanceAmountsUi, 0);
+      return result;
+    };
+    wrappedSwitchView.__financeAmountsWrapped = true;
+    switchView = wrappedSwitchView;
+  }
+
+  document.addEventListener("submit", function(event) {
+    if (event.target?.id !== "financeSettingsForm") return;
+    event.preventDefault();
+    const form = event.target;
+    financeSettings = normalizeFinanceSettings({
+      openingAmount: form.elements.openingAmount?.value,
+      custodyAmount: form.elements.custodyAmount?.value,
+      updatedAt: financeSettings.updatedAt
+    });
+    persistFinanceSettings();
+    refreshFinanceAmountsUi();
+    try { saveLocalMeta(); } catch (_) { try { queueCloudStateSave(); } catch (__) {} }
+    try { showToast("تم حفظ المبالغ المالية وتحديث بطاقات المالية"); } catch (_) {}
+  });
+
+  document.addEventListener("input", function(event) {
+    if (!event.target?.closest?.("#financeSettingsForm")) return;
+    const form = event.target.form;
+    if (!form) return;
+    financeSettings = normalizeFinanceSettings({
+      openingAmount: form.elements.openingAmount?.value,
+      custodyAmount: form.elements.custodyAmount?.value,
+      updatedAt: financeSettings.updatedAt
+    });
+    renderFinanceAmountsCards();
+  });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(refreshFinanceAmountsUi, 100));
+  } else {
+    setTimeout(refreshFinanceAmountsUi, 100);
+  }
+})();

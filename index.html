@@ -401,8 +401,8 @@
                 <div class="finance-row finance-row-six finance-top-totals">
                   <article class="panel finance-summary-card finance-positive"><span>مجموع المدين اليومي</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>جاهز للربط لاحقًا</small></article>
                   <article class="panel finance-summary-card finance-negative"><span>مجموع الدائن اليومي</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>جاهز للربط لاحقًا</small></article>
-                  <article class="panel finance-summary-card finance-positive"><span>المبلغ المرحل</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>يرتبط لاحقًا بالمبلغ الافتتاحي</small></article>
-                  <article class="panel finance-summary-card finance-positive"><span>مبلغ العهدة</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من إعدادات المالية للأيام القادمة</small></article>
+                  <article class="panel finance-summary-card finance-positive" data-finance-card="carriedAmount"><span>المبلغ المرحل</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من المبلغ الافتتاحي في إعدادات المالية</small></article>
+                  <article class="panel finance-summary-card finance-positive" data-finance-card="custodyAmount"><span>مبلغ العهدة</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من إعدادات المالية للأيام القادمة</small></article>
                   <article class="panel finance-summary-card finance-result"><span>المبلغ المرحل الجديد</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>يتجمد عند إغلاق اليوم</small></article>
                   <article class="panel finance-summary-card finance-fund-highlight"><span>مبلغ الصندوق</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>ناتج الحساب النهائي</small></article>
                 </div>
@@ -495,6 +495,7 @@
                 <button type="button" data-settings-section="notifications"><span data-icon="bell"></span>الإشعارات</button>
                 <button type="button" data-settings-section="permissions"><span data-icon="shield"></span>الصلاحيات والأمان</button>
                 <button type="button" data-settings-section="work"><span data-icon="clock"></span>إعداد العمل</button>
+                <button type="button" data-settings-section="financialAmounts"><span data-icon="wallet"></span>المبالغ المالية</button>
                 <button type="button" data-settings-section="absence"><span data-icon="user-x"></span>قاعدة بيانات الغياب</button>
                 <button type="button" data-settings-section="minuteSettings"><span data-icon="notes"></span>إعداد المحاضر</button>
               </nav>
@@ -559,6 +560,21 @@
                     <div class="form-actions"><button type="button" class="secondary-btn" id="resetWorkSettingsBtn">استعادة الافتراضي</button><button type="submit" class="primary-btn">حفظ إعداد العمل</button></div>
                   </form>
                 </section>
+                <section class="settings-section" data-settings-panel="financialAmounts">
+                  <div class="panel-head"><div><h3>المبالغ المالية</h3><p>تحديد المبلغ الافتتاحي ومبلغ العهدة المستخدمين في شاشة المالية للأيام المفتوحة والقادمة فقط.</p></div></div>
+                  <form id="financeSettingsForm" class="settings-form work-settings-form">
+                    <div class="settings-placeholder-card finance-settings-note">
+                      <span data-icon="info"></span>
+                      <div><strong>تنبيه مهم</strong><p>تغيير هذه القيم لا يعبث بالأيام المالية المغلقة. يتم استخدام القيم في اليوم المفتوح والأيام القادمة فقط.</p></div>
+                    </div>
+                    <div class="form-grid">
+                      <label><span>المبلغ الافتتاحي</span><input type="number" min="0" step="0.01" name="openingAmount" id="financeOpeningAmountInput" placeholder="0" /></label>
+                      <label><span>مبلغ العهدة</span><input type="number" min="0" step="0.01" name="custodyAmount" id="financeCustodyAmountInput" placeholder="0" /></label>
+                    </div>
+                    <div class="form-actions"><button type="submit" class="primary-btn">حفظ المبالغ المالية</button></div>
+                  </form>
+                </section>
+
                 <section class="settings-section" data-settings-panel="absence">
                   <div class="panel-head"><div><h3>قاعدة بيانات الغياب</h3><p>اختر القاعدة المفعلة التي سيطبقها النظام تلقائيًا عند تسجيل الغياب.</p></div></div>
                   <form id="absencePolicyForm" class="settings-form work-settings-form">
