@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=20260628-finance-compact" />
+    <link rel="stylesheet" href="style.css?v=20260628-finance-layout" />
   </head>
   <body>
     <div class="app-shell">
@@ -395,36 +395,44 @@
                   <h2 class="section-title">المالية</h2>
                   <p class="section-description">بنية شاشة المالية والصلاحية المستقلة جاهزة، وسيتم تفعيل الحسابات والجداول في الخطوات التالية.</p>
                 </div>
-                <button type="button" class="danger-btn finance-close-day-btn" disabled><span data-icon="check-circle"></span>إغلاق اليوم</button>
               </div>
 
-              <div class="finance-summary-grid" aria-label="بطاقات ملخص المالية">
-                <article class="panel finance-summary-card"><span>المبلغ المرحل</span><strong>٠ ر.س</strong><small>يرتبط لاحقًا بالمبلغ الافتتاحي</small></article>
-                <article class="panel finance-summary-card"><span>مبلغ العهدة</span><strong>٠ ر.س</strong><small>من إعدادات المالية للأيام القادمة</small></article>
-                <article class="panel finance-summary-card"><span>المبلغ المرحل الجديد</span><strong>٠ ر.س</strong><small>يتجمد عند إغلاق اليوم</small></article>
-                <article class="panel finance-summary-card"><span>إجمالي السلفيات</span><strong>٠ ر.س</strong><small>سلفيات الشهر</small></article>
-                <article class="panel finance-summary-card"><span>إجمالي المبالغ المعلقة</span><strong>٠ ر.س</strong><small>مستمرة خلال الشهر</small></article>
-                <article class="panel finance-summary-card"><span>مبلغ الصندوق</span><strong>٠ ر.س</strong><small>ناتج الحساب النهائي</small></article>
-              </div>
+              <div class="finance-cards-stack" aria-label="بطاقات ملخص المالية">
+                <div class="finance-row finance-row-two">
+                  <article class="panel finance-summary-card"><span>مجموع المدين اليومي</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article>
+                  <article class="panel finance-summary-card"><span>مجموع الدائن اليومي</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article>
+                </div>
 
-              <div class="finance-summary-grid finance-daily-grid" aria-label="بطاقات حركة اليوم">
-                <article class="panel finance-summary-card"><span>مجموع المدين اليومي</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article>
-                <article class="panel finance-summary-card"><span>مجموع الدائن اليومي</span><strong>٠ ر.س</strong><small>جاهز للربط لاحقًا</small></article>
-                <article class="panel finance-summary-card"><span>مجموع المبيعات النقدية</span><strong>٠ ر.س</strong><small>من جدول النقد</small></article>
-                <article class="panel finance-summary-card"><span>مجموع مبيعات الشبكة</span><strong>٠ ر.س</strong><small>من جدول الشبكة</small></article>
-                <article class="panel finance-summary-card finance-total-sales"><span>إجمالي مبيعات اليوم</span><strong>٠ ر.س</strong><small>النقد + الشبكة</small></article>
-              </div>
+                <div class="finance-row finance-row-four">
+                  <article class="panel finance-summary-card"><span>المبلغ المرحل</span><strong>٠ ر.س</strong><small>يرتبط لاحقًا بالمبلغ الافتتاحي</small></article>
+                  <article class="panel finance-summary-card"><span>مبلغ العهدة</span><strong>٠ ر.س</strong><small>من إعدادات المالية للأيام القادمة</small></article>
+                  <article class="panel finance-summary-card"><span>المبلغ المرحل الجديد</span><strong>٠ ر.س</strong><small>يتجمد عند إغلاق اليوم</small></article>
+                  <article class="panel finance-summary-card"><span>مبلغ الصندوق</span><strong>٠ ر.س</strong><small>ناتج الحساب النهائي</small></article>
+                </div>
 
-              <div class="finance-entry-grid">
-                <article class="panel finance-entry-card">
-                  <div class="panel-head"><div><h3>مبلغ الموازنة المدخل</h3><p>سيتم استخدامه لاحقًا لمطابقة مبيعات الشبكة</p></div></div>
-                  <label class="finance-inline-field"><span>المبلغ</span><input type="number" inputmode="decimal" placeholder="0.00" disabled /></label>
-                  <div class="finance-balance-status">لم يتم تفعيل المطابقة بعد</div>
-                </article>
-                <article class="panel finance-entry-card">
-                  <div class="panel-head"><div><h3>المبلغ النقدي</h3><p>سيتم إضافته لاحقًا إلى مبلغ الصندوق</p></div></div>
-                  <label class="finance-inline-field"><span>المبلغ</span><input type="number" inputmode="decimal" placeholder="0.00" disabled /></label>
-                </article>
+                <div class="finance-row finance-row-five">
+                  <article class="panel finance-summary-card"><span>إجمالي السلفيات</span><strong>٠ ر.س</strong><small>سلفيات الشهر</small></article>
+                  <article class="panel finance-summary-card"><span>إجمالي المبالغ المعلقة</span><strong>٠ ر.س</strong><small>مستمرة خلال الشهر</small></article>
+                  <article class="panel finance-summary-card"><span>مجموع المبيعات النقدية</span><strong>٠ ر.س</strong><small>من جدول النقد</small></article>
+                  <article class="panel finance-summary-card"><span>مجموع مبيعات الشبكة</span><strong>٠ ر.س</strong><small>من جدول الشبكة</small></article>
+                  <article class="panel finance-summary-card finance-total-sales"><span>إجمالي مبيعات اليوم</span><strong>٠ ر.س</strong><small>النقد + الشبكة</small></article>
+                </div>
+
+                <div class="finance-row finance-row-two finance-entry-grid">
+                  <article class="panel finance-entry-card">
+                    <div class="panel-head"><div><h3>مبلغ الموازنة المدخل</h3><p>سيتم استخدامه لاحقًا لمطابقة مبيعات الشبكة</p></div></div>
+                    <label class="finance-inline-field"><span>المبلغ</span><input type="number" inputmode="decimal" placeholder="0.00" disabled /></label>
+                    <div class="finance-balance-status">لم يتم تفعيل المطابقة بعد</div>
+                  </article>
+                  <article class="panel finance-entry-card">
+                    <div class="panel-head"><div><h3>المبلغ النقدي</h3><p>سيتم إضافته لاحقًا إلى مبلغ الصندوق</p></div></div>
+                    <label class="finance-inline-field"><span>المبلغ</span><input type="number" inputmode="decimal" placeholder="0.00" disabled /></label>
+                  </article>
+                </div>
+
+                <div class="finance-close-day-row">
+                  <button type="button" class="danger-btn finance-close-day-btn" disabled><span data-icon="check-circle"></span>إغلاق اليوم</button>
+                </div>
               </div>
 
               <div class="finance-content-grid">
