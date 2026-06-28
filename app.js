@@ -15901,3 +15901,296 @@ document.addEventListener("click", function(event) {
   setTimeout(boot, 1500);
   setInterval(applyVisibility, 300);
 })();
+
+/* =========================================================
+   ABSOLUTE FINAL PERMISSION SOURCE LOCK - 2026-06-28 v2
+   Fixes the actual remaining bug:
+   1) loadAuthProfile old wrappers were stripping finance keys before the final matrix loaded.
+   2) Old permission panels could remain mounted and save stale hidden checkbox values.
+   3) Establishment documents must be hidden unless nav.establishmentDocuments or one of its own document permissions is true.
+   ========================================================= */
+(function absoluteFinalPermissionSourceLockV2(){
+  if (window.__absoluteFinalPermissionSourceLockV2) return;
+  window.__absoluteFinalPermissionSourceLockV2 = true;
+
+  const SIDEBAR_TO_CHILDREN = {
+    'nav.dashboard': ['dashboard.stats','dashboard.attendanceOverview','dashboard.reviewRequests','dashboard.reviewActions','dashboard.establishmentExpiringDocs','dashboard.employeeExpiringDocs','dashboard.recentEmployees','dashboard.absenceShortcut','dashboard.reviewShortcut','dashboard.advanceShortcut'],
+    'nav.employees': ['employees.viewSelf','employees.viewAll','employees.create','employees.edit','employees.delete','employees.attachments'],
+    'nav.attendance': ['attendance.viewSelf','attendance.viewAll','attendance.markAbsent','attendance.deleteAbsence','attendance.export'],
+    'nav.leaves': ['leaves.viewOwn','leaves.viewAll','leaves.createLeave','leaves.createTravel','leaves.createForAll','leaves.approve','leaves.reject','leaves.resume','leaves.viewTravelers'],
+    'nav.finance': ['finance.view','finance.settings','finance.daily.view','finance.daily.manage','finance.closeDay','finance.manage'],
+    'nav.payroll': ['payroll.viewSelf','payroll.viewAll','payroll.periods.select','payroll.advances.viewSelf','payroll.advances.viewAll','payroll.advances.create','payroll.runs.process','payroll.runs.print','payroll.edit','payroll.commissions','payroll.printClearance'],
+    'nav.establishmentDocuments': ['documents.view','documents.create','documents.edit','documents.delete','documents.upload'],
+    'nav.departments': ['organization.view','organization.manage'],
+    'nav.settings': ['settings.view','security.manage','users.manage']
+  };
+  const VIEW_TO_NAV = {
+    dashboard: 'nav.dashboard', employees: 'nav.employees', attendance: 'nav.attendance', leaves: 'nav.leaves',
+    finance: 'nav.finance', payroll: 'nav.payroll', establishmentDocuments: 'nav.establishmentDocuments',
+    departments: 'nav.departments', settings: 'nav.settings', users: 'nav.settings'
+  };
+  const GROUPS = [
+    { id:'sidebar', title:'القوائم اليمنى', items:[
+      ['nav.dashboard','إظهار الصفحة الرئيسية'], ['nav.employees','إظهار الموظفين'], ['nav.attendance','إظهار الحضور والانصراف'],
+      ['nav.leaves','إظهار الإجازات والسفر'], ['nav.finance','إظهار المالية'], ['nav.payroll','إظهار الرواتب'],
+      ['nav.establishmentDocuments','إظهار وثائق المنشأة'], ['nav.departments','إظهار الأقسام والإدارات'], ['nav.settings','إظهار الإعدادات']
+    ]},
+    { id:'dashboard', title:'الصفحة الرئيسية', items:[
+      ['dashboard.stats','عرض بطاقات الإحصائيات'], ['dashboard.attendanceOverview','عرض بطاقة المسافرون / الحضور'], ['dashboard.reviewRequests','عرض طلبات تحتاج مراجعة'],
+      ['dashboard.reviewActions','أزرار الموافقة والرفض في الطلبات'], ['dashboard.establishmentExpiringDocs','عرض وثائق المنشأة قرب الانتهاء'],
+      ['dashboard.employeeExpiringDocs','عرض وثائق الموظفين قرب الانتهاء'], ['dashboard.recentEmployees','عرض أحدث الموظفين'],
+      ['dashboard.absenceShortcut','زر تسجيل الغياب في الشريط الأخضر'], ['dashboard.reviewShortcut','زر مراجعة الطلبات في الشريط الأخضر'], ['dashboard.advanceShortcut','زر إضافة سلفة في الشريط الأخضر']
+    ]},
+    { id:'employees', title:'الموظفون', items:[['employees.viewSelf','عرض ملف الموظف المرتبط فقط'], ['employees.viewAll','عرض جميع الموظفين'], ['employees.create','إضافة موظف'], ['employees.edit','تعديل الموظفين'], ['employees.delete','حذف الموظفين'], ['employees.attachments','عرض ورفع مرفقات الموظفين']]},
+    { id:'attendance', title:'الحضور والانصراف', items:[['attendance.viewSelf','عرض حضور الموظف المرتبط فقط'], ['attendance.viewAll','عرض حضور جميع الموظفين'], ['attendance.markAbsent','تسجيل غياب'], ['attendance.deleteAbsence','حذف الغياب'], ['attendance.export','تصدير تقرير الحضور']]},
+    { id:'leaves', title:'الإجازات والسفر', items:[['leaves.viewOwn','عرض طلبات الموظف المرتبط فقط'], ['leaves.viewAll','عرض طلبات جميع الموظفين'], ['leaves.createLeave','إنشاء طلب إجازة لنفسه'], ['leaves.createTravel','إنشاء طلب سفر لنفسه'], ['leaves.createForAll','إنشاء طلب لموظف آخر'], ['leaves.approve','موافقة الطلبات'], ['leaves.reject','رفض الطلبات'], ['leaves.resume','تسجيل المباشرة بعد العودة'], ['leaves.viewTravelers','عرض قائمة المسافرين']]},
+    { id:'finance', title:'المالية', items:[['finance.view','عرض صفحة المالية'], ['finance.settings','إدارة إعدادات المالية'], ['finance.daily.view','عرض اليومية المالية'], ['finance.daily.manage','إضافة وتعديل اليومية المالية'], ['finance.closeDay','إغلاق اليوم المالي'], ['finance.manage','إدارة المالية']]},
+    { id:'payroll', title:'الرواتب والسلفيات', items:[['payroll.viewSelf','عرض مسير راتبه فقط'], ['payroll.viewAll','عرض مسيرات رواتب جميع الموظفين'], ['payroll.periods.select','اختيار شهر وسنة المسير'], ['payroll.advances.viewSelf','عرض سلفياته فقط'], ['payroll.advances.viewAll','عرض سلفيات جميع الموظفين'], ['payroll.advances.create','إضافة واعتماد سلفة'], ['payroll.runs.process','اعتماد وصرف مسير الرواتب'], ['payroll.runs.print','طباعة وتصدير PDF لمسير الرواتب'], ['payroll.edit','تعديل الرواتب'], ['payroll.commissions','إدارة العمولات'], ['payroll.printClearance','طباعة المخالصة']]},
+    { id:'documents', title:'وثائق المنشأة', items:[['documents.view','عرض وثائق المنشأة'], ['documents.create','إضافة وثيقة منشأة'], ['documents.edit','تعديل وثيقة منشأة'], ['documents.delete','حذف وثيقة منشأة'], ['documents.upload','رفع مرفقات وثائق المنشأة']]},
+    { id:'organization', title:'الأقسام والإدارات', items:[['organization.view','عرض الأقسام والإدارات'], ['organization.manage','إضافة وتعديل وحذف الإدارات والأقسام والمهن']]},
+    { id:'settings', title:'الإعدادات والأمان', items:[['settings.view','عرض الإعدادات العامة'], ['security.manage','إدارة الصلاحيات والأمان'], ['users.manage','إدارة المستخدمين']]}
+  ];
+  const KEYS = [...new Set(GROUPS.flatMap((g) => g.items.map((i) => i[0])).concat(Object.values(SIDEBAR_TO_CHILDREN).flat()))];
+  const esc = (v) => typeof escapeHtml === 'function' ? escapeHtml(v ?? '') : String(v ?? '').replace(/[&<>\"]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[m] || m));
+  const css = (v) => { try { return CSS.escape(v); } catch (_) { return String(v).replace(/[^a-zA-Z0-9_-]/g, '\\$&'); } };
+  const isAdmin = () => String(authProfile?.role || '').trim() === 'admin';
+
+  function defaults(){
+    const out = {};
+    KEYS.forEach((key) => { out[key] = false; });
+    return out;
+  }
+  function normalizeFinal(raw, role){
+    const out = defaults();
+    const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    KEYS.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(source, key)) out[key] = Boolean(source[key]);
+    });
+    if (String(role || '').trim() === 'admin') { KEYS.forEach((key) => { out[key] = true; }); return out; }
+    Object.entries(SIDEBAR_TO_CHILDREN).forEach(([parent, children]) => {
+      if (children.some((key) => out[key])) out[parent] = true;
+    });
+    return out;
+  }
+  function currentPerms(){ return normalizeFinal(authProfile?.permissions, authProfile?.role); }
+  function canKey(key){ return isAdmin() || Boolean(currentPerms()[key]); }
+  function canOpen(view){
+    if (isAdmin()) return true;
+    if (view === 'users') return canKey('users.manage');
+    const nav = VIEW_TO_NAV[view];
+    if (!nav) return false;
+    return canKey(nav);
+  }
+  function setHidden(el, hidden){
+    if (!el) return;
+    el.classList.toggle('is-permission-hidden', Boolean(hidden));
+    el.dataset.permissionHidden = hidden ? 'true' : 'false';
+    if (hidden) { el.style.setProperty('display', 'none', 'important'); el.setAttribute('aria-hidden', 'true'); }
+    else { el.style.removeProperty('display'); el.removeAttribute('aria-hidden'); }
+  }
+  function installMatrix(){
+    const m = window.employeePermissionMatrix || {};
+    m.groups = GROUPS;
+    m.defaults = defaults();
+    m.normalizePermissions = normalizeFinal;
+    m.can = canKey;
+    m.__absoluteFinalV2 = true;
+    window.employeePermissionMatrix = m;
+    try { pageMeta.finance = ['المالية', 'متابعة البنية المالية اليومية والصلاحيات']; } catch (_) {}
+    try { pageMeta.establishmentDocuments = ['وثائق المنشأة', 'إدارة وثائق المنشأة وتواريخ انتهائها']; } catch (_) {}
+  }
+  function ensureFinanceNav(){
+    const nav = document.querySelector('.main-nav');
+    if (!nav || nav.querySelector('[data-view="finance"]')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'nav-item'; btn.dataset.view = 'finance';
+    btn.innerHTML = '<span class="nav-icon" data-icon="wallet"></span><span>المالية</span>';
+    const before = nav.querySelector('[data-view="payroll"]') || nav.querySelector('[data-view="settings"]');
+    if (before) nav.insertBefore(btn, before); else nav.appendChild(btn);
+    try { hydrateIcons(btn); } catch (_) {}
+  }
+  function ensureDocsNav(){
+    const nav = document.querySelector('.main-nav');
+    if (!nav || nav.querySelector('[data-view="establishmentDocuments"]')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'nav-item'; btn.dataset.view = 'establishmentDocuments';
+    btn.innerHTML = '<span class="nav-icon" data-icon="file"></span><span>وثائق المنشأة</span>';
+    const before = nav.querySelector('[data-view="departments"]') || nav.querySelector('[data-view="settings"]');
+    if (before) nav.insertBefore(btn, before); else nav.appendChild(btn);
+    try { hydrateIcons(btn); } catch (_) {}
+  }
+  function applyVisibility(){
+    installMatrix(); ensureFinanceNav(); ensureDocsNav();
+    document.querySelectorAll('.nav-item[data-view]').forEach((btn) => setHidden(btn, !canOpen(btn.dataset.view)));
+    document.querySelectorAll('[data-go-view]').forEach((el) => {
+      const view = el.dataset.goView;
+      if (view && pageMeta?.[view]) setHidden(el, !canOpen(view));
+    });
+    setHidden(document.querySelector('#statsGrid'), !canKey('dashboard.stats'));
+    setHidden(document.querySelector('#dashboardEstDocsPanel'), !(canKey('dashboard.establishmentExpiringDocs') && canOpen('establishmentDocuments')));
+    document.querySelectorAll('#hardAddEstDocBtn, #branchAddEstDocBtn, #addEstablishmentDocumentBtn').forEach((btn) => setHidden(btn, !canKey('documents.create')));
+    document.querySelectorAll('[data-remove-est-doc], [data-hard-remove-est-doc], [data-delete-establishment-document]').forEach((btn) => setHidden(btn, !canKey('documents.delete')));
+    document.querySelectorAll('[data-edit-est-doc], [data-hard-edit-est-doc], [data-edit-establishment-document]').forEach((btn) => setHidden(btn, !canKey('documents.edit')));
+  }
+
+  const previousLoadAuthProfile = typeof loadAuthProfile === 'function' ? loadAuthProfile : null;
+  loadAuthProfile = async function(user){
+    if (!user || !supabaseClient) return previousLoadAuthProfile ? previousLoadAuthProfile(user) : null;
+    const cols = 'id,user_id,full_name,email,role,is_active,employee_id,permissions';
+    let row = null;
+    try {
+      const result = await supabaseClient.from('app_user_profiles').select(cols).eq('user_id', user.id).maybeSingle();
+      if (result.error) throw result.error;
+      row = result.data || null;
+    } catch (error) { console.warn('تعذر تحميل الصلاحيات النهائية حسب user_id.', error); }
+    if (!row) {
+      try {
+        const result = await supabaseClient.from('app_user_profiles').select(cols).eq('email', user.email).maybeSingle();
+        if (result.error) throw result.error;
+        row = result.data || null;
+      } catch (error) { console.warn('تعذر تحميل الصلاحيات النهائية حسب البريد.', error); }
+    }
+    if (!row && previousLoadAuthProfile) row = await previousLoadAuthProfile(user);
+    if (!row) row = { full_name: user.email || 'مستخدم', email: user.email || '', role: 'employee', is_active: false, permissions: {} };
+    row.role = String(row.role || 'employee') === 'admin' ? 'admin' : 'employee';
+    row.permissions = normalizeFinal(row.permissions, row.role);
+    return row;
+  };
+  window.loadAuthProfile = loadAuthProfile;
+  currentRoleKey = function(){ return isAdmin() ? 'admin' : 'employee'; };
+  roleCanOpen = canOpen;
+  window.roleCanOpen = canOpen;
+
+  const oldSwitchView = typeof switchView === 'function' ? switchView : null;
+  switchView = function(viewName){
+    if (pageMeta?.[viewName] && !canOpen(viewName)) {
+      try { showToast(viewName === 'establishmentDocuments' ? 'ليست لديك صلاحية الدخول إلى وثائق المنشأة' : 'ليست لديك صلاحية الدخول إلى هذا القسم'); } catch (_) {}
+      applyVisibility();
+      return;
+    }
+    if (oldSwitchView && oldSwitchView !== switchView) return oldSwitchView.apply(this, arguments);
+  };
+  window.switchView = switchView;
+  const oldApplyRolePermissions = typeof applyRolePermissions === 'function' ? applyRolePermissions : null;
+  applyRolePermissions = function(){ try { oldApplyRolePermissions?.apply(this, arguments); } catch (_) {} applyVisibility(); };
+  window.applyRolePermissions = applyRolePermissions;
+
+  function panelHtml(){
+    return `
+      <div class="panel-head"><div><h3>الصلاحيات والأمان</h3><p>هذه الشاشة هي مصدر الصلاحيات الوحيد. أي صلاحية فرعية تفعل القائمة اليمنى تلقائيًا، ولا يتم حفظ أي مربعات قديمة مخفية.</p></div></div>
+      <div class="security-layout">
+        <article class="settings-placeholder-card security-user-picker"><span data-icon="shield"></span><div><strong>مصدر صلاحيات واحد</strong><p>المالية ووثائق المنشأة والقوائم اليمنى كلها تقرأ من نفس المفاتيح المحفوظة هنا.</p></div></article>
+        <div class="security-controls"><select id="absoluteV2SecurityUserSelect"><option value="">اختر مستخدمًا...</option></select><button type="button" class="secondary-btn" id="absoluteV2ReloadSecurityUsers"><span data-icon="refresh"></span>تحديث المستخدمين</button><button type="button" class="primary-btn" id="absoluteV2SaveSecurityPermissions"><span data-icon="check"></span>حفظ الصلاحيات</button></div>
+        <div id="absoluteV2SecurityEditor" class="security-editor-empty"><strong>اختر مستخدمًا من القائمة</strong><p>بعد الاختيار ستظهر الصلاحيات المفصلة.</p></div>
+      </div>`;
+  }
+  function renderEditor(){
+    const editor = document.querySelector('#absoluteV2SecurityEditor');
+    const id = document.querySelector('#absoluteV2SecurityUserSelect')?.value || '';
+    const profile = (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []).find((p) => String(p.id) === String(id));
+    if (!editor) return;
+    if (!profile) { editor.className = 'security-editor-empty'; editor.innerHTML = '<strong>اختر مستخدمًا من القائمة</strong><p>بعد الاختيار ستظهر الصلاحيات المفصلة.</p>'; return; }
+    const perms = normalizeFinal(profile.permissions, profile.role);
+    editor.className = '';
+    editor.innerHTML = `<div class="security-linked-employee-note"><strong>المستخدم:</strong> ${esc(profile.full_name || profile.email || '')}</div><div class="security-permissions-grid">${GROUPS.map((group) => `
+      <section class="security-permission-card" data-absolute-v2-group-card="${esc(group.id)}"><div class="security-permission-head"><strong>${esc(group.title)}</strong><button type="button" class="text-btn" data-absolute-v2-group="${esc(group.id)}">تحديد الكل</button></div><div class="security-permission-list">
+        ${group.items.map(([key,label]) => `<label class="security-permission-row"><span>${esc(label)}</span><input type="checkbox" data-absolute-v2-permission="${esc(key)}" ${perms[key] ? 'checked' : ''}></label>`).join('')}
+      </div></section>`).join('')}</div>`;
+    syncParents(editor);
+  }
+  async function loadUsers(){
+    const select = document.querySelector('#absoluteV2SecurityUserSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">جاري تحميل المستخدمين...</option>';
+    try { if (typeof loadAppUserProfiles === 'function') await loadAppUserProfiles(); } catch (error) { console.warn(error); }
+    const users = (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []).filter((p) => String(p.role || 'employee') !== 'admin');
+    select.innerHTML = '<option value="">اختر مستخدمًا...</option>' + users.map((p) => `<option value="${esc(p.id)}">${esc(p.full_name || p.email || '')} - ${esc(p.email || '')}</option>`).join('');
+    if (!users.length) select.innerHTML = '<option value="">لا يوجد مستخدمون</option>';
+    renderEditor();
+  }
+  function renderPanel(){
+    installMatrix();
+    const panel = document.querySelector('[data-settings-panel="permissions"]');
+    if (!panel) return;
+    if (panel.dataset.absoluteFinalV2Panel === 'true') return;
+    panel.dataset.absoluteFinalV2Panel = 'true';
+    panel.innerHTML = panelHtml();
+    try { hydrateIcons(panel); } catch (_) {}
+    loadUsers();
+  }
+  function syncParents(root){
+    Object.entries(SIDEBAR_TO_CHILDREN).forEach(([parent, children]) => {
+      const parentBox = root?.querySelector(`[data-absolute-v2-permission="${css(parent)}"]`);
+      if (!parentBox) return;
+      if (children.some((child) => root.querySelector(`[data-absolute-v2-permission="${css(child)}"]`)?.checked)) parentBox.checked = true;
+    });
+  }
+  function collectEditor(){
+    const out = defaults();
+    const editor = document.querySelector('#absoluteV2SecurityEditor');
+    editor?.querySelectorAll('[data-absolute-v2-permission]').forEach((box) => { out[box.dataset.absoluteV2Permission] = Boolean(box.checked); });
+    return normalizeFinal(out, 'employee');
+  }
+  async function savePermissions(){
+    const id = document.querySelector('#absoluteV2SecurityUserSelect')?.value || '';
+    const profile = (Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []).find((p) => String(p.id) === String(id));
+    if (!profile) { try { showToast('اختر مستخدمًا أولًا'); } catch (_) {} return; }
+    const permissions = collectEditor();
+    const body = { action:'update-user', id:profile.id, email:profile.email, fullName:profile.full_name, role:'employee', isActive:profile.is_active, employeeId:profile.employee_id || null, employee_id:profile.employee_id || null, permissions };
+    try {
+      const { data, error } = await supabaseClient.functions.invoke('admin-create-user', { body });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    } catch (edgeError) {
+      try {
+        const result = await supabaseClient.from('app_user_profiles').update({ permissions, role:'employee', is_active: body.isActive, employee_id: body.employee_id }).eq('id', profile.id).select('id').maybeSingle();
+        if (result.error) throw result.error;
+      } catch (dbError) { console.error(edgeError, dbError); try { showToast('تعذر حفظ الصلاحيات'); } catch (_) {} return; }
+    }
+    profile.permissions = permissions;
+    if (authProfile && String(authProfile.id) === String(profile.id)) authProfile.permissions = permissions;
+    renderEditor(); applyVisibility();
+    try { showToast('تم حفظ الصلاحيات بشكل نهائي'); } catch (_) {}
+  }
+
+  document.addEventListener('change', function(event){
+    const box = event.target?.closest?.('[data-absolute-v2-permission]');
+    if (box) {
+      const editor = document.querySelector('#absoluteV2SecurityEditor');
+      const key = box.dataset.absoluteV2Permission;
+      if (SIDEBAR_TO_CHILDREN[key] && !box.checked) {
+        SIDEBAR_TO_CHILDREN[key].forEach((child) => { const childBox = editor?.querySelector(`[data-absolute-v2-permission="${css(child)}"]`); if (childBox) childBox.checked = false; });
+      }
+      syncParents(editor); return;
+    }
+    if (event.target?.id === 'absoluteV2SecurityUserSelect') renderEditor();
+  }, true);
+  document.addEventListener('click', function(event){
+    if (event.target.closest?.('#absoluteV2SaveSecurityPermissions')) { event.preventDefault(); event.stopImmediatePropagation(); savePermissions(); return; }
+    if (event.target.closest?.('#absoluteV2ReloadSecurityUsers')) { event.preventDefault(); event.stopImmediatePropagation(); loadUsers(); return; }
+    const groupButton = event.target.closest?.('[data-absolute-v2-group]');
+    if (groupButton) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      const card = groupButton.closest('[data-absolute-v2-group-card]');
+      const boxes = Array.from(card?.querySelectorAll('[data-absolute-v2-permission]') || []);
+      const shouldCheck = boxes.some((box) => !box.checked);
+      boxes.forEach((box) => { box.checked = shouldCheck; });
+      syncParents(document.querySelector('#absoluteV2SecurityEditor'));
+      return;
+    }
+    const navTarget = event.target.closest?.('[data-view], [data-go-view]');
+    const view = navTarget?.dataset?.view || navTarget?.dataset?.goView;
+    if (view && pageMeta?.[view] && !canOpen(view)) { event.preventDefault(); event.stopImmediatePropagation(); try { showToast(view === 'establishmentDocuments' ? 'ليست لديك صلاحية الدخول إلى وثائق المنشأة' : 'ليست لديك صلاحية الدخول إلى هذا القسم'); } catch (_) {} applyVisibility(); return; }
+    if (event.target.closest?.('[data-settings-section="permissions"]')) setTimeout(renderPanel, 10);
+  }, true);
+
+  const oldSwitchSettings = typeof switchSettingsSection === 'function' ? switchSettingsSection : null;
+  if (oldSwitchSettings) {
+    switchSettingsSection = function(section){ const result = oldSwitchSettings.apply(this, arguments); if (section === 'permissions') setTimeout(renderPanel, 10); setTimeout(applyVisibility, 20); return result; };
+    window.switchSettingsSection = switchSettingsSection;
+  }
+
+  function boot(){ installMatrix(); ensureFinanceNav(); ensureDocsNav(); if (document.querySelector('[data-settings-panel="permissions"]')?.classList.contains('active')) renderPanel(); applyVisibility(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 50)); else setTimeout(boot, 50);
+  setTimeout(boot, 500); setTimeout(boot, 1500); setInterval(applyVisibility, 500);
+})();
