@@ -13461,6 +13461,7 @@ document.addEventListener("click", function(event) {
 /* Step 3: finance daily tables with live totals */
 (function financeDailyTablesStep3(){
   const DAILY_STORAGE_KEY = "nawah-finance-daily-open";
+  const DAILY_DAYS_STORAGE_KEY = "nawah-finance-daily-days";
   const SETTINGS_STORAGE_KEY = "nawah-finance-settings";
   const TABLE_TYPES = ["pending", "expenses", "cashSales", "cardSales"];
   const BLANK_ROW = { amount: "", note: "" };
@@ -13484,32 +13485,82 @@ document.addEventListener("click", function(event) {
     return meaningful;
   }
 
-  function normalizeFinanceDaily(value) {
+  function getFinanceDateKey() {
+    try {
+      if (typeof formatInputDate === "function" && typeof todayAtNoon === "function") return formatInputDate(todayAtNoon());
+    } catch (_) {}
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function normalizeFinanceDaily(value, dateKey) {
     const source = value && typeof value === "object" ? value : {};
     return {
+      financeDate: source.financeDate || dateKey || getFinanceDateKey(),
       pending: normalizeRows(source.pending),
       expenses: normalizeRows(source.expenses),
       cashSales: normalizeRows(source.cashSales),
       cardSales: normalizeRows(source.cardSales),
       budgetAmount: source.budgetAmount === 0 ? "0" : String(source.budgetAmount || ""),
       manualCashAmount: source.manualCashAmount === 0 ? "0" : String(source.manualCashAmount || ""),
+      carriedAmountSnapshot: toNumber(source.carriedAmountSnapshot),
+      custodyAmountSnapshot: toNumber(source.custodyAmountSnapshot),
+      fundAmountSnapshot: toNumber(source.fundAmountSnapshot),
+      newCarriedAmountSnapshot: toNumber(source.newCarriedAmountSnapshot),
       updatedAt: source.updatedAt || ""
     };
   }
 
-  function loadFinanceDaily() {
+  function loadFinanceDailyDays() {
     try {
-      const stored = localStorage.getItem(DAILY_STORAGE_KEY);
-      return normalizeFinanceDaily(stored ? JSON.parse(stored) : {});
+      const stored = localStorage.getItem(DAILY_DAYS_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : {};
+      const source = parsed && typeof parsed === "object" ? parsed : {};
+      const normalized = {};
+      Object.keys(source).forEach((dateKey) => {
+        normalized[dateKey] = normalizeFinanceDaily(source[dateKey], dateKey);
+      });
+      return normalized;
     } catch (_) {
-      return normalizeFinanceDaily({});
+      return {};
     }
   }
 
-  let financeDaily = loadFinanceDaily();
+  function loadLegacyFinanceDaily(dateKey) {
+    try {
+      const stored = localStorage.getItem(DAILY_STORAGE_KEY);
+      return stored ? normalizeFinanceDaily(JSON.parse(stored), dateKey) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  let financeDateKey = getFinanceDateKey();
+  let financeDailyDays = loadFinanceDailyDays();
+  if (!financeDailyDays[financeDateKey]) {
+    const legacyDaily = loadLegacyFinanceDaily(financeDateKey);
+    financeDailyDays[financeDateKey] = legacyDaily || normalizeFinanceDaily({}, financeDateKey);
+  }
+  let financeDaily = normalizeFinanceDaily(financeDailyDays[financeDateKey], financeDateKey);
+
+  function ensureCurrentFinanceDate() {
+    const currentDateKey = getFinanceDateKey();
+    if (currentDateKey === financeDateKey) return;
+    financeDailyDays[financeDateKey] = normalizeFinanceDaily(financeDaily, financeDateKey);
+    financeDateKey = currentDateKey;
+    if (!financeDailyDays[financeDateKey]) financeDailyDays[financeDateKey] = normalizeFinanceDaily({}, financeDateKey);
+    financeDaily = normalizeFinanceDaily(financeDailyDays[financeDateKey], financeDateKey);
+  }
 
   function persistFinanceDaily() {
+    ensureCurrentFinanceDate();
+    financeDaily.financeDate = financeDateKey;
     financeDaily.updatedAt = new Date().toISOString();
+    financeDailyDays[financeDateKey] = normalizeFinanceDaily(financeDaily, financeDateKey);
+    localStorage.setItem(DAILY_DAYS_STORAGE_KEY, JSON.stringify(financeDailyDays));
     localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(financeDaily));
   }
 
@@ -13556,6 +13607,10 @@ document.addEventListener("click", function(event) {
     const dailyDebit = cashSalesTotal + cardSalesTotal + manualCashAmount;
     const dailyCredit = pendingTotal + expensesTotal + advancesTotal + cardSalesTotal;
     const fundAmount = baseFund + cashSalesTotal + cardSalesTotal + manualCashAmount - pendingTotal - expensesTotal - advancesTotal - cardSalesTotal;
+    financeDaily.carriedAmountSnapshot = settings.openingAmount;
+    financeDaily.custodyAmountSnapshot = settings.custodyAmount;
+    financeDaily.fundAmountSnapshot = fundAmount;
+    financeDaily.newCarriedAmountSnapshot = fundAmount;
     return {
       settings,
       pendingTotal,
@@ -13574,6 +13629,7 @@ document.addEventListener("click", function(event) {
   }
 
   function renderFinanceCards() {
+    ensureCurrentFinanceDate();
     const totals = calculateTotals();
     setFinanceCardValue("carriedAmount", totals.settings.openingAmount);
     setFinanceCardValue("custodyAmount", totals.settings.custodyAmount);
@@ -13722,6 +13778,7 @@ document.addEventListener("click", function(event) {
   }
 
   function refreshFinanceDailyUi(renderTables) {
+    ensureCurrentFinanceDate();
     if (renderTables) renderFinanceTables();
     renderFinanceCards();
   }
@@ -13730,7 +13787,13 @@ document.addEventListener("click", function(event) {
   if (previousBuildCloudState && !previousBuildCloudState.__financeDailyTablesWrapped) {
     const wrappedBuildCloudState = function() {
       const state = previousBuildCloudState.apply(this, arguments) || {};
-      state.financeDailyOpen = normalizeFinanceDaily(financeDaily);
+      ensureCurrentFinanceDate();
+      state.financeDailyOpen = normalizeFinanceDaily(financeDaily, financeDateKey);
+      state.financeDailyDays = Object.keys(financeDailyDays).reduce((acc, dateKey) => {
+        acc[dateKey] = normalizeFinanceDaily(financeDailyDays[dateKey], dateKey);
+        return acc;
+      }, {});
+      state.financeDailyCurrentDate = financeDateKey;
       return state;
     };
     wrappedBuildCloudState.__financeDailyTablesWrapped = true;
@@ -13741,8 +13804,18 @@ document.addEventListener("click", function(event) {
   if (previousApplyCloudState && !previousApplyCloudState.__financeDailyTablesWrapped) {
     const wrappedApplyCloudState = function(state) {
       const result = previousApplyCloudState.apply(this, arguments);
-      if (state && state.financeDailyOpen) {
-        financeDaily = normalizeFinanceDaily(state.financeDailyOpen);
+      if (state && state.financeDailyDays && typeof state.financeDailyDays === "object") {
+        const incomingDays = {};
+        Object.keys(state.financeDailyDays).forEach((dateKey) => {
+          incomingDays[dateKey] = normalizeFinanceDaily(state.financeDailyDays[dateKey], dateKey);
+        });
+        financeDailyDays = incomingDays;
+        financeDateKey = getFinanceDateKey();
+        financeDaily = normalizeFinanceDaily(financeDailyDays[financeDateKey] || {}, financeDateKey);
+        persistFinanceDaily();
+      } else if (state && state.financeDailyOpen) {
+        financeDateKey = getFinanceDateKey();
+        financeDaily = normalizeFinanceDaily(state.financeDailyOpen, financeDateKey);
         persistFinanceDaily();
       }
       refreshFinanceDailyUi(true);
