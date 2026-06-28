@@ -9690,3 +9690,14 @@ body.auth-locked .app-shell {
   width:18px!important;
   height:18px!important;
 }
+
+/* Finance cards: unified amount font size requested */
+.finance-summary-card strong,
+.finance-summary-card strong.money-with-symbol,
+.finance-card-field input{
+  font-size:25px!important;
+  line-height:1.04!important;
+}
+.finance-card-field input{
+  height:36px!important;
+}
