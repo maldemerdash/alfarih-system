@@ -188,7 +188,7 @@ let cloudSaveTimer = null;
 let cloudLoadAttempted = false;
 let cloudSaveAllowed = false;
 
-const FINANCE_EMPTY_RESET_VERSION = "20260628-finance-empty-data-v2-force";
+const FINANCE_EMPTY_RESET_VERSION = "20260628-finance-full-empty-v4-clean-cloud";
 const FINANCE_EMPTY_RESET_KEY = "nawah-finance-empty-reset-version";
 const ADVANCE_FIELD_RESET_KEY = "nawah-advance-fields-reset-version";
 
@@ -201,12 +201,16 @@ function clearFinanceAndAdvanceLocalDataOnce() {
       const key = localStorage.key(index);
       if (!key) continue;
       const isFinanceDayData = key === "nawah-finance-daily-open" || key === "nawah-finance-daily-days" || key.startsWith("nawah-finance-daily-");
+      const isFinanceSettingsData = key === "nawah-finance-settings" || key.startsWith("nawah-finance-settings-");
       const isAdvanceData = key === "nawah-payroll-advances";
-      if (isFinanceDayData || isAdvanceData) keysToRemove.push(key);
+      if (isFinanceDayData || isFinanceSettingsData || isAdvanceData) keysToRemove.push(key);
     }
 
     keysToRemove.forEach((key) => localStorage.removeItem(key));
     localStorage.setItem("nawah-payroll-advances", "[]");
+    localStorage.setItem("nawah-finance-settings", JSON.stringify({ openingAmount: 0, custodyAmount: 0, updatedAt: "" }));
+    localStorage.removeItem("nawah-finance-daily-open");
+    localStorage.removeItem("nawah-finance-daily-days");
     localStorage.setItem(FINANCE_EMPTY_RESET_KEY, FINANCE_EMPTY_RESET_VERSION);
     return true;
   } catch (error) {
@@ -232,6 +236,7 @@ async function clearEmployeeAdvanceFieldsOnce() {
 
     localStorage.removeItem("nawah-finance-daily-open");
     localStorage.removeItem("nawah-finance-daily-days");
+    localStorage.setItem("nawah-finance-settings", JSON.stringify({ openingAmount: 0, custodyAmount: 0, updatedAt: "" }));
     localStorage.setItem("nawah-payroll-advances", "[]");
     localStorage.setItem(ADVANCE_FIELD_RESET_KEY, FINANCE_EMPTY_RESET_VERSION);
     try { queueCloudStateSave(); } catch (_) {}
@@ -520,6 +525,20 @@ function buildCloudState() {
 
 function applyCloudState(state) {
   if (!state || typeof state !== "object") return false;
+  if (localStorage.getItem(FINANCE_EMPTY_RESET_KEY) === FINANCE_EMPTY_RESET_VERSION) {
+    delete state.financeSettings;
+    delete state.financeDailyOpen;
+    delete state.financeDailyDays;
+    delete state.financeDailyCurrentDate;
+    delete state.payrollAdvances;
+    if (Array.isArray(state.employees)) {
+      state.employees = state.employees.map((employee) => ({ ...employee, salaryAdvance: 0, advanceDeduction: 0 }));
+    }
+    localStorage.setItem("nawah-finance-settings", JSON.stringify({ openingAmount: 0, custodyAmount: 0, updatedAt: "" }));
+    localStorage.removeItem("nawah-finance-daily-open");
+    localStorage.removeItem("nawah-finance-daily-days");
+    localStorage.setItem("nawah-payroll-advances", "[]");
+  }
   if (Array.isArray(state.employees)) employees = state.employees.map(normalizeEmployee);
   if (Array.isArray(state.leaves)) leaves = state.leaves;
   if (Array.isArray(state.jobTitles)) jobTitles = state.jobTitles;
@@ -745,6 +764,9 @@ async function initStorage() {
   if (cloudResult.ok && cloudResult.found && cloudResult.state && applyCloudState(cloudResult.state)) {
     await Promise.all(employees.map(dbSaveEmployee));
     cloudSaveAllowed = true;
+    if (localStorage.getItem(FINANCE_EMPTY_RESET_KEY) === FINANCE_EMPTY_RESET_VERSION) {
+      try { await saveCloudStateNow({ force: true }); } catch (_) {}
+    }
     return;
   }
 
@@ -14464,4 +14486,184 @@ document.addEventListener("click", function(event) {
   } else {
     setTimeout(() => refreshFinanceDailyUi(true), 150);
   }
+})();
+
+/* Hard finance empty reset: remove all visible old finance numbers and block cloud rehydration */
+(function hardFinanceEmptyResetV7(){
+  const VERSION = '20260628-finance-hard-empty-v7-no-old-numbers';
+  const RESET_KEY = 'nawah-finance-hard-empty-reset-version';
+  const FINANCE_KEYS = [
+    'nawah-finance-settings',
+    'nawah-finance-daily-open',
+    'nawah-finance-daily-days',
+    'nawah-payroll-advances'
+  ];
+  const FINANCE_STATE_KEYS = [
+    'financeSettings',
+    'financeDailyOpen',
+    'financeDailyDays',
+    'financeDailyCurrentDate',
+    'payrollAdvances',
+    'financeSettingsUpdatedAt'
+  ];
+
+  function safeJson(value, fallback) {
+    try { return value ? JSON.parse(value) : fallback; } catch (_) { return fallback; }
+  }
+
+  function toNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function rowHasData(row) {
+    if (!row || typeof row !== 'object') return false;
+    return String(row.amount || '').trim() !== '' || String(row.note || '').trim() !== '';
+  }
+
+  function dayHasData(day) {
+    if (!day || typeof day !== 'object') return false;
+    const hasRows = ['pending','expenses','cashSales','cardSales'].some((key) => Array.isArray(day[key]) && day[key].some(rowHasData));
+    const hasSpecial = String(day.budgetAmount || '').trim() !== '' || String(day.manualCashAmount || '').trim() !== '';
+    const hasClosed = Boolean(day.isClosed || day.closedAt || day.nextFinanceDate);
+    const hasOverride = day.carriedAmountOverride !== undefined && day.carriedAmountOverride !== null && day.carriedAmountOverride !== '';
+    return hasRows || hasSpecial || hasClosed || hasOverride;
+  }
+
+  function hasMeaningfulFinanceData() {
+    const settings = safeJson(localStorage.getItem('nawah-finance-settings'), null);
+    if (settings && (toNumber(settings.openingAmount) > 0 || toNumber(settings.custodyAmount) > 0)) return true;
+    const advances = safeJson(localStorage.getItem('nawah-payroll-advances'), []);
+    if (Array.isArray(advances) && advances.length > 0) return true;
+    const openDay = safeJson(localStorage.getItem('nawah-finance-daily-open'), null);
+    if (dayHasData(openDay)) return true;
+    const days = safeJson(localStorage.getItem('nawah-finance-daily-days'), null);
+    if (days && typeof days === 'object' && Object.keys(days).some((key) => dayHasData(days[key]))) return true;
+    return false;
+  }
+
+  function clearLocalFinanceData(force) {
+    try {
+      if (!force && localStorage.getItem(RESET_KEY) === VERSION) return;
+      const keysToRemove = [];
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (!key) continue;
+        if (key.includes('finance') || key.includes('payroll-advances') || key.includes('advance-fields-reset') || key.includes('finance-empty-reset')) {
+          keysToRemove.push(key);
+        }
+      }
+      [...new Set([...keysToRemove, ...FINANCE_KEYS])].forEach((key) => localStorage.removeItem(key));
+      localStorage.setItem('nawah-payroll-advances', '[]');
+      localStorage.setItem('nawah-finance-settings', JSON.stringify({ openingAmount: '', custodyAmount: '', updatedAt: '' }));
+      localStorage.setItem(RESET_KEY, VERSION);
+    } catch (error) {
+      console.warn('تعذر تنفيذ التفريغ المحلي الإجباري للمالية.', error);
+    }
+  }
+
+  function cleanStateObject(state) {
+    if (!state || typeof state !== 'object') return state;
+    FINANCE_STATE_KEYS.forEach((key) => { try { delete state[key]; } catch (_) {} });
+    if (Array.isArray(state.employees)) {
+      state.employees = state.employees.map((employee) => ({
+        ...employee,
+        salaryAdvance: 0,
+        advanceDeduction: 0
+      }));
+    }
+    return state;
+  }
+
+  function blankFinanceNumbersIfEmpty() {
+    try {
+      if (hasMeaningfulFinanceData()) return;
+      const root = document.getElementById('financeView');
+      if (!root) return;
+      root.querySelectorAll('[data-finance-money]').forEach((node) => { node.textContent = ''; });
+      root.querySelectorAll('[data-finance-special]').forEach((input) => {
+        if (document.activeElement !== input) input.value = '';
+      });
+      root.querySelectorAll('[data-finance-table-input][data-finance-field="amount"]').forEach((input) => {
+        if (document.activeElement !== input) input.value = '';
+      });
+      root.querySelectorAll('.finance-advance-amount,.finance-advance-detail-amount,.finance-detail-amount').forEach((node) => { node.textContent = ''; });
+    } catch (error) {
+      console.warn('تعذر إخفاء أرقام المالية الفارغة.', error);
+    }
+  }
+
+  function scheduleBlank() {
+    blankFinanceNumbersIfEmpty();
+    setTimeout(blankFinanceNumbersIfEmpty, 80);
+    setTimeout(blankFinanceNumbersIfEmpty, 250);
+    setTimeout(blankFinanceNumbersIfEmpty, 700);
+  }
+
+  clearLocalFinanceData(false);
+
+  const previousBuildCloudState = typeof buildCloudState === 'function' ? buildCloudState : null;
+  if (previousBuildCloudState && !previousBuildCloudState.__hardFinanceEmptyResetV7) {
+    const wrappedBuildCloudState = function() {
+      const state = previousBuildCloudState.apply(this, arguments) || {};
+      return cleanStateObject(state);
+    };
+    wrappedBuildCloudState.__hardFinanceEmptyResetV7 = true;
+    buildCloudState = wrappedBuildCloudState;
+  }
+
+  const previousApplyCloudState = typeof applyCloudState === 'function' ? applyCloudState : null;
+  if (previousApplyCloudState && !previousApplyCloudState.__hardFinanceEmptyResetV7) {
+    const wrappedApplyCloudState = function(state) {
+      const cleaned = cleanStateObject(state || {});
+      const result = previousApplyCloudState.apply(this, [cleaned]);
+      clearLocalFinanceData(true);
+      scheduleBlank();
+      return result;
+    };
+    wrappedApplyCloudState.__hardFinanceEmptyResetV7 = true;
+    applyCloudState = wrappedApplyCloudState;
+  }
+
+  const previousInitStorage = typeof initStorage === 'function' ? initStorage : null;
+  if (previousInitStorage && !previousInitStorage.__hardFinanceEmptyResetV7) {
+    const wrappedInitStorage = async function() {
+      clearLocalFinanceData(true);
+      const result = await previousInitStorage.apply(this, arguments);
+      clearLocalFinanceData(true);
+      try { await saveCloudStateNow({ force: true }); } catch (_) {}
+      scheduleBlank();
+      return result;
+    };
+    wrappedInitStorage.__hardFinanceEmptyResetV7 = true;
+    initStorage = wrappedInitStorage;
+  }
+
+  const previousRenderAll = typeof renderAll === 'function' ? renderAll : null;
+  if (previousRenderAll && !previousRenderAll.__hardFinanceEmptyResetV7) {
+    const wrappedRenderAll = function() {
+      const result = previousRenderAll.apply(this, arguments);
+      scheduleBlank();
+      return result;
+    };
+    wrappedRenderAll.__hardFinanceEmptyResetV7 = true;
+    renderAll = wrappedRenderAll;
+  }
+
+  const previousSwitchView = typeof switchView === 'function' ? switchView : null;
+  if (previousSwitchView && !previousSwitchView.__hardFinanceEmptyResetV7) {
+    const wrappedSwitchView = function(viewName) {
+      const result = previousSwitchView.apply(this, arguments);
+      if (viewName === 'finance') scheduleBlank();
+      return result;
+    };
+    wrappedSwitchView.__hardFinanceEmptyResetV7 = true;
+    switchView = wrappedSwitchView;
+  }
+
+  document.addEventListener('DOMContentLoaded', scheduleBlank);
+  document.addEventListener('click', (event) => {
+    if (event.target?.closest?.('[data-view="finance"]')) scheduleBlank();
+  }, true);
+  setTimeout(scheduleBlank, 1000);
 })();
