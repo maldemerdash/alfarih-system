@@ -9743,3 +9743,63 @@ body.auth-locked .app-shell {
 #financeView .finance-linked-block .finance-summary-card{
   min-height:88px!important;
 }
+
+
+/* Finance final correction: unified 25px numbers and fund card under rows */
+#financeView .finance-summary-card strong,
+#financeView .finance-summary-card strong.money-with-symbol,
+#financeView .finance-summary-card [data-finance-money],
+#financeView .finance-card-field input,
+#financeView .finance-entry-table input[type="number"],
+#financeView .finance-settings-grid input[type="number"],
+#financeView .finance-inline-field input[type="number"]{
+  font-size:25px!important;
+  line-height:1.08!important;
+  font-weight:900!important;
+  letter-spacing:-0.02em!important;
+}
+#financeView .finance-card-field input,
+#financeView .finance-entry-table input[type="number"]{
+  height:40px!important;
+  min-height:40px!important;
+}
+#financeView .finance-entry-table input:not([type="number"]){
+  height:40px!important;
+}
+#financeView .finance-summary-card .sar-symbol,
+#financeView .finance-card-field .sar-symbol{
+  width:20px!important;
+  height:20px!important;
+}
+#financeView .finance-close-day-row{
+  display:grid!important;
+  grid-template-columns:minmax(170px,1fr) minmax(220px,320px) minmax(170px,1fr)!important;
+  align-items:center!important;
+  gap:12px!important;
+  padding-top:4px!important;
+  direction:ltr!important;
+}
+#financeView .finance-close-day-row > *{
+  direction:rtl!important;
+}
+#financeView .finance-close-day-btn{
+  grid-column:1!important;
+  justify-self:start!important;
+  min-width:170px!important;
+}
+#financeView .finance-close-day-row .finance-fund-highlight{
+  grid-column:2!important;
+  width:100%!important;
+  justify-self:center!important;
+}
+@media(max-width:900px){
+  #financeView .finance-close-day-row{
+    grid-template-columns:1fr!important;
+  }
+  #financeView .finance-close-day-btn,
+  #financeView .finance-close-day-row .finance-fund-highlight{
+    grid-column:1!important;
+    justify-self:stretch!important;
+    width:100%!important;
+  }
+}
