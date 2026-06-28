@@ -13539,6 +13539,7 @@ document.addEventListener("click", function(event) {
   }
 
   let financeDateKey = getFinanceDateKey();
+  let financeManualDateMode = false;
   let financeDailyDays = loadFinanceDailyDays();
   if (!financeDailyDays[financeDateKey]) {
     const legacyDaily = loadLegacyFinanceDaily(financeDateKey);
@@ -13548,11 +13549,68 @@ document.addEventListener("click", function(event) {
 
   function ensureCurrentFinanceDate() {
     const currentDateKey = getFinanceDateKey();
-    if (currentDateKey === financeDateKey) return;
+    if (currentDateKey === financeDateKey) {
+      financeManualDateMode = false;
+      return;
+    }
+    if (financeManualDateMode) return;
     financeDailyDays[financeDateKey] = normalizeFinanceDaily(financeDaily, financeDateKey);
     financeDateKey = currentDateKey;
     if (!financeDailyDays[financeDateKey]) financeDailyDays[financeDateKey] = normalizeFinanceDaily({}, financeDateKey);
     financeDaily = normalizeFinanceDaily(financeDailyDays[financeDateKey], financeDateKey);
+  }
+
+  function parseFinanceDate(dateKey) {
+    const parts = String(dateKey || '').split('-').map(Number);
+    if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return new Date();
+    return new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+  }
+
+  function formatFinanceDateKey(date) {
+    const value = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function addFinanceDays(dateKey, days) {
+    const date = parseFinanceDate(dateKey);
+    date.setDate(date.getDate() + days);
+    return formatFinanceDateKey(date);
+  }
+
+  function getArabicDateParts(dateKey) {
+    const date = parseFinanceDate(dateKey);
+    try {
+      return {
+        dayName: new Intl.DateTimeFormat('ar-SA', { weekday: 'long' }).format(date),
+        dateLabel: new Intl.DateTimeFormat('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' }).format(date)
+      };
+    } catch (_) {
+      return { dayName: dateKey, dateLabel: dateKey };
+    }
+  }
+
+  function renderFinanceDateHeader() {
+    const parts = getArabicDateParts(financeDateKey);
+    document.querySelectorAll('[data-finance-day-name]').forEach((target) => { target.textContent = parts.dayName; });
+    document.querySelectorAll('[data-finance-date-label]').forEach((target) => { target.textContent = parts.dateLabel; });
+    const todayKey = getFinanceDateKey();
+    document.querySelectorAll('[data-finance-day-nav="today"]').forEach((button) => {
+      button.disabled = financeDateKey === todayKey;
+      button.classList.toggle('is-active', financeDateKey === todayKey);
+    });
+  }
+
+  function setFinanceDate(dateKey) {
+    financeDailyDays[financeDateKey] = normalizeFinanceDaily(financeDaily, financeDateKey);
+    financeDateKey = dateKey || getFinanceDateKey();
+    financeManualDateMode = financeDateKey !== getFinanceDateKey();
+    if (!financeDailyDays[financeDateKey]) financeDailyDays[financeDateKey] = normalizeFinanceDaily({}, financeDateKey);
+    financeDaily = normalizeFinanceDaily(financeDailyDays[financeDateKey], financeDateKey);
+    persistFinanceDaily();
+    refreshFinanceDailyUi(true);
   }
 
   function persistFinanceDaily() {
@@ -13781,6 +13839,7 @@ document.addEventListener("click", function(event) {
     ensureCurrentFinanceDate();
     if (renderTables) renderFinanceTables();
     renderFinanceCards();
+    renderFinanceDateHeader();
   }
 
   const previousBuildCloudState = typeof buildCloudState === "function" ? buildCloudState : null;
@@ -13873,6 +13932,14 @@ document.addEventListener("click", function(event) {
   }, true);
 
   document.addEventListener("click", function(event) {
+    const dayButton = event.target?.closest?.('[data-finance-day-nav]');
+    if (dayButton) {
+      const action = dayButton.dataset.financeDayNav;
+      if (action === 'prev') setFinanceDate(addFinanceDays(financeDateKey, -1));
+      if (action === 'next') setFinanceDate(addFinanceDays(financeDateKey, 1));
+      if (action === 'today') setFinanceDate(getFinanceDateKey());
+      return;
+    }
     if (event.target?.closest?.('[data-view="finance"]')) setTimeout(() => refreshFinanceDailyUi(true), 100);
   }, true);
 

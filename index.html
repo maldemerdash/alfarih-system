@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=20260628-finance-numbers-32-final" />
+    <link rel="stylesheet" href="style.css?v=20260628-finance-header-date-nav" />
   </head>
   <body>
     <div class="app-shell">
@@ -390,10 +390,21 @@
 
           <section class="view" id="financeView">
             <div class="finance-page-shell">
-              <div class="section-toolbar finance-toolbar">
-                <div>
+              <div class="section-toolbar finance-toolbar finance-day-header">
+                <div class="finance-day-title">
                   <h2 class="section-title">المالية</h2>
                   <p class="section-description">إدخال يومي للمبالغ المالية مع تحديث مباشر للبطاقات دون إغلاق اليوم أو ترحيل الأيام في هذه الخطوة.</p>
+                </div>
+                <div class="finance-day-controls" aria-label="التنقل بين أيام المالية">
+                  <div class="finance-date-pill">
+                    <span data-finance-day-name>اليوم</span>
+                    <strong data-finance-date-label>--/--/----</strong>
+                  </div>
+                  <div class="finance-day-nav">
+                    <button type="button" class="ghost-btn finance-day-nav-btn" data-finance-day-nav="prev" aria-label="اليوم السابق"><span data-icon="chevron-right"></span></button>
+                    <button type="button" class="ghost-btn finance-day-today-btn" data-finance-day-nav="today">اليوم</button>
+                    <button type="button" class="ghost-btn finance-day-nav-btn" data-finance-day-nav="next" aria-label="اليوم التالي"><span data-icon="chevron-left"></span></button>
+                  </div>
                 </div>
               </div>
 
@@ -938,6 +949,6 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260628-finance-row-reverse"></script>
+    <script src="app.js?v=20260628-finance-header-date-nav"></script>
   </body>
 </html>
