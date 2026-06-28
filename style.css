@@ -9671,3 +9671,22 @@ body.auth-locked .app-shell {
   width:18px;
   height:18px;
 }
+
+/* Finance cards: unified clear value size for all cards */
+.finance-summary-card strong,
+.finance-summary-card strong.money-with-symbol{
+  font-size:30px!important;
+  line-height:1.02!important;
+  font-weight:900!important;
+}
+.finance-card-field input{
+  font-size:30px!important;
+  line-height:1.02!important;
+  font-weight:900!important;
+  height:38px!important;
+}
+.finance-summary-card .sar-symbol,
+.finance-card-field .sar-symbol{
+  width:18px!important;
+  height:18px!important;
+}
