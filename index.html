@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=20260628-finance-two-rows" />
+    <link rel="stylesheet" href="style.css?v=20260628-finance-step3-daily-tables" />
   </head>
   <body>
     <div class="app-shell">
@@ -393,26 +393,26 @@
               <div class="section-toolbar finance-toolbar">
                 <div>
                   <h2 class="section-title">المالية</h2>
-                  <p class="section-description">بنية شاشة المالية والصلاحية المستقلة جاهزة، وسيتم تفعيل الحسابات والجداول في الخطوات التالية.</p>
+                  <p class="section-description">إدخال يومي للمبالغ المالية مع تحديث مباشر للبطاقات دون إغلاق اليوم أو ترحيل الأيام في هذه الخطوة.</p>
                 </div>
               </div>
 
               <div class="finance-cards-stack" aria-label="بطاقات ملخص المالية">
                 <div class="finance-row finance-row-six finance-top-totals">
-                  <article class="panel finance-summary-card finance-positive"><span>مجموع المدين اليومي</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>جاهز للربط لاحقًا</small></article>
-                  <article class="panel finance-summary-card finance-negative"><span>مجموع الدائن اليومي</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>جاهز للربط لاحقًا</small></article>
+                  <article class="panel finance-summary-card finance-positive" data-finance-card="dailyDebit"><span>مجموع المدين اليومي</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>إجمالي الإضافات اليومية</small></article>
+                  <article class="panel finance-summary-card finance-negative" data-finance-card="dailyCredit"><span>مجموع الدائن اليومي</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>إجمالي الخصومات اليومية</small></article>
                   <article class="panel finance-summary-card finance-positive" data-finance-card="carriedAmount"><span>المبلغ المرحل</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من المبلغ الافتتاحي في إعدادات المالية</small></article>
                   <article class="panel finance-summary-card finance-positive" data-finance-card="custodyAmount"><span>مبلغ العهدة</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من إعدادات المالية للأيام القادمة</small></article>
-                  <article class="panel finance-summary-card finance-result"><span>المبلغ المرحل الجديد</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>يتجمد عند إغلاق اليوم</small></article>
-                  <article class="panel finance-summary-card finance-fund-highlight" data-finance-card="fundAmount"><span>مبلغ الصندوق</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>ناتج الحساب النهائي</small></article>
+                  <article class="panel finance-summary-card finance-result" data-finance-card="newCarriedAmount"><span>المبلغ المرحل الجديد</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>يتجمد عند إغلاق اليوم لاحقًا</small></article>
+                  <article class="panel finance-summary-card finance-fund-highlight" data-finance-card="fundAmount"><span>مبلغ الصندوق</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>ناتج الحساب الحالي</small></article>
                 </div>
 
                 <div class="finance-row finance-row-five finance-month-totals">
-                  <article class="panel finance-summary-card finance-negative"><span>إجمالي السلفيات</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>سلفيات الشهر</small></article>
-                  <article class="panel finance-summary-card finance-negative"><span>إجمالي المبالغ المعلقة</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>مستمرة خلال الشهر</small></article>
-                  <article class="panel finance-summary-card finance-total-sales finance-positive"><span>إجمالي مبيعات اليوم</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>النقد + الشبكة</small></article>
-                  <article class="panel finance-summary-card finance-result"><span>مبلغ الموازنة المدخل</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small class="finance-balance-mini is-match">الموازنة متطابقة</small></article>
-                  <article class="panel finance-summary-card finance-positive"><span>المبلغ النقدي</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>يضاف لاحقًا إلى الصندوق</small></article>
+                  <article class="panel finance-summary-card finance-negative" data-finance-card="advancesTotal"><span>إجمالي السلفيات</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>سيتم ربطها بالسلفيات لاحقًا</small></article>
+                  <article class="panel finance-summary-card finance-negative" data-finance-card="pendingTotal"><span>إجمالي المبالغ المعلقة</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من جدول المبالغ المعلقة</small></article>
+                  <article class="panel finance-summary-card finance-total-sales finance-positive" data-finance-card="salesTotal"><span>إجمالي مبيعات اليوم</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>النقد + الشبكة</small></article>
+                  <article class="panel finance-summary-card finance-result" data-finance-card="budgetAmount"><span>مبلغ الموازنة المدخل</span><label class="finance-card-field"><input type="number" min="0" step="0.01" inputmode="decimal" data-finance-special="budgetAmount" placeholder="0" /><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></label><small class="finance-balance-mini is-match" data-finance-budget-status>الموازنة متطابقة</small></article>
+                  <article class="panel finance-summary-card finance-positive" data-finance-card="manualCashAmount"><span>المبلغ النقدي</span><label class="finance-card-field"><input type="number" min="0" step="0.01" inputmode="decimal" data-finance-special="manualCashAmount" placeholder="0" /><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></label><small>يضاف إلى الصندوق مباشرة</small></article>
                 </div>
 
                 <div class="finance-close-day-row">
@@ -422,37 +422,36 @@
 
               <div class="finance-linked-grid" aria-label="جداول المالية مع بطاقاتها">
                 <div class="finance-linked-block">
-                  <article class="panel finance-summary-card finance-negative"><span>إجمالي المبالغ المعلقة</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>مستمرة خلال الشهر</small></article>
+                  <article class="panel finance-summary-card finance-negative" data-finance-card="pendingTotal"><span>إجمالي المبالغ المعلقة</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>مستمرة خلال الشهر</small></article>
                   <article class="panel finance-table-card finance-negative">
-                    <div class="panel-head"><div><h3>المبالغ المعلقة</h3><p>جدول المبلغ والبيان، وسيتم تفعيل فتح السطر تلقائيًا لاحقًا</p></div></div>
-                    <div class="table-wrap"><table><thead><tr><th>المبلغ</th><th>البيان</th></tr></thead><tbody><tr><td>٠ ر.س</td><td>جاهز للتفعيل في الخطوة التالية</td></tr></tbody></table></div>
+                    <div class="panel-head"><div><h3>المبالغ المعلقة</h3><p>أدخل المبلغ والبيان، وسيتم فتح سطر جديد تلقائيًا.</p></div></div>
+                    <div class="table-wrap"><table class="finance-entry-table" data-finance-table="pending"><thead><tr><th>المبلغ</th><th>البيان</th></tr></thead><tbody></tbody></table></div>
                   </article>
                 </div>
                 <div class="finance-linked-block">
-                  <article class="panel finance-summary-card finance-negative"><span>إجمالي المصروفات</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من جدول المصروفات</small></article>
+                  <article class="panel finance-summary-card finance-negative" data-finance-card="expensesTotal"><span>إجمالي المصروفات</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من جدول المصروفات</small></article>
                   <article class="panel finance-table-card finance-negative">
-                    <div class="panel-head"><div><h3>المصروفات</h3><p>جدول المبلغ والبيان لليوم المفتوح</p></div></div>
-                    <div class="table-wrap"><table><thead><tr><th>المبلغ</th><th>البيان</th></tr></thead><tbody><tr><td>٠ ر.س</td><td>جاهز للتفعيل في الخطوة التالية</td></tr></tbody></table></div>
+                    <div class="panel-head"><div><h3>المصروفات</h3><p>أدخل المبلغ والبيان، وسيتم فتح سطر جديد تلقائيًا.</p></div></div>
+                    <div class="table-wrap"><table class="finance-entry-table" data-finance-table="expenses"><thead><tr><th>المبلغ</th><th>البيان</th></tr></thead><tbody></tbody></table></div>
                   </article>
                 </div>
                 <div class="finance-linked-block">
-                  <article class="panel finance-summary-card finance-positive"><span>مجموع المبيعات النقدية</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من جدول النقد</small></article>
+                  <article class="panel finance-summary-card finance-positive" data-finance-card="cashSalesTotal"><span>مجموع المبيعات النقدية</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من جدول النقد</small></article>
                   <article class="panel finance-table-card finance-positive">
-                    <div class="panel-head"><div><h3>مبيعات النقد</h3><p>إدخالات النقد اليومية</p></div></div>
-                    <div class="table-wrap"><table><thead><tr><th>المبلغ</th></tr></thead><tbody><tr><td>٠ ر.س</td></tr></tbody></table></div>
+                    <div class="panel-head"><div><h3>مبيعات النقد</h3><p>إدخالات النقد اليومية تضاف مباشرة إلى الصندوق.</p></div></div>
+                    <div class="table-wrap"><table class="finance-entry-table" data-finance-table="cashSales"><thead><tr><th>المبلغ</th></tr></thead><tbody></tbody></table></div>
                   </article>
                 </div>
                 <div class="finance-linked-block">
-                  <article class="panel finance-summary-card finance-positive"><span>مجموع مبيعات الشبكة</span><strong class="money-with-symbol"><span>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من جدول الشبكة</small></article>
+                  <article class="panel finance-summary-card finance-positive" data-finance-card="cardSalesTotal"><span>مجموع مبيعات الشبكة</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من جدول الشبكة</small></article>
                   <article class="panel finance-table-card finance-positive">
-                    <div class="panel-head"><div><h3>مبيعات الشبكة</h3><p>إدخالات الشبكة اليومية</p></div></div>
-                    <div class="table-wrap"><table><thead><tr><th>المبلغ</th></tr></thead><tbody><tr><td>٠ ر.س</td></tr></tbody></table></div>
+                    <div class="panel-head"><div><h3>مبيعات الشبكة</h3><p>تدخل في إجمالي المبيعات والموازنة ولا تبقى كسيولة نقدية.</p></div></div>
+                    <div class="table-wrap"><table class="finance-entry-table" data-finance-table="cardSales"><thead><tr><th>المبلغ</th></tr></thead><tbody></tbody></table></div>
                   </article>
                 </div>
               </div>
             </div>
           </section>
-
           <section class="view" id="payrollView">
             <div class="payroll-hero">
               <div><span>مسير رواتب يونيو ٢٠٢٦</span><strong id="payrollHeroTotal">٠ ر.س</strong><small>إجمالي صافي الرواتب</small></div>

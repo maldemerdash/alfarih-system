@@ -13457,3 +13457,330 @@ document.addEventListener("click", function(event) {
     setTimeout(refreshFinanceAmountsUi, 100);
   }
 })();
+
+/* Step 3: finance daily tables with live totals */
+(function financeDailyTablesStep3(){
+  const DAILY_STORAGE_KEY = "nawah-finance-daily-open";
+  const SETTINGS_STORAGE_KEY = "nawah-finance-settings";
+  const TABLE_TYPES = ["pending", "expenses", "cashSales", "cardSales"];
+  const BLANK_ROW = { amount: "", note: "" };
+
+  function toNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : 0;
+  }
+
+  function normalizeRow(row) {
+    const source = row && typeof row === "object" ? row : {};
+    const amount = source.amount === 0 ? "0" : String(source.amount || "").trim();
+    const note = String(source.note || "").trim();
+    return { amount, note };
+  }
+
+  function normalizeRows(rows) {
+    const list = Array.isArray(rows) ? rows.map(normalizeRow) : [];
+    const meaningful = list.filter((row) => row.amount !== "" || row.note !== "");
+    meaningful.push({ ...BLANK_ROW });
+    return meaningful;
+  }
+
+  function normalizeFinanceDaily(value) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      pending: normalizeRows(source.pending),
+      expenses: normalizeRows(source.expenses),
+      cashSales: normalizeRows(source.cashSales),
+      cardSales: normalizeRows(source.cardSales),
+      budgetAmount: source.budgetAmount === 0 ? "0" : String(source.budgetAmount || ""),
+      manualCashAmount: source.manualCashAmount === 0 ? "0" : String(source.manualCashAmount || ""),
+      updatedAt: source.updatedAt || ""
+    };
+  }
+
+  function loadFinanceDaily() {
+    try {
+      const stored = localStorage.getItem(DAILY_STORAGE_KEY);
+      return normalizeFinanceDaily(stored ? JSON.parse(stored) : {});
+    } catch (_) {
+      return normalizeFinanceDaily({});
+    }
+  }
+
+  let financeDaily = loadFinanceDaily();
+
+  function persistFinanceDaily() {
+    financeDaily.updatedAt = new Date().toISOString();
+    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(financeDaily));
+  }
+
+  function readFinanceSettings() {
+    try {
+      const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : {};
+      return {
+        openingAmount: toNumber(parsed.openingAmount),
+        custodyAmount: toNumber(parsed.custodyAmount)
+      };
+    } catch (_) {
+      return { openingAmount: 0, custodyAmount: 0 };
+    }
+  }
+
+  function moneyText(value) {
+    try { return arabicNumber(toNumber(value)); }
+    catch (_) { return String(toNumber(value).toLocaleString("en-US")); }
+  }
+
+  function sumRows(rows) {
+    return (Array.isArray(rows) ? rows : []).reduce((total, row) => total + toNumber(row.amount), 0);
+  }
+
+  function setFinanceCardValue(cardKey, value) {
+    document.querySelectorAll(`[data-finance-card="${cardKey}"]`).forEach((card) => {
+      const target = card.querySelector("[data-finance-money]") || card.querySelector("strong span") || card.querySelector("strong");
+      if (target) target.textContent = moneyText(value);
+    });
+  }
+
+  function calculateTotals() {
+    const settings = readFinanceSettings();
+    const pendingTotal = sumRows(financeDaily.pending);
+    const expensesTotal = sumRows(financeDaily.expenses);
+    const cashSalesTotal = sumRows(financeDaily.cashSales);
+    const cardSalesTotal = sumRows(financeDaily.cardSales);
+    const salesTotal = cashSalesTotal + cardSalesTotal;
+    const advancesTotal = 0;
+    const manualCashAmount = toNumber(financeDaily.manualCashAmount);
+    const budgetAmount = toNumber(financeDaily.budgetAmount);
+    const baseFund = settings.openingAmount + settings.custodyAmount;
+    const dailyDebit = cashSalesTotal + cardSalesTotal + manualCashAmount;
+    const dailyCredit = pendingTotal + expensesTotal + advancesTotal + cardSalesTotal;
+    const fundAmount = baseFund + cashSalesTotal + cardSalesTotal + manualCashAmount - pendingTotal - expensesTotal - advancesTotal - cardSalesTotal;
+    return {
+      settings,
+      pendingTotal,
+      expensesTotal,
+      cashSalesTotal,
+      cardSalesTotal,
+      salesTotal,
+      advancesTotal,
+      manualCashAmount,
+      budgetAmount,
+      dailyDebit,
+      dailyCredit,
+      fundAmount,
+      newCarriedAmount: fundAmount
+    };
+  }
+
+  function renderFinanceCards() {
+    const totals = calculateTotals();
+    setFinanceCardValue("carriedAmount", totals.settings.openingAmount);
+    setFinanceCardValue("custodyAmount", totals.settings.custodyAmount);
+    setFinanceCardValue("dailyDebit", totals.dailyDebit);
+    setFinanceCardValue("dailyCredit", totals.dailyCredit);
+    setFinanceCardValue("newCarriedAmount", totals.newCarriedAmount);
+    setFinanceCardValue("fundAmount", totals.fundAmount);
+    setFinanceCardValue("advancesTotal", totals.advancesTotal);
+    setFinanceCardValue("pendingTotal", totals.pendingTotal);
+    setFinanceCardValue("expensesTotal", totals.expensesTotal);
+    setFinanceCardValue("cashSalesTotal", totals.cashSalesTotal);
+    setFinanceCardValue("cardSalesTotal", totals.cardSalesTotal);
+    setFinanceCardValue("salesTotal", totals.salesTotal);
+
+    document.querySelectorAll('[data-finance-special="budgetAmount"]').forEach((input) => {
+      if (document.activeElement !== input) input.value = financeDaily.budgetAmount || "";
+    });
+    document.querySelectorAll('[data-finance-special="manualCashAmount"]').forEach((input) => {
+      if (document.activeElement !== input) input.value = financeDaily.manualCashAmount || "";
+    });
+
+    const difference = totals.budgetAmount - totals.cardSalesTotal;
+    document.querySelectorAll("[data-finance-budget-status]").forEach((status) => {
+      status.classList.toggle("is-match", difference === 0);
+      status.classList.toggle("is-unmatch", difference !== 0);
+      if (difference === 0) {
+        status.textContent = "الموازنة متطابقة";
+      } else {
+        const sign = difference > 0 ? "+" : "-";
+        status.textContent = `غير متطابقة بفارق ${sign}${moneyText(Math.abs(difference))}`;
+      }
+    });
+  }
+
+  function rowHasValue(row) {
+    return Boolean(row && (String(row.amount || "").trim() !== "" || String(row.note || "").trim() !== ""));
+  }
+
+  function createAmountInput(type, index, value) {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.step = "0.01";
+    input.inputMode = "decimal";
+    input.placeholder = "0";
+    input.dataset.financeTableInput = type;
+    input.dataset.financeIndex = String(index);
+    input.dataset.financeField = "amount";
+    input.value = value || "";
+    return input;
+  }
+
+  function createNoteInput(type, index, value) {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "البيان";
+    input.dataset.financeTableInput = type;
+    input.dataset.financeIndex = String(index);
+    input.dataset.financeField = "note";
+    input.value = value || "";
+    return input;
+  }
+
+  function appendTableRow(tbody, type, row, index) {
+    const tr = document.createElement("tr");
+    const amountTd = document.createElement("td");
+    amountTd.appendChild(createAmountInput(type, index, row.amount));
+    tr.appendChild(amountTd);
+    if (type === "pending" || type === "expenses") {
+      const noteTd = document.createElement("td");
+      noteTd.appendChild(createNoteInput(type, index, row.note));
+      tr.appendChild(noteTd);
+    }
+    tbody.appendChild(tr);
+  }
+
+  function renderTable(type) {
+    const table = document.querySelector(`[data-finance-table="${type}"]`);
+    if (!table) return;
+    const tbody = table.querySelector("tbody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    const rows = normalizeRows(financeDaily[type]);
+    financeDaily[type] = rows;
+    rows.forEach((row, index) => appendTableRow(tbody, type, row, index));
+  }
+
+  function renderFinanceTables() {
+    TABLE_TYPES.forEach(renderTable);
+  }
+
+  function collectTable(type) {
+    const table = document.querySelector(`[data-finance-table="${type}"]`);
+    if (!table) return;
+    const rows = [];
+    table.querySelectorAll("tbody tr").forEach((tr) => {
+      const amount = tr.querySelector('[data-finance-field="amount"]')?.value || "";
+      const note = tr.querySelector('[data-finance-field="note"]')?.value || "";
+      rows.push({ amount, note });
+    });
+    financeDaily[type] = normalizeRows(rows);
+  }
+
+  function ensureTrailingBlankRow(type) {
+    const table = document.querySelector(`[data-finance-table="${type}"]`);
+    const tbody = table?.querySelector("tbody");
+    if (!tbody) return;
+    const trList = Array.from(tbody.querySelectorAll("tr"));
+    const lastTr = trList[trList.length - 1];
+    if (!lastTr) {
+      appendTableRow(tbody, type, BLANK_ROW, 0);
+      return;
+    }
+    const lastRow = {
+      amount: lastTr.querySelector('[data-finance-field="amount"]')?.value || "",
+      note: lastTr.querySelector('[data-finance-field="note"]')?.value || ""
+    };
+    if (rowHasValue(lastRow)) {
+      appendTableRow(tbody, type, BLANK_ROW, trList.length);
+    }
+  }
+
+  function refreshFinanceDailyUi(renderTables) {
+    if (renderTables) renderFinanceTables();
+    renderFinanceCards();
+  }
+
+  const previousBuildCloudState = typeof buildCloudState === "function" ? buildCloudState : null;
+  if (previousBuildCloudState && !previousBuildCloudState.__financeDailyTablesWrapped) {
+    const wrappedBuildCloudState = function() {
+      const state = previousBuildCloudState.apply(this, arguments) || {};
+      state.financeDailyOpen = normalizeFinanceDaily(financeDaily);
+      return state;
+    };
+    wrappedBuildCloudState.__financeDailyTablesWrapped = true;
+    buildCloudState = wrappedBuildCloudState;
+  }
+
+  const previousApplyCloudState = typeof applyCloudState === "function" ? applyCloudState : null;
+  if (previousApplyCloudState && !previousApplyCloudState.__financeDailyTablesWrapped) {
+    const wrappedApplyCloudState = function(state) {
+      const result = previousApplyCloudState.apply(this, arguments);
+      if (state && state.financeDailyOpen) {
+        financeDaily = normalizeFinanceDaily(state.financeDailyOpen);
+        persistFinanceDaily();
+      }
+      refreshFinanceDailyUi(true);
+      return result;
+    };
+    wrappedApplyCloudState.__financeDailyTablesWrapped = true;
+    applyCloudState = wrappedApplyCloudState;
+  }
+
+  const previousRenderAll = typeof renderAll === "function" ? renderAll : null;
+  if (previousRenderAll && !previousRenderAll.__financeDailyTablesWrapped) {
+    const wrappedRenderAll = function() {
+      const result = previousRenderAll.apply(this, arguments);
+      setTimeout(() => refreshFinanceDailyUi(true), 0);
+      return result;
+    };
+    wrappedRenderAll.__financeDailyTablesWrapped = true;
+    renderAll = wrappedRenderAll;
+  }
+
+  const previousSwitchView = typeof switchView === "function" ? switchView : null;
+  if (previousSwitchView && !previousSwitchView.__financeDailyTablesWrapped) {
+    const wrappedSwitchView = function(viewName) {
+      const result = previousSwitchView.apply(this, arguments);
+      if (viewName === "finance") setTimeout(() => refreshFinanceDailyUi(true), 0);
+      return result;
+    };
+    wrappedSwitchView.__financeDailyTablesWrapped = true;
+    switchView = wrappedSwitchView;
+  }
+
+  document.addEventListener("input", function(event) {
+    const tableInput = event.target?.dataset?.financeTableInput;
+    if (tableInput && TABLE_TYPES.includes(tableInput)) {
+      collectTable(tableInput);
+      ensureTrailingBlankRow(tableInput);
+      persistFinanceDaily();
+      renderFinanceCards();
+      try { saveLocalMeta(); } catch (_) { try { queueCloudStateSave(); } catch (__) {} }
+      return;
+    }
+
+    const special = event.target?.dataset?.financeSpecial;
+    if (special === "budgetAmount" || special === "manualCashAmount") {
+      financeDaily[special] = event.target.value || "";
+      persistFinanceDaily();
+      renderFinanceCards();
+      try { saveLocalMeta(); } catch (_) { try { queueCloudStateSave(); } catch (__) {} }
+    }
+  });
+
+  document.addEventListener("submit", function(event) {
+    if (event.target?.id !== "financeSettingsForm") return;
+    setTimeout(renderFinanceCards, 0);
+  }, true);
+
+  document.addEventListener("click", function(event) {
+    if (event.target?.closest?.('[data-view="finance"]')) setTimeout(() => refreshFinanceDailyUi(true), 100);
+  }, true);
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(() => refreshFinanceDailyUi(true), 150));
+  } else {
+    setTimeout(() => refreshFinanceDailyUi(true), 150);
+  }
+})();

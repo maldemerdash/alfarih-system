@@ -9641,3 +9641,15 @@ body.auth-locked .app-shell {
   background:radial-gradient(circle,rgba(34,197,94,.20),rgba(34,197,94,0) 68%);
   pointer-events:none;
 }
+
+/* Finance step 3: daily editable tables and live totals */
+.finance-card-field{display:flex;align-items:center;justify-content:flex-start;gap:6px;margin-top:2px;direction:ltr}
+.finance-card-field input{width:100%;height:30px;border:1px solid rgba(148,163,184,.45);border-radius:10px;background:#f8fafc;padding:0 8px;font-family:inherit;font-size:18px;font-weight:900;color:#0f172a;text-align:center;outline:none}
+.finance-card-field input:focus{border-color:rgba(20,184,166,.7);box-shadow:0 0 0 3px rgba(20,184,166,.12);background:#fff}
+.finance-card-field .sar-symbol{flex:0 0 auto;width:15px;height:15px;object-fit:contain;opacity:.84}
+.finance-entry-table input{width:100%;height:34px;border:1px solid rgba(148,163,184,.38);border-radius:10px;background:#fff;padding:0 9px;font-family:inherit;font-size:12px;font-weight:800;color:#0f172a;outline:none}
+.finance-entry-table input[type="number"]{text-align:center;direction:ltr}
+.finance-entry-table input:focus{border-color:rgba(20,184,166,.65);box-shadow:0 0 0 3px rgba(20,184,166,.10)}
+.finance-entry-table td{vertical-align:middle;min-width:95px}
+.finance-balance-mini.is-match{color:#166534!important;background:rgba(22,163,74,.10);border:1px solid rgba(22,163,74,.22);border-radius:999px;padding:3px 8px;width:max-content;max-width:100%}
+.finance-balance-mini.is-unmatch{color:#991b1b!important;background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.22);border-radius:999px;padding:3px 8px;width:max-content;max-width:100%}
