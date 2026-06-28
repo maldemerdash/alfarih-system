@@ -10884,3 +10884,32 @@ body.auth-locked .app-shell {
 .finance-site-confirm-actions .primary-btn {
   background: linear-gradient(135deg, #0f766e, #0ea5e9) !important;
 }
+
+/* Final finance fix: cash and card sales amount fields fill their cards */
+#financeView .finance-entry-table[data-finance-table="cashSales"],
+#financeView .finance-entry-table[data-finance-table="cardSales"]{
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+#financeView .finance-entry-table[data-finance-table="cashSales"] th,
+#financeView .finance-entry-table[data-finance-table="cashSales"] td,
+#financeView .finance-entry-table[data-finance-table="cardSales"] th,
+#financeView .finance-entry-table[data-finance-table="cardSales"] td{
+  width: 100% !important;
+  padding: 10px 14px !important;
+  box-sizing: border-box !important;
+}
+#financeView .finance-entry-table[data-finance-table="cashSales"] input[data-finance-field="amount"],
+#financeView .finance-entry-table[data-finance-table="cardSales"] input[data-finance-field="amount"]{
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  max-height: 46px !important;
+  margin: 0 !important;
+  padding: 0 14px !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+}
