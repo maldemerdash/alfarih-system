@@ -11225,38 +11225,10 @@ body.auth-locked .app-shell {
   color: transparent !important;
 }
 
-/* v4: keep employee attachment download beside the upload control and stop header-photo visual flicker */
-.employee-attachment-inline-wrap,
-.employee-single-attachment-inline-wrap {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  width: 100% !important;
-  min-width: 0 !important;
-}
-.employee-attachment-inline-wrap .compact-file-control,
-.employee-single-attachment-inline-wrap .compact-file-control {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  margin: 0 !important;
-}
-.employee-attachment-inline-wrap .attachment-download-btn,
-.employee-single-attachment-inline-wrap .attachment-download-btn {
-  flex: 0 0 30px !important;
-  margin: 0 !important;
-}
-.employee-form-section label > .attachment-download-btn[data-view-single-attachment] {
-  margin-top: 0 !important;
-}
-.topbar-user-mark.has-employee-photo {
-  overflow: hidden !important;
-  color: transparent !important;
-  background: #fff !important;
-  padding: 0 !important;
-}
-.topbar-user-mark.has-employee-photo img {
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-  object-fit: cover !important;
-}
+/* v5 attachment/header safe repair */
+.topbar-user-mark.has-employee-photo{overflow:hidden;background:transparent;padding:0;}
+.topbar-user-mark.has-employee-photo img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;}
+.employee-attachment-inline-wrap{display:inline-flex;align-items:center;gap:8px;width:100%;max-width:100%;}
+.employee-attachment-inline-wrap .compact-file-control{flex:1 1 auto;min-width:0;}
+.employee-attachment-download-inline,.attachment-download-btn{width:40px;height:40px;min-width:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;}
+.attachment-download-btn svg{width:18px;height:18px;}
