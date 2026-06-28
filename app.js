@@ -14971,3 +14971,97 @@ document.addEventListener("click", function(event) {
   setTimeout(boot, 800);
   setInterval(applyFinalVisibility, 1200);
 })();
+
+/* =========================================================
+   Final finance daily credit formula lock
+   - مجموع الدائن اليومي = مبيعات الشبكة + المصروفات فقط.
+   - لا يدخل فيه السلفيات أو المبالغ المعلقة أو المبلغ المرحل.
+   ========================================================= */
+(function finalFinanceDailyCreditFormulaLock(){
+  if (window.__finalFinanceDailyCreditFormulaLock) return;
+  window.__finalFinanceDailyCreditFormulaLock = true;
+
+  const DAILY_STORAGE_KEY = 'nawah-finance-daily-open';
+  const DAILY_DAYS_STORAGE_KEY = 'nawah-finance-daily-days';
+
+  function toNumber(value){
+    const number = Number(String(value ?? '').replace(/,/g, '').trim());
+    return Number.isFinite(number) && number >= 0 ? number : 0;
+  }
+
+  function sumRows(rows){
+    return (Array.isArray(rows) ? rows : []).reduce((total, row) => total + toNumber(row && row.amount), 0);
+  }
+
+  function currentFinanceDateKey(){
+    const pickerValue = document.querySelector('[data-finance-date-picker]')?.value;
+    if (pickerValue) return pickerValue;
+    try {
+      if (typeof formatInputDate === 'function' && typeof todayAtNoon === 'function') return formatInputDate(todayAtNoon());
+    } catch (_) {}
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
+
+  function readStoredDay(){
+    try {
+      const days = JSON.parse(localStorage.getItem(DAILY_DAYS_STORAGE_KEY) || '{}');
+      const key = currentFinanceDateKey();
+      if (days && typeof days === 'object' && days[key]) return days[key];
+    } catch (_) {}
+    try { return JSON.parse(localStorage.getItem(DAILY_STORAGE_KEY) || '{}') || {}; } catch (_) { return {}; }
+  }
+
+  function sumVisibleTable(tableName){
+    const table = document.querySelector(`#financeView [data-finance-table="${tableName}"]`);
+    if (!table) return null;
+    return Array.from(table.querySelectorAll('tbody tr')).reduce((total, row) => {
+      const input = row.querySelector('[data-finance-field="amount"]');
+      return total + toNumber(input ? input.value : 0);
+    }, 0);
+  }
+
+  function moneyText(value){
+    const safeValue = toNumber(value);
+    try { if (typeof arabicNumber === 'function') return arabicNumber(safeValue); } catch (_) {}
+    return safeValue.toLocaleString('en-US');
+  }
+
+  function applyDailyCreditFormula(){
+    const root = document.getElementById('financeView');
+    if (!root) return;
+    const storedDay = readStoredDay();
+    const visibleCardSales = sumVisibleTable('cardSales');
+    const visibleExpenses = sumVisibleTable('expenses');
+    const cardSalesTotal = visibleCardSales === null ? sumRows(storedDay.cardSales) : visibleCardSales;
+    const expensesTotal = visibleExpenses === null ? sumRows(storedDay.expenses) : visibleExpenses;
+    const dailyCredit = cardSalesTotal + expensesTotal;
+
+    root.querySelectorAll('[data-finance-card="dailyCredit"]').forEach((card) => {
+      const target = card.querySelector('[data-finance-money]') || card.querySelector('strong span') || card.querySelector('strong');
+      if (target) target.textContent = moneyText(dailyCredit);
+      const hint = card.querySelector('small');
+      if (hint) hint.textContent = 'مبيعات الشبكة + المصروفات';
+    });
+  }
+
+  function scheduleApply(){
+    applyDailyCreditFormula();
+    setTimeout(applyDailyCreditFormula, 50);
+    setTimeout(applyDailyCreditFormula, 200);
+  }
+
+  document.addEventListener('input', function(event){
+    const tableInput = event.target?.dataset?.financeTableInput;
+    if (tableInput === 'cardSales' || tableInput === 'expenses') scheduleApply();
+  }, true);
+  document.addEventListener('change', function(event){
+    if (event.target?.matches?.('[data-finance-date-picker]')) scheduleApply();
+  }, true);
+  document.addEventListener('click', function(event){
+    if (event.target?.closest?.('[data-view="finance"], [data-finance-day-nav], .finance-close-day-btn')) scheduleApply();
+  }, true);
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleApply);
+  else scheduleApply();
+})();
