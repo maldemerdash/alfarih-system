@@ -19740,3 +19740,186 @@ document.addEventListener("click", function(event) {
     }
   }, true);
 })();
+
+/* v55 - Fix manual commission payout button click/availability
+   Manual mode must keep accrual start automatic and only use manual payout date.
+   The pay button remains clickable in manual mode so validation can show a clear toast,
+   and a capture handler bypasses older click listeners that were bound before v54. */
+(function(){
+  function f(){ return document.querySelector('#employeeForm'); }
+  function todayIsoV55(){
+    try { return formatInputDate(todayAtNoon()); } catch(_) { return new Date().toISOString().slice(0,10); }
+  }
+  function isManualModeV55(form){
+    return (form?.querySelector('[name="commissionStartMode"]')?.value || 'auto') === 'manual';
+  }
+  function manualDateV55(form){
+    return form?.querySelector('[name="commissionManualPaymentDate"]')?.value || '';
+  }
+  function isoNoonV55(dateValue){
+    if (!dateValue) return new Date().toISOString();
+    const d = new Date(String(dateValue).slice(0,10) + 'T12:00:00');
+    return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  }
+  function toastV55(message){
+    try { showToast(message); } catch(_) { alert(message); }
+  }
+  function ensureManualUiV55(){
+    const form = f();
+    if (!form) return;
+    try { if (typeof ensureManualPayoutField === 'function') ensureManualPayoutField(); } catch(_) {}
+    const select = form.querySelector('[name="commissionStartMode"]');
+    const start = form.elements?.commissionStartDate;
+    if (!select || !start) return;
+    const modeLabel = select.closest('label');
+    const title = modeLabel?.querySelector('span');
+    if (title) title.textContent = 'طريقة صرف العمولة';
+    const autoOption = select.querySelector('option[value="auto"]');
+    const manualOption = select.querySelector('option[value="manual"]');
+    if (autoOption) autoOption.textContent = 'آلية';
+    if (manualOption) manualOption.textContent = 'يدوية';
+    const startTitle = start.closest('label')?.querySelector('span');
+    if (startTitle) startTitle.textContent = 'بداية الاستحقاق الآلية';
+    if (!form.querySelector('[name="commissionManualPaymentDate"]')) {
+      const payout = document.createElement('label');
+      payout.className = 'commission-manual-payout-field';
+      payout.innerHTML = '<span>تاريخ استحقاق الصرف</span><input type="date" name="commissionManualPaymentDate" />';
+      modeLabel?.insertAdjacentElement('afterend', payout);
+      payout.querySelector('input')?.addEventListener('input', function(){ try { updateCommissionCalculations(); } catch(_) {} });
+    }
+    const payoutLabel = form.querySelector('[name="commissionManualPaymentDate"]')?.closest('label');
+    if (payoutLabel) payoutLabel.hidden = !isManualModeV55(form);
+    start.readOnly = true;
+    start.classList.add('calculated-field');
+    start.classList.remove('manual-field');
+    if (!select.__v55ManualCommissionBound) {
+      select.__v55ManualCommissionBound = true;
+      select.addEventListener('change', function(){
+        ensureManualUiV55();
+        try { updateCommissionCalculations(); } catch(_) {}
+      });
+    }
+  }
+
+  const updateCommissionCalculationsV55 = function(){
+    const form = f();
+    if (!form) return;
+    ensureManualUiV55();
+    const payButton = document.querySelector('#payCommissionBtn');
+    const setButton = (available) => {
+      if (!payButton) return;
+      payButton.hidden = !available;
+      payButton.disabled = !available;
+    };
+    const salary = calculateSalaryFromForm();
+    const workStartDate = form.elements.workStartDate.value || form.elements.contractStartDate.value;
+    const initialCycle = !employeeFormState.commissions.length && !employeeFormState.commissionPausedByLeaveId;
+    if (initialCycle && workStartDate) employeeFormState.commissionAccrualStartDate = workStartDate;
+    const startDate = employeeFormState.commissionAccrualStartDate || workStartDate || form.elements.commissionStartDate.value;
+    form.elements.commissionStartDate.value = startDate || '';
+    if (employeeFormState.commissionPaused) {
+      form.elements.commissionAmount.value = formatNumberEn(0, 2);
+      form.elements.commissionWords.value = '';
+      form.elements.commissionStatusText.value = employeeFormState.commissionPauseReason || 'متوقف بسبب إجازة';
+      setButton(false);
+      return;
+    }
+    if (form.elements.status.value !== 'active') {
+      form.elements.commissionAmount.value = formatNumberEn(0, 2);
+      form.elements.commissionWords.value = '';
+      form.elements.commissionStatusText.value = 'متوقف لأن حالة العمل ليست على رأس العمل';
+      setButton(false);
+      return;
+    }
+    const manual = isManualModeV55(form);
+    const payoutDate = manualDateV55(form);
+    const endDate = manual ? payoutDate : todayIsoV55();
+    if (manual && !payoutDate) {
+      form.elements.commissionAmount.value = formatNumberEn(0, 2);
+      form.elements.commissionWords.value = '';
+      form.elements.commissionStatusText.value = startDate ? 'أدخل تاريخ استحقاق الصرف اليدوي ثم اضغط صرف العمولة' : 'أدخل تاريخ المباشرة لبدء الاستحقاق';
+      // Keep the button clickable in manual mode so the user gets validation feedback instead of a dead button.
+      setButton(Boolean(startDate && Number(salary.base || 0) > 0));
+      return;
+    }
+    const result = calculateCommission(salary.base, startDate, endDate || todayIsoV55());
+    form.elements.commissionAmount.value = formatNumberEn(result.amount, 2);
+    form.elements.commissionWords.value = result.amount ? amountToWords(result.amount) : '';
+    const endLabel = manual && payoutDate ? ` حتى ${formatDate(payoutDate)}` : '';
+    form.elements.commissionStatusText.value = startDate
+      ? `نشط من ${formatDate(startDate)}${endLabel} - ${arabicNumber(result.days)} يوم مستحق`
+      : 'أدخل تاريخ المباشرة لبدء الاستحقاق';
+    // In manual mode keep it clickable for clear validation; actual issuance still validates days/amount.
+    setButton(Boolean(startDate && Number(salary.base || 0) > 0 && (manual || (result.days > 0 && result.amount > 0))));
+    ensureManualUiV55();
+  };
+
+  const startCommissionPaymentV55 = async function(){
+    const form = f();
+    if (!form) return;
+    ensureManualUiV55();
+    const startDate = form.elements.commissionStartDate.value;
+    const salary = calculateSalaryFromForm();
+    const manual = isManualModeV55(form);
+    const payoutDate = manualDateV55(form);
+    const endDate = manual ? payoutDate : todayIsoV55();
+    if (employeeFormState.commissionPaused || form.elements.status.value !== 'active') {
+      toastV55('لا يمكن صرف العمولة إلا لموظف على رأس العمل واستحقاقه نشط');
+      return;
+    }
+    if (!startDate) {
+      toastV55('لا توجد بداية استحقاق آلية. تأكد من تاريخ المباشرة أو بداية العقد');
+      return;
+    }
+    if (manual && !payoutDate) {
+      toastV55('أدخل تاريخ استحقاق الصرف اليدوي');
+      return;
+    }
+    const result = calculateCommission(salary.base, startDate, endDate);
+    if (!result.days || result.days <= 0) {
+      toastV55('تاريخ استحقاق الصرف يجب أن يكون بعد بداية الاستحقاق الآلية');
+      return;
+    }
+    if (!result.amount || result.amount <= 0) {
+      toastV55('لا توجد قيمة عمولة مستحقة. تأكد من الراتب الأساسي وتاريخ الصرف');
+      return;
+    }
+    pendingClearance = {
+      id: `commission-${Date.now()}`,
+      startDate,
+      endDate,
+      days: result.days,
+      amount: result.amount,
+      paymentDate: manual ? isoNoonV55(endDate) : new Date().toISOString(),
+      employee: currentFormEmployeeSnapshot(),
+      authType: 'signature',
+      source: manual ? 'manual-payout-date' : 'automatic-payout',
+      payoutMode: manual ? 'manual' : 'auto',
+      manualPayoutDate: manual ? endDate : ''
+    };
+    const sig = document.querySelector('[name="commissionAuth"][value="signature"]');
+    if (sig) sig.checked = true;
+    document.querySelector('#commissionAuthModal')?.showModal();
+  };
+
+  try { updateCommissionCalculations = updateCommissionCalculationsV55; window.updateCommissionCalculations = updateCommissionCalculationsV55; } catch(_) {}
+  try { startCommissionPayment = startCommissionPaymentV55; window.startCommissionPayment = startCommissionPaymentV55; } catch(_) {}
+
+  if (!document.__v55ManualCommissionClickFix) {
+    document.__v55ManualCommissionClickFix = true;
+    document.addEventListener('click', function(event){
+      const btn = event.target?.closest?.('#payCommissionBtn');
+      if (!btn) return;
+      // Force the corrected v55 path; older listeners were registered with an old function reference.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      startCommissionPaymentV55();
+    }, true);
+  }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ ensureManualUiV55(); try { updateCommissionCalculationsV55(); } catch(_) {} }, 0); });
+  document.addEventListener('change', function(event){
+    if (event.target?.matches?.('[name="commissionStartMode"], [name="commissionManualPaymentDate"]')) {
+      setTimeout(function(){ ensureManualUiV55(); try { updateCommissionCalculationsV55(); } catch(_) {} }, 0);
+    }
+  });
+})();
