@@ -12102,3 +12102,22 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
     border-radius:18px!important;
   }
 }
+
+/* v63 - Quick employee view: show leave balance as a single number only */
+#quickViewModal .leave-balance-profile-card .leave-balance-card-head span,
+#quickViewModal .leave-balance-profile-card .leave-balance-mini-grid,
+#quickViewModal .leave-balance-profile-card .leave-balance-card-note {
+  display: none !important;
+}
+
+#quickViewModal .leave-balance-profile-card {
+  padding: 16px 18px;
+}
+
+#quickViewModal .leave-balance-profile-card .leave-balance-card-head {
+  margin-bottom: 8px;
+}
+
+#quickViewModal .leave-balance-profile-card .leave-balance-main-number {
+  margin: 0;
+}
