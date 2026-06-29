@@ -11985,3 +11985,10 @@ button[data-edit-employee] {
   .leave-balance-dashboard-title,
   .leave-balance-dashboard-number { align-items: flex-start; flex-direction: column; }
 }
+
+/* v50 - Toast auto-hide safeguard */
+.toast.is-hiding {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}

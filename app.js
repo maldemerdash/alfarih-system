@@ -3826,12 +3826,27 @@ function closeSidebar() {
   document.querySelector("#sidebarOverlay").classList.remove("show");
 }
 
-function showToast(message) {
+function showToast(message, options = {}) {
+  const container = document.querySelector("#toastContainer");
+  if (!container) return;
+
   const toast = document.createElement("div");
   toast.className = "toast";
   toast.innerHTML = `<span>${iconSvg("check")}</span><p>${escapeHtml(message)}</p>`;
-  document.querySelector("#toastContainer").appendChild(toast);
-  setTimeout(() => toast.remove(), 3200);
+
+  container.appendChild(toast);
+
+  // Keep the toast area light and prevent old messages from staying fixed.
+  Array.from(container.querySelectorAll(".toast")).slice(0, -3).forEach((oldToast) => oldToast.remove());
+
+  const duration = Number(options.duration || 2600);
+  const removeToast = () => {
+    if (!toast.isConnected) return;
+    toast.classList.add("is-hiding");
+    window.setTimeout(() => toast.remove(), 220);
+  };
+
+  window.setTimeout(removeToast, duration);
 }
 
 
@@ -15051,7 +15066,7 @@ document.addEventListener("click", function(event) {
         try { localStorage.setItem(RESET_KEY, VERSION); } catch (_) {}
         try { await saveCloudStateNow({ force: true }); } catch (_) {}
         setTimeout(refreshScreens, 100);
-        try { if (typeof showToast === 'function') showToast('تم تفريغ المالية وفتح نسخة بدون أيام مغلقة'); } catch (_) {}
+        // v50: لا نعرض رسالة تفريغ المالية عند كل تشغيل حتى لا تظهر كتنبيه ثابت للمستخدم.
       }
       return result;
     };
