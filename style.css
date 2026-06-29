@@ -11992,3 +11992,40 @@ button[data-edit-employee] {
   transform: translateY(8px);
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
+
+/* V51 - document expiry notification colors */
+.expiry-doc-row.expiry-state-expired {
+  border-color: rgba(220, 38, 38, .28) !important;
+  background: linear-gradient(180deg, #fff, #fff1f2) !important;
+}
+.expiry-doc-row.expiry-state-danger {
+  border-color: rgba(239, 68, 68, .26) !important;
+  background: linear-gradient(180deg, #fff, #fef2f2) !important;
+}
+.expiry-doc-row.expiry-state-warning {
+  border-color: rgba(245, 158, 11, .28) !important;
+  background: linear-gradient(180deg, #fff, #fffbeb) !important;
+}
+.expiry-doc-icon.expiry-state-expired,
+.expiry-doc-icon.expiry-state-danger {
+  background: rgba(220, 38, 38, .12) !important;
+  color: #dc2626 !important;
+}
+.expiry-doc-icon.expiry-state-warning {
+  background: rgba(245, 158, 11, .14) !important;
+  color: #d97706 !important;
+}
+.expiry-doc-remaining.expiry-state-expired,
+.expiry-doc-remaining.expiry-state-danger {
+  color: #b91c1c !important;
+  background: rgba(220, 38, 38, .10) !important;
+  border-color: rgba(220, 38, 38, .22) !important;
+}
+.expiry-doc-remaining.expiry-state-warning {
+  color: #b45309 !important;
+  background: rgba(245, 158, 11, .12) !important;
+  border-color: rgba(245, 158, 11, .24) !important;
+}
+.expiry-doc-row.expiry-state-expired strong,
+.expiry-doc-row.expiry-state-danger strong { color: #7f1d1d !important; }
+.expiry-doc-row.expiry-state-warning strong { color: #78350f !important; }

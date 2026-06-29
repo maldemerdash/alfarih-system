@@ -18526,3 +18526,184 @@ document.addEventListener("click", function(event) {
 
   window.leaveBalanceV49 = { leaveBalance, accruedLeaveDays, usedLeaveDays, isDeductibleLeaveType };
 })();
+
+/* V51 - expired and near-expiry document notifications for employees and establishment */
+(function documentExpiryNotificationsV51(){
+  const EST_DOC_KEY = "nawah-establishment-documents";
+  const DAY = 86400000;
+  function esc(value){
+    if (typeof escapeHtml === "function") return escapeHtml(value ?? "");
+    return String(value ?? "").replace(/[&<>\"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[ch]));
+  }
+  function icon(name){ return typeof iconSvg === "function" ? iconSvg(name) : ""; }
+  function parse(value){
+    if (!value) return null;
+    if (typeof parseDate === "function") return parseDate(value);
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+  }
+  function today(){
+    if (typeof todayAtNoon === "function") return todayAtNoon();
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    return date;
+  }
+  function formatDateSafe(value){
+    if (typeof formatDate === "function") return formatDate(value);
+    const date = parse(value);
+    if (!date) return "—";
+    return date.toLocaleDateString("ar-SA-u-nu-latn", { day: "numeric", month: "short", year: "numeric" });
+  }
+  function formatDurationSafe(from, to){
+    try {
+      if (typeof durationParts === "function" && typeof formatDuration === "function") {
+        return formatDuration(durationParts(from, to));
+      }
+    } catch(_) {}
+    const diff = Math.max(0, Math.abs(Math.round((to - from) / DAY)));
+    return `${diff} يوم`;
+  }
+  function documentExpiryInfo(value){
+    const target = parse(value);
+    if (!target) return null;
+    const now = today();
+    const diff = Math.ceil((target - now) / DAY);
+    if (diff < 0) {
+      return {
+        state: "expired",
+        priority: 0,
+        days: diff,
+        notify: true,
+        label: `منتهية منذ ${formatDurationSafe(target, now)}`,
+        panelLabel: `منتهية منذ ${formatDurationSafe(target, now)}`
+      };
+    }
+    if (diff === 0) {
+      return { state: "danger", priority: 1, days: diff, notify: true, label: "تنتهي اليوم", panelLabel: "تنتهي اليوم" };
+    }
+    if (diff <= 30) {
+      return {
+        state: "warning",
+        priority: 2,
+        days: diff,
+        notify: true,
+        label: `متبقي ${formatDurationSafe(now, target)}`,
+        panelLabel: `متبقي ${formatDurationSafe(now, target)}`
+      };
+    }
+    return { state: "valid", priority: 3, days: diff, notify: false, label: `سارية - متبقي ${formatDurationSafe(now, target)}`, panelLabel: `متبقي ${formatDurationSafe(now, target)}` };
+  }
+  function allEmployees(){
+    if (Array.isArray(window.employees)) return window.employees;
+    try { if (Array.isArray(employees)) return employees; } catch(_) {}
+    return [];
+  }
+  function loadEstDocs(){
+    try {
+      const raw = localStorage.getItem(EST_DOC_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch(_) { return []; }
+  }
+  function employeeDocumentAlerts(){
+    const out = [];
+    allEmployees().forEach((emp) => {
+      const add = (title, number, expiryDate) => {
+        const info = documentExpiryInfo(expiryDate);
+        if (!info || !info.notify) return;
+        out.push({ employee: emp, title, number: number || "", expiryDate, info });
+      };
+      add("الإقامة / الهوية", emp.identityNumber || emp.iqamaNumber || "", emp.identityExpiryGregorian || emp.identityExpiry || "");
+      (Array.isArray(emp.passports) ? emp.passports : []).forEach((passport) => {
+        add(`جواز السفر${passport?.number ? ` ${passport.number}` : ""}`, passport?.number || "", passport?.expiryDate || passport?.passportExpiryDate || "");
+      });
+      (Array.isArray(emp.documents) ? emp.documents : []).forEach((doc, index) => {
+        add(doc?.type || doc?.name || doc?.title || `وثيقة موظف ${index + 1}`, doc?.number || "", doc?.expiryDate || doc?.endDate || "");
+      });
+    });
+    return sortAlerts(out);
+  }
+  function establishmentDocumentAlerts(){
+    return sortAlerts(loadEstDocs().map((doc) => {
+      const expiryDate = doc.expiryDate || doc.endDate || "";
+      const info = documentExpiryInfo(expiryDate);
+      if (!info || !info.notify) return null;
+      return { id: doc.id || "", title: doc.title || doc.name || doc.typeName || doc.number || "وثيقة منشأة", number: doc.number || "", expiryDate, info };
+    }).filter(Boolean));
+  }
+  function sortAlerts(list){
+    return [...list].sort((a, b) => {
+      const pa = a.info?.priority ?? 9;
+      const pb = b.info?.priority ?? 9;
+      if (pa !== pb) return pa - pb;
+      const da = a.info?.days ?? 99999;
+      const db = b.info?.days ?? 99999;
+      if (pa === 0) return db - da; // expired: most recently expired first, then older
+      return da - db; // near expiry: closest first
+    });
+  }
+  function rowHtml(item, employeeMode){
+    const info = item.info || documentExpiryInfo(item.expiryDate) || { state: "neutral", panelLabel: "—" };
+    const main = employeeMode ? `${item.title} - ${item.employee?.name || ""}` : item.title;
+    const meta = `${item.number ? `رقم: ${item.number} · ` : ""}${formatDateSafe(item.expiryDate)}`;
+    const stateClass = `expiry-state-${info.state}`;
+    return `<div class="expiry-doc-row ${stateClass}">
+      <span class="expiry-doc-icon ${stateClass}" data-icon="file"></span>
+      <div class="expiry-doc-content">
+        <strong>${esc(main)}</strong>
+        <small><span class="expiry-doc-meta">${esc(meta)}</span><span class="expiry-doc-remaining ${stateClass}">${esc(info.panelLabel || info.label || "—")}</span></small>
+      </div>
+      ${employeeMode ? `<button type="button" class="quick-view-btn" data-edit-employee="${esc(item.employee?.id || "")}" title="فتح الموظف">${icon("eye")}</button>` : `<button type="button" class="quick-view-btn" data-go-view="establishmentDocuments" title="فتح الوثائق">${icon("eye")}</button>`}
+    </div>`;
+  }
+  function ensurePanel(id, afterElement){
+    let panel = document.getElementById(id);
+    if (!panel) {
+      panel = document.createElement("article");
+      panel.id = id;
+      panel.className = "panel expiry-dashboard-panel";
+    }
+    if (afterElement && panel.previousElementSibling !== afterElement) afterElement.insertAdjacentElement("afterend", panel);
+    return panel;
+  }
+  function renderDocumentExpiryPanels(){
+    const grid = document.querySelector(".dashboard-grid");
+    if (!grid) return;
+    const requestPanel = document.querySelector(".leave-panel") || document.querySelector(".requests-panel") || grid.querySelector(".panel");
+    if (!requestPanel) return;
+    const estPanel = ensurePanel("dashboardEstDocsPanel", requestPanel);
+    const empPanel = ensurePanel("dashboardEmployeeDocsPanel", estPanel);
+    const estDocs = establishmentDocumentAlerts();
+    const empDocs = employeeDocumentAlerts();
+    estPanel.innerHTML = `<div class="panel-head"><div><h3>وثائق المنشأة قرب الانتهاء أو منتهية</h3><p>تظهر الوثائق المنتهية والوثائق المتبقي عليها 30 يوم أو أقل</p></div><button class="text-btn" data-go-view="establishmentDocuments">عرض الكل</button></div><div class="expiry-doc-list">${estDocs.length ? estDocs.slice(0, 6).map(item => rowHtml(item, false)).join("") : `<div class="empty-state"><strong>لا توجد وثائق منشأة منتهية أو قريبة الانتهاء</strong></div>`}</div>`;
+    empPanel.innerHTML = `<div class="panel-head"><div><h3>وثائق الموظفين قرب الانتهاء أو منتهية</h3><p>الإقامات والجوازات ووثائق الموظفين المنتهية أو المتبقي عليها 30 يوم</p></div><button class="text-btn" data-go-view="employees">عرض الكل</button></div><div class="expiry-doc-list">${empDocs.length ? empDocs.slice(0, 6).map(item => rowHtml(item, true)).join("") : `<div class="empty-state"><strong>لا توجد وثائق موظفين منتهية أو قريبة الانتهاء</strong></div>`}</div>`;
+    [estPanel, empPanel].forEach((panel) => {
+      panel.querySelectorAll("[data-go-view]").forEach((btn) => {
+        btn.addEventListener("click", (event) => { event.preventDefault(); if (typeof switchView === "function") switchView(btn.dataset.goView); });
+      });
+    });
+    if (typeof hydrateIcons === "function") { hydrateIcons(estPanel); hydrateIcons(empPanel); }
+  }
+  const previousRenderDashboard = window.renderDashboard || (typeof renderDashboard === "function" ? renderDashboard : null);
+  if (previousRenderDashboard && !previousRenderDashboard.__documentExpiryV51) {
+    const wrapped = function(){
+      const result = previousRenderDashboard.apply(this, arguments);
+      setTimeout(renderDocumentExpiryPanels, 0);
+      setTimeout(renderDocumentExpiryPanels, 200);
+      return result;
+    };
+    wrapped.__documentExpiryV51 = true;
+    try { renderDashboard = wrapped; } catch(_) {}
+    window.renderDashboard = wrapped;
+  }
+  const previousRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
+  if (previousRenderAll && !previousRenderAll.__documentExpiryV51) {
+    const wrappedAll = function(){ const result = previousRenderAll.apply(this, arguments); setTimeout(renderDocumentExpiryPanels, 200); return result; };
+    wrappedAll.__documentExpiryV51 = true;
+    try { renderAll = wrappedAll; } catch(_) {}
+    window.renderAll = wrappedAll;
+  }
+  const boot = () => { setTimeout(renderDocumentExpiryPanels, 250); setTimeout(renderDocumentExpiryPanels, 1000); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+  window.documentExpiryNotificationsV51 = { documentExpiryInfo, renderDocumentExpiryPanels };
+})();
