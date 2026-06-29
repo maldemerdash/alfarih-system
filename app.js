@@ -619,30 +619,6 @@ async function dbSaveEmployee(employee) {
   queueCloudStateSave();
 }
 
-async function dbCacheEmployeesFast(records = []) {
-  try {
-    const tx = db.transaction("employees", "readwrite");
-    const store = tx.objectStore("employees");
-    await new Promise((resolve, reject) => {
-      const clearRequest = store.clear();
-      clearRequest.onsuccess = resolve;
-      clearRequest.onerror = () => reject(clearRequest.error);
-    });
-    await Promise.all((Array.isArray(records) ? records : []).map((employee) => new Promise((resolve, reject) => {
-      const req = store.put(employee);
-      req.onsuccess = resolve;
-      req.onerror = () => reject(req.error);
-    })));
-    await new Promise((resolve, reject) => {
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
-  } catch (error) {
-    console.warn("تعذر تحديث كاش الموظفين المحلي بسرعة.", error);
-  }
-}
-
 async function dbDeleteEmployee(id) {
   await requestResult(dbStore("employees", "readwrite").delete(id));
   queueCloudStateSave();
@@ -757,18 +733,17 @@ async function initStorage() {
   initSupabaseClient();
   cloudSaveAllowed = false;
 
-  const storedEmployeesPromise = dbGetAllEmployees().catch(() => []);
   const cloudResult = await loadCloudState();
   if (cloudResult.ok && cloudResult.found && cloudResult.state && applyCloudState(cloudResult.state)) {
+    await Promise.all(employees.map(dbSaveEmployee));
     cloudSaveAllowed = true;
-    setTimeout(() => { try { dbCacheEmployeesFast(employees); } catch (_) {} }, 0);
     if (localStorage.getItem(FINANCE_EMPTY_RESET_KEY) === FINANCE_EMPTY_RESET_VERSION) {
       try { await saveCloudStateNow({ force: true }); } catch (_) {}
     }
     return;
   }
 
-  const storedEmployees = await storedEmployeesPromise;
+  const storedEmployees = await dbGetAllEmployees();
   if (!cloudResult.ok && supabaseClient) {
     if (storedEmployees.length) {
       employees = storedEmployees.map(normalizeEmployee);
@@ -18602,702 +18577,333 @@ document.addEventListener("click", function(event) {
   else setTimeout(boot, 180);
 })();
 
-
 /* =========================================================
-   v35 corrective patch: fast cloud startup + restore stable employee photo logic
-   - No visual redesign.
-   - Prevents initial cloud load from re-writing every employee back to cloud.
-   - Adds in-memory signed URL cache so employee photos do not flicker or refetch repeatedly.
+   v39 clean corrective patch: employee editor opens independently from photos + fast database startup
+   - Removes dependence between employee photo loading and opening the employee editor.
+   - Uses local employee cache first, then refreshes Supabase in the background.
+   - Does not change visual design.
+   - Consolidates the previous photo/opening attempts into one stable path.
    ========================================================= */
-(function v35FastLoadAndStablePhoto(){
-  if (window.__v35FastLoadAndStablePhoto) return;
-  window.__v35FastLoadAndStablePhoto = true;
+(function v39CleanEmployeePhotoAndFastOpenFix(){
+  if (window.__v39CleanEmployeePhotoAndFastOpenFix) return;
+  window.__v39CleanEmployeePhotoAndFastOpenFix = true;
 
-  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const text = (value) => String(value ?? '').trim();
-  const LOCAL_ATTACHMENT_URLS = window.__localAttachmentUrls || (window.__localAttachmentUrls = new Map());
-  const PHOTO_URL_CACHE = window.__employeePhotoSignedUrlCache || (window.__employeePhotoSignedUrlCache = new Map());
-  const PHOTO_CACHE_TTL = 50 * 60 * 1000;
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const PHOTO_URL_CACHE = window.__employeePhotoUrlCacheV39 || (window.__employeePhotoUrlCacheV39 = new Map());
+  const LOCAL_URLS = window.__localAttachmentUrls || (window.__localAttachmentUrls = new Map());
+  const PHOTO_TTL = 50 * 60 * 1000;
+  let startupPhase = true;
+  let cloudRefreshRunning = false;
 
-  function localAttachmentUrl(id){
-    return LOCAL_ATTACHMENT_URLS.get(String(id || '')) || '';
-  }
-  function setLocalAttachmentUrl(id, file){
-    if (!id || !file) return '';
-    try {
-      const previous = LOCAL_ATTACHMENT_URLS.get(String(id));
-      if (previous && previous.startsWith('blob:')) { try { URL.revokeObjectURL(previous); } catch (_) {} }
-      const url = URL.createObjectURL(file);
-      LOCAL_ATTACHMENT_URLS.set(String(id), url);
-      PHOTO_URL_CACHE.set(String(id), { url, expires: Date.now() + PHOTO_CACHE_TTL });
-      return url;
-    } catch (_) { return ''; }
+  function rememberUrl(id, url){
+    if (!id || !url) return;
+    PHOTO_URL_CACHE.set(String(id), { url, expires: Date.now() + PHOTO_TTL });
   }
 
-  const previousAttachmentUrl = typeof attachmentUrl === 'function' ? attachmentUrl : null;
-  async function attachmentUrlV35(id){
-    const key = String(id || '');
+  function cachedUrl(id){
+    const key = text(id);
     if (!key) return '';
-    const local = localAttachmentUrl(key);
+    const local = LOCAL_URLS.get(key);
     if (local) return local;
     const cached = PHOTO_URL_CACHE.get(key);
     if (cached && cached.expires > Date.now() && cached.url) return cached.url;
-    const url = previousAttachmentUrl ? await previousAttachmentUrl.apply(this, arguments) : '';
-    if (url) PHOTO_URL_CACHE.set(key, { url, expires: Date.now() + PHOTO_CACHE_TTL });
-    return url || '';
-  }
-  try { attachmentUrl = attachmentUrlV35; window.attachmentUrl = attachmentUrlV35; } catch (_) {}
-
-  function linkedEmployeeForHeaderV35(){
-    try { const linked = window.employeePermissionMatrix?.linkedEmployee?.(); if (linked) return linked; } catch (_) {}
-    try {
-      const linkedId = authProfile?.employee_id || authProfile?.employeeId || authProfile?.linked_employee_id || authProfile?.linkedEmployeeId || '';
-      if (linkedId && Array.isArray(employees)) return employees.find((employee) => String(employee.id) === String(linkedId));
-    } catch (_) {}
-    return null;
-  }
-
-  async function applyTopbarPhotoV35(){
-    const mark = document.querySelector('.topbar-user-mark');
-    if (!mark) return;
-    const employee = linkedEmployeeForHeaderV35();
-    const photoId = text(employee?.photoAttachmentId || '');
-    const legacyPhoto = text(employee?.legacyPhoto || employee?.photo || '');
-    const fallbackName = text(employee?.name || authProfile?.full_name || authUser?.email || 'مستخدم');
-    let url = '';
-    if (photoId) url = localAttachmentUrl(photoId) || await attachmentUrlV35(photoId);
-    else if (legacyPhoto) url = legacyPhoto;
-    if (url) {
-      const key = photoId ? `photo:${photoId}:${url}` : `legacy:${url}`;
-      if (mark.dataset.v35PhotoKey !== key || !mark.querySelector('img')) {
-        mark.dataset.v35PhotoKey = key;
-        mark.classList.add('has-employee-photo');
-        mark.innerHTML = `<img src="${esc(url)}" alt="" />`;
-      }
-    } else {
-      mark.dataset.v35PhotoKey = '';
-      mark.classList.remove('has-employee-photo');
-      mark.textContent = fallbackName.charAt(0) || 'م';
-    }
-  }
-  window.__applyStableTopbarPhoto = applyTopbarPhotoV35;
-
-  const previousHydrateAttachmentImages = typeof hydrateAttachmentImages === 'function' ? hydrateAttachmentImages : null;
-  async function hydrateAttachmentImagesV35(root = document){
-    try {
-      const images = [...root.querySelectorAll('img[data-attachment-image]')];
-      images.forEach((image) => {
-        const id = image.dataset.attachmentImage;
-        const local = localAttachmentUrl(id);
-        const cached = PHOTO_URL_CACHE.get(String(id || ''));
-        const url = local || (cached && cached.expires > Date.now() ? cached.url : '');
-        if (url && image.src !== url) image.src = url;
-      });
-    } catch (_) {}
-    return previousHydrateAttachmentImages ? previousHydrateAttachmentImages.apply(this, arguments) : undefined;
-  }
-  try { hydrateAttachmentImages = hydrateAttachmentImagesV35; window.hydrateAttachmentImages = hydrateAttachmentImagesV35; } catch (_) {}
-
-  const previousRenderEmployeePhoto = typeof renderEmployeePhoto === 'function' ? renderEmployeePhoto : null;
-  async function renderEmployeePhotoV35(){
-    const preview = document.querySelector('#employeePhotoPreview');
-    if (!preview) return previousRenderEmployeePhoto ? previousRenderEmployeePhoto.apply(this, arguments) : undefined;
-    const photoId = text(employeeFormState?.photoAttachmentId || '');
-    const local = photoId ? localAttachmentUrl(photoId) : '';
-    const cached = photoId ? PHOTO_URL_CACHE.get(photoId) : null;
-    const cachedUrl = cached && cached.expires > Date.now() ? cached.url : '';
-    if (local || cachedUrl) {
-      preview.innerHTML = `<img src="${esc(local || cachedUrl)}" alt="صورة الموظف" />`;
-      return;
-    }
-    return previousRenderEmployeePhoto ? previousRenderEmployeePhoto.apply(this, arguments) : undefined;
-  }
-  try { renderEmployeePhoto = renderEmployeePhotoV35; window.renderEmployeePhoto = renderEmployeePhotoV35; } catch (_) {}
-
-  const previousUpdateTopbarUser = typeof updateTopbarUser === 'function' ? updateTopbarUser : null;
-  if (previousUpdateTopbarUser && !previousUpdateTopbarUser.__v35PhotoStable) {
-    const wrapped = function(){
-      const result = previousUpdateTopbarUser.apply(this, arguments);
-      setTimeout(applyTopbarPhotoV35, 0);
-      return result;
-    };
-    wrapped.__v35PhotoStable = true;
-    try { updateTopbarUser = wrapped; window.updateTopbarUser = wrapped; } catch (_) {}
-  }
-
-  document.addEventListener('change', async (event) => {
-    const input = event.target;
-    if (!input?.matches?.('#employeePhotoInput')) return;
-    const file = input.files?.[0];
-    if (!file) return;
-    // Show immediately from local object URL while existing upload logic finishes.
-    const tempId = text(employeeFormState?.photoAttachmentId || `pending-photo-${Date.now()}`);
-    setLocalAttachmentUrl(tempId, file);
-    if (!employeeFormState.photoAttachmentId) employeeFormState.photoAttachmentId = tempId;
-    await renderEmployeePhotoV35();
-    setTimeout(() => { try { hydrateAttachmentImagesV35(document); applyTopbarPhotoV35(); } catch (_) {} }, 0);
-  }, false);
-
-  document.addEventListener('submit', (event) => {
-    if (!event.target?.matches?.('#employeeForm')) return;
-    setTimeout(() => { try { renderEmployees?.(); hydrateAttachmentImagesV35(document); applyTopbarPhotoV35(); } catch (_) {} }, 0);
-  }, false);
-
-  document.addEventListener('DOMContentLoaded', () => setTimeout(() => { try { hydrateAttachmentImagesV35(document); applyTopbarPhotoV35(); } catch (_) {} }, 80));
-  window.addEventListener('load', () => setTimeout(() => { try { hydrateAttachmentImagesV35(document); applyTopbarPhotoV35(); } catch (_) {} }, 120));
-  setTimeout(() => { try { hydrateAttachmentImagesV35(document); applyTopbarPhotoV35(); } catch (_) {} }, 400);
-})();
-
-/* =========================================================
-   v36 corrective patch: restore employee row edit/open + suppress hidden permissions toast
-   - Fixes employee name/edit icon opening by using tolerant employee id matching.
-   - Keeps the stable photo logic from v33/v35 unchanged.
-   - Prevents permissions-screen toast from appearing while user is on Employees view.
-   - No visual redesign.
-   ========================================================= */
-(function v36EmployeeOpenAndPermissionsToastFix(){
-  if (window.__v36EmployeeOpenAndPermissionsToastFix) return;
-  window.__v36EmployeeOpenAndPermissionsToastFix = true;
-
-  const text = (value) => String(value ?? '').trim();
-  const isSame = (a, b) => text(a) !== '' && text(a) === text(b);
-
-  function employeeRowsV36(){
-    try { return Array.isArray(employees) ? employees.filter(Boolean) : []; } catch (_) { return []; }
-  }
-
-  function findEmployeeV36(id){
-    const key = text(id);
-    if (!key) return null;
-    const rows = employeeRowsV36();
-    return rows.find((employee) =>
-      isSame(employee?.id, key) ||
-      isSame(employee?.employeeId, key) ||
-      isSame(employee?.employee_id, key) ||
-      isSame(employee?.employeeNumber, key) ||
-      isSame(employee?.employeeNo, key) ||
-      isSame(employee?.number, key)
-    ) || null;
-  }
-
-  const previousGetEmployeeV36 = typeof getEmployee === 'function' ? getEmployee : null;
-  function getEmployeeV36(id){
-    try {
-      const direct = previousGetEmployeeV36 ? previousGetEmployeeV36(id) : null;
-      if (direct) return direct;
-    } catch (_) {}
-    return findEmployeeV36(id);
-  }
-  try { getEmployee = getEmployeeV36; window.getEmployee = getEmployeeV36; } catch (_) {}
-
-  function safeCall(fn){ try { return fn?.(); } catch (_) { return undefined; } }
-  function setValue(form, name, value){
-    const el = form?.elements?.[name];
-    if (!el) return;
-    try { if (typeof setFormValue === 'function') setFormValue(form, name, value ?? ''); else el.value = value ?? ''; }
-    catch (_) { try { el.value = value ?? ''; } catch (_) {} }
-  }
-  function setRadio(form, name, value){
-    try { if (typeof setRadioValue === 'function') setRadioValue(form, name, value); else form?.querySelectorAll?.(`input[name="${name}"]`)?.forEach((input) => { input.checked = input.value === value; }); }
-    catch (_) {}
-  }
-  function todayValue(){
-    try { return typeof formatInputDate === 'function' ? formatInputDate(todayAtNoon()) : new Date().toISOString().slice(0, 10); }
-    catch (_) { return new Date().toISOString().slice(0, 10); }
-  }
-
-  function hydrateEmployeeEditorV36(employee){
-    const form = document.querySelector('#employeeForm');
-    const modal = document.querySelector('#employeeModal');
-    if (!employee || !form || !modal) return false;
-    const today = todayValue();
-    try { form.reset(); } catch (_) {}
-    safeCall(() => populateFormOptions());
-    try {
-      employeeFormState = {
-        photoAttachmentId: employee.photoAttachmentId || '',
-        legacyPhoto: employee.legacyPhoto || employee.photo || '',
-        identityAttachmentId: employee.identityAttachmentId || '',
-        signatureAttachmentId: employee.signatureAttachmentId || '',
-        fingerprintAttachmentId: employee.fingerprintAttachmentId || '',
-        passports: (employee.passports || []).map((item) => typeof createPassport === 'function' ? createPassport(item) : { ...item }),
-        bankAccounts: (employee.bankAccounts || []).map((item) => typeof createBankAccount === 'function' ? createBankAccount(item) : { ...item }),
-        notes: (employee.notes || []).map((item) => ({ ...item })),
-        minutes: (employee.minutes || employee.disciplinaryMinutes || []).map((item) => typeof createEmployeeMinuteRecord === 'function' ? createEmployeeMinuteRecord(item) : { ...item }),
-        warnings: Array.isArray(employee.warnings) ? employee.warnings : [],
-        documents: (employee.documents || []).map((item) => typeof createDocument === 'function' ? createDocument(item) : { ...item }),
-        commissions: (employee.commissions || []).map((item) => ({ ...item })),
-        commissionAccrualStartDate: employee.commissionAccrualStartDate || employee.workStartDate || employee.contractStartDate || today,
-        commissionPaused: Boolean(employee.commissionPaused),
-        commissionPauseReason: employee.commissionPauseReason || '',
-        commissionPausedByLeaveId: employee.commissionPausedByLeaveId || '',
-        commissionPausedAt: employee.commissionPausedAt || '',
-        consent: employee.consent ? { ...employee.consent } : null
-      };
-    } catch (_) {}
-
-    safeCall(() => { document.querySelector('#employeeModalTitle').innerHTML = `${typeof iconSvg === 'function' ? iconSvg('user-plus') : ''}تعديل بيانات الموظف`; });
-    const fields = [
-      'employeeId','firstName','fatherName','grandName','familyName','nationality','birthDate',
-      'identityNumber','identityExpiryGregorian','identityExpiryHijri','status','department','branch',
-      'section','directManager','role','contractStartDate','workStartDate','contractMonths','renewalOption',
-      'baseSalary','housingAllowance','transportAllowance','otherAllowances','phone','emergencyPhone',
-      'email','homeCountryPhone','hijriCorrection'
-    ];
-    fields.forEach((name) => setValue(form, name, name === 'employeeId' ? employee.id : (employee[name] ?? '')));
-    setValue(form, 'contractStartDate', employee.contractStartDate || today);
-    setValue(form, 'workStartDate', employee.workStartDate || employee.contractStartDate || today);
-    setValue(form, 'commissionStartDate', employeeFormState?.commissionAccrualStartDate || employee.workStartDate || employee.contractStartDate || today);
-    setValue(form, 'commissionPaymentDate', '');
-    setRadio(form, 'nationalityType', employee.nationalityType || 'saudi');
-    setRadio(form, 'gender', employee.gender || 'male');
-    setRadio(form, 'contractType', employee.contractType || 'unlimited');
-    safeCall(() => renderNationalityOptions(employee.nationality || 'سعودي', (employee.nationalityType || 'saudi') === 'nonSaudi'));
-    safeCall(() => refreshEmployeeOrgOptions(employee.section || '', employee.role || ''));
-    safeCall(() => { if (form.elements?.insuranceEnabled) form.elements.insuranceEnabled.checked = Boolean(employee.insuranceEnabled); });
-
-    [
-      'renderPassports','renderBankAccounts','renderEmployeeNotes','renderEmployeeMinutes','resetEmployeeMinuteForm',
-      'renderDocuments','renderCommissionHistory','renderDocumentation','updateAllFormCalculations','renderEmployeePhoto'
-    ].forEach((name) => safeCall(() => window[name]?.()));
-    safeCall(() => { if (typeof toggleEmployeeMinuteForm === 'function') toggleEmployeeMinuteForm(false); });
-    safeCall(() => { if (typeof switchEmployeeSection === 'function') switchEmployeeSection('personal'); });
-    safeCall(() => { if (typeof hydrateIcons === 'function') hydrateIcons(modal); });
-    try { if (!modal.open) modal.showModal(); modal.scrollTop = 0; } catch (_) {}
-    return true;
-  }
-
-  const previousOpenEmployeeModalV36 = typeof openEmployeeModal === 'function' ? openEmployeeModal : window.openEmployeeModal;
-  async function openEmployeeModalV36(employeeId = null){
-    if (!employeeId) return previousOpenEmployeeModalV36 ? previousOpenEmployeeModalV36.apply(this, arguments) : undefined;
-    const employee = findEmployeeV36(employeeId);
-    if (!employee) {
-      try { if (typeof showToast === 'function') showToast('تعذر العثور على بيانات الموظف'); } catch (_) {}
-      return undefined;
-    }
-    let opened = false;
-    try {
-      if (previousOpenEmployeeModalV36) {
-        await previousOpenEmployeeModalV36.call(this, employee.id);
-        const form = document.querySelector('#employeeForm');
-        const modal = document.querySelector('#employeeModal');
-        opened = Boolean(modal?.open && (text(form?.elements?.employeeId?.value) === text(employee.id) || text(form?.elements?.employeeId?.value) === text(employee.employeeNumber)));
-      }
-    } catch (error) { console.warn('v36 previous employee opener failed', error); }
-    if (!opened) hydrateEmployeeEditorV36(employee);
-    return undefined;
-  }
-  try { openEmployeeModal = openEmployeeModalV36; window.openEmployeeModal = openEmployeeModalV36; } catch (_) {}
-
-  document.addEventListener('click', function(event){
-    const target = event.target?.closest?.('.employee-name-link[data-edit-employee], [data-edit-employee], [data-employee-name-edit]');
-    if (!target) return;
-    const id = target.dataset.editEmployee || target.dataset.employeeNameEdit || '';
-    if (!id || !findEmployeeV36(id)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    openEmployeeModalV36(id);
-  }, true);
-
-  function permissionsPanelIsVisible(){
-    const panel = document.querySelector('[data-settings-panel="permissions"]');
-    const settingsView = document.querySelector('#settingsView');
-    const isSettingsActive = Boolean(settingsView?.classList?.contains('active') || settingsView?.offsetParent !== null);
-    const isPanelActive = Boolean(panel?.classList?.contains('active') && panel?.offsetParent !== null);
-    return Boolean(isSettingsActive && isPanelActive);
-  }
-
-  const previousShowToastV36 = typeof showToast === 'function' ? showToast : null;
-  if (previousShowToastV36 && !previousShowToastV36.__v36PermissionsToastFilter) {
-    const wrappedShowToast = function(message){
-      const msg = String(message ?? '');
-      if (msg.includes('تعذر تحميل موظفي الصلاحيات') && !permissionsPanelIsVisible()) return;
-      return previousShowToastV36.apply(this, arguments);
-    };
-    wrappedShowToast.__v36PermissionsToastFilter = true;
-    try { showToast = wrappedShowToast; window.showToast = wrappedShowToast; } catch (_) {}
-  }
-})();
-
-/* =========================================================
-   v37 corrective patch: employee photo upload scope + stable upload
-   - Prevents hidden/old employee photo input events from firing outside the employee form.
-   - Handles employee photo upload before older document-level handlers, so Users/Permissions screens cannot trigger photo upload popups.
-   - Keeps the visual design unchanged.
-   ========================================================= */
-(function employeePhotoUploadScopeFixV37(){
-  if (window.__employeePhotoUploadScopeFixV37) return;
-  window.__employeePhotoUploadScopeFixV37 = true;
-
-  const text = (value) => String(value ?? '').trim();
-  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  const digits = (value) => {
-    try { return typeof normalizeNumerals === 'function' ? normalizeNumerals(value).replace(/\D/g, '') : String(value ?? '').replace(/\D/g, ''); }
-    catch (_) { return String(value ?? '').replace(/\D/g, ''); }
-  };
-  const localUrls = window.__localAttachmentUrls || (window.__localAttachmentUrls = new Map());
-
-  function popup(message, title = 'تنبيه'){
-    try { if (typeof window.showModalMessage === 'function') return window.showModalMessage(message, title); } catch (_) {}
-    try { if (typeof window.nawahShowBlockingMessage === 'function') return window.nawahShowBlockingMessage(message, title); } catch (_) {}
-    try { if (typeof showToast === 'function') return showToast(message); } catch (_) {}
-  }
-
-  function employeeModalIsOpen(){
-    const modal = document.querySelector('#employeeModal');
-    return Boolean(modal && modal.open);
-  }
-
-  function activeEmployeePhotoInput(input){
-    return Boolean(input && input.matches && input.matches('#employeePhotoInput') && input.closest('#employeeModal'));
-  }
-
-  function ownerKeyFromCurrentForm(){
-    const form = document.querySelector('#employeeForm');
-    const id = digits(form?.elements?.identityNumber?.value || '');
-    const phone = digits(form?.elements?.phone?.value || '');
-    return id.length >= 2 && phone.length >= 2 ? `${id.slice(-2)}${phone.slice(-2)}` : '';
-  }
-
-  function newUuid(){
-    try { if (crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID(); } catch (_) {}
-    const raw = `photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    let h = 0;
-    for (let i = 0; i < raw.length; i += 1) h = Math.imul(31, h) + raw.charCodeAt(i) | 0;
-    return `photo-${Date.now()}-${Math.abs(h).toString(16)}`;
-  }
-
-  function safeStorageName(name){
-    try { if (typeof sanitizeStorageName === 'function') return sanitizeStorageName(name); } catch (_) {}
-    return String(name || 'employee-photo').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-120) || 'employee-photo';
-  }
-
-  function bucketName(){
-    try { if (typeof bucketForAttachmentCategory === 'function') return bucketForAttachmentCategory('employee-photo'); } catch (_) {}
-    return 'employee-attachments';
+    return '';
   }
 
   function setLocalUrl(id, file){
     if (!id || !file) return '';
     try {
-      const old = localUrls.get(String(id));
-      if (old && old.startsWith('blob:')) URL.revokeObjectURL(old);
+      const previous = LOCAL_URLS.get(String(id));
+      if (previous && previous.startsWith('blob:')) URL.revokeObjectURL(previous);
     } catch (_) {}
     try {
       const url = URL.createObjectURL(file);
-      localUrls.set(String(id), url);
+      LOCAL_URLS.set(String(id), url);
+      rememberUrl(id, url);
       return url;
     } catch (_) { return ''; }
   }
 
-  async function uploadEmployeePhoto(file, owner){
-    // v38: use the stable general attachment pipeline. It falls back locally when Supabase is slow/unavailable,
-    // instead of blocking the employee editor or showing a false failure popup.
-    try {
-      if (typeof saveAttachment === 'function') {
-        const id = await saveAttachment(file, 'employee-photo');
-        if (id) return id;
-      }
-    } catch (error) {
-      console.warn('v38 stable employee photo saveAttachment fallback failed', error);
-    }
-    try {
-      const id = `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      if (typeof requestResult === 'function' && typeof dbStore === 'function') {
-        await requestResult(dbStore('attachments', 'readwrite').put({
-          id, category: 'employee-photo', name: file.name || 'employee-photo',
-          type: file.type || 'image/*', blob: file, createdAt: new Date().toISOString()
-        }));
-        return id;
-      }
-    } catch (error) {
-      console.error('v38 local employee photo fallback failed', error);
-    }
-    return '';
+  function allEmployees(){
+    try { return Array.isArray(employees) ? employees.filter(Boolean) : []; } catch (_) { return []; }
   }
 
-  function renderPreviewFromLocal(id, file){
+  function sameId(a, b){
+    return text(a) !== '' && text(a) === text(b);
+  }
+
+  function findEmployeeV39(id){
+    const key = text(id);
+    if (!key) return null;
+    return allEmployees().find((employee) =>
+      sameId(employee.id, key) ||
+      sameId(employee.employeeId, key) ||
+      sameId(employee.employee_id, key) ||
+      sameId(employee.employeeNumber, key) ||
+      sameId(employee.employeeNo, key) ||
+      sameId(employee.number, key)
+    ) || null;
+  }
+
+  const originalGetEmployeeV39 = typeof getEmployee === 'function' ? getEmployee : null;
+  function getEmployeeV39(id){
+    try {
+      const direct = originalGetEmployeeV39 ? originalGetEmployeeV39(id) : null;
+      if (direct) return direct;
+    } catch (_) {}
+    return findEmployeeV39(id);
+  }
+  try { getEmployee = getEmployeeV39; window.getEmployee = getEmployeeV39; } catch (_) {}
+
+  const originalAttachmentUrlV39 = typeof attachmentUrl === 'function' ? attachmentUrl : null;
+  async function attachmentUrlV39(id){
+    const key = text(id);
+    if (!key) return '';
+    const fast = cachedUrl(key);
+    if (fast) return fast;
+    let url = '';
+    try { url = originalAttachmentUrlV39 ? await originalAttachmentUrlV39.apply(this, arguments) : ''; } catch (_) { url = ''; }
+    if (url) rememberUrl(key, url);
+    return url || '';
+  }
+  try { attachmentUrl = attachmentUrlV39; window.attachmentUrl = attachmentUrlV39; } catch (_) {}
+
+  function startPhotoFetch(id, callback){
+    const key = text(id);
+    if (!key) return;
+    if (PHOTO_URL_CACHE.get(key)?.loading) return;
+    const existing = PHOTO_URL_CACHE.get(key) || {};
+    PHOTO_URL_CACHE.set(key, { ...existing, loading: true, expires: existing.expires || 0 });
+    setTimeout(async () => {
+      let url = '';
+      try { url = await attachmentUrlV39(key); } catch (_) { url = ''; }
+      const current = PHOTO_URL_CACHE.get(key) || {};
+      PHOTO_URL_CACHE.set(key, { url: url || current.url || '', expires: Date.now() + PHOTO_TTL, loading: false });
+      if (url && typeof callback === 'function') {
+        try { callback(url); } catch (_) {}
+      }
+    }, 0);
+  }
+
+  function renderEmployeePhotoV39(){
     const preview = document.querySelector('#employeePhotoPreview');
-    if (!preview) return;
-    const url = setLocalUrl(id, file);
-    if (url) preview.innerHTML = `<img src="${esc(url)}" alt="صورة الموظف" />`;
+    if (!preview) return Promise.resolve();
+    const photoId = text(employeeFormState?.photoAttachmentId || '');
+    const legacyPhoto = text(employeeFormState?.legacyPhoto || employeeFormState?.photo || '');
+    const key = photoId ? `att:${photoId}` : (legacyPhoto ? `legacy:${legacyPhoto}` : 'empty');
+
+    if (preview.dataset.v39PhotoKey === key && preview.querySelector('img')) return Promise.resolve();
+
+    if (!photoId && !legacyPhoto) {
+      preview.dataset.v39PhotoKey = 'empty';
+      try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) { preview.innerHTML = ''; }
+      return Promise.resolve();
+    }
+
+    const immediateUrl = photoId ? cachedUrl(photoId) : legacyPhoto;
+    preview.dataset.v39PhotoKey = key;
+    if (immediateUrl) {
+      preview.innerHTML = `<img src="${esc(immediateUrl)}" alt="صورة الموظف" />`;
+      return Promise.resolve();
+    }
+
+    // Open the employee editor immediately. The image is fetched after the modal is already open.
+    try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) {}
+    if (photoId) {
+      startPhotoFetch(photoId, (url) => {
+        if (!preview.isConnected) return;
+        if (text(employeeFormState?.photoAttachmentId || '') !== photoId) return;
+        if (preview.dataset.v39PhotoKey !== key) return;
+        preview.innerHTML = `<img src="${esc(url)}" alt="صورة الموظف" />`;
+      });
+    }
+    return Promise.resolve();
   }
+  try { renderEmployeePhoto = renderEmployeePhotoV39; window.renderEmployeePhoto = renderEmployeePhotoV39; } catch (_) {}
 
-  async function refreshAfterPhoto(){
-    // v38: update the visible UI immediately; hydrate remote URLs in the background only.
-    try { if (typeof renderEmployeePhoto === 'function') renderEmployeePhoto(); } catch (_) {}
-    try { if (typeof renderEmployees === 'function') renderEmployees(); } catch (_) {}
-    setTimeout(() => { try { if (typeof hydrateAttachmentImages === 'function') hydrateAttachmentImages(document); } catch (_) {} }, 0);
-    setTimeout(() => { try { if (typeof window.__applyStableTopbarPhoto === 'function') window.__applyStableTopbarPhoto(); } catch (_) {} }, 0);
+  function hydrateAttachmentImagesV39(root = document){
+    let images = [];
+    try { images = [...root.querySelectorAll('img[data-attachment-image]')]; } catch (_) { images = []; }
+    images.forEach((image) => {
+      const id = text(image.dataset.attachmentImage || '');
+      if (!id) return;
+      const quick = cachedUrl(id);
+      if (quick) {
+        if (image.src !== quick) image.src = quick;
+        return;
+      }
+      if (image.dataset.v39PhotoLoading === '1') return;
+      image.dataset.v39PhotoLoading = '1';
+      startPhotoFetch(id, (url) => {
+        if (image.isConnected && url) image.src = url;
+        try { delete image.dataset.v39PhotoLoading; } catch (_) {}
+      });
+    });
+    return Promise.resolve();
   }
+  try { hydrateAttachmentImages = hydrateAttachmentImagesV39; window.hydrateAttachmentImages = hydrateAttachmentImagesV39; } catch (_) {}
 
-  window.addEventListener('change', async (event) => {
-    const input = event.target;
-    if (!activeEmployeePhotoInput(input)) return;
+  const originalOpenEmployeeModalV39 = typeof openEmployeeModal === 'function' ? openEmployeeModal : window.openEmployeeModal;
+  async function openEmployeeModalV39(employeeId = null){
+    if (!employeeId) return originalOpenEmployeeModalV39 ? originalOpenEmployeeModalV39.apply(this, arguments) : undefined;
+    const employee = findEmployeeV39(employeeId);
+    if (!employee) {
+      try { if (typeof showToast === 'function') showToast('تعذر العثور على بيانات الموظف'); } catch (_) {}
+      return undefined;
+    }
+    // Do not prefetch or hydrate any employee photo here. Opening the employee file has priority.
+    try { return await originalOpenEmployeeModalV39.call(this, employee.id); }
+    catch (error) {
+      console.warn('v39 employee editor open failed', error);
+      try { if (typeof showToast === 'function') showToast('تعذر فتح ملف الموظف'); } catch (_) {}
+      return undefined;
+    }
+  }
+  try { openEmployeeModal = openEmployeeModalV39; window.openEmployeeModal = openEmployeeModalV39; } catch (_) {}
 
-    // Stop older target/document listeners before they try to upload from the wrong screen/state.
+  document.addEventListener('click', function(event){
+    const target = event.target?.closest?.('.employee-name-link[data-edit-employee], [data-edit-employee], [data-employee-name-edit]');
+    if (!target) return;
+    const employeeId = target.dataset.editEmployee || target.dataset.employeeNameEdit || '';
+    if (!findEmployeeV39(employeeId)) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
+    openEmployeeModalV39(employeeId);
+  }, true);
 
+  document.addEventListener('change', async function(event){
+    const input = event.target;
+    if (!input?.matches?.('#employeePhotoInput')) return;
+    const modal = input.closest('#employeeModal');
+    if (!modal || !modal.open) return;
     const file = input.files?.[0];
     if (!file) return;
-
-    if (!employeeModalIsOpen()) {
-      input.value = '';
-      return;
-    }
-
-    const owner = ownerKeyFromCurrentForm();
-    if (!owner) {
-      input.value = '';
-      popup('أدخل رقم الهوية ورقم الجوال أولًا حتى يتم تكوين رقم الموظف وربط الصورة به.', 'لا يمكن رفع صورة الموظف');
-      return;
-    }
-
     const tempId = `local-photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    renderPreviewFromLocal(tempId, file);
-
-    const id = await uploadEmployeePhoto(file, owner);
-    if (!id) {
-      input.value = '';
-      try { if (employeeFormState) employeeFormState.photoAttachmentId = ''; } catch (_) {}
-      await refreshAfterPhoto();
-      popup('تعذر رفع صورة الموظف. تأكد من الاتصال بقاعدة البيانات ثم حاول مرة أخرى.', 'فشل رفع الصورة');
-      return;
-    }
-
+    setLocalUrl(tempId, file);
     try {
-      localUrls.delete(String(tempId));
-      setLocalUrl(id, file);
-      employeeFormState.photoAttachmentId = id;
+      if (!employeeFormState.photoAttachmentId) employeeFormState.photoAttachmentId = tempId;
       employeeFormState.legacyPhoto = '';
+      renderEmployeePhotoV39();
     } catch (_) {}
-
-    try { if (typeof persistCurrentEmployeeOnly === 'function') await persistCurrentEmployeeOnly(); } catch (_) {}
-    await refreshAfterPhoto();
-    try { if (typeof showToast === 'function') showToast('تم حفظ صورة الموظف'); } catch (_) {}
+    // Let the original upload handler continue saving the file. This only makes the preview instant.
   }, true);
-})();
 
-
-/* =========================================================
-   v38 corrective patch: fast Supabase startup + non-blocking employee photos/editor
-   - Opens employee editor immediately even when the employee has a photo.
-   - Does not wait for signed photo URLs before opening tables/modals.
-   - Starts from local cache first, then refreshes Supabase in the background.
-   - Suppresses forced cloud writes during startup to avoid heavy reloads.
-   - No visual redesign.
-   ========================================================= */
-(function v38FastDatabaseAndEmployeePhotoOpenFix(){
-  if (window.__v38FastDatabaseAndEmployeePhotoOpenFix) return;
-  window.__v38FastDatabaseAndEmployeePhotoOpenFix = true;
-
-  const text = (value) => String(value ?? '').trim();
-  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  const PHOTO_CACHE = window.__employeePhotoSignedUrlCache || (window.__employeePhotoSignedUrlCache = new Map());
-  const LOCAL_URLS = window.__localAttachmentUrls || (window.__localAttachmentUrls = new Map());
-  const PHOTO_TTL = 50 * 60 * 1000;
-  let startupLoading = true;
-  let backgroundCloudRefreshRunning = false;
-
-  function cachedUrl(id){
-    const key = String(id || '');
-    if (!key) return '';
-    const local = LOCAL_URLS.get(key);
-    if (local) return local;
-    const cached = PHOTO_CACHE.get(key);
-    if (cached && cached.expires > Date.now() && cached.url) return cached.url;
-    return '';
+  async function cacheEmployeesFastV39(rows){
+    try {
+      if (!db || !Array.isArray(rows)) return;
+      const tx = db.transaction('employees', 'readwrite');
+      const store = tx.objectStore('employees');
+      rows.forEach((employee) => { try { store.put(employee); } catch (_) {} });
+    } catch (_) {}
   }
 
-  function rememberUrl(id, url){
-    if (!id || !url) return;
-    PHOTO_CACHE.set(String(id), { url, expires: Date.now() + PHOTO_TTL });
-  }
-
-  const previousSaveCloudStateNowV38 = typeof saveCloudStateNow === 'function' ? saveCloudStateNow : null;
-  if (previousSaveCloudStateNowV38 && !previousSaveCloudStateNowV38.__v38StartupThrottle) {
-    const wrappedSaveCloudStateNow = async function(options = {}){
-      if (startupLoading) return;
-      return previousSaveCloudStateNowV38.apply(this, arguments);
-    };
-    wrappedSaveCloudStateNow.__v38StartupThrottle = true;
-    try { saveCloudStateNow = wrappedSaveCloudStateNow; window.saveCloudStateNow = wrappedSaveCloudStateNow; } catch (_) {}
-  }
-
-  const previousQueueCloudStateSaveV38 = typeof queueCloudStateSave === 'function' ? queueCloudStateSave : null;
-  if (previousQueueCloudStateSaveV38 && !previousQueueCloudStateSaveV38.__v38StartupThrottle) {
-    const wrappedQueueCloudStateSave = function(){
-      if (startupLoading) return;
-      return previousQueueCloudStateSaveV38.apply(this, arguments);
-    };
-    wrappedQueueCloudStateSave.__v38StartupThrottle = true;
-    try { queueCloudStateSave = wrappedQueueCloudStateSave; window.queueCloudStateSave = wrappedQueueCloudStateSave; } catch (_) {}
-  }
-
-  async function refreshCloudInBackground(){
-    if (backgroundCloudRefreshRunning) return;
-    backgroundCloudRefreshRunning = true;
+  async function refreshSupabaseInBackgroundV39(){
+    if (cloudRefreshRunning) return;
+    cloudRefreshRunning = true;
     try {
       if (!supabaseClient) return;
       const result = await loadCloudState();
-      if (result?.ok && result?.found && result?.state) {
-        const before = JSON.stringify((Array.isArray(employees) ? employees : []).map((e) => [e.id, e.photoAttachmentId, e.name]));
-        if (typeof applyCloudState === 'function') applyCloudState(result.state);
-        const after = JSON.stringify((Array.isArray(employees) ? employees : []).map((e) => [e.id, e.photoAttachmentId, e.name]));
-        if (before !== after) {
+      if (result?.ok && result?.found && result?.state && typeof applyCloudState === 'function') {
+        const before = JSON.stringify(allEmployees().map((employee) => [employee.id, employee.employeeNumber, employee.photoAttachmentId, employee.name]));
+        const applied = applyCloudState(result.state);
+        const after = JSON.stringify(allEmployees().map((employee) => [employee.id, employee.employeeNumber, employee.photoAttachmentId, employee.name]));
+        cloudSaveAllowed = true;
+        if (applied && before !== after) {
           try { if (typeof renderAll === 'function') renderAll(); } catch (_) {}
-          try { setTimeout(() => { if (typeof hydrateAttachmentImages === 'function') hydrateAttachmentImages(document); }, 0); } catch (_) {}
+          setTimeout(() => hydrateAttachmentImagesV39(document), 0);
         }
-        try { if (typeof dbCacheEmployeesFast === 'function') setTimeout(() => dbCacheEmployeesFast(employees), 0); } catch (_) {}
+        setTimeout(() => cacheEmployeesFastV39(allEmployees()), 0);
       }
     } catch (error) {
-      console.warn('v38 background cloud refresh failed', error);
+      console.warn('v39 background Supabase refresh failed', error);
     } finally {
-      backgroundCloudRefreshRunning = false;
+      cloudRefreshRunning = false;
+      setTimeout(() => { startupPhase = false; }, 300);
     }
   }
 
-  const previousInitStorageV38 = typeof initStorage === 'function' ? initStorage : null;
-  async function initStorageV38(){
-    startupLoading = true;
+  const originalSaveCloudStateNowV39 = typeof saveCloudStateNow === 'function' ? saveCloudStateNow : null;
+  async function saveCloudStateNowV39(options = {}){
+    if (startupPhase && !options.force) return;
+    return originalSaveCloudStateNowV39 ? originalSaveCloudStateNowV39.apply(this, arguments) : undefined;
+  }
+  try { saveCloudStateNow = saveCloudStateNowV39; window.saveCloudStateNow = saveCloudStateNowV39; } catch (_) {}
+
+  const originalQueueCloudStateSaveV39 = typeof queueCloudStateSave === 'function' ? queueCloudStateSave : null;
+  function queueCloudStateSaveV39(){
+    if (startupPhase) return;
+    return originalQueueCloudStateSaveV39 ? originalQueueCloudStateSaveV39.apply(this, arguments) : undefined;
+  }
+  try { queueCloudStateSave = queueCloudStateSaveV39; window.queueCloudStateSave = queueCloudStateSaveV39; } catch (_) {}
+
+  const originalInitStorageV39 = typeof initStorage === 'function' ? initStorage : null;
+  async function initStorageV39(){
+    startupPhase = true;
     try {
       db = await openDatabase();
       initSupabaseClient();
       cloudSaveAllowed = false;
+
       let storedEmployees = [];
       try { storedEmployees = await dbGetAllEmployees(); } catch (_) { storedEmployees = []; }
       if (Array.isArray(storedEmployees) && storedEmployees.length) {
         employees = storedEmployees.map(normalizeEmployee);
         cloudLoadAttempted = true;
         cloudSaveAllowed = true;
-        setTimeout(refreshCloudInBackground, 80);
+        setTimeout(refreshSupabaseInBackgroundV39, 80);
+        setTimeout(() => { startupPhase = false; }, 1600);
         return;
       }
+
       const legacy = loadLocalData('nawah-employees', []);
       if (Array.isArray(legacy) && legacy.length) {
         employees = legacy.map(normalizeEmployee);
         cloudLoadAttempted = true;
         cloudSaveAllowed = true;
-        setTimeout(() => { try { dbCacheEmployeesFast(employees); } catch (_) {} }, 0);
-        setTimeout(refreshCloudInBackground, 80);
+        setTimeout(() => cacheEmployeesFastV39(employees), 0);
+        setTimeout(refreshSupabaseInBackgroundV39, 80);
+        setTimeout(() => { startupPhase = false; }, 1600);
         return;
       }
+
       const cloudResult = await loadCloudState();
       if (cloudResult?.ok && cloudResult?.found && cloudResult?.state && applyCloudState(cloudResult.state)) {
         cloudSaveAllowed = true;
-        setTimeout(() => { try { dbCacheEmployeesFast(employees); } catch (_) {} }, 0);
+        setTimeout(() => cacheEmployeesFastV39(allEmployees()), 0);
+        setTimeout(() => { startupPhase = false; }, 300);
         return;
       }
+
       employees = [];
       cloudSaveAllowed = Boolean(cloudResult?.ok);
+      setTimeout(() => { startupPhase = false; }, 300);
     } catch (error) {
-      console.warn('v38 fast init failed; using previous storage initializer', error);
-      if (previousInitStorageV38) return previousInitStorageV38.apply(this, arguments);
+      console.warn('v39 fast init failed, falling back to original initStorage', error);
+      startupPhase = false;
+      if (originalInitStorageV39) return originalInitStorageV39.apply(this, arguments);
       throw error;
-    } finally {
-      setTimeout(() => { startupLoading = false; }, 1200);
     }
   }
-  try { initStorage = initStorageV38; window.initStorage = initStorageV38; } catch (_) {}
+  try { initStorage = initStorageV39; window.initStorage = initStorageV39; } catch (_) {}
 
-  const previousAttachmentUrlV38 = typeof attachmentUrl === 'function' ? attachmentUrl : null;
-  async function attachmentUrlV38(id){
-    const key = String(id || '');
-    if (!key) return '';
-    const cached = cachedUrl(key);
-    if (cached) return cached;
-    let url = '';
-    try { url = previousAttachmentUrlV38 ? await previousAttachmentUrlV38.apply(this, arguments) : ''; } catch (_) { url = ''; }
-    if (url) rememberUrl(key, url);
-    return url;
+  function permissionsPanelVisibleV39(){
+    const settingsView = document.querySelector('#settingsView');
+    const panel = document.querySelector('[data-settings-panel="permissions"]');
+    return Boolean(settingsView?.classList?.contains('active') && panel?.classList?.contains('active'));
   }
-  try { attachmentUrl = attachmentUrlV38; window.attachmentUrl = attachmentUrlV38; } catch (_) {}
-
-  const previousHydrateAttachmentImagesV38 = typeof hydrateAttachmentImages === 'function' ? hydrateAttachmentImages : null;
-  function hydrateAttachmentImagesV38(root = document){
-    let images = [];
-    try { images = [...root.querySelectorAll('img[data-attachment-image]')]; } catch (_) { images = []; }
-    images.forEach((image) => {
-      const id = image.dataset.attachmentImage || '';
-      const quick = cachedUrl(id);
-      if (quick && image.src !== quick) image.src = quick;
-      if (!quick && id && !image.dataset.v38Loading) {
-        image.dataset.v38Loading = '1';
-        setTimeout(async () => {
-          try {
-            const url = await attachmentUrlV38(id);
-            if (url && image.isConnected) image.src = url;
-          } catch (_) {}
-          try { delete image.dataset.v38Loading; } catch (_) {}
-        }, 0);
-      }
-    });
-    return Promise.resolve();
-  }
-  try { hydrateAttachmentImages = hydrateAttachmentImagesV38; window.hydrateAttachmentImages = hydrateAttachmentImagesV38; } catch (_) {}
-
-  function renderEmployeePhotoV38(){
-    const preview = document.querySelector('#employeePhotoPreview');
-    if (!preview) return Promise.resolve();
-    const id = text(employeeFormState?.photoAttachmentId || '');
-    const legacy = text(employeeFormState?.legacyPhoto || '');
-    if (!id && !legacy) { try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) {} return Promise.resolve(); }
-    const quick = id ? cachedUrl(id) : legacy;
-    if (quick) {
-      preview.innerHTML = `<img src="${esc(quick)}" alt="صورة الموظف" />`;
-      return Promise.resolve();
+  const originalShowToastV39 = typeof showToast === 'function' ? showToast : null;
+  if (originalShowToastV39 && !originalShowToastV39.__v39Filtered) {
+    function showToastV39(message){
+      const msg = String(message ?? '');
+      if (msg.includes('تعذر تحميل موظفي الصلاحيات') && !permissionsPanelVisibleV39()) return;
+      return originalShowToastV39.apply(this, arguments);
     }
-    try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) {}
-    if (id) {
-      setTimeout(async () => {
-        try {
-          const url = await attachmentUrlV38(id);
-          if (url && preview.isConnected && text(employeeFormState?.photoAttachmentId || '') === id) {
-            preview.innerHTML = `<img src="${esc(url)}" alt="صورة الموظف" />`;
-          }
-        } catch (_) {}
-      }, 0);
-    }
-    return Promise.resolve();
-  }
-  try { renderEmployeePhoto = renderEmployeePhotoV38; window.renderEmployeePhoto = renderEmployeePhotoV38; } catch (_) {}
-
-  function findEmployee(id){
-    const key = text(id);
-    if (!key) return null;
-    const list = Array.isArray(employees) ? employees : [];
-    return list.find((e) => [e?.id, e?.employeeId, e?.employee_id, e?.employeeNumber, e?.number].some((value) => text(value) === key)) || null;
+    showToastV39.__v39Filtered = true;
+    try { showToast = showToastV39; window.showToast = showToastV39; } catch (_) {}
   }
 
-  const previousOpenEmployeeModalV38 = typeof openEmployeeModal === 'function' ? openEmployeeModal : window.openEmployeeModal;
-  async function openEmployeeModalV38(employeeId = null){
-    if (!employeeId) return previousOpenEmployeeModalV38 ? previousOpenEmployeeModalV38.apply(this, arguments) : undefined;
-    const employee = findEmployee(employeeId);
-    if (!employee) { try { showToast('تعذر العثور على بيانات الموظف'); } catch (_) {} return; }
-    const promise = previousOpenEmployeeModalV38 ? previousOpenEmployeeModalV38.call(this, employee.id) : null;
-    setTimeout(() => {
-      try {
-        const modal = document.querySelector('#employeeModal');
-        if (modal && !modal.open && typeof modal.showModal === 'function') modal.showModal();
-      } catch (_) {}
-    }, 50);
-    try { await Promise.race([Promise.resolve(promise), new Promise((resolve) => setTimeout(resolve, 150))]); } catch (_) {}
-  }
-  try { openEmployeeModal = openEmployeeModalV38; window.openEmployeeModal = openEmployeeModalV38; } catch (_) {}
-
-  document.addEventListener('click', function(event){
-    const target = event.target?.closest?.('.employee-name-link[data-edit-employee], [data-edit-employee], [data-employee-name-edit]');
-    if (!target) return;
-    const id = target.dataset.editEmployee || target.dataset.employeeNameEdit || '';
-    if (!findEmployee(id)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    openEmployeeModalV38(id);
-  }, true);
-
-  window.addEventListener('load', () => { setTimeout(() => { startupLoading = false; }, 1500); });
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => hydrateAttachmentImagesV39(document), 120));
+  window.addEventListener('load', () => setTimeout(() => { startupPhase = false; hydrateAttachmentImagesV39(document); }, 1200));
 })();
