@@ -12029,3 +12029,20 @@ button[data-edit-employee] {
 .expiry-doc-row.expiry-state-expired strong,
 .expiry-doc-row.expiry-state-danger strong { color: #7f1d1d !important; }
 .expiry-doc-row.expiry-state-warning strong { color: #78350f !important; }
+
+/* V52 scoped fixes */
+.employee-number-cell { text-align: center; align-items: center; }
+.employee-number-cell strong, .employee-number-cell small { text-align: center; }
+.v52-hidden-contract-radios { display: none !important; }
+.v52-contract-type-select select,
+.v52-contract-notice-field input,
+.commission-start-mode-field select { width: 100%; }
+.contract-extension-panel { margin-top: 10px; padding: 12px; border: 1px solid #e5ebed; border-radius: 14px; background: #f8fbfb; }
+.contract-extension-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.contract-extension-head strong { display: block; color: #123c3a; }
+.contract-extension-head small { display: block; color: #718084; margin-top: 4px; }
+.contract-extend-dashboard-btn { white-space: nowrap; padding: 7px 10px; }
+input.manual-field { background: #fff !important; border-color: #0f766e !important; }
+.travel-return-date-field input[disabled],
+.travel-return-days-field input[disabled] { background: #eef4f4; color: #748287; cursor: not-allowed; }
+.quick-view-modal .employee-profile-side .leave-balance-profile-card { width: 100%; margin-top: 12px; }

@@ -18707,3 +18707,580 @@ document.addEventListener("click", function(event) {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
   window.documentExpiryNotificationsV51 = { documentExpiryInfo, renderDocumentExpiryPanels };
 })();
+
+
+/* V52 - Commission start mode, contract notice/extension records, travel leave deduction on resume, clearance attachment rendering, and small UI fixes */
+(function v52ContractCommissionTravelPatch(){
+  const DAY_MS = 86400000;
+  const TRAVEL_KEY = 'nawah-travel-requests';
+
+  function esc(value){
+    try { if (typeof escapeHtml === 'function') return escapeHtml(value ?? ''); } catch(_) {}
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+  }
+  function toast(message){ try { showToast(message); } catch(_) {} }
+  function parseIso(value){
+    if (!value) return null;
+    try { if (typeof parseDate === 'function') return parseDate(value); } catch(_) {}
+    const date = new Date(String(value).slice(0,10) + 'T12:00:00');
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  function iso(date){ return (date instanceof Date && !Number.isNaN(date.getTime())) ? date.toISOString().slice(0,10) : ''; }
+  function todayIso(){ try { return formatInputDate(todayAtNoon()); } catch(_) { return new Date().toISOString().slice(0,10); } }
+  function fmt(value){ try { if (typeof formatDate === 'function') return formatDate(value); } catch(_) {} return value || '—'; }
+  function num(value){ try { if (typeof arabicNumber === 'function') return arabicNumber(Number(value || 0)); } catch(_) {} return String(value || 0); }
+  function addMonthsIso(dateValue, months){
+    const base = parseIso(dateValue);
+    if (!base) return '';
+    const day = base.getDate();
+    const next = new Date(base.getTime());
+    next.setMonth(next.getMonth() + Number(months || 0));
+    if (next.getDate() !== day) next.setDate(0);
+    return iso(next);
+  }
+  function diffInclusive(from, to){
+    const a = parseIso(from); const b = parseIso(to || from);
+    if (!a || !b || b < a) return 0;
+    return Math.floor((b - a) / DAY_MS) + 1;
+  }
+  function allEmployees(){ try { return Array.isArray(employees) ? employees : []; } catch(_) { return []; } }
+  function empById(id){ try { if (typeof getEmployee === 'function') return getEmployee(id); } catch(_) {} return allEmployees().find(e => String(e.id) === String(id)); }
+  function getForm(){ return document.querySelector('#employeeForm'); }
+  function currentFormEmployee(){ const form=getForm(); const id=form?.elements?.employeeId?.value || ''; return id ? empById(id) : null; }
+  function contractExtensions(emp){ return Array.isArray(emp?.contractExtensions) ? emp.contractExtensions : []; }
+  function latestExtension(emp){
+    const list = contractExtensions(emp).filter(x => x && x.newEndDate).slice();
+    list.sort((a,b)=> String(a.newEndDate).localeCompare(String(b.newEndDate)) || String(a.extendedAt || '').localeCompare(String(b.extendedAt || '')));
+    return list.at(-1) || null;
+  }
+  function effectiveContractEnd(emp){ return latestExtension(emp)?.newEndDate || emp?.contractEndDate || ''; }
+  function contractNoticeDays(emp){
+    const raw = emp?.contractNoticeDays ?? emp?.noticeDays ?? emp?.contractNoticePeriodDays ?? 30;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 30;
+  }
+  function contractExpiryInfo(endDate, noticeDays){
+    const target = parseIso(endDate);
+    if (!target) return null;
+    const now = parseIso(todayIso());
+    const diff = Math.ceil((target - now) / DAY_MS);
+    if (diff < 0) return { notify:true, state:'expired', priority:0, days:diff, label:`منتهي منذ ${num(Math.abs(diff))} يوم` };
+    if (diff === 0) return { notify:true, state:'danger', priority:1, days:0, label:'ينتهي اليوم' };
+    if (diff <= Number(noticeDays || 30)) return { notify:true, state:'warning', priority:2, days:diff, label:`ينتهي بعد ${num(diff)} يوم` };
+    return { notify:false, state:'valid', priority:3, days:diff, label:`متبقي ${num(diff)} يوم` };
+  }
+
+  function syncExtraStateFromForm(){
+    const form = getForm();
+    if (!form || typeof employeeFormState === 'undefined' || !employeeFormState) return;
+    const mode = form.querySelector('[name="commissionStartMode"]')?.value || employeeFormState.commissionStartMode || 'auto';
+    const manual = form.elements?.commissionStartDate?.value || employeeFormState.commissionManualStartDate || '';
+    employeeFormState.commissionStartMode = mode === 'manual' ? 'manual' : 'auto';
+    employeeFormState.commissionManualStartDate = mode === 'manual' ? manual : '';
+    employeeFormState.contractNoticeDays = Number(form.querySelector('[name="contractNoticeDays"]')?.value || employeeFormState.contractNoticeDays || 30);
+    employeeFormState.contractExtensions = Array.isArray(employeeFormState.contractExtensions) ? employeeFormState.contractExtensions : [];
+  }
+
+  function installEmployeeFormFields(){
+    const form = getForm();
+    if (!form) return;
+
+    const contractFieldset = form.querySelector('fieldset.choice-field input[name="contractType"]')?.closest('fieldset.choice-field');
+    if (contractFieldset && !form.querySelector('[name="contractTypeSelect"]')) {
+      contractFieldset.classList.add('v52-hidden-contract-radios');
+      const wrapper = document.createElement('label');
+      wrapper.className = 'v52-contract-type-select';
+      wrapper.innerHTML = '<span>نوع العقد</span><select name="contractTypeSelect"><option value="fixed">محدد المدة</option><option value="unlimited">غير محدد المدة</option></select>';
+      contractFieldset.insertAdjacentElement('beforebegin', wrapper);
+      const select = wrapper.querySelector('select');
+      const syncFromRadio = () => {
+        const checked = form.querySelector('input[name="contractType"]:checked');
+        select.value = checked?.value || 'unlimited';
+      };
+      const syncToRadio = () => {
+        const radio = form.querySelector(`input[name="contractType"][value="${select.value}"]`);
+        if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles:true })); }
+        try { if (typeof updateContractCalculations === 'function') updateContractCalculations(); } catch(_) {}
+      };
+      select.addEventListener('change', syncToRadio);
+      setTimeout(syncFromRadio, 0);
+    }
+
+    const contractMonths = form.elements?.contractMonths;
+    if (contractMonths && !form.querySelector('[name="contractNoticeDays"]')) {
+      const label = document.createElement('label');
+      label.className = 'v52-contract-notice-field';
+      label.innerHTML = '<span>فترة الإشعار بالأيام</span><input name="contractNoticeDays" type="number" min="1" step="1" placeholder="مثال: 60" />';
+      contractMonths.closest('label')?.insertAdjacentElement('afterend', label);
+      label.querySelector('input')?.addEventListener('input', syncExtraStateFromForm);
+    }
+
+    const remaining = form.elements?.contractRemaining;
+    if (remaining && !form.querySelector('#contractExtensionPanel')) {
+      const panel = document.createElement('div');
+      panel.id = 'contractExtensionPanel';
+      panel.className = 'contract-extension-panel span-all';
+      panel.innerHTML = '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يعتمد تاريخ نهاية العقد الحالي على آخر تمديد دون تغيير تاريخ العقد الأساسي.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>النهاية السابقة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>';
+      remaining.closest('label')?.insertAdjacentElement('afterend', panel);
+    }
+
+    const commissionStart = form.elements?.commissionStartDate;
+    if (commissionStart && !form.querySelector('[name="commissionStartMode"]')) {
+      const modeLabel = document.createElement('label');
+      modeLabel.className = 'commission-start-mode-field';
+      modeLabel.innerHTML = '<span>طريقة بداية الاستحقاق</span><select name="commissionStartMode"><option value="auto">آلية</option><option value="manual">يدوية</option></select>';
+      commissionStart.closest('label')?.insertAdjacentElement('beforebegin', modeLabel);
+      const select = modeLabel.querySelector('select');
+      select.addEventListener('change', () => { syncExtraStateFromForm(); applyCommissionStartModeUi(); try { updateCommissionCalculations(); } catch(_) {} });
+      commissionStart.addEventListener('input', () => { syncExtraStateFromForm(); });
+    }
+    renderContractExtensionsTable();
+    applyCommissionStartModeUi();
+  }
+
+  function setContractSelectFromRadios(){
+    const form = getForm();
+    if (!form) return;
+    const select = form.querySelector('[name="contractTypeSelect"]');
+    const checked = form.querySelector('input[name="contractType"]:checked');
+    if (select) select.value = checked?.value || form.elements?.contractType?.value || 'unlimited';
+  }
+
+  function renderContractExtensionsTable(){
+    const form = getForm();
+    const body = form?.querySelector('#contractExtensionsBody');
+    if (!body) return;
+    const list = Array.isArray(employeeFormState?.contractExtensions) ? employeeFormState.contractExtensions : [];
+    body.innerHTML = list.length ? list.map(row => `<tr><td class="latin-number">${esc(fmt(row.previousEndDate))}</td><td>${num(row.months || 0)} شهر</td><td class="latin-number">${esc(fmt(row.newEndDate))}</td><td class="latin-number">${esc(fmt(row.extendedAt ? String(row.extendedAt).slice(0,10) : ''))}</td></tr>`).join('') : '<tr><td colspan="4"><div class="employee-note-empty">لا توجد تمديدات مسجلة.</div></td></tr>';
+  }
+
+  function getCurrentContractEndForForm(){
+    const emp = currentFormEmployee();
+    if (emp) return effectiveContractEnd({ ...emp, contractExtensions: employeeFormState?.contractExtensions || emp.contractExtensions || [] });
+    const form = getForm();
+    return form?.elements?.contractEndDate?.value || '';
+  }
+
+  async function extendContractFromForm(){
+    const form = getForm();
+    if (!form) return;
+    syncExtraStateFromForm();
+    const fixed = form.elements?.contractType?.value === 'fixed' || form.querySelector('[name="contractTypeSelect"]')?.value === 'fixed';
+    if (!fixed) { toast('التمديد متاح للعقد محدد المدة فقط'); return; }
+    const months = Number(form.elements?.contractMonths?.value || 0);
+    if (!months || months <= 0) { toast('أدخل مدة العقد بالأشهر قبل التمديد'); return; }
+    const previousEndDate = getCurrentContractEndForForm();
+    if (!previousEndDate) { toast('لا يوجد تاريخ نهاية عقد يمكن تمديده'); return; }
+    const newEndDate = addMonthsIso(previousEndDate, months);
+    if (!newEndDate) { toast('تعذر حساب تاريخ نهاية العقد الجديد'); return; }
+    const row = { id:`contract-extension-${Date.now()}-${Math.random().toString(16).slice(2)}`, previousEndDate, months, newEndDate, extendedAt:new Date().toISOString(), extendedBy: (typeof currentUser !== 'undefined' ? currentUser : '') };
+    employeeFormState.contractExtensions = [...(Array.isArray(employeeFormState.contractExtensions) ? employeeFormState.contractExtensions : []), row];
+    renderContractExtensionsTable();
+    try { updateContractCalculations(); } catch(_) {}
+    const emp = currentFormEmployee();
+    if (emp) {
+      const updated = { ...emp, contractExtensions: employeeFormState.contractExtensions, contractNoticeDays: employeeFormState.contractNoticeDays || contractNoticeDays(emp) };
+      try { await persistEmployeeRecord(updated); toast('تم تمديد العقد وحفظ سجل التمديد'); } catch(e) { console.error(e); toast('تمت إضافة التمديد محلياً داخل النموذج، احفظ بيانات الموظف'); }
+    } else {
+      toast('تمت إضافة التمديد داخل النموذج، احفظ بيانات الموظف');
+    }
+  }
+
+  function applyCommissionStartModeUi(){
+    const form = getForm();
+    if (!form || !form.elements?.commissionStartDate) return;
+    const select = form.querySelector('[name="commissionStartMode"]');
+    const mode = select?.value || employeeFormState?.commissionStartMode || 'auto';
+    const input = form.elements.commissionStartDate;
+    const manual = mode === 'manual';
+    input.readOnly = !manual;
+    input.classList.toggle('calculated-field', !manual);
+    input.classList.toggle('manual-field', manual);
+  }
+
+  // Preserve new fields through normalization without changing existing employee form logic.
+  try {
+    const originalNormalize = normalizeEmployee;
+    if (typeof originalNormalize === 'function' && !originalNormalize.__v52ExtraFields) {
+      const wrappedNormalize = function(employee, index){
+        const out = originalNormalize.call(this, employee || {}, index);
+        const state = (typeof employeeFormState !== 'undefined' && employeeFormState) ? employeeFormState : {};
+        out.commissionStartMode = (employee?.commissionStartMode || state.commissionStartMode || 'auto') === 'manual' ? 'manual' : 'auto';
+        out.commissionManualStartDate = employee?.commissionManualStartDate || state.commissionManualStartDate || '';
+        out.contractNoticeDays = Number(employee?.contractNoticeDays ?? state.contractNoticeDays ?? 30) || 30;
+        out.contractExtensions = Array.isArray(employee?.contractExtensions) ? employee.contractExtensions : (Array.isArray(state.contractExtensions) ? state.contractExtensions : []);
+        return out;
+      };
+      wrappedNormalize.__v52ExtraFields = true;
+      normalizeEmployee = wrappedNormalize;
+      window.normalizeEmployee = wrappedNormalize;
+    }
+  } catch(_) {}
+
+  // Make attachmentUrl understand both camelCase and Supabase snake_case storage paths.
+  try {
+    const originalAttachmentUrl = attachmentUrl;
+    if (typeof originalAttachmentUrl === 'function' && !originalAttachmentUrl.__v52StoragePathFix) {
+      const fixedAttachmentUrl = async function(id){
+        let url = await originalAttachmentUrl.call(this, id);
+        if (url) return url;
+        try {
+          const rec = typeof getAttachment === 'function' ? await getAttachment(id) : null;
+          if (!rec) return '';
+          if (rec.file_url) return rec.file_url;
+          const storagePath = rec.storagePath || rec.storage_path || '';
+          if (storagePath && typeof supabaseClient !== 'undefined' && supabaseClient) {
+            const parts = String(storagePath).split('/');
+            const bucket = parts.shift();
+            const path = parts.join('/');
+            if (bucket && path) {
+              const result = await supabaseClient.storage.from(bucket).createSignedUrl(path, 60 * 60);
+              if (!result?.error && result?.data?.signedUrl) return result.data.signedUrl;
+            }
+          }
+        } catch(e) { console.warn('v52 attachment URL fallback failed', e); }
+        return '';
+      };
+      fixedAttachmentUrl.__v52StoragePathFix = true;
+      attachmentUrl = fixedAttachmentUrl;
+      window.attachmentUrl = fixedAttachmentUrl;
+    }
+  } catch(_) {}
+
+  async function ensureClearanceAttachmentUrls(authType){
+    const needsSignature = authType === 'signature' || authType === 'both';
+    const needsFingerprint = authType === 'fingerprint' || authType === 'both';
+    if (needsSignature) {
+      const id = employeeFormState?.signatureAttachmentId || '';
+      if (!id) { toast('أرفق توقيع الموظف من قسم التوثيق أولًا'); return false; }
+      const url = await attachmentUrl(id);
+      if (!url) { toast('تعذر تحميل صورة توقيع الموظف. تأكد من أن المرفق محفوظ ثم أعد المحاولة.'); return false; }
+    }
+    if (needsFingerprint) {
+      const id = employeeFormState?.fingerprintAttachmentId || '';
+      if (!id) { toast('أرفق بصمة الموظف من قسم التوثيق أولًا'); return false; }
+      const url = await attachmentUrl(id);
+      if (!url) { toast('تعذر تحميل صورة بصمة الموظف. تأكد من أن المرفق محفوظ ثم أعد المحاولة.'); return false; }
+    }
+    return true;
+  }
+  try {
+    const originalPreviewClearance = previewClearance;
+    if (typeof originalPreviewClearance === 'function' && !originalPreviewClearance.__v52ValidateImages) {
+      const wrappedPreview = async function(){
+        const authType = document.querySelector('[name="commissionAuth"]:checked')?.value || 'signature';
+        if (!(await ensureClearanceAttachmentUrls(authType))) return;
+        return originalPreviewClearance.apply(this, arguments);
+      };
+      wrappedPreview.__v52ValidateImages = true;
+      previewClearance = wrappedPreview;
+      window.previewClearance = wrappedPreview;
+    }
+  } catch(_) {}
+
+  // Commission calculation respects manual date while preserving automatic mode.
+  try {
+    const originalUpdateCommission = updateCommissionCalculations;
+    if (typeof originalUpdateCommission === 'function' && !originalUpdateCommission.__v52StartMode) {
+      const wrappedUpdateCommission = function(){
+        installEmployeeFormFields();
+        const form = getForm();
+        const mode = form?.querySelector('[name="commissionStartMode"]')?.value || employeeFormState?.commissionStartMode || 'auto';
+        if (mode === 'manual' && form?.elements?.commissionStartDate?.value) {
+          employeeFormState.commissionStartMode = 'manual';
+          employeeFormState.commissionManualStartDate = form.elements.commissionStartDate.value;
+          employeeFormState.commissionAccrualStartDate = form.elements.commissionStartDate.value;
+        }
+        const result = originalUpdateCommission.apply(this, arguments);
+        applyCommissionStartModeUi();
+        return result;
+      };
+      wrappedUpdateCommission.__v52StartMode = true;
+      updateCommissionCalculations = wrappedUpdateCommission;
+      window.updateCommissionCalculations = wrappedUpdateCommission;
+    }
+  } catch(_) {}
+
+  try {
+    const originalIssueClearance = issueClearance;
+    if (typeof originalIssueClearance === 'function' && !originalIssueClearance.__v52ResetAuto) {
+      const wrappedIssue = async function(){
+        const result = await originalIssueClearance.apply(this, arguments);
+        // If issuance succeeded, pendingClearance is cleared by the original v46 logic.
+        if (typeof pendingClearance !== 'undefined' && !pendingClearance) {
+          const form = getForm();
+          if (employeeFormState) {
+            employeeFormState.commissionStartMode = 'auto';
+            employeeFormState.commissionManualStartDate = '';
+          }
+          const sel = form?.querySelector('[name="commissionStartMode"]');
+          if (sel) sel.value = 'auto';
+          applyCommissionStartModeUi();
+          const emp = currentFormEmployee();
+          if (emp) {
+            const updated = { ...emp, commissionStartMode:'auto', commissionManualStartDate:'', commissionAccrualStartDate: form?.elements?.commissionStartDate?.value || emp.commissionAccrualStartDate || '' };
+            try { await persistEmployeeRecord(updated); } catch(_) {}
+          }
+        }
+        return result;
+      };
+      wrappedIssue.__v52ResetAuto = true;
+      issueClearance = wrappedIssue;
+      window.issueClearance = wrappedIssue;
+    }
+  } catch(_) {}
+
+  // Contract remaining should use the latest extension when editing existing employee.
+  try {
+    const originalContractCalc = updateContractCalculations;
+    if (typeof originalContractCalc === 'function' && !originalContractCalc.__v52Extensions) {
+      const wrappedContractCalc = function(){
+        const result = originalContractCalc.apply(this, arguments);
+        const form = getForm();
+        if (!form) return result;
+        setContractSelectFromRadios();
+        syncExtraStateFromForm();
+        const fixed = form.elements?.contractType?.value === 'fixed';
+        const currentEnd = getCurrentContractEndForForm();
+        if (fixed && form.elements?.contractRemaining && currentEnd) {
+          const st = typeof expiryStatus === 'function' ? expiryStatus(currentEnd) : contractExpiryInfo(currentEnd, 30);
+          form.elements.contractRemaining.value = st?.text || st?.label || '';
+          form.elements.contractRemaining.classList.remove('valid','warning','expired');
+          if (st?.className) form.elements.contractRemaining.classList.add(st.className);
+          else if (st?.state === 'expired') form.elements.contractRemaining.classList.add('expired');
+          else if (st?.state === 'warning' || st?.state === 'danger') form.elements.contractRemaining.classList.add('warning');
+          else form.elements.contractRemaining.classList.add('valid');
+        }
+        renderContractExtensionsTable();
+        return result;
+      };
+      wrappedContractCalc.__v52Extensions = true;
+      updateContractCalculations = wrappedContractCalc;
+      window.updateContractCalculations = wrappedContractCalc;
+    }
+  } catch(_) {}
+
+  function populateExtraFieldsFromEmployee(emp){
+    installEmployeeFormFields();
+    const form = getForm();
+    if (!form) return;
+    employeeFormState.commissionStartMode = (emp?.commissionStartMode || 'auto') === 'manual' ? 'manual' : 'auto';
+    employeeFormState.commissionManualStartDate = emp?.commissionManualStartDate || '';
+    employeeFormState.contractNoticeDays = contractNoticeDays(emp || {});
+    employeeFormState.contractExtensions = Array.isArray(emp?.contractExtensions) ? emp.contractExtensions.map(x => ({...x})) : [];
+    const mode = form.querySelector('[name="commissionStartMode"]');
+    if (mode) mode.value = employeeFormState.commissionStartMode;
+    if (employeeFormState.commissionStartMode === 'manual' && employeeFormState.commissionManualStartDate && form.elements?.commissionStartDate) {
+      form.elements.commissionStartDate.value = employeeFormState.commissionManualStartDate;
+      employeeFormState.commissionAccrualStartDate = employeeFormState.commissionManualStartDate;
+    }
+    const notice = form.querySelector('[name="contractNoticeDays"]');
+    if (notice) notice.value = employeeFormState.contractNoticeDays || 30;
+    setContractSelectFromRadios();
+    applyCommissionStartModeUi();
+    renderContractExtensionsTable();
+  }
+
+  const originalOpenEmployeeModal = typeof openEmployeeModal === 'function' ? openEmployeeModal : null;
+  if (originalOpenEmployeeModal && !originalOpenEmployeeModal.__v52Extras) {
+    const wrappedOpen = async function(employeeId){
+      const result = await originalOpenEmployeeModal.apply(this, arguments);
+      const emp = employeeId ? empById(employeeId) : null;
+      populateExtraFieldsFromEmployee(emp || {});
+      try { updateContractCalculations(); updateCommissionCalculations(); } catch(_) {}
+      return result;
+    };
+    wrappedOpen.__v52Extras = true;
+    try { openEmployeeModal = wrappedOpen; window.openEmployeeModal = wrappedOpen; } catch(_) {}
+  }
+
+  document.addEventListener('submit', function(event){
+    if (event.target?.id === 'employeeForm') syncExtraStateFromForm();
+  }, true);
+  document.addEventListener('click', function(event){
+    const btn = event.target?.closest?.('#extendContractBtn');
+    if (!btn) return;
+    event.preventDefault();
+    extendContractFromForm();
+  }, true);
+
+  // Move quick-view leave balance card directly under employee status in the side panel.
+  function moveQuickLeaveBalance(){
+    const content = document.querySelector('#quickViewContent');
+    if (!content) return;
+    const card = content.querySelector('.leave-balance-profile-card');
+    const status = content.querySelector('.employee-profile-side-status');
+    if (card && status && card.previousElementSibling !== status) status.insertAdjacentElement('afterend', card);
+  }
+
+  // Travel return fields: both fields stay visible; only the selected control is editable.
+  function enforceTravelReturnFields(){
+    const form = document.querySelector('#travelRequestForm');
+    if (!form) return;
+    const mode = form.elements?.travelMode?.value || 'oneway';
+    const returnMode = form.elements?.returnMode?.value || 'date';
+    const dateField = document.querySelector('.travel-return-date-field');
+    const daysField = document.querySelector('.travel-return-days-field');
+    if (mode !== 'roundtrip') return;
+    if (dateField) dateField.style.display = 'flex';
+    if (daysField) daysField.style.display = 'flex';
+    const dateInput = form.elements?.returnDate;
+    const daysInput = form.elements?.returnDays;
+    if (!dateInput || !daysInput) return;
+    dateInput.disabled = returnMode !== 'date';
+    daysInput.disabled = returnMode !== 'days';
+    dateInput.readOnly = returnMode !== 'date';
+    daysInput.readOnly = returnMode !== 'days';
+    const travelDate = form.elements?.travelDate?.value || '';
+    if (returnMode === 'date' && travelDate && dateInput.value) {
+      daysInput.value = String(diffInclusive(travelDate, dateInput.value));
+    }
+    if (returnMode === 'days' && travelDate && Number(daysInput.value || 0) > 0) {
+      dateInput.value = addDaysIsoForTravel(travelDate, Number(daysInput.value || 0));
+    }
+  }
+  function addDaysIsoForTravel(dateString, days){
+    const d = parseIso(dateString); if (!d) return '';
+    const n = new Date(d.getTime());
+    n.setDate(n.getDate() + Number(days || 0) - 1);
+    return iso(n);
+  }
+  function normalizeTravelFormBeforeSave(){
+    const form = document.querySelector('#travelRequestForm');
+    if (!form) return;
+    const mode = form.elements?.travelMode?.value || 'oneway';
+    const returnMode = form.elements?.returnMode?.value || 'date';
+    const travelDate = form.elements?.travelDate?.value || '';
+    const returnDate = form.elements?.returnDate;
+    const returnDays = form.elements?.returnDays;
+    if (mode === 'roundtrip' && travelDate) {
+      if (returnMode === 'date' && returnDate?.value && returnDays) returnDays.value = String(diffInclusive(travelDate, returnDate.value));
+      if (returnMode === 'days' && returnDays?.value && returnDate) returnDate.value = addDaysIsoForTravel(travelDate, Number(returnDays.value || 0));
+      if (returnDate) returnDate.disabled = false;
+      if (returnDays) returnDays.disabled = false;
+    }
+  }
+
+  function loadTravelRequests(){
+    try { const raw = localStorage.getItem(TRAVEL_KEY); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; } catch(_) { return []; }
+  }
+  function saveTravelRequests(list){
+    localStorage.setItem(TRAVEL_KEY, JSON.stringify(Array.isArray(list) ? list : []));
+    try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch(_) {}
+  }
+  function addTravelLeaveDeduction(employee, travel, resumeDate){
+    if (!employee || !travel || !resumeDate) return { ok:false, message:'تعذر قراءة بيانات السفر' };
+    const days = diffInclusive(travel.travelDate, resumeDate);
+    if (!days) return { ok:false, message:'تاريخ المباشرة يجب أن يكون بعد تاريخ السفر أو مساويًا له' };
+    const lb = window.leaveBalanceV49?.leaveBalance ? window.leaveBalanceV49.leaveBalance(employee, travel.travelDate) : null;
+    if (lb && days > Number(lb.remaining || 0)) {
+      return { ok:false, message:`مدة السفر ${num(days)} يوم أكبر من رصيد الإجازات المتاح ${num(lb.remaining)} يوم` };
+    }
+    const existing = Array.isArray(leaves) ? leaves.find(l => String(l.sourceTravelId || '') === String(travel.id)) : null;
+    if (!existing && Array.isArray(leaves)) {
+      leaves.unshift({
+        id:`travel-leave-${travel.id}`,
+        employeeId: employee.id,
+        type:'إجازة سنوية',
+        from: travel.travelDate,
+        to: resumeDate,
+        days,
+        status:'approved',
+        note:'خصم مدة السفر من رصيد الإجازات عند المباشرة',
+        sourceTravelId: travel.id,
+        createdAt:new Date().toISOString()
+      });
+      try { saveLocalData?.('nawah-leaves', leaves); } catch(_) { try { localStorage.setItem('nawah-leaves', JSON.stringify(leaves)); } catch(_) {} }
+    }
+    return { ok:true, days };
+  }
+  window.addEventListener('click', function(event){
+    const resumeBtn = event.target?.closest?.('[data-travel-resume]');
+    if (resumeBtn) window.__v52PendingTravelResumeId = resumeBtn.dataset.travelResume || '';
+    const saveTravel = event.target?.closest?.('#saveTravelRequestBtn');
+    if (saveTravel) normalizeTravelFormBeforeSave();
+    const submitBtn = event.target?.closest?.('#travelResumeForm button[type="submit"], #travelResumeForm .primary-btn');
+    if (!submitBtn) return;
+    const form = submitBtn.closest('#travelResumeForm');
+    if (!form) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const resumeDate = form.elements?.workResumeDate?.value || '';
+    const note = form.elements?.note?.value || '';
+    const list = loadTravelRequests();
+    const travelId = window.__v52PendingTravelResumeId || list.find(t => t.status === 'approved' && !t.workResumeDate)?.id || '';
+    const travel = list.find(t => String(t.id) === String(travelId));
+    const employee = travel ? empById(travel.employeeId) : null;
+    if (!travel || !employee || !resumeDate) { toast('حدد تاريخ مباشرة العمل'); return; }
+    const deduction = addTravelLeaveDeduction(employee, travel, resumeDate);
+    if (!deduction.ok) { toast(deduction.message); return; }
+    const updatedEmployee = { ...employee, status:'active', attendance: employee.attendance || '08:00', travelStatus:{ ...(employee.travelStatus || {}), travelId: travel.id, workResumeDate: resumeDate, updatedAt:new Date().toISOString() }, commissionAccrualStartDate: resumeDate, commissionPaused:false, commissionPauseReason:'', commissionPausedByLeaveId:'', commissionPausedAt:'' };
+    Promise.resolve(persistEmployeeRecord(updatedEmployee)).then(() => {
+      const next = list.map(item => String(item.id) === String(travel.id) ? { ...item, status:'returned', workResumeDate:resumeDate, resumeNote:String(note || '').trim(), leaveDeductedDays:deduction.days, leaveDeductedAt:new Date().toISOString(), returnedAt:new Date().toISOString() } : item);
+      saveTravelRequests(next);
+      document.querySelector('#travelResumeModal')?.close();
+      window.__v52PendingTravelResumeId = '';
+      try { if (typeof renderAll === 'function') renderAll(); } catch(_) {}
+      toast(`تم تسجيل المباشرة وخصم ${num(deduction.days)} يوم من رصيد الإجازات`);
+    }).catch(err => { console.error(err); toast('تعذر حفظ مباشرة السفر'); });
+  }, true);
+  window.addEventListener('change', function(event){
+    if (event.target?.closest?.('#travelRequestForm')) setTimeout(enforceTravelReturnFields, 0);
+    if (event.target?.name === 'returnDate' || event.target?.name === 'returnDays' || event.target?.name === 'travelDate') setTimeout(enforceTravelReturnFields, 0);
+  }, true);
+  window.addEventListener('input', function(event){ if (event.target?.closest?.('#travelRequestForm')) setTimeout(enforceTravelReturnFields, 0); }, true);
+
+  // Dashboard contract alerts and extension actions.
+  function contractAlertRows(){
+    const rows = [];
+    allEmployees().forEach(emp => {
+      if (!emp || emp.contractType !== 'fixed') return;
+      const end = effectiveContractEnd(emp);
+      const info = contractExpiryInfo(end, contractNoticeDays(emp));
+      if (!info || !info.notify) return;
+      rows.push({ emp, end, info });
+    });
+    rows.sort((a,b)=> (a.info.priority-b.info.priority) || (a.info.days-b.info.days));
+    return rows;
+  }
+  function contractAlertHtml(item){
+    const cls = `expiry-state-${item.info.state}`;
+    return `<div class="expiry-doc-row ${cls}"><span class="expiry-doc-icon ${cls}" data-icon="file"></span><div class="expiry-doc-content"><strong>${esc('عقد العمل - ' + (item.emp.name || 'موظف'))}</strong><small><span class="expiry-doc-meta">نهاية العقد: ${esc(fmt(item.end))} · فترة الإشعار: ${num(contractNoticeDays(item.emp))} يوم</span><span class="expiry-doc-remaining ${cls}">${esc(item.info.label)}</span></small></div><button type="button" class="secondary-btn contract-extend-dashboard-btn" data-contract-extend-dashboard="${esc(item.emp.id)}">تمديد</button><button type="button" class="quick-view-btn" data-edit-employee="${esc(item.emp.id)}" title="فتح الموظف">${typeof iconSvg === 'function' ? iconSvg('eye') : 'عرض'}</button></div>`;
+  }
+  async function extendContractForEmployeeId(employeeId){
+    const emp = empById(employeeId);
+    if (!emp) { toast('تعذر العثور على الموظف'); return; }
+    if (emp.contractType !== 'fixed') { toast('التمديد متاح للعقد محدد المدة فقط'); return; }
+    const months = Number(emp.contractMonths || 0);
+    if (!months) { toast('لا توجد مدة عقد محددة للتمديد'); return; }
+    const previousEndDate = effectiveContractEnd(emp);
+    if (!previousEndDate) { toast('لا يوجد تاريخ نهاية عقد يمكن تمديده'); return; }
+    const newEndDate = addMonthsIso(previousEndDate, months);
+    const row = { id:`contract-extension-${Date.now()}-${Math.random().toString(16).slice(2)}`, previousEndDate, months, newEndDate, extendedAt:new Date().toISOString(), extendedBy:(typeof currentUser !== 'undefined' ? currentUser : '') };
+    const updated = { ...emp, contractExtensions:[...contractExtensions(emp), row], contractNoticeDays: contractNoticeDays(emp) };
+    try { await persistEmployeeRecord(updated); toast('تم تمديد عقد العمل وحفظ سجل التمديد'); try { if (typeof renderAll === 'function') renderAll(); } catch(_) {} } catch(e) { console.error(e); toast('تعذر حفظ تمديد العقد'); }
+  }
+  function injectContractAlerts(){
+    const panel = document.querySelector('#dashboardEmployeeDocsPanel .expiry-doc-list');
+    if (!panel || panel.dataset.contractAlertsV52 === '1') return;
+    const rows = contractAlertRows();
+    if (!rows.length) return;
+    panel.dataset.contractAlertsV52 = '1';
+    panel.insertAdjacentHTML('afterbegin', rows.slice(0,6).map(contractAlertHtml).join(''));
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(panel); } catch(_) {}
+  }
+  document.addEventListener('click', function(event){
+    const btn = event.target?.closest?.('[data-contract-extend-dashboard]');
+    if (!btn) return;
+    event.preventDefault(); event.stopPropagation();
+    extendContractForEmployeeId(btn.dataset.contractExtendDashboard);
+  }, true);
+
+  const obs = new MutationObserver(() => { setTimeout(()=>{ installEmployeeFormFields(); moveQuickLeaveBalance(); enforceTravelReturnFields(); injectContractAlerts(); }, 0); });
+  try { obs.observe(document.body, { childList:true, subtree:true }); } catch(_) {}
+  function boot(){ installEmployeeFormFields(); moveQuickLeaveBalance(); enforceTravelReturnFields(); injectContractAlerts(); setTimeout(()=>{ installEmployeeFormFields(); moveQuickLeaveBalance(); enforceTravelReturnFields(); injectContractAlerts(); }, 500); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+  window.v52ContractTools = { effectiveContractEnd, contractExtensions, extendContractForEmployeeId, contractNoticeDays };
+})();
