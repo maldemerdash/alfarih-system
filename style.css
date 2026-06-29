@@ -11426,3 +11426,164 @@ body.auth-locked .app-shell {
   stroke: #ffffff !important;
 }
 
+
+/* v30: lock leave/travel table visual layout across all request states.
+   CSS only: keeps the approved header/card design stable whether rows are pending, approved, resumed, or rejected. */
+#leavesView .travel-table-panel,
+#leavesView .leave-table-panel {
+  overflow: hidden !important;
+}
+
+#leavesView .travel-table-panel .panel-head,
+#leavesView .leave-table-panel .panel-head,
+#leavesView .travel-table-panel .panel-head.final-table-head,
+#leavesView .leave-table-panel .panel-head.final-table-head {
+  min-height: 76px !important;
+  height: 76px !important;
+  margin: 0 !important;
+  padding: 18px 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-direction: row !important;
+  gap: 16px !important;
+  box-sizing: border-box !important;
+}
+
+#leavesView .panel-title-block,
+#leavesView .travel-table-panel .panel-head > div,
+#leavesView .leave-table-panel .panel-head > div {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  text-align: right !important;
+}
+
+#leavesView .compact-table-action,
+#leavesView #newTravelBtn,
+#leavesView #newLeaveBtn {
+  flex: 0 0 auto !important;
+  min-width: 118px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+}
+
+#leavesView .travel-table-panel .table-wrap,
+#leavesView .leave-table-panel .table-wrap {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+#leavesView .travel-table-panel table,
+#leavesView .leave-table-panel table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+#leavesView .travel-table-panel thead th,
+#leavesView .leave-table-panel thead th {
+  height: 52px !important;
+  padding: 0 18px !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-weight: 800 !important;
+  box-sizing: border-box !important;
+}
+
+#leavesView .travel-table-panel tbody tr,
+#leavesView .leave-table-panel tbody tr {
+  height: 72px !important;
+}
+
+#leavesView .travel-table-panel tbody td,
+#leavesView .leave-table-panel tbody td {
+  height: 72px !important;
+  padding: 10px 18px !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  box-sizing: border-box !important;
+}
+
+#leavesView .travel-table-panel tbody td:first-child,
+#leavesView .leave-table-panel tbody td:first-child {
+  overflow: visible !important;
+}
+
+#leavesView .travel-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  min-height: 42px !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+#leavesView .travel-actions .primary-btn,
+#leavesView .travel-actions .secondary-btn,
+#leavesView .travel-actions .status-badge {
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+
+#leavesView .travel-actions .primary-btn,
+#leavesView .travel-actions .secondary-btn {
+  min-height: 42px !important;
+  height: 42px !important;
+  padding: 0 16px !important;
+  border-radius: 12px !important;
+}
+
+/* stable desktop column widths so status/action changes do not resize the table */
+#leavesView .travel-table-panel th:nth-child(1),
+#leavesView .travel-table-panel td:nth-child(1) { width: 20% !important; }
+#leavesView .travel-table-panel th:nth-child(2),
+#leavesView .travel-table-panel td:nth-child(2) { width: 15% !important; }
+#leavesView .travel-table-panel th:nth-child(3),
+#leavesView .travel-table-panel td:nth-child(3) { width: 15% !important; }
+#leavesView .travel-table-panel th:nth-child(4),
+#leavesView .travel-table-panel td:nth-child(4) { width: 15% !important; }
+#leavesView .travel-table-panel th:nth-child(5),
+#leavesView .travel-table-panel td:nth-child(5) { width: 13% !important; }
+#leavesView .travel-table-panel th:nth-child(6),
+#leavesView .travel-table-panel td:nth-child(6) { width: 22% !important; }
+
+#leavesView .leave-table-panel th:nth-child(1),
+#leavesView .leave-table-panel td:nth-child(1) { width: 20% !important; }
+#leavesView .leave-table-panel th:nth-child(2),
+#leavesView .leave-table-panel td:nth-child(2) { width: 16% !important; }
+#leavesView .leave-table-panel th:nth-child(3),
+#leavesView .leave-table-panel td:nth-child(3) { width: 12% !important; }
+#leavesView .leave-table-panel th:nth-child(4),
+#leavesView .leave-table-panel td:nth-child(4) { width: 12% !important; }
+#leavesView .leave-table-panel th:nth-child(5),
+#leavesView .leave-table-panel td:nth-child(5) { width: 8% !important; }
+#leavesView .leave-table-panel th:nth-child(6),
+#leavesView .leave-table-panel td:nth-child(6) { width: 14% !important; }
+#leavesView .leave-table-panel th:nth-child(7),
+#leavesView .leave-table-panel td:nth-child(7) { width: 18% !important; }
+
+@media (max-width: 860px) {
+  #leavesView .travel-table-panel table,
+  #leavesView .leave-table-panel table {
+    table-layout: auto !important;
+    min-width: 760px !important;
+  }
+
+  #leavesView .travel-table-panel .panel-head,
+  #leavesView .leave-table-panel .panel-head,
+  #leavesView .travel-table-panel .panel-head.final-table-head,
+  #leavesView .leave-table-panel .panel-head.final-table-head {
+    height: auto !important;
+    min-height: 76px !important;
+  }
+}
