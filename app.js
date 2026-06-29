@@ -17762,3 +17762,292 @@ document.addEventListener("click", function(event) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(applyCleanStateOnce, 800));
   else setTimeout(applyCleanStateOnce, 800);
 })();
+
+/* =========================================================
+   v33 employee photo + consent attachment reliability/speed fix
+   - Keeps the approved UI design unchanged.
+   - Makes employee photos appear immediately after upload/save using local URL cache.
+   - Keeps linked employee photo stable in the topbar after login/logout.
+   - Makes consent attachment behave like other employee attachments and blocks issuing without a real upload.
+   ========================================================= */
+(function employeePhotoAndConsentReliabilityV33(){
+  if (window.__employeePhotoAndConsentReliabilityV33) return;
+  window.__employeePhotoAndConsentReliabilityV33 = true;
+
+  const text = (value) => String(value ?? '').trim();
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const LOCAL_ATTACHMENT_URLS = window.__localAttachmentUrls || (window.__localAttachmentUrls = new Map());
+
+  function popup(message, title = 'تنبيه'){
+    try {
+      if (typeof window.showModalMessage === 'function') {
+        window.showModalMessage(message, title);
+        return;
+      }
+    } catch (_) {}
+    try { showToast(message); } catch (_) { alert(message); }
+  }
+
+  function setLocalAttachmentUrl(id, file){
+    if (!id || !file) return '';
+    try {
+      const url = URL.createObjectURL(file);
+      LOCAL_ATTACHMENT_URLS.set(String(id), url);
+      return url;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function localAttachmentUrl(id){
+    return LOCAL_ATTACHMENT_URLS.get(String(id || '')) || '';
+  }
+
+  function currentEmployeeFormOwnerReady(){
+    try {
+      const form = document.querySelector('#employeeForm');
+      const identity = String(form?.elements?.identityNumber?.value || '').replace(/\D/g, '');
+      const phone = String(form?.elements?.phone?.value || '').replace(/\D/g, '');
+      return identity.length >= 2 && phone.length >= 2;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function getEmployeeByIdSafe(id){
+    try { return Array.isArray(employees) ? employees.find((employee) => String(employee.id) === String(id)) : null; } catch (_) { return null; }
+  }
+
+  const previousAttachmentUrlV33 = typeof attachmentUrl === 'function' ? attachmentUrl : null;
+  async function attachmentUrlV33(id){
+    const local = localAttachmentUrl(id);
+    if (local) return local;
+    return previousAttachmentUrlV33 ? previousAttachmentUrlV33.apply(this, arguments) : '';
+  }
+  try { attachmentUrl = attachmentUrlV33; window.attachmentUrl = attachmentUrlV33; } catch (_) {}
+
+  const previousSaveAttachmentV33 = typeof saveAttachment === 'function' ? saveAttachment : null;
+  async function saveAttachmentV33(file, category){
+    const id = previousSaveAttachmentV33 ? await previousSaveAttachmentV33.apply(this, arguments) : '';
+    if (id && file && ['employee-photo','consent'].includes(String(category || ''))) setLocalAttachmentUrl(id, file);
+    return id;
+  }
+  try { saveAttachment = saveAttachmentV33; window.saveAttachment = saveAttachmentV33; } catch (_) {}
+
+  const previousHydrateAttachmentImagesV33 = typeof hydrateAttachmentImages === 'function' ? hydrateAttachmentImages : null;
+  async function hydrateAttachmentImagesV33(root = document){
+    try {
+      const images = [...root.querySelectorAll('img[data-attachment-image]')];
+      images.forEach((image) => {
+        const local = localAttachmentUrl(image.dataset.attachmentImage);
+        if (local && image.src !== local) image.src = local;
+      });
+    } catch (_) {}
+    return previousHydrateAttachmentImagesV33 ? previousHydrateAttachmentImagesV33.apply(this, arguments) : undefined;
+  }
+  try { hydrateAttachmentImages = hydrateAttachmentImagesV33; window.hydrateAttachmentImages = hydrateAttachmentImagesV33; } catch (_) {}
+
+  const previousRenderEmployeePhotoV33 = typeof renderEmployeePhoto === 'function' ? renderEmployeePhoto : null;
+  async function renderEmployeePhotoV33(){
+    const preview = document.querySelector('#employeePhotoPreview');
+    if (!preview) return previousRenderEmployeePhotoV33 ? previousRenderEmployeePhotoV33.apply(this, arguments) : undefined;
+    const photoId = text(employeeFormState?.photoAttachmentId || '');
+    const local = photoId ? localAttachmentUrl(photoId) : '';
+    if (local) {
+      preview.innerHTML = `<img src="${esc(local)}" alt="صورة الموظف" />`;
+      return;
+    }
+    return previousRenderEmployeePhotoV33 ? previousRenderEmployeePhotoV33.apply(this, arguments) : undefined;
+  }
+  try { renderEmployeePhoto = renderEmployeePhotoV33; window.renderEmployeePhoto = renderEmployeePhotoV33; } catch (_) {}
+
+  function linkedEmployeeForHeader(){
+    try { const linked = window.employeePermissionMatrix?.linkedEmployee?.(); if (linked) return linked; } catch (_) {}
+    try {
+      const linkedId = authProfile?.employee_id || authProfile?.employeeId || authProfile?.linked_employee_id || authProfile?.linkedEmployeeId || '';
+      if (linkedId && Array.isArray(employees)) return employees.find((employee) => String(employee.id) === String(linkedId));
+    } catch (_) {}
+    return null;
+  }
+
+  async function applyTopbarPhotoV33(){
+    const mark = document.querySelector('.topbar-user-mark');
+    if (!mark) return;
+    const employee = linkedEmployeeForHeader();
+    const photoId = text(employee?.photoAttachmentId || '');
+    const legacyPhoto = text(employee?.legacyPhoto || employee?.photo || '');
+    const fallbackName = text(employee?.name || authProfile?.full_name || authUser?.email || 'مستخدم');
+    let url = '';
+    if (photoId) {
+      url = localAttachmentUrl(photoId) || (typeof attachmentUrl === 'function' ? await attachmentUrl(photoId) : '');
+    } else if (legacyPhoto) {
+      url = legacyPhoto;
+    }
+    if (url) {
+      const key = photoId ? `photo:${photoId}` : `legacy:${url}`;
+      if (mark.dataset.v33PhotoKey !== key || !mark.querySelector('img')) {
+        mark.dataset.v33PhotoKey = key;
+        mark.classList.add('has-employee-photo');
+        mark.innerHTML = `<img src="${esc(url)}" alt="" />`;
+      }
+    } else {
+      mark.dataset.v33PhotoKey = '';
+      mark.classList.remove('has-employee-photo');
+      mark.textContent = fallbackName.charAt(0) || 'م';
+    }
+  }
+  window.__applyStableTopbarPhoto = applyTopbarPhotoV33;
+
+  const previousUpdateTopbarUserV33 = typeof updateTopbarUser === 'function' ? updateTopbarUser : null;
+  if (previousUpdateTopbarUserV33 && !previousUpdateTopbarUserV33.__v33PhotoStable) {
+    const wrappedUpdateTopbarUserV33 = function(){
+      const result = previousUpdateTopbarUserV33.apply(this, arguments);
+      setTimeout(applyTopbarPhotoV33, 0);
+      return result;
+    };
+    wrappedUpdateTopbarUserV33.__v33PhotoStable = true;
+    try { updateTopbarUser = wrappedUpdateTopbarUserV33; window.updateTopbarUser = wrappedUpdateTopbarUserV33; } catch (_) {}
+  }
+
+  function updateConsentModalUi(id = pendingConsentAttachmentId){
+    const input = document.querySelector('#consentAttachmentInput');
+    const control = input?.closest?.('.compact-file-control');
+    const label = control?.querySelector?.(':scope > span:last-of-type');
+    const value = text(id || '');
+    if (control) control.classList.toggle('has-file', Boolean(value));
+    if (label) label.textContent = value ? 'تم الإرفاق' : 'إرفاق';
+    let view = document.querySelector('#consentPendingViewBtn');
+    if (!view && input?.closest?.('.consent-file-label')) {
+      view = document.createElement('button');
+      view.type = 'button';
+      view.id = 'consentPendingViewBtn';
+      view.className = 'attachment-view-btn';
+      view.textContent = 'عرض المرفق';
+      input.closest('.consent-file-label').appendChild(view);
+    }
+    if (view) {
+      view.dataset.viewAttachment = value;
+      view.hidden = !value;
+      view.style.display = value ? 'inline-flex' : 'none';
+    }
+  }
+
+  function resetConsentModalUi(){
+    try {
+      pendingConsentAttachmentId = '';
+      const input = document.querySelector('#consentAttachmentInput');
+      if (input) input.value = '';
+      updateConsentModalUi('');
+    } catch (_) {}
+  }
+
+  const previousRenderDocumentationV33 = typeof renderDocumentation === 'function' ? renderDocumentation : null;
+  function renderDocumentationV33(){
+    const result = previousRenderDocumentationV33 ? previousRenderDocumentationV33.apply(this, arguments) : undefined;
+    try { updateConsentModalUi(pendingConsentAttachmentId || employeeFormState?.consent?.attachmentId || ''); } catch (_) {}
+    return result;
+  }
+  try { renderDocumentation = renderDocumentationV33; window.renderDocumentation = renderDocumentationV33; } catch (_) {}
+
+  document.addEventListener('change', async (event) => {
+    const input = event.target;
+    if (!input?.matches?.('#employeePhotoInput')) return;
+    event.stopImmediatePropagation();
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!currentEmployeeFormOwnerReady()) {
+      input.value = '';
+      popup('أدخل رقم الهوية ورقم الجوال أولًا حتى يتم تكوين رقم الموظف وربط الصورة به.', 'لا يمكن رفع صورة الموظف');
+      return;
+    }
+    const id = await saveAttachment(file, 'employee-photo');
+    if (!id) {
+      input.value = '';
+      popup('تعذر رفع صورة الموظف. تأكد من الاتصال بقاعدة البيانات ثم حاول مرة أخرى.', 'فشل رفع الصورة');
+      return;
+    }
+    employeeFormState.photoAttachmentId = id;
+    employeeFormState.legacyPhoto = '';
+    setLocalAttachmentUrl(id, file);
+    await renderEmployeePhotoV33();
+    try { await persistCurrentEmployeeOnly?.(); } catch (_) {}
+    try { renderEmployees?.(); } catch (_) {}
+    setTimeout(() => { try { hydrateAttachmentImages(document); applyTopbarPhotoV33(); } catch (_) {} }, 0);
+    try { showToast('تم حفظ صورة الموظف'); } catch (_) {}
+  }, true);
+
+  document.addEventListener('change', async (event) => {
+    const input = event.target;
+    if (!input?.matches?.('#consentAttachmentInput')) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const file = input.files?.[0];
+    if (!file) { resetConsentModalUi(); return; }
+    if (!currentEmployeeFormOwnerReady()) {
+      input.value = '';
+      resetConsentModalUi();
+      popup('أدخل رقم الهوية ورقم الجوال أولًا حتى يتم ربط مرفق إقرار التوثيق بالموظف الصحيح.', 'لا يمكن رفع مرفق الإقرار');
+      return;
+    }
+    updateConsentModalUi('');
+    const id = await saveAttachment(file, 'consent');
+    if (!id) {
+      input.value = '';
+      resetConsentModalUi();
+      popup('فشل رفع مرفق إقرار التوثيق. لم يتم إصدار الإقرار، حاول مرة أخرى بعد التأكد من الاتصال بقاعدة البيانات.', 'فشل رفع المرفق');
+      return;
+    }
+    pendingConsentAttachmentId = id;
+    setLocalAttachmentUrl(id, file);
+    updateConsentModalUi(id);
+    try { showToast('تم إرفاق ملف الإقرار'); } catch (_) {}
+  }, true);
+
+  document.addEventListener('click', (event) => {
+    const issue = event.target?.closest?.('#issueConsentBtn');
+    if (!issue) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const id = text(pendingConsentAttachmentId || '');
+    if (!id) {
+      popup('يجب رفع مرفق إقرار التوثيق بنجاح قبل إصدار الإقرار.', 'مرفق الإقرار مطلوب');
+      return;
+    }
+    employeeFormState.consent = { issuedAt: new Date().toISOString(), issuedBy: currentUser, attachmentId: id };
+    pendingConsentAttachmentId = '';
+    try { document.querySelector('#consentModal')?.close(); } catch (_) {}
+    try { document.querySelector('#documentationConsentCheck').checked = true; } catch (_) {}
+    renderDocumentationV33();
+    try { persistCurrentEmployeeOnly?.(); } catch (_) {}
+    try { showToast('تم إصدار الإقرار وحفظ مرفقه'); } catch (_) {}
+  }, true);
+
+  document.addEventListener('click', (event) => {
+    const cancel = event.target?.closest?.('#cancelConsentBtn, [data-close-modal="consentModal"]');
+    if (!cancel) return;
+    setTimeout(resetConsentModalUi, 0);
+  }, true);
+
+  document.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('#consentPendingViewBtn');
+    if (!button) return;
+    const id = text(button.dataset.viewAttachment || '');
+    if (!id) return;
+    event.preventDefault();
+    event.stopPropagation();
+    try { openAttachment(id); } catch (_) {}
+  }, true);
+
+  document.addEventListener('submit', (event) => {
+    if (!event.target?.matches?.('#employeeForm')) return;
+    if (employeeFormState?.consent?.issuedAt && !text(employeeFormState.consent.attachmentId || '')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      popup('لا يمكن حفظ الموظف لأن إقرار التوثيق صدر بدون مرفق. أعد إصدار الإقرار بعد رفع المرفق.', 'مرفق الإقرار مطلوب');
+    }
+  }, true);
+
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => { updateConsentModalUi(''); applyTopbarPhotoV33(); }, 120));
+  window.addEventListener('load', () => setTimeout(() => { updateConsentModalUi(''); applyTopbarPhotoV33(); }, 180));
+  setTimeout(() => { updateConsentModalUi(''); applyTopbarPhotoV33(); }, 600);
+})();

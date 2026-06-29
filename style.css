@@ -11603,3 +11603,10 @@ body.auth-locked .app-shell {
 @media(max-width:900px){
   .traveler-dashboard-metrics{grid-column:1 / -1;justify-content:flex-end;}
 }
+
+/* v33 - consent attachment confirmation only; keeps approved design identity */
+#consentPendingViewBtn[hidden]{display:none!important;}
+#consentPendingViewBtn{margin-top:8px;align-self:flex-start;}
+#consentModal .compact-file-control.has-file{border-style:solid;border-color:#a8e2d1;background:#effcf7;color:#12835f;}
+.topbar-user-mark.has-employee-photo{overflow:hidden;padding:0;}
+.topbar-user-mark.has-employee-photo img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit;}
