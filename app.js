@@ -39,3 +39,172 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     }
   } catch(e) {}
 })();
+
+
+/* v65 - Cloud source of truth and empty-state overwrite protection */
+(function v65CloudSourceOfTruthFix(){
+  if (window.__v65CloudSourceOfTruthFix) return;
+  window.__v65CloudSourceOfTruthFix = true;
+  const VERSION = 'v65-cloud-source-of-truth';
+  function nowIso(){ return new Date().toISOString(); }
+  function empCount(state){
+    try { return Array.isArray(state && state.employees) ? state.employees.length : 0; }
+    catch(_) { return 0; }
+  }
+  function cloneState(state){
+    try { return state && typeof state === 'object' ? JSON.parse(JSON.stringify(state)) : state; }
+    catch(_) { return state; }
+  }
+  function toast(msg){ try { if (typeof showToast === 'function') showToast(msg); } catch(_) {} }
+  async function readCloudStateDirect(){
+    try {
+      if (!supabaseClient && typeof initSupabaseClient === 'function') initSupabaseClient();
+      if (!supabaseClient) return {ok:false, found:false, state:null, error:new Error('no-supabase')};
+      cloudLoadAttempted = true;
+      const { data, error } = await supabaseClient
+        .from('app_settings')
+        .select('setting_value,updated_at')
+        .eq('setting_key', CLOUD_STATE_KEY)
+        .maybeSingle();
+      if (error) throw error;
+      return {ok:true, found:Boolean(data), state:data && data.setting_value ? data.setting_value : null, updated_at:data && data.updated_at || null, error:null};
+    } catch (error) {
+      console.warn('v65: تعذر قراءة بيانات Supabase.', error);
+      return {ok:false, found:false, state:null, error};
+    }
+  }
+  async function localEmployees(){
+    try {
+      if (typeof dbGetAllEmployees === 'function') {
+        const list = await dbGetAllEmployees();
+        if (Array.isArray(list) && list.length) return list.map(normalizeEmployee);
+      }
+    } catch(_) {}
+    try {
+      const list = typeof loadLocalData === 'function' ? loadLocalData('nawah-employees', []) : [];
+      if (Array.isArray(list) && list.length) return list.map(normalizeEmployee);
+    } catch(_) {}
+    return [];
+  }
+  async function persistEmployeesToIndexedDb(list){
+    try {
+      if (Array.isArray(list) && typeof dbSaveEmployee === 'function') {
+        await Promise.all(list.map(e => dbSaveEmployee(e)));
+      }
+    } catch(e) { console.warn('v65: تعذر تحديث نسخة IndexedDB المحلية.', e); }
+  }
+  async function upsertCloudStateDirect(state){
+    if (!supabaseClient && typeof initSupabaseClient === 'function') initSupabaseClient();
+    if (!supabaseClient) return false;
+    const safeState = cloneState(state) || {};
+    safeState.version = safeState.version || 1;
+    safeState.savedAt = nowIso();
+    safeState.storageMode = VERSION;
+    const { error } = await supabaseClient
+      .from('app_settings')
+      .upsert({
+        setting_key: CLOUD_STATE_KEY,
+        setting_value: safeState,
+        updated_at: nowIso()
+      }, { onConflict: 'setting_key' });
+    if (error) throw error;
+    return true;
+  }
+  const originalSaveCloudStateNow = typeof saveCloudStateNow === 'function' ? saveCloudStateNow : null;
+  async function protectedSaveCloudStateNow(options = {}){
+    try {
+      const force = Boolean(options && options.force);
+      const allowEmptyOverwrite = Boolean(options && options.allowEmptyOverwrite);
+      if (!supabaseClient && typeof initSupabaseClient === 'function') initSupabaseClient();
+      if (!(supabaseClient && cloudReady && (force || cloudSaveAllowed))) return;
+      const state = typeof buildCloudState === 'function' ? buildCloudState() : null;
+      if (!state || typeof state !== 'object') return;
+      const nextCount = empCount(state);
+      if (nextCount === 0 && !allowEmptyOverwrite) {
+        const current = await readCloudStateDirect();
+        const currentCount = empCount(current && current.state);
+        if (current.ok && current.found && currentCount > 0) {
+          console.warn('v65: تم منع حفظ حالة فارغة فوق بيانات موظفين موجودة في Supabase.');
+          toast('تم منع حفظ حالة فارغة فوق بيانات محفوظة في السحابة');
+          return;
+        }
+      }
+      await upsertCloudStateDirect(state);
+      cloudSaveAllowed = true;
+      cloudLoadAttempted = true;
+    } catch (error) {
+      console.warn('v65: تعذر حفظ البيانات في Supabase.', error);
+      if (originalSaveCloudStateNow && options && options.fallbackToOriginal) {
+        try { return await originalSaveCloudStateNow.apply(this, arguments); } catch(_) {}
+      }
+    }
+  }
+  protectedSaveCloudStateNow.__v65CloudSourceOfTruthFix = true;
+  try { saveCloudStateNow = protectedSaveCloudStateNow; } catch(_) {}
+  window.saveCloudStateNow = protectedSaveCloudStateNow;
+  let saveTimer = null;
+  function protectedQueueCloudStateSave(){
+    try {
+      if (!(supabaseClient && cloudReady && cloudLoadAttempted && cloudSaveAllowed)) return;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => protectedSaveCloudStateNow(), 900);
+    } catch(_) {}
+  }
+  protectedQueueCloudStateSave.__v65CloudSourceOfTruthFix = true;
+  try { queueCloudStateSave = protectedQueueCloudStateSave; } catch(_) {}
+  window.queueCloudStateSave = protectedQueueCloudStateSave;
+  const originalInitStorage = typeof initStorage === 'function' ? initStorage : null;
+  async function cloudFirstInitStorage(){
+    try {
+      if (typeof openDatabase === 'function') db = await openDatabase();
+    } catch(e) { console.warn('v65: تعذر فتح IndexedDB.', e); }
+    try { if (typeof initSupabaseClient === 'function') initSupabaseClient(); } catch(e) { console.warn('v65: تعذر تهيئة Supabase.', e); }
+    cloudSaveAllowed = false;
+    const cloud = await readCloudStateDirect();
+    if (cloud.ok && cloud.found && cloud.state && typeof cloud.state === 'object') {
+      try {
+        const applied = typeof applyCloudState === 'function' ? applyCloudState(cloneState(cloud.state)) : false;
+        if (applied) {
+          await persistEmployeesToIndexedDb(Array.isArray(employees) ? employees : []);
+          cloudSaveAllowed = true;
+          cloudLoadAttempted = true;
+          window.__nawahCloudSourceReady = true;
+          console.info('v65: تم تحميل بيانات النظام من Supabase كمصدر أساسي. عدد الموظفين:', Array.isArray(employees) ? employees.length : 0);
+          return;
+        }
+      } catch(e) { console.warn('v65: تعذر تطبيق بيانات Supabase.', e); }
+    }
+    if (cloud.ok && !cloud.found) {
+      employees = await localEmployees();
+      cloudSaveAllowed = true;
+      cloudLoadAttempted = true;
+      try { if (typeof saveLocalMeta === 'function') saveLocalMeta(); } catch(_) {}
+      await protectedSaveCloudStateNow({force:true, allowEmptyOverwrite:true});
+      window.__nawahCloudSourceReady = true;
+      return;
+    }
+    if (cloud.ok && cloud.found && (!cloud.state || typeof cloud.state !== 'object')) {
+      employees = [];
+      cloudSaveAllowed = true;
+      cloudLoadAttempted = true;
+      await protectedSaveCloudStateNow({force:true, allowEmptyOverwrite:true});
+      window.__nawahCloudSourceReady = true;
+      return;
+    }
+    employees = await localEmployees();
+    cloudSaveAllowed = false;
+    cloudLoadAttempted = true;
+    toast('تعذر تحميل بيانات Supabase؛ تم إيقاف الحفظ السحابي مؤقتًا لحماية البيانات');
+    if (!employees.length && originalInitStorage) {
+      try { await originalInitStorage.apply(this, arguments); } catch(_) {}
+    }
+  }
+  cloudFirstInitStorage.__v65CloudSourceOfTruthFix = true;
+  try { initStorage = cloudFirstInitStorage; } catch(_) {}
+  window.initStorage = cloudFirstInitStorage;
+  window.nawahForceSaveCloudState = async function(){
+    cloudSaveAllowed = true;
+    cloudLoadAttempted = true;
+    return protectedSaveCloudStateNow({force:true, allowEmptyOverwrite:false});
+  };
+})();
