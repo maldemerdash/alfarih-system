@@ -11838,3 +11838,150 @@ button[data-edit-employee] {
   object-fit: cover !important;
   border-radius: inherit !important;
 }
+
+/* v49 - Dynamic leave balance visual blocks */
+.leave-balance-dashboard-card {
+  margin: 12px 0 16px;
+  padding: 16px;
+  border: 1px solid rgba(15, 118, 110, .16);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(15, 118, 110, .08), rgba(8, 145, 178, .06));
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+}
+.leave-balance-dashboard-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.leave-balance-dashboard-title span,
+.leave-balance-dashboard-number span,
+.leave-balance-dashboard-grid span,
+.leave-balance-mini-grid span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.leave-balance-dashboard-title strong {
+  color: var(--primary);
+  font-size: 13px;
+}
+.leave-balance-dashboard-number {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.leave-balance-dashboard-number strong {
+  color: var(--primary);
+  font-size: 28px;
+  line-height: 1;
+}
+.leave-balance-dashboard-grid,
+.leave-balance-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.leave-balance-dashboard-grid > div,
+.leave-balance-mini-grid > div {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.leave-balance-dashboard-grid b,
+.leave-balance-mini-grid b {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 11px;
+}
+.leave-balance-dashboard-card p,
+.leave-balance-card-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+.leave-balance-profile-card {
+  display: grid;
+  gap: 11px;
+  margin: 0 0 14px;
+  padding: 14px;
+  border: 1px solid rgba(15, 118, 110, .18);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .05);
+}
+.leave-balance-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.leave-balance-card-head strong {
+  color: var(--text);
+  font-size: 13px;
+}
+.leave-balance-card-head span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.leave-balance-main-number {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.leave-balance-main-number strong {
+  color: var(--primary);
+  font-size: 30px;
+  line-height: 1;
+}
+.leave-balance-main-number span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.leave-balance-profile-card.is-warning .leave-balance-main-number strong,
+.leave-balance-dashboard-card.is-warning .leave-balance-dashboard-number strong,
+.leave-balance-request-card.is-warning strong { color: #b45309; }
+.leave-balance-profile-card.is-negative .leave-balance-main-number strong,
+.leave-balance-dashboard-card.is-negative .leave-balance-dashboard-number strong,
+.leave-balance-request-card.is-negative strong { color: var(--red); }
+.leave-balance-preview-slot { margin: -2px 0 4px; }
+.leave-balance-request-card {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid rgba(15, 118, 110, .18);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(15, 118, 110, .07), rgba(8, 145, 178, .05));
+}
+.leave-balance-request-card strong {
+  color: var(--primary);
+  font-size: 12px;
+}
+.leave-balance-request-card span,
+.leave-balance-request-card em,
+.leave-balance-note-inline {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.65;
+}
+.leave-balance-request-card.is-empty { color: var(--muted); font-size: 10px; }
+.leave-balance-warning {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 10px;
+  font-weight: 800;
+}
+@media (max-width: 700px) {
+  .leave-balance-dashboard-grid,
+  .leave-balance-mini-grid { grid-template-columns: 1fr; }
+  .leave-balance-dashboard-title,
+  .leave-balance-dashboard-number { align-items: flex-start; flex-direction: column; }
+}
