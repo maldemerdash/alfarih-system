@@ -18895,239 +18895,6 @@ document.addEventListener("click", function(event) {
 
 
 /* =========================================================
-   v40 clean unified employee photo logic
-   - Single active upload handler for #employeePhotoInput.
-   - Stable cached rendering for employee editor, employee table and linked-user topbar.
-   - Keeps opening the employee file independent from photo loading.
-   ========================================================= */
-const EMPLOYEE_PHOTO_CACHE_V40 = window.__EMPLOYEE_PHOTO_CACHE_V40 || (window.__EMPLOYEE_PHOTO_CACHE_V40 = new Map());
-const EMPLOYEE_PHOTO_LOCAL_URLS_V40 = window.__EMPLOYEE_PHOTO_LOCAL_URLS_V40 || (window.__EMPLOYEE_PHOTO_LOCAL_URLS_V40 = new Map());
-const EMPLOYEE_PHOTO_CACHE_TTL_V40 = 5 * 60 * 1000;
-
-function employeePhotoTextV40(value) {
-  return String(value ?? '').trim();
-}
-
-function employeePhotoEscV40(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-}
-
-function employeePhotoPopupV40(message, title = 'تنبيه') {
-  try {
-    if (typeof window.showModalMessage === 'function') return window.showModalMessage(message, title);
-  } catch (_) {}
-  try { if (typeof showToast === 'function') return showToast(message); } catch (_) {}
-  try { alert(message); } catch (_) {}
-}
-
-function employeePhotoOwnerReadyV40() {
-  try {
-    const form = document.querySelector('#employeeForm');
-    const identity = String(form?.elements?.identityNumber?.value || '').replace(/\D/g, '');
-    const phone = String(form?.elements?.phone?.value || '').replace(/\D/g, '');
-    return identity.length >= 2 && phone.length >= 2;
-  } catch (_) {
-    return false;
-  }
-}
-
-function rememberEmployeePhotoLocalUrlV40(id, file) {
-  const key = employeePhotoTextV40(id);
-  if (!key || !file) return '';
-  try {
-    const old = EMPLOYEE_PHOTO_LOCAL_URLS_V40.get(key);
-    if (old && old.startsWith('blob:')) URL.revokeObjectURL(old);
-  } catch (_) {}
-  try {
-    const url = URL.createObjectURL(file);
-    EMPLOYEE_PHOTO_LOCAL_URLS_V40.set(key, url);
-    EMPLOYEE_PHOTO_CACHE_V40.set(key, { url, expires: Date.now() + EMPLOYEE_PHOTO_CACHE_TTL_V40 });
-    try { window.__localAttachmentUrls?.set?.(key, url); } catch (_) {}
-    return url;
-  } catch (_) {
-    return '';
-  }
-}
-
-function cachedEmployeePhotoUrlV40(id) {
-  const key = employeePhotoTextV40(id);
-  if (!key) return '';
-  const local = EMPLOYEE_PHOTO_LOCAL_URLS_V40.get(key) || '';
-  if (local) return local;
-  const cached = EMPLOYEE_PHOTO_CACHE_V40.get(key);
-  if (cached?.url && cached.expires > Date.now()) return cached.url;
-  return '';
-}
-
-async function resolveEmployeePhotoUrlV40(id) {
-  const key = employeePhotoTextV40(id);
-  if (!key) return '';
-  const immediate = cachedEmployeePhotoUrlV40(key);
-  if (immediate) return immediate;
-  const url = typeof attachmentUrl === 'function' ? await attachmentUrl(key) : '';
-  if (url) EMPLOYEE_PHOTO_CACHE_V40.set(key, { url, expires: Date.now() + EMPLOYEE_PHOTO_CACHE_TTL_V40 });
-  return url || '';
-}
-
-function fetchEmployeePhotoUrlV40(id, callback) {
-  const key = employeePhotoTextV40(id);
-  if (!key) return;
-  const immediate = cachedEmployeePhotoUrlV40(key);
-  if (immediate) { callback(immediate); return; }
-  const existing = EMPLOYEE_PHOTO_CACHE_V40.get(key);
-  if (existing?.loading) return;
-  EMPLOYEE_PHOTO_CACHE_V40.set(key, { ...(existing || {}), loading: true, expires: existing?.expires || 0 });
-  resolveEmployeePhotoUrlV40(key).then((url) => {
-    const current = EMPLOYEE_PHOTO_CACHE_V40.get(key) || {};
-    EMPLOYEE_PHOTO_CACHE_V40.set(key, { url: url || current.url || '', expires: Date.now() + EMPLOYEE_PHOTO_CACHE_TTL_V40, loading: false });
-    if (url) callback(url);
-  }).catch(() => {
-    const current = EMPLOYEE_PHOTO_CACHE_V40.get(key) || {};
-    EMPLOYEE_PHOTO_CACHE_V40.set(key, { ...current, loading: false });
-  });
-}
-
-async function handleEmployeePhotoInputChange(event) {
-  const input = event?.target;
-  if (!input) return;
-  const file = input.files?.[0];
-  if (!file) return;
-  if (file.type && !file.type.startsWith('image/')) {
-    input.value = '';
-    employeePhotoPopupV40('ملف صورة الموظف يجب أن يكون صورة فقط.', 'صيغة غير مقبولة');
-    return;
-  }
-  if (!employeePhotoOwnerReadyV40()) {
-    input.value = '';
-    employeePhotoPopupV40('أدخل رقم الهوية ورقم الجوال أولًا حتى يتم تكوين رقم الموظف وربط الصورة به.', 'لا يمكن رفع صورة الموظف');
-    return;
-  }
-  try {
-    const id = await saveAttachment(file, 'employee-photo');
-    if (!id) throw new Error('empty attachment id');
-    rememberEmployeePhotoLocalUrlV40(id, file);
-    employeeFormState.photoAttachmentId = id;
-    employeeFormState.legacyPhoto = '';
-    await renderEmployeePhoto();
-    try { await persistCurrentEmployeeOnly?.(); } catch (_) {}
-    try { renderEmployees?.(); } catch (_) {}
-    try { hydrateAttachmentImages(document); } catch (_) {}
-    setTimeout(() => { try { applyLinkedEmployeeTopbarPhotoV40(); } catch (_) {} }, 0);
-    try { showToast('تم حفظ صورة الموظف'); } catch (_) {}
-  } catch (error) {
-    console.warn('employee photo upload failed', error);
-    input.value = '';
-    employeePhotoPopupV40('تعذر رفع صورة الموظف. تأكد من الاتصال بقاعدة البيانات ثم حاول مرة أخرى.', 'فشل رفع الصورة');
-  }
-}
-window.handleEmployeePhotoInputChange = handleEmployeePhotoInputChange;
-
-renderEmployeePhoto = function renderEmployeePhotoV40() {
-  const preview = document.querySelector('#employeePhotoPreview');
-  if (!preview) return Promise.resolve();
-  const photoId = employeePhotoTextV40(employeeFormState?.photoAttachmentId || '');
-  const legacyPhoto = employeePhotoTextV40(employeeFormState?.legacyPhoto || employeeFormState?.photo || '');
-  const key = photoId ? `att:${photoId}` : (legacyPhoto ? `legacy:${legacyPhoto}` : 'empty');
-  if (preview.dataset.photoKeyV40 === key && (preview.querySelector('img') || key === 'empty')) return Promise.resolve();
-  preview.dataset.photoKeyV40 = key;
-  if (!photoId && !legacyPhoto) {
-    try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) { preview.innerHTML = ''; }
-    return Promise.resolve();
-  }
-  const immediate = photoId ? cachedEmployeePhotoUrlV40(photoId) : legacyPhoto;
-  if (immediate) {
-    preview.innerHTML = `<img src="${employeePhotoEscV40(immediate)}" alt="صورة الموظف" />`;
-    return Promise.resolve();
-  }
-  try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) {}
-  fetchEmployeePhotoUrlV40(photoId, (url) => {
-    if (!preview.isConnected || preview.dataset.photoKeyV40 !== key) return;
-    if (employeePhotoTextV40(employeeFormState?.photoAttachmentId || '') !== photoId) return;
-    preview.innerHTML = `<img src="${employeePhotoEscV40(url)}" alt="صورة الموظف" />`;
-  });
-  return Promise.resolve();
-}
-window.renderEmployeePhoto = renderEmployeePhoto;
-
-hydrateAttachmentImages = function hydrateAttachmentImagesV40(root = document) {
-  let images = [];
-  try { images = [...root.querySelectorAll('img[data-attachment-image]')]; } catch (_) { images = []; }
-  images.forEach((image) => {
-    const id = employeePhotoTextV40(image.dataset.attachmentImage || '');
-    if (!id) return;
-    const immediate = cachedEmployeePhotoUrlV40(id);
-    if (immediate) {
-      if (image.src !== immediate) image.src = immediate;
-      return;
-    }
-    fetchEmployeePhotoUrlV40(id, (url) => {
-      if (image.isConnected && url && image.src !== url) image.src = url;
-    });
-  });
-  return Promise.resolve();
-};
-window.hydrateAttachmentImages = hydrateAttachmentImages;
-
-function linkedEmployeeForTopbarV40() {
-  try { const linked = window.employeePermissionMatrix?.linkedEmployee?.(); if (linked) return linked; } catch (_) {}
-  try {
-    const linkedId = authProfile?.employee_id || authProfile?.employeeId || authProfile?.linked_employee_id || authProfile?.linkedEmployeeId || '';
-    if (linkedId && Array.isArray(employees)) return employees.find((employee) => String(employee.id) === String(linkedId));
-  } catch (_) {}
-  return null;
-}
-
-async function applyLinkedEmployeeTopbarPhotoV40() {
-  const mark = document.querySelector('.topbar-user-mark');
-  if (!mark) return;
-  const employee = linkedEmployeeForTopbarV40();
-  const photoId = employeePhotoTextV40(employee?.photoAttachmentId || '');
-  const legacyPhoto = employeePhotoTextV40(employee?.legacyPhoto || employee?.photo || '');
-  const fallbackName = employeePhotoTextV40(employee?.name || authProfile?.full_name || authUser?.email || 'مستخدم');
-  const key = photoId ? `att:${photoId}` : (legacyPhoto ? `legacy:${legacyPhoto}` : 'empty');
-  if (!photoId && !legacyPhoto) {
-    if (mark.dataset.photoKeyV40 !== key || mark.querySelector('img')) {
-      mark.dataset.photoKeyV40 = key;
-      mark.classList.remove('has-employee-photo');
-      mark.textContent = fallbackName.charAt(0) || 'م';
-    }
-    return;
-  }
-  const immediate = photoId ? cachedEmployeePhotoUrlV40(photoId) : legacyPhoto;
-  if (immediate) {
-    if (mark.dataset.photoKeyV40 !== key || !mark.querySelector('img')) {
-      mark.dataset.photoKeyV40 = key;
-      mark.classList.add('has-employee-photo');
-      mark.innerHTML = `<img src="${employeePhotoEscV40(immediate)}" alt="" />`;
-    }
-    return;
-  }
-  fetchEmployeePhotoUrlV40(photoId, (url) => {
-    if (!mark.isConnected || mark.dataset.photoKeyV40 !== key) return;
-    mark.classList.add('has-employee-photo');
-    mark.innerHTML = `<img src="${employeePhotoEscV40(url)}" alt="" />`;
-  });
-  mark.dataset.photoKeyV40 = key;
-}
-window.applyLinkedEmployeeTopbarPhotoV40 = applyLinkedEmployeeTopbarPhotoV40;
-
-const updateTopbarUserBeforePhotoV40 = updateTopbarUser;
-updateTopbarUser = function updateTopbarUserV40() {
-  const result = updateTopbarUserBeforePhotoV40.apply(this, arguments);
-  setTimeout(() => { try { applyLinkedEmployeeTopbarPhotoV40(); } catch (_) {} }, 0);
-  return result;
-};
-window.updateTopbarUser = updateTopbarUser;
-
-document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => { try { hydrateAttachmentImages(document); applyLinkedEmployeeTopbarPhotoV40(); } catch (_) {} }, 150);
-});
-window.addEventListener('load', () => {
-  setTimeout(() => { try { hydrateAttachmentImages(document); applyLinkedEmployeeTopbarPhotoV40(); } catch (_) {} }, 500);
-});
-
-
-/* =========================================================
    v42: NO EMPLOYEE PHOTOS
    Requested: remove employee photos completely for speed and stability.
    - No employee photo upload.
@@ -19304,4 +19071,180 @@ window.addEventListener('load', () => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 60));
   else setTimeout(boot, 60);
   window.addEventListener('load', () => setTimeout(boot, 250));
+})();
+
+
+/* =========================================================
+   v43: no employee photos + no Edge Function dependency for listing users
+   - Completely prevents employee-photo rendering/fetching on every screen.
+   - Keeps employee-name click light and independent from image loading.
+   - User-management and permissions lists read app_user_profiles directly first,
+     so a missing/unreachable admin-create-user Edge Function does not freeze the page.
+   ========================================================= */
+(function noPhotosAndEdgeListFallbackV43(){
+  if (window.__noPhotosAndEdgeListFallbackV43) return;
+  window.__noPhotosAndEdgeListFallbackV43 = true;
+
+  try { localStorage.setItem('nawah-no-employee-photos-v42-applied', '1'); } catch (_) {}
+
+  const text = (v) => String(v ?? '').trim();
+  const escape = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const initials = (name) => {
+    try { if (typeof getInitials === 'function') return getInitials(name) || 'م'; } catch (_) {}
+    const parts = text(name).split(/\s+/).filter(Boolean);
+    return parts.slice(0, 2).map((p) => p.charAt(0)).join('') || 'م';
+  };
+  const strip = (employee) => {
+    if (!employee || typeof employee !== 'object') return employee;
+    ['photoAttachmentId','legacyPhoto','photo','employeePhoto','avatar','avatarUrl','photoUrl'].forEach((key) => { employee[key] = ''; });
+    return employee;
+  };
+  const stripAll = () => {
+    try { if (Array.isArray(employees)) employees.forEach(strip); } catch (_) {}
+    try { if (employeeFormState) strip(employeeFormState); } catch (_) {}
+  };
+
+  if (typeof showToast === 'function' && !showToast.__edgeArabicV43) {
+    const previousShowToast = showToast;
+    showToast = function showToastArabicEdgeV43(message){
+      const value = String(message || '');
+      if (/Failed to send a request to the Edge Function|FunctionsFetchError|Edge Function/i.test(value)) {
+        return previousShowToast('تعذر الاتصال بدالة إدارة المستخدمين. تم الاعتماد على جدول المستخدمين مباشرة.');
+      }
+      return previousShowToast.apply(this, arguments);
+    };
+    showToast.__edgeArabicV43 = true;
+    try { window.showToast = showToast; } catch (_) {}
+  }
+
+  employeeAvatar = function employeeAvatarLettersOnlyV43(employee){
+    const color = employee?.color || 'teal';
+    return `<div class="avatar avatar-${escape(color)}">${escape(initials(employee?.name))}</div>`;
+  };
+  try { window.employeeAvatar = employeeAvatar; } catch (_) {}
+
+  renderEmployeePhoto = function renderEmployeePhotoDisabledV43(){
+    stripAll();
+    const preview = document.querySelector('#employeePhotoPreview');
+    if (preview) {
+      preview.classList.remove('has-employee-photo','avatar-photo');
+      preview.innerHTML = (typeof iconSvg === 'function') ? iconSvg('user') : '<span>م</span>';
+    }
+    return Promise.resolve();
+  };
+  try { window.renderEmployeePhoto = renderEmployeePhoto; } catch (_) {}
+
+  hydrateAttachmentImages = function hydrateAttachmentImagesDisabledForEmployeePhotosV43(root = document){
+    const scope = root && root.querySelectorAll ? root : document;
+    try {
+      scope.querySelectorAll('.avatar-photo, .quick-profile-photo, .topbar-user-mark.has-employee-photo').forEach((node) => {
+        const isTopbar = node.classList.contains('topbar-user-mark');
+        node.classList.remove('avatar-photo','has-employee-photo');
+        const name = isTopbar ? (authProfile?.full_name || authUser?.email || 'مستخدم') : (node.closest?.('tr')?.querySelector?.('.employee-name-link')?.textContent || 'موظف');
+        node.innerHTML = '';
+        node.textContent = initials(name);
+      });
+      scope.querySelectorAll('img[data-attachment-image]').forEach((img) => {
+        const box = img.closest?.('.avatar, .quick-profile-photo, .topbar-user-mark');
+        if (box) {
+          box.classList.remove('avatar-photo','has-employee-photo');
+          box.innerHTML = '';
+          box.textContent = initials(box.closest?.('tr')?.querySelector?.('.employee-name-link')?.textContent || 'موظف');
+        } else {
+          img.remove();
+        }
+      });
+    } catch (_) {}
+    return Promise.resolve();
+  };
+  try { window.hydrateAttachmentImages = hydrateAttachmentImages; } catch (_) {}
+
+  updateTopbarUser = function updateTopbarUserNoPhotosV43(){
+    const name = authProfile?.full_name || authUser?.email || 'مستخدم';
+    let role = 'مستخدم';
+    try { role = AUTH_ROLES[currentRoleKey()]?.label || role; } catch (_) {}
+    const copy = document.querySelector('.topbar-user-copy');
+    if (copy) copy.innerHTML = `<strong>${escape(String(name).split('@')[0])}</strong><span>${escape(role)}</span>`;
+    const mark = document.querySelector('.topbar-user-mark');
+    if (mark) {
+      mark.classList.remove('has-employee-photo','avatar-photo');
+      mark.removeAttribute('data-photo-key-v40');
+      mark.removeAttribute('data-v33-photo-key');
+      mark.innerHTML = '';
+      mark.textContent = initials(name);
+    }
+  };
+  try { window.updateTopbarUser = updateTopbarUser; } catch (_) {}
+
+  async function directProfilesV43(){
+    if (!supabaseClient?.from) return [];
+    const columns = 'id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at';
+    let query = supabaseClient.from('app_user_profiles').select(columns);
+    try { query = query.order('created_at', { ascending: false }); } catch (_) {}
+    const { data, error } = await query;
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  }
+
+  loadAppUserProfiles = async function loadAppUserProfilesNoEdgeListV43(){
+    try {
+      if (typeof currentRoleKey === 'function' && currentRoleKey() !== 'admin') return [];
+    } catch (_) {}
+    try {
+      appUserProfilesCache = await directProfilesV43();
+      return appUserProfilesCache;
+    } catch (directError) {
+      console.warn('direct app_user_profiles load failed', directError);
+      appUserProfilesCache = Array.isArray(appUserProfilesCache) ? appUserProfilesCache : [];
+      return appUserProfilesCache;
+    }
+  };
+  try { window.loadAppUserProfiles = loadAppUserProfiles; } catch (_) {}
+
+  if (typeof fetchSecurityProfiles === 'function') {
+    fetchSecurityProfiles = async function fetchSecurityProfilesNoEdgeListV43(){
+      try {
+        if (typeof currentRoleKey === 'function' && currentRoleKey() !== 'admin') return [];
+      } catch (_) {}
+      try {
+        const rows = await directProfilesV43();
+        appUserProfilesCache = rows;
+        return rows;
+      } catch (error) {
+        console.warn('direct security profiles load failed', error);
+        return Array.isArray(appUserProfilesCache) ? appUserProfilesCache : [];
+      }
+    };
+    try { window.fetchSecurityProfiles = fetchSecurityProfiles; } catch (_) {}
+  }
+
+  document.addEventListener('change', function(event){
+    const input = event.target?.closest?.('#employeePhotoInput');
+    if (!input) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    input.value = '';
+    stripAll();
+    try { renderEmployeePhoto(); } catch (_) {}
+    try { showToast('صور الموظفين ملغاة في هذه النسخة'); } catch (_) {}
+  }, true);
+
+  document.addEventListener('click', function(event){
+    const nameOrEdit = event.target?.closest?.('.employee-name-link[data-edit-employee], [data-edit-employee], [data-employee-name-edit]');
+    if (!nameOrEdit) return;
+    stripAll();
+    try { hydrateAttachmentImages(document); } catch (_) {}
+  }, true);
+
+  const boot = () => {
+    stripAll();
+    try { updateTopbarUser(); } catch (_) {}
+    try { renderEmployeePhoto(); } catch (_) {}
+    try { hydrateAttachmentImages(document); } catch (_) {}
+    try { if (typeof renderEmployees === 'function') renderEmployees(); } catch (_) {}
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 30));
+  else setTimeout(boot, 30);
+  window.addEventListener('load', () => setTimeout(boot, 120));
 })();
