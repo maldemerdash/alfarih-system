@@ -11359,3 +11359,46 @@ body.auth-locked .app-shell {
   z-index: 30;
   pointer-events: auto;
 }
+
+/* v22: remove the empty top gap in add/edit employee screen */
+#employeeModal.employee-profile-modal {
+  margin-top: 0 !important;
+}
+#employeeModal.employee-profile-modal form {
+  position: relative !important;
+}
+#employeeModal .modal-head {
+  position: absolute !important;
+  top: 10px !important;
+  left: 10px !important;
+  right: auto !important;
+  z-index: 50 !important;
+  width: auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+#employeeModal .modal-head > div {
+  display: none !important;
+}
+#employeeModal [data-close-modal="employeeModal"] {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  box-shadow: 0 6px 18px rgba(27, 52, 56, 0.12) !important;
+}
+#employeeModal .employee-workspace {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+}
+#employeeModal .employee-section-content {
+  padding-top: 0 !important;
+}
+#employeeModal .employee-form-sidebar {
+  padding-top: 14px !important;
+}
