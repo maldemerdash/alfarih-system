@@ -11402,3 +11402,26 @@ body.auth-locked .app-shell {
 #employeeModal .employee-form-sidebar {
   padding-top: 14px !important;
 }
+
+
+/* v23: restore red cancel button after the v22 top-gap layout correction.
+   Keep this at the end so older generic secondary-btn rules cannot override it. */
+#employeeModal.employee-profile-modal .employee-form-actions .employee-main-actions .employee-cancel-btn,
+#employeeModal.employee-profile-modal .employee-form-actions .employee-main-actions button.employee-cancel-btn.secondary-btn {
+  background: #e34d4d !important;
+  border: 1px solid #e34d4d !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(227, 77, 77, 0.18) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+#employeeModal.employee-profile-modal .employee-form-actions .employee-main-actions .employee-cancel-btn:hover,
+#employeeModal.employee-profile-modal .employee-form-actions .employee-main-actions .employee-cancel-btn:focus-visible {
+  background: #cc3939 !important;
+  border-color: #cc3939 !important;
+  color: #ffffff !important;
+}
+#employeeModal.employee-profile-modal .employee-form-actions .employee-main-actions .employee-cancel-btn svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
