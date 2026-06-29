@@ -17242,3 +17242,198 @@ document.addEventListener("click", function(event) {
     });
   });
 })();
+
+/* =========================================================
+   v20 attachment reload recovery and download button visibility
+   Fixes: after logout/login, employee attachments are separated correctly
+   in Supabase but the download button can disappear because the employee
+   record may not carry the attachment id back into employeeFormState, or
+   an old inline display:none remains on the button.
+   ========================================================= */
+(function employeeAttachmentReloadRecoveryV20(){
+  if (window.__employeeAttachmentReloadRecoveryV20) return;
+  window.__employeeAttachmentReloadRecoveryV20 = true;
+
+  function text(value){ return String(value ?? '').trim(); }
+  function digits(value){
+    try { return normalizeNumerals(value).replace(/\D/g, ''); }
+    catch (_) { return String(value ?? '').replace(/\D/g, ''); }
+  }
+  function ownerKeyFromIdentityPhone(identity, phone){
+    const id = digits(identity);
+    const ph = digits(phone);
+    return id.length >= 2 && ph.length >= 2 ? `${id.slice(-2)}${ph.slice(-2)}` : '';
+  }
+  function ownerKeyFromEmployee(emp){
+    const direct = ownerKeyFromIdentityPhone(emp?.identityNumber, emp?.phone);
+    if (direct) return direct;
+    const num = digits(emp?.employeeNumber);
+    return num.length >= 4 ? num.slice(-4) : '';
+  }
+  function currentEmployeeId(){
+    try { return text(document.querySelector('#employeeForm')?.elements?.employeeId?.value || ''); }
+    catch (_) { return ''; }
+  }
+  function currentEmployee(){
+    const id = currentEmployeeId();
+    try { return id && typeof getEmployee === 'function' ? getEmployee(id) : null; }
+    catch (_) { return null; }
+  }
+  function safeIcon(){
+    try { return typeof iconSvg === 'function' ? iconSvg('download') : '<span data-icon="download"></span>'; }
+    catch (_) { return '<span data-icon="download"></span>'; }
+  }
+  function controlLabelFor(key, hasFile){
+    if (hasFile) return 'تم الإرفاق';
+    if (key === 'signature') return 'إرفاق التوقيع';
+    if (key === 'fingerprint') return 'إرفاق البصمة';
+    return 'إرفاق';
+  }
+  function applySingleAttachmentButton(key, attachmentId){
+    const id = text(attachmentId);
+    const input = document.querySelector(`[data-single-attachment="${key}"]`);
+    const control = input?.closest?.('.compact-file-control');
+    if (control) {
+      control.classList.toggle('has-file', Boolean(id));
+      const label = control.querySelector(':scope > span:last-of-type');
+      if (label) label.textContent = controlLabelFor(key, Boolean(id));
+    }
+    const button = document.querySelector(`[data-view-single-attachment="${key}"]`);
+    if (!button) return;
+    button.classList.add('attachment-download-btn', 'employee-attachment-download-inline');
+    button.innerHTML = safeIcon();
+    button.dataset.attachmentId = id;
+    button.hidden = !id;
+    button.toggleAttribute('hidden', !id);
+    button.setAttribute('aria-hidden', id ? 'false' : 'true');
+    button.style.display = id ? 'inline-flex' : 'none';
+    button.style.visibility = id ? 'visible' : 'hidden';
+    button.style.opacity = id ? '1' : '0';
+    button.style.pointerEvents = id ? 'auto' : 'none';
+    button.title = 'تحميل المرفق';
+    button.setAttribute('aria-label', 'تحميل المرفق');
+  }
+  function applyKnownSingleAttachments(){
+    try {
+      applySingleAttachmentButton('identity', employeeFormState?.identityAttachmentId || '');
+      applySingleAttachmentButton('signature', employeeFormState?.signatureAttachmentId || '');
+      applySingleAttachmentButton('fingerprint', employeeFormState?.fingerprintAttachmentId || '');
+    } catch (_) {}
+  }
+  async function latestAttachmentFor(owner, category){
+    owner = text(owner); category = text(category);
+    if (!owner || !category || !(typeof supabaseClient !== 'undefined' && supabaseClient)) return '';
+    const exact = `employees:${owner}:${category}`;
+    try {
+      const result = await supabaseClient
+        .from('attachments')
+        .select('id, related_table, storage_path, created_at')
+        .eq('related_table', exact)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!result?.error && result?.data?.id) return text(result.data.id);
+    } catch (_) {}
+    try {
+      const result = await supabaseClient
+        .from('attachments')
+        .select('id, related_table, storage_path, created_at')
+        .like('storage_path', `%/employees/${owner}/${category}/%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!result?.error && result?.data?.id) return text(result.data.id);
+    } catch (_) {}
+    return '';
+  }
+  async function recoverMissingAttachmentIdsForOpenEmployee(){
+    if (typeof employeeFormState !== 'object' || !employeeFormState) return;
+    const emp = currentEmployee();
+    if (!emp) { applyKnownSingleAttachments(); return; }
+    const owner = ownerKeyFromEmployee(emp);
+    if (!owner) { applyKnownSingleAttachments(); return; }
+    const pairs = [
+      ['identityAttachmentId', 'identity', 'identity'],
+      ['signatureAttachmentId', 'signature', 'signature'],
+      ['fingerprintAttachmentId', 'fingerprint', 'fingerprint']
+    ];
+    let changed = false;
+    for (const [stateKey, category, uiKey] of pairs) {
+      let id = text(employeeFormState[stateKey] || emp[stateKey] || '');
+      if (!id) id = await latestAttachmentFor(owner, category);
+      if (id && employeeFormState[stateKey] !== id) {
+        employeeFormState[stateKey] = id;
+        changed = true;
+      }
+      applySingleAttachmentButton(uiKey, id);
+    }
+    if (changed && Array.isArray(employees)) {
+      const id = currentEmployeeId();
+      const index = employees.findIndex(item => String(item.id) === String(id));
+      if (index >= 0) {
+        employees[index] = { ...employees[index],
+          identityAttachmentId: employeeFormState.identityAttachmentId || employees[index].identityAttachmentId || '',
+          signatureAttachmentId: employeeFormState.signatureAttachmentId || employees[index].signatureAttachmentId || '',
+          fingerprintAttachmentId: employeeFormState.fingerprintAttachmentId || employees[index].fingerprintAttachmentId || ''
+        };
+        try { await dbSaveEmployee?.(employees[index]); } catch (_) {}
+        try { queueCloudStateSave?.(); } catch (_) {}
+      }
+    }
+  }
+
+  const previousOpenEmployeeModalV20 = typeof openEmployeeModal === 'function' ? openEmployeeModal : null;
+  if (previousOpenEmployeeModalV20 && !previousOpenEmployeeModalV20.__v20AttachmentRecovery) {
+    const wrappedOpenEmployeeModalV20 = async function(employeeId = null){
+      const result = await previousOpenEmployeeModalV20.apply(this, arguments);
+      if (employeeId) {
+        await recoverMissingAttachmentIdsForOpenEmployee();
+        setTimeout(recoverMissingAttachmentIdsForOpenEmployee, 80);
+        setTimeout(recoverMissingAttachmentIdsForOpenEmployee, 350);
+      } else {
+        applySingleAttachmentButton('identity', '');
+        applySingleAttachmentButton('signature', '');
+        applySingleAttachmentButton('fingerprint', '');
+      }
+      return result;
+    };
+    wrappedOpenEmployeeModalV20.__v20AttachmentRecovery = true;
+    try { openEmployeeModal = wrappedOpenEmployeeModalV20; window.openEmployeeModal = wrappedOpenEmployeeModalV20; } catch (_) {}
+  }
+
+  const previousSetSingleAttachmentV20 = typeof setSingleAttachment === 'function' ? setSingleAttachment : null;
+  if (previousSetSingleAttachmentV20 && !previousSetSingleAttachmentV20.__v20PersistAfterUpload) {
+    const wrappedSetSingleAttachmentV20 = async function(key, file){
+      const result = await previousSetSingleAttachmentV20.apply(this, arguments);
+      applyKnownSingleAttachments();
+      const emp = currentEmployee();
+      if (emp && Array.isArray(employees)) {
+        const index = employees.findIndex(item => String(item.id) === String(emp.id));
+        if (index >= 0) {
+          employees[index] = { ...employees[index],
+            identityAttachmentId: employeeFormState?.identityAttachmentId || employees[index].identityAttachmentId || '',
+            signatureAttachmentId: employeeFormState?.signatureAttachmentId || employees[index].signatureAttachmentId || '',
+            fingerprintAttachmentId: employeeFormState?.fingerprintAttachmentId || employees[index].fingerprintAttachmentId || ''
+          };
+          try { await dbSaveEmployee?.(employees[index]); } catch (_) {}
+          try { queueCloudStateSave?.(); } catch (_) {}
+        }
+      }
+      return result;
+    };
+    wrappedSetSingleAttachmentV20.__v20PersistAfterUpload = true;
+    try { setSingleAttachment = wrappedSetSingleAttachmentV20; window.setSingleAttachment = wrappedSetSingleAttachmentV20; } catch (_) {}
+  }
+
+  document.addEventListener('click', event => {
+    const button = event.target?.closest?.('[data-view-single-attachment]');
+    if (!button) return;
+    const key = text(button.dataset.viewSingleAttachment || '');
+    const map = { identity: 'identityAttachmentId', signature: 'signatureAttachmentId', fingerprint: 'fingerprintAttachmentId' };
+    const id = text(button.dataset.attachmentId || employeeFormState?.[map[key]] || '');
+    if (id) button.dataset.attachmentId = id;
+  }, true);
+
+  document.addEventListener('DOMContentLoaded', () => setTimeout(applyKnownSingleAttachments, 150));
+  window.addEventListener('load', () => setTimeout(applyKnownSingleAttachments, 250));
+})();

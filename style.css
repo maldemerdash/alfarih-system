@@ -11336,3 +11336,13 @@ body.auth-locked .app-shell {
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+
+/* v20: show attachment download buttons again when an attachment id exists after reload */
+[data-view-single-attachment]:not([hidden])[data-attachment-id]:not([data-attachment-id=""]),
+.attachment-download-btn:not([hidden])[data-attachment-id]:not([data-attachment-id=""]) {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
