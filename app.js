@@ -18688,8 +18688,7 @@ document.addEventListener("click", function(event) {
   if (previousRenderDashboard && !previousRenderDashboard.__documentExpiryV51) {
     const wrapped = function(){
       const result = previousRenderDashboard.apply(this, arguments);
-      setTimeout(renderDocumentExpiryPanels, 0);
-      setTimeout(renderDocumentExpiryPanels, 200);
+      setTimeout(renderDocumentExpiryPanels, 120);
       return result;
     };
     wrapped.__documentExpiryV51 = true;
@@ -18698,12 +18697,12 @@ document.addEventListener("click", function(event) {
   }
   const previousRenderAll = window.renderAll || (typeof renderAll === "function" ? renderAll : null);
   if (previousRenderAll && !previousRenderAll.__documentExpiryV51) {
-    const wrappedAll = function(){ const result = previousRenderAll.apply(this, arguments); setTimeout(renderDocumentExpiryPanels, 200); return result; };
+    const wrappedAll = function(){ const result = previousRenderAll.apply(this, arguments); if (document.querySelector('.view.active')?.id === 'dashboardView') setTimeout(renderDocumentExpiryPanels, 180); return result; };
     wrappedAll.__documentExpiryV51 = true;
     try { renderAll = wrappedAll; } catch(_) {}
     window.renderAll = wrappedAll;
   }
-  const boot = () => { setTimeout(renderDocumentExpiryPanels, 250); setTimeout(renderDocumentExpiryPanels, 1000); };
+  const boot = () => { setTimeout(renderDocumentExpiryPanels, 450); };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
   window.documentExpiryNotificationsV51 = { documentExpiryInfo, renderDocumentExpiryPanels };
 })();
@@ -19277,9 +19276,16 @@ document.addEventListener("click", function(event) {
     extendContractForEmployeeId(btn.dataset.contractExtendDashboard);
   }, true);
 
-  const obs = new MutationObserver(() => { setTimeout(()=>{ installEmployeeFormFields(); moveQuickLeaveBalance(); enforceTravelReturnFields(); injectContractAlerts(); }, 0); });
-  try { obs.observe(document.body, { childList:true, subtree:true }); } catch(_) {}
-  function boot(){ installEmployeeFormFields(); moveQuickLeaveBalance(); enforceTravelReturnFields(); injectContractAlerts(); setTimeout(()=>{ installEmployeeFormFields(); moveQuickLeaveBalance(); enforceTravelReturnFields(); injectContractAlerts(); }, 500); }
+  // v56 performance: do not observe the whole document on every DOM mutation.
+  // Run these UI adjustments only on boot and when the related screens/forms are actually rendered.
+  function runV52UiAdjustments(){
+    const activeId = document.querySelector('.view.active')?.id || '';
+    const employeeDialogOpen = !!document.querySelector('#employeeModal[open], #employeeQuickViewModal[open]');
+    if (employeeDialogOpen) { installEmployeeFormFields(); moveQuickLeaveBalance(); }
+    if (activeId === 'leavesView') enforceTravelReturnFields();
+    if (activeId === 'dashboardView') injectContractAlerts();
+  }
+  function boot(){ runV52UiAdjustments(); setTimeout(runV52UiAdjustments, 500); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
   window.v52ContractTools = { effectiveContractEnd, contractExtensions, extendContractForEmployeeId, contractNoticeDays };
@@ -19499,10 +19505,8 @@ document.addEventListener("click", function(event) {
       } finally {
         isRendering = false;
       }
+      // v56 performance: do not call the old full renderAll after every lightweight render.
       clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        try { previousRenderAll.apply(this, arguments); } catch (_) {}
-      }, 450);
     };
     optimizedRenderAll.__performanceLocalFirstV53 = true;
     try { renderAll = optimizedRenderAll; } catch (_) {}
@@ -19922,4 +19926,79 @@ document.addEventListener("click", function(event) {
       setTimeout(function(){ ensureManualUiV55(); try { updateCommissionCalculationsV55(); } catch(_) {} }, 0);
     }
   });
+})();
+
+
+/* =========================================================
+   v56 performance hardening
+   - Stops full-page re-render loops.
+   - Renders only the active screen.
+   - Defers heavy dashboard document/contract alerts.
+   - Does not change business logic or design.
+   ========================================================= */
+(function v56PerformanceHardening(){
+  if (window.__v56PerformanceHardening) return;
+  window.__v56PerformanceHardening = true;
+
+  let renderLocked = false;
+  let dashboardHeavyTimer = null;
+
+  function activeViewId(){
+    return document.querySelector('.view.active')?.id || 'dashboardView';
+  }
+
+  function renderActiveOnly(){
+    if (renderLocked) return;
+    renderLocked = true;
+    try {
+      const active = activeViewId();
+      if (active === 'dashboardView') {
+        try { if (typeof renderDashboard === 'function') renderDashboard(); } catch(_) {}
+        clearTimeout(dashboardHeavyTimer);
+        dashboardHeavyTimer = setTimeout(() => {
+          try { window.documentExpiryNotificationsV51?.renderDocumentExpiryPanels?.(); } catch(_) {}
+          try { window.v52ContractTools && document.querySelector('#dashboardEmployeeDocsPanel') && document.dispatchEvent(new CustomEvent('v56-dashboard-ready')); } catch(_) {}
+        }, 350);
+      } else if (active === 'employeesView') {
+        try { if (typeof renderEmployees === 'function') renderEmployees(); } catch(_) {}
+      } else if (active === 'attendanceView') {
+        try { if (typeof renderAttendance === 'function') renderAttendance(); } catch(_) {}
+      } else if (active === 'leavesView') {
+        try { if (typeof renderLeaves === 'function') renderLeaves(); } catch(_) {}
+      } else if (active === 'financeView') {
+        try { if (typeof renderFinance === 'function') renderFinance(); } catch(_) {}
+      } else if (active === 'payrollView') {
+        try { if (typeof renderPayroll === 'function') renderPayroll(); } catch(_) {}
+      } else if (active === 'departmentsView') {
+        try { if (typeof renderDepartments === 'function') renderDepartments(); } catch(_) {}
+      } else if (active === 'settingsView') {
+        try { if (typeof renderSettings === 'function') renderSettings(); } catch(_) {}
+      } else if (active === 'usersView') {
+        try { if (typeof ensureUsersManagementView === 'function') ensureUsersManagementView(); if (typeof renderUsersManagement === 'function') renderUsersManagement(); } catch(_) {}
+      } else {
+        try { if (typeof renderDashboard === 'function') renderDashboard(); } catch(_) {}
+      }
+      try { if (typeof populateFormOptions === 'function' && ['employeesView','leavesView','payrollView','settingsView'].includes(active)) populateFormOptions(); } catch(_) {}
+      try { if (typeof hydrateIcons === 'function') hydrateIcons(document.querySelector('.view.active') || document); } catch(_) {}
+    } finally {
+      renderLocked = false;
+    }
+  }
+
+  renderActiveOnly.__v56PerformanceHardening = true;
+  try { renderAll = renderActiveOnly; } catch(_) {}
+  window.renderAll = renderActiveOnly;
+
+  const oldHydrateAttachmentImages = window.hydrateAttachmentImages || (typeof hydrateAttachmentImages === 'function' ? hydrateAttachmentImages : null);
+  if (oldHydrateAttachmentImages && !oldHydrateAttachmentImages.__v56LazyAttachments) {
+    const lazyHydrate = function(root){
+      const active = activeViewId();
+      const scope = root || document.querySelector('.view.active') || document;
+      if (active !== 'employeesView' && !document.querySelector('#employeeModal[open], #employeeQuickViewModal[open]')) return;
+      return oldHydrateAttachmentImages.call(this, scope);
+    };
+    lazyHydrate.__v56LazyAttachments = true;
+    try { hydrateAttachmentImages = lazyHydrate; } catch(_) {}
+    window.hydrateAttachmentImages = lazyHydrate;
+  }
 })();
