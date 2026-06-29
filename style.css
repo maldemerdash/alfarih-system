@@ -12121,3 +12121,64 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 #quickViewModal .leave-balance-profile-card .leave-balance-main-number {
   margin: 0;
 }
+
+/* v70: إصلاح التشوه البصري في شاشة الإجازات والسفر بعد إضافة جدول طلبات السفر المعلقة.
+   السبب كان أن تخطيط الجداول مضبوط على ارتفاع نافذة ثابت لجدولين فقط، وبعد إضافة جدول ثالث
+   أصبح جدول الإجازات يطلع مقصوصًا. هذا التعديل يجعل الأقسام الثلاثة تتدفق طبيعيًا بدون قص. */
+#leavesView .leave-travel-tables,
+#leavesView .final-leave-travel-layout,
+#leavesView .definitive-leave-travel-layout {
+  display: grid !important;
+  grid-template-rows: auto auto auto !important;
+  gap: 18px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+#leavesView .travel-pending-panel,
+#leavesView .travel-table-panel,
+#leavesView .leave-table-panel,
+#leavesView .half-page-panel {
+  min-height: 0 !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+#leavesView .travel-pending-panel .table-wrap,
+#leavesView .travel-table-panel .table-wrap,
+#leavesView .leave-table-panel .table-wrap {
+  flex: 0 0 auto !important;
+  min-height: 170px !important;
+  max-height: 315px !important;
+  overflow: auto !important;
+}
+
+#leavesView .leave-table-panel .table-wrap {
+  min-height: 220px !important;
+  max-height: 380px !important;
+}
+
+#leavesView .travel-pending-panel .empty-state,
+#leavesView .travel-table-panel .empty-state,
+#leavesView .leave-table-panel .empty-state {
+  min-height: 150px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+#leavesView .leave-table-panel {
+  margin-bottom: 28px !important;
+}
+
+#leavesView .travel-table-panel .panel-head,
+#leavesView .leave-table-panel .panel-head,
+#leavesView .travel-table-panel .panel-head.final-table-head,
+#leavesView .leave-table-panel .panel-head.final-table-head {
+  flex: 0 0 76px !important;
+}
