@@ -11502,3 +11502,69 @@ body.auth-locked .app-shell {
     margin: 14px 14px 18px !important;
   }
 }
+
+/* V28 - Lock leave/travel tables to the approved screenshot shape.
+   CSS only: keep request buttons and all JS logic untouched; remove the inset rounded inner table from V27. */
+#leavesView .travel-table-panel .table-wrap,
+#leavesView .leave-table-panel .table-wrap {
+  width: 100% !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+#leavesView .travel-table-panel .table-wrap table,
+#leavesView .leave-table-panel .table-wrap table {
+  width: 100% !important;
+  margin: 0 !important;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+#leavesView .travel-table-panel thead th,
+#leavesView .leave-table-panel thead th {
+  height: 52px !important;
+  padding: 14px 22px !important;
+  line-height: 1.35 !important;
+  box-sizing: border-box !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  border-top: 1px solid #d9e5ea !important;
+  border-bottom: 1px solid #d9e5ea !important;
+  border-radius: 0 !important;
+}
+
+#leavesView .travel-table-panel thead th:first-child,
+#leavesView .leave-table-panel thead th:first-child {
+  padding-inline-start: 34px !important;
+  border-top-right-radius: 0 !important;
+  border-top-left-radius: 0 !important;
+}
+
+#leavesView .travel-table-panel thead th:last-child,
+#leavesView .leave-table-panel thead th:last-child {
+  padding-inline-end: 34px !important;
+  border-top-right-radius: 0 !important;
+  border-top-left-radius: 0 !important;
+}
+
+#leavesView .travel-table-panel tbody td,
+#leavesView .leave-table-panel tbody td {
+  padding: 16px 22px !important;
+  vertical-align: middle !important;
+}
+
+#leavesView .travel-table-panel tbody td:first-child,
+#leavesView .leave-table-panel tbody td:first-child {
+  padding-inline-start: 34px !important;
+}
+
+#leavesView .travel-table-panel tbody td:last-child,
+#leavesView .leave-table-panel tbody td:last-child {
+  padding-inline-end: 34px !important;
+}
