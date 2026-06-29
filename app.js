@@ -17437,3 +17437,64 @@ document.addEventListener("click", function(event) {
   document.addEventListener('DOMContentLoaded', () => setTimeout(applyKnownSingleAttachments, 150));
   window.addEventListener('load', () => setTimeout(applyKnownSingleAttachments, 250));
 })();
+
+/* =========================================================
+   v21 robust X close buttons for employee edit and preview dialogs
+   Fixes: the X button can stop responding after repeated opens because
+   some close handlers are bound only to the original rendered buttons or
+   are bypassed by later patched click handlers. This delegated handler
+   closes the currently requested dialog from pointerdown/click every time.
+   ========================================================= */
+(function robustEmployeeDialogCloseV21(){
+  if (window.__robustEmployeeDialogCloseV21) return;
+  window.__robustEmployeeDialogCloseV21 = true;
+
+  const TARGET_DIALOGS = new Set(['employeeModal', 'quickViewModal']);
+
+  function closeDialogById(dialogId){
+    if (!TARGET_DIALOGS.has(String(dialogId || ''))) return false;
+    const dialog = document.getElementById(dialogId);
+    if (!dialog) return false;
+    try {
+      if (dialog.open && typeof dialog.close === 'function') dialog.close();
+    } catch (_) {}
+    try { dialog.removeAttribute('open'); } catch (_) {}
+    try { dialog.classList.remove('is-open', 'active', 'show'); } catch (_) {}
+    if (dialogId === 'quickViewModal') {
+      const content = document.getElementById('quickViewContent');
+      if (content) content.innerHTML = '';
+    }
+    return true;
+  }
+
+  function handleCloseIntent(event){
+    const button = event.target?.closest?.('[data-close-modal]');
+    if (!button) return;
+    const dialogId = button.dataset.closeModal;
+    if (!TARGET_DIALOGS.has(String(dialogId || ''))) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    closeDialogById(dialogId);
+  }
+
+  document.addEventListener('pointerdown', handleCloseIntent, true);
+  document.addEventListener('click', handleCloseIntent, true);
+
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (closeDialogById('quickViewModal')) return;
+    closeDialogById('employeeModal');
+  }, true);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    ['employeeModal', 'quickViewModal'].forEach(id => {
+      const dialog = document.getElementById(id);
+      if (!dialog || dialog.dataset.v21CancelWired) return;
+      dialog.dataset.v21CancelWired = '1';
+      dialog.addEventListener('cancel', () => {
+        setTimeout(() => closeDialogById(id), 0);
+      });
+    });
+  });
+})();

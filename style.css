@@ -11346,3 +11346,16 @@ body.auth-locked .app-shell {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
+
+/* v21: keep employee dialog close buttons always clickable */
+#employeeModal .modal-head,
+#quickViewModal .modal-head {
+  position: relative;
+  z-index: 20;
+}
+#employeeModal [data-close-modal="employeeModal"],
+#quickViewModal [data-close-modal="quickViewModal"] {
+  position: relative;
+  z-index: 30;
+  pointer-events: auto;
+}
