@@ -11750,3 +11750,14 @@ body.auth-locked .app-shell {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* v42: employee photos disabled completely */
+.employee-photo-upload,
+.employee-photo-remove { display: none !important; }
+.employee-side-photo img,
+.avatar-photo img,
+.quick-profile-photo img,
+.topbar-user-mark img { display: none !important; }
+.avatar, .avatar *, .employee-cell img { pointer-events: none !important; }
+.topbar-user-mark.has-employee-photo { overflow: visible; }

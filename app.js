@@ -897,8 +897,9 @@ function normalizeEmployee(employee, index = 0) {
     identityExpiryHijri: employee.identityExpiryHijri || "",
     hijriCorrection: Number(employee.hijriCorrection || 0),
     identityAttachmentId: employee.identityAttachmentId || "",
-    photoAttachmentId: employee.photoAttachmentId || "",
-    legacyPhoto: employee.legacyPhoto || employee.photo || "",
+    photoAttachmentId: "",
+    legacyPhoto: "",
+    photo: "",
     status: employee.status === "remote" ? "active" : (employee.status || "active"),
     department: employee.department || "",
     section: employee.section || "",
@@ -1214,12 +1215,6 @@ function getEmployee(id) {
 }
 
 function employeeAvatar(employee) {
-  if (employee.photoAttachmentId) {
-    return `<div class="avatar avatar-photo"><img data-attachment-image="${employee.photoAttachmentId}" alt="" /></div>`;
-  }
-  if (employee.legacyPhoto) {
-    return `<div class="avatar avatar-photo"><img src="${employee.legacyPhoto}" alt="" /></div>`;
-  }
   return `<div class="avatar avatar-${employee.color || "teal"}">${getInitials(employee.name)}</div>`;
 }
 
@@ -2527,14 +2522,8 @@ function toggleNationalityField() {
 
 async function renderEmployeePhoto() {
   const preview = document.querySelector("#employeePhotoPreview");
-  if (employeeFormState.photoAttachmentId) {
-    const url = await attachmentUrl(employeeFormState.photoAttachmentId);
-    preview.innerHTML = url ? `<img src="${url}" alt="صورة الموظف" />` : iconSvg("user");
-  } else if (employeeFormState.legacyPhoto) {
-    preview.innerHTML = `<img src="${employeeFormState.legacyPhoto}" alt="صورة الموظف" />`;
-  } else {
-    preview.innerHTML = iconSvg("user");
-  }
+  if (preview) preview.innerHTML = iconSvg("user");
+  if (employeeFormState) { employeeFormState.photoAttachmentId = ""; employeeFormState.legacyPhoto = ""; employeeFormState.photo = ""; }
 }
 
 function attachmentControlHtml(kind, index, attachmentId, label) {
@@ -2927,8 +2916,8 @@ async function openEmployeeModal(employeeId = null) {
   document.querySelector("#employeeModalTitle").innerHTML = `${iconSvg("user-plus")}${employee ? "تعديل بيانات الموظف" : "إضافة موظف جديد"}`;
   const today = formatInputDate(todayAtNoon());
   employeeFormState = {
-    photoAttachmentId: employee?.photoAttachmentId || "",
-    legacyPhoto: employee?.legacyPhoto || "",
+    photoAttachmentId: "",
+    legacyPhoto: "",
     identityAttachmentId: employee?.identityAttachmentId || "",
     signatureAttachmentId: employee?.signatureAttachmentId || "",
     fingerprintAttachmentId: employee?.fingerprintAttachmentId || "",
@@ -3070,8 +3059,9 @@ async function handleEmployeeSubmit(event) {
     identityExpiryHijri: values.identityExpiryHijri,
     hijriCorrection: Number(values.hijriCorrection || 0),
     identityAttachmentId: employeeFormState.identityAttachmentId,
-    photoAttachmentId: employeeFormState.photoAttachmentId,
-    legacyPhoto: employeeFormState.legacyPhoto,
+    photoAttachmentId: "",
+    legacyPhoto: "",
+    photo: "",
     status: values.status,
     department: values.department,
     branch: values.branch || "",
@@ -5600,8 +5590,8 @@ init();
     safeCallEmployeeModalStep(() => form.reset());
     safeCallEmployeeModalStep(() => populateFormOptions());
     employeeFormState = {
-      photoAttachmentId: employee.photoAttachmentId || "",
-      legacyPhoto: employee.legacyPhoto || "",
+      photoAttachmentId: "",
+      legacyPhoto: "",
       identityAttachmentId: employee.identityAttachmentId || "",
       signatureAttachmentId: employee.signatureAttachmentId || "",
       fingerprintAttachmentId: employee.fingerprintAttachmentId || "",
@@ -6917,8 +6907,8 @@ document.addEventListener("click", function(event) {
 
     try {
       employeeFormState = {
-        photoAttachmentId: employee.photoAttachmentId || "",
-        legacyPhoto: employee.legacyPhoto || "",
+        photoAttachmentId: "",
+        legacyPhoto: "",
         identityAttachmentId: employee.identityAttachmentId || "",
         signatureAttachmentId: employee.signatureAttachmentId || "",
         fingerprintAttachmentId: employee.fingerprintAttachmentId || "",
@@ -17123,8 +17113,9 @@ document.addEventListener("click", function(event) {
       ...employees[idx],
       employeeNumber: owner || employees[idx].employeeNumber,
       identityAttachmentId: employeeFormState.identityAttachmentId || '',
-      photoAttachmentId: employeeFormState.photoAttachmentId || '',
-      legacyPhoto: employeeFormState.legacyPhoto || '',
+      photoAttachmentId: '',
+      legacyPhoto: '',
+      photo: '',
       signatureAttachmentId: employeeFormState.signatureAttachmentId || '',
       fingerprintAttachmentId: employeeFormState.fingerprintAttachmentId || '',
       passports: clone(employeeFormState.passports || []),
@@ -19134,3 +19125,183 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('load', () => {
   setTimeout(() => { try { hydrateAttachmentImages(document); applyLinkedEmployeeTopbarPhotoV40(); } catch (_) {} }, 500);
 });
+
+
+/* =========================================================
+   v42: NO EMPLOYEE PHOTOS
+   Requested: remove employee photos completely for speed and stability.
+   - No employee photo upload.
+   - No employee photo rendering in table, header, form, or quick profile.
+   - Existing employee photo fields are cleared from app state and saved back.
+   - Does not delete normal document attachments, identity files, passports, bank files, etc.
+   ========================================================= */
+(function noEmployeePhotosV42(){
+  if (window.__noEmployeePhotosV42) return;
+  window.__noEmployeePhotosV42 = true;
+
+  const txt = (v) => String(v ?? '').trim();
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+  function initials(name){
+    try { if (typeof getInitials === 'function') return getInitials(name) || 'م'; } catch (_) {}
+    return txt(name).split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('') || 'م';
+  }
+
+  function stripEmployeePhotoFields(employee){
+    if (!employee || typeof employee !== 'object') return false;
+    let changed = false;
+    ['photoAttachmentId','legacyPhoto','photo','employeePhoto','avatar','avatarUrl','photoUrl'].forEach((key) => {
+      if (employee[key]) { employee[key] = ''; changed = true; }
+    });
+    return changed;
+  }
+
+  function sanitizeEmployeesInMemory(){
+    let changed = false;
+    try {
+      if (Array.isArray(employees)) employees.forEach((employee) => { if (stripEmployeePhotoFields(employee)) changed = true; });
+    } catch (_) {}
+    try { if (employeeFormState) stripEmployeePhotoFields(employeeFormState); } catch (_) {}
+    return changed;
+  }
+
+  async function persistPhotoRemovalOnce(){
+    const key = 'nawah-no-employee-photos-v42-applied';
+    if (localStorage.getItem(key) === '1') return;
+    const changed = sanitizeEmployeesInMemory();
+    try { localStorage.setItem('nawah-employees', JSON.stringify(Array.isArray(employees) ? employees : [])); } catch (_) {}
+    if (changed && Array.isArray(employees)) {
+      try {
+        if (typeof dbSaveEmployee === 'function') {
+          for (const employee of employees) await dbSaveEmployee(employee);
+        }
+      } catch (error) { console.warn('v42 employee photo cleanup IndexedDB save failed', error); }
+      try { if (typeof saveCloudStateNow === 'function') await saveCloudStateNow({ force: true }); } catch (error) { console.warn('v42 employee photo cleanup cloud save failed', error); }
+    }
+    try { localStorage.setItem(key, '1'); } catch (_) {}
+  }
+
+  const previousNormalizeEmployee = typeof normalizeEmployee === 'function' ? normalizeEmployee : null;
+  if (previousNormalizeEmployee) {
+    normalizeEmployee = function normalizeEmployeeNoPhotoV42(employee, index){
+      const normalized = previousNormalizeEmployee.apply(this, arguments);
+      stripEmployeePhotoFields(normalized);
+      return normalized;
+    };
+    try { window.normalizeEmployee = normalizeEmployee; } catch (_) {}
+  }
+
+  employeeAvatar = function employeeAvatarNoPhotoV42(employee){
+    const color = employee?.color || 'teal';
+    return `<div class="avatar avatar-${esc(color)}">${esc(initials(employee?.name))}</div>`;
+  };
+  try { window.employeeAvatar = employeeAvatar; } catch (_) {}
+
+  renderEmployeePhoto = function renderEmployeePhotoNoPhotoV42(){
+    try { if (employeeFormState) stripEmployeePhotoFields(employeeFormState); } catch (_) {}
+    const preview = document.querySelector('#employeePhotoPreview');
+    if (preview) {
+      preview.dataset.photoDisabledV42 = '1';
+      try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : '<span></span>'; } catch (_) { preview.innerHTML = '<span></span>'; }
+    }
+    return Promise.resolve();
+  };
+  try { window.renderEmployeePhoto = renderEmployeePhoto; } catch (_) {}
+
+  hydrateAttachmentImages = function hydrateAttachmentImagesNoEmployeePhotosV42(root = document){
+    try {
+      const scope = root && root.querySelectorAll ? root : document;
+      scope.querySelectorAll('.avatar-photo, .quick-profile-photo, .topbar-user-mark.has-employee-photo').forEach((node) => {
+        node.classList.remove('avatar-photo','has-employee-photo');
+        const name = node.closest?.('tr')?.querySelector?.('.employee-name-link')?.textContent || authProfile?.full_name || authUser?.email || 'مستخدم';
+        if (node.classList.contains('topbar-user-mark')) node.textContent = initials(name);
+        else node.textContent = initials(name);
+      });
+      scope.querySelectorAll('img[data-attachment-image]').forEach((img) => {
+        const box = img.closest?.('.avatar, .quick-profile-photo, .topbar-user-mark') || img;
+        if (box && box !== img) box.textContent = initials(img.getAttribute('alt') || 'موظف');
+        else img.remove();
+      });
+    } catch (_) {}
+    return Promise.resolve();
+  };
+  try { window.hydrateAttachmentImages = hydrateAttachmentImages; } catch (_) {}
+
+  updateTopbarUser = function updateTopbarUserNoPhotoV42(){
+    const name = authProfile?.full_name || authUser?.email || 'مستخدم';
+    let role = 'مستخدم';
+    try { role = AUTH_ROLES[currentRoleKey()]?.label || role; } catch (_) {}
+    const copy = document.querySelector('.topbar-user-copy');
+    if (copy) copy.innerHTML = `<strong>${esc(String(name).split('@')[0])}</strong><span>${esc(role)}</span>`;
+    const mark = document.querySelector('.topbar-user-mark');
+    if (mark) {
+      mark.classList.remove('has-employee-photo');
+      mark.removeAttribute('data-photo-key-v40');
+      mark.removeAttribute('data-v33-photo-key');
+      mark.innerHTML = '';
+      mark.textContent = initials(name);
+    }
+  };
+  try { window.updateTopbarUser = updateTopbarUser; } catch (_) {}
+
+  try {
+    const previousOpenEmployeeModal = typeof openEmployeeModal === 'function' ? openEmployeeModal : null;
+    if (previousOpenEmployeeModal) {
+      openEmployeeModal = async function openEmployeeModalNoPhotoV42(employeeId = null){
+        sanitizeEmployeesInMemory();
+        const result = await previousOpenEmployeeModal.apply(this, arguments);
+        try { renderEmployeePhoto(); } catch (_) {}
+        return result;
+      };
+      window.openEmployeeModal = openEmployeeModal;
+    }
+  } catch (_) {}
+
+  try {
+    const previousOpenQuickView = typeof openQuickView === 'function' ? openQuickView : null;
+    if (previousOpenQuickView) {
+      openQuickView = async function openQuickViewNoPhotoV42(){
+        sanitizeEmployeesInMemory();
+        const result = await previousOpenQuickView.apply(this, arguments);
+        try { hydrateAttachmentImages(document); } catch (_) {}
+        return result;
+      };
+      window.openQuickView = openQuickView;
+    }
+  } catch (_) {}
+
+  document.addEventListener('change', function(event){
+    const input = event.target;
+    if (!input?.matches?.('#employeePhotoInput')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    input.value = '';
+    try { if (employeeFormState) stripEmployeePhotoFields(employeeFormState); } catch (_) {}
+    try { renderEmployeePhoto(); } catch (_) {}
+    try { if (typeof showToast === 'function') showToast('تم إلغاء صور الموظفين في هذه النسخة'); } catch (_) {}
+  }, true);
+
+  document.addEventListener('click', function(event){
+    const remove = event.target?.closest?.('#removeEmployeePhoto');
+    if (remove) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      try { if (employeeFormState) stripEmployeePhotoFields(employeeFormState); } catch (_) {}
+      try { renderEmployeePhoto(); } catch (_) {}
+    }
+  }, true);
+
+  const boot = () => {
+    sanitizeEmployeesInMemory();
+    persistPhotoRemovalOnce();
+    try { updateTopbarUser(); } catch (_) {}
+    try { renderEmployeePhoto(); } catch (_) {}
+    try { hydrateAttachmentImages(document); } catch (_) {}
+    try { if (typeof renderEmployees === 'function') renderEmployees(); } catch (_) {}
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 60));
+  else setTimeout(boot, 60);
+  window.addEventListener('load', () => setTimeout(boot, 250));
+})();
