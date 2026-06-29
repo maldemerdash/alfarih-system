@@ -17136,3 +17136,109 @@ document.addEventListener("click", function(event) {
   setTimeout(() => normalizeInlineAttachmentControls(document), 400);
 })();
 
+
+/* =========================================================
+   v19 final visibility guard for empty employee attachment controls
+   Fixes the case where CSS display: inline-flex !important made the
+   identity download button visible on a brand-new employee before upload.
+   ========================================================= */
+(function employeeAttachmentEmptyStateV19(){
+  if (window.__employeeAttachmentEmptyStateV19) return;
+  window.__employeeAttachmentEmptyStateV19 = true;
+
+  function text(value){ return String(value ?? '').trim(); }
+
+  function forceSingleAttachmentButtonState(key, id){
+    const value = text(id);
+    const input = document.querySelector(`[data-single-attachment="${key}"]`);
+    const control = input?.closest?.('.compact-file-control');
+    if (control) {
+      control.classList.toggle('has-file', Boolean(value));
+      const label = control.querySelector(':scope > span:last-of-type');
+      if (label) label.textContent = value ? 'تم الإرفاق' : 'إرفاق';
+    }
+    const button = document.querySelector(`[data-view-single-attachment="${key}"]`);
+    if (button) {
+      button.dataset.attachmentId = value;
+      button.hidden = !value;
+      button.toggleAttribute('hidden', !value);
+      button.setAttribute('aria-hidden', value ? 'false' : 'true');
+      button.style.display = value ? 'inline-flex' : 'none';
+      button.style.visibility = value ? 'visible' : 'hidden';
+      button.style.opacity = value ? '1' : '0';
+      button.style.pointerEvents = value ? 'auto' : 'none';
+    }
+  }
+
+  function hardResetNewEmployeeAttachments(){
+    try {
+      if (typeof employeeFormState === 'object' && employeeFormState) {
+        employeeFormState.identityAttachmentId = '';
+        employeeFormState.photoAttachmentId = '';
+        employeeFormState.signatureAttachmentId = '';
+        employeeFormState.fingerprintAttachmentId = '';
+        employeeFormState.passports = [];
+        employeeFormState.bankAccounts = [];
+        employeeFormState.documents = [];
+        if (employeeFormState.consent) employeeFormState.consent.attachmentId = '';
+      }
+    } catch (_) {}
+    forceSingleAttachmentButtonState('identity', '');
+    forceSingleAttachmentButtonState('signature', '');
+    forceSingleAttachmentButtonState('fingerprint', '');
+    document.querySelectorAll('[data-view-attachment]').forEach(button => {
+      const id = text(button.dataset.viewAttachment || button.dataset.attachmentId || '');
+      if (!id) {
+        button.hidden = true;
+        button.toggleAttribute('hidden', true);
+        button.style.display = 'none';
+      }
+    });
+  }
+
+  const previousUpdateSingleAttachmentControlV19 = typeof updateSingleAttachmentControl === 'function' ? updateSingleAttachmentControl : null;
+  if (previousUpdateSingleAttachmentControlV19 && !previousUpdateSingleAttachmentControlV19.__v19EmptyState) {
+    const wrappedUpdateSingleAttachmentControlV19 = function(key, id){
+      const result = previousUpdateSingleAttachmentControlV19.apply(this, arguments);
+      forceSingleAttachmentButtonState(key, id);
+      return result;
+    };
+    wrappedUpdateSingleAttachmentControlV19.__v19EmptyState = true;
+    try { updateSingleAttachmentControl = wrappedUpdateSingleAttachmentControlV19; window.updateSingleAttachmentControl = wrappedUpdateSingleAttachmentControlV19; } catch (_) {}
+  }
+
+  const previousOpenNewEmployeeModalSafelyV19 = typeof openNewEmployeeModalSafely === 'function' ? openNewEmployeeModalSafely : null;
+  if (previousOpenNewEmployeeModalSafelyV19 && !previousOpenNewEmployeeModalSafelyV19.__v19EmptyState) {
+    const wrappedOpenNewEmployeeModalSafelyV19 = async function(){
+      const result = await previousOpenNewEmployeeModalSafelyV19.apply(this, arguments);
+      hardResetNewEmployeeAttachments();
+      setTimeout(hardResetNewEmployeeAttachments, 50);
+      setTimeout(hardResetNewEmployeeAttachments, 300);
+      return result;
+    };
+    wrappedOpenNewEmployeeModalSafelyV19.__v19EmptyState = true;
+    try { openNewEmployeeModalSafely = wrappedOpenNewEmployeeModalSafelyV19; window.openNewEmployeeModalSafely = wrappedOpenNewEmployeeModalSafelyV19; } catch (_) {}
+  }
+
+  const previousOpenEmployeeModalV19 = typeof openEmployeeModal === 'function' ? openEmployeeModal : null;
+  if (previousOpenEmployeeModalV19 && !previousOpenEmployeeModalV19.__v19EmptyState) {
+    const wrappedOpenEmployeeModalV19 = async function(employeeId = null){
+      const result = await previousOpenEmployeeModalV19.apply(this, arguments);
+      if (!employeeId) {
+        hardResetNewEmployeeAttachments();
+        setTimeout(hardResetNewEmployeeAttachments, 50);
+        setTimeout(hardResetNewEmployeeAttachments, 300);
+      }
+      return result;
+    };
+    wrappedOpenEmployeeModalV19.__v19EmptyState = true;
+    try { openEmployeeModal = wrappedOpenEmployeeModalV19; window.openEmployeeModal = wrappedOpenEmployeeModalV19; } catch (_) {}
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-view-single-attachment][hidden], [data-view-attachment][hidden]').forEach(button => {
+      button.style.display = 'none';
+      button.style.visibility = 'hidden';
+    });
+  });
+})();

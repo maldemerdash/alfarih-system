@@ -11324,3 +11324,15 @@ body.auth-locked .app-shell {
   width: 18px !important;
   height: 18px !important;
 }
+
+/* v19: hidden attachment download buttons must stay hidden even when older CSS gives them display:flex!important */
+.attachment-view-btn[hidden],
+.attachment-download-btn[hidden],
+.employee-attachment-download-inline[hidden],
+[data-view-single-attachment][hidden],
+[data-view-attachment][hidden] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
