@@ -12182,3 +12182,75 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 #leavesView .leave-table-panel .panel-head.final-table-head {
   flex: 0 0 76px !important;
 }
+
+/* v71: جعل جدول الإجازات بنفس تنسيق جدول المسافرون تمامًا.
+   تعديل بصري فقط: لا يغير منطق الإجازات أو السفر أو الحفظ. */
+#leavesView .leave-table-panel {
+  border: 1px solid rgba(8,145,178,.24) !important;
+  box-shadow: 0 16px 34px rgba(8,145,178,.11) !important;
+  background: #ffffff !important;
+}
+
+#leavesView .leave-table-panel::before {
+  background: linear-gradient(90deg,#0f766e,#0891b2,#2563eb) !important;
+}
+
+#leavesView .leave-table-panel .panel-head,
+#leavesView .leave-table-panel .panel-head.final-table-head {
+  background: linear-gradient(135deg,rgba(15,118,110,.14),rgba(8,145,178,.10),rgba(37,99,235,.09)) !important;
+  border-bottom: 1px solid rgba(8,145,178,.18) !important;
+  min-height: 76px !important;
+  height: 76px !important;
+  padding: 18px 22px !important;
+  margin: 0 !important;
+}
+
+#leavesView .leave-table-panel thead th {
+  background: rgba(8,145,178,.13) !important;
+  color: #0f766e !important;
+  height: 52px !important;
+  padding: 0 18px !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  font-weight: 800 !important;
+}
+
+#leavesView .leave-table-panel .table-wrap {
+  flex: 0 0 auto !important;
+  min-height: 170px !important;
+  max-height: 315px !important;
+  overflow: auto !important;
+}
+
+#leavesView .leave-table-panel tbody tr {
+  height: 72px !important;
+}
+
+#leavesView .leave-table-panel tbody td {
+  height: 72px !important;
+  padding: 10px 18px !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  box-sizing: border-box !important;
+}
+
+#leavesView .leave-table-panel .empty-state {
+  min-height: 150px !important;
+}
+
+#leavesView .leave-table-panel .primary-btn,
+#leavesView .leave-table-panel #newLeaveBtn {
+  background: linear-gradient(135deg,#06b6d4,#22c55e) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+/* إلغاء أي هوية برتقالية قديمة لجدول الإجازات حتى يطابق جدول المسافرون */
+#leavesView .leave-colored-panel .panel-head,
+#leavesView .leave-colored-panel thead th,
+#leavesView .leave-table-panel .panel-head,
+#leavesView .leave-table-panel thead th {
+  --leave-accent: #0891b2;
+}
