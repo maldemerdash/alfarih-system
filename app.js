@@ -3805,9 +3805,54 @@ function showToast(message) {
   setTimeout(() => toast.remove(), 3200);
 }
 
+function leaveConflictDateValue(value) {
+  if (!value) return null;
+  const date = new Date(`${value}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+function leaveRangesOverlap(fromA, toA, fromB, toB) {
+  const startA = leaveConflictDateValue(fromA);
+  const endA = leaveConflictDateValue(toA || fromA);
+  const startB = leaveConflictDateValue(fromB);
+  const endB = leaveConflictDateValue(toB || fromB);
+  if (startA === null || endA === null || startB === null || endB === null) return false;
+  return startA <= endB && startB <= endA;
+}
+
+function isBlockingLeaveRequest(leave) {
+  if (!leave) return false;
+  const status = leave.status || "pending";
+  if (status === "rejected") return false;
+  if (leave.returnDate || leave.returnConfirmedAt) return false;
+  return status === "pending" || status === "approved";
+}
+
+function findLeaveConflict(employeeId, from, to, excludeId = "") {
+  return (Array.isArray(leaves) ? leaves : []).find((leave) => {
+    if (!leave || String(leave.id || "") === String(excludeId || "")) return false;
+    if (String(leave.employeeId || "") !== String(employeeId || "")) return false;
+    if (!isBlockingLeaveRequest(leave)) return false;
+    return leaveRangesOverlap(from, to, leave.from, leave.to);
+  });
+}
+
 function handleLeaveSubmit(event) {
   event.preventDefault();
   const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+  if (!values.employeeId || !values.from || !values.to) {
+    showToast("حدد الموظف وتاريخ بداية ونهاية الإجازة");
+    return;
+  }
+  if (leaveConflictDateValue(values.to) < leaveConflictDateValue(values.from)) {
+    showToast("تاريخ نهاية الإجازة يجب أن يكون بعد أو مساويًا لتاريخ البداية");
+    return;
+  }
+  const conflict = findLeaveConflict(values.employeeId, values.from, values.to);
+  if (conflict) {
+    showToast("يوجد طلب إجازة قائم أو متداخل لهذا الموظف، أنهِ الطلب السابق قبل إنشاء طلب جديد");
+    return;
+  }
   leaves.unshift({ id: `leave-${Date.now()}`, employeeId: values.employeeId, type: values.type, from: values.from, to: values.to, days: calculateDays(values.from, values.to), status: "pending", note: values.note.trim() });
   saveLocalMeta();
   event.currentTarget.closest("dialog").close();
@@ -3853,6 +3898,8 @@ async function approveLeaveOnly() {
   const leave = leaves.find((item) => item.id === pendingLeaveCommission.leaveId);
   const employee = leave ? getEmployee(leave.employeeId) : null;
   if (!leave || !employee) return;
+  const conflict = typeof findLeaveConflict === "function" ? findLeaveConflict(leave.employeeId, leave.from, leave.to, leave.id) : null;
+  if (conflict) { showToast("لا يمكن اعتماد الإجازة لوجود طلب إجازة قائم أو متداخل لنفس الموظف"); return; }
   await persistEmployeeRecord({
     ...employee,
     status: "leave",
@@ -3881,6 +3928,8 @@ async function confirmLeaveCommissionApproval() {
   const commissions = commission.days && commission.amount
     ? [...(employee.commissions || []), commission]
     : [...(employee.commissions || [])];
+  const conflict = typeof findLeaveConflict === "function" ? findLeaveConflict(leave.employeeId, leave.from, leave.to, leave.id) : null;
+  if (conflict) { showToast("لا يمكن اعتماد الإجازة لوجود طلب إجازة قائم أو متداخل لنفس الموظف"); return; }
   await persistEmployeeRecord({
     ...employee,
     status: "leave",
@@ -8822,6 +8871,39 @@ document.addEventListener("click", function(event) {
     updateTravelSummary();
     safeEl("#travelRequestModal")?.showModal();
   }
+  function travelConflictDateValue(value, fallbackEnd = false){
+    if (!value && fallbackEnd) return new Date("9999-12-31T12:00:00").getTime();
+    if (!value) return null;
+    const date = new Date(`${value}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date.getTime();
+  }
+
+  function travelRangesOverlap(fromA, toA, fromB, toB){
+    const startA = travelConflictDateValue(fromA);
+    const endA = travelConflictDateValue(toA || fromA, !toA);
+    const startB = travelConflictDateValue(fromB);
+    const endB = travelConflictDateValue(toB || fromB, !toB);
+    if (startA === null || endA === null || startB === null || endB === null) return false;
+    return startA <= endB && startB <= endA;
+  }
+
+  function isBlockingTravelRequest(travel){
+    if (!travel) return false;
+    const status = travel.status || "pending";
+    if (status === "rejected" || status === "returned") return false;
+    if (travel.workResumeDate || travel.returnedAt) return false;
+    return status === "pending" || status === "approved";
+  }
+
+  function findTravelConflict(employeeId, travelDate, returnDate, excludeId = ""){
+    return (Array.isArray(travelRequests) ? travelRequests : []).find((travel) => {
+      if (!travel || String(travel.id || "") === String(excludeId || "")) return false;
+      if (String(travel.employeeId || "") !== String(employeeId || "")) return false;
+      if (!isBlockingTravelRequest(travel)) return false;
+      return travelRangesOverlap(travelDate, returnDate, travel.travelDate, travel.returnDate);
+    });
+  }
+
   function handleTravelRequestSubmit(event){
     if (event && typeof event.preventDefault === "function") event.preventDefault();
     const form = event?.currentTarget || safeEl("#travelRequestForm");
@@ -8849,6 +8931,11 @@ document.addEventListener("click", function(event) {
     } else {
       returnDate = "";
       returnDays = "";
+    }
+    const conflict = findTravelConflict(employeeId, travelDate, returnDate);
+    if (conflict) {
+      showToast("يوجد طلب سفر قائم أو متداخل لهذا الموظف، أنهِ الطلب السابق قبل إنشاء طلب جديد");
+      return;
     }
     travelRequests.unshift({
       id: `travel-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -8987,6 +9074,8 @@ document.addEventListener("click", function(event) {
     const travel = travelRequests.find((item) => item.id === pendingTravelApproval.travelId);
     const employee = travel ? employeeById(travel.employeeId) : null;
     if (!travel || !employee) return;
+    const conflict = findTravelConflict(travel.employeeId, travel.travelDate, travel.returnDate, travel.id);
+    if (conflict) { showToast("لا يمكن اعتماد السفر لوجود طلب سفر قائم أو متداخل لنفس الموظف"); return; }
     const commission = paused && pendingTravelApproval.commission && pendingTravelApproval.commission.days && pendingTravelApproval.commission.amount ? pendingTravelApproval.commission : null;
     await persistEmployeeRecord(updateEmployeeTravelStatus(employee, travel, paused, commission));
     travelRequests = travelRequests.map((item) => item.id === travel.id ? {
