@@ -11587,3 +11587,19 @@ body.auth-locked .app-shell {
     min-height: 76px !important;
   }
 }
+
+/* V32 dashboard travelers metrics: keep approved visual identity and status colors */
+.traveler-dashboard-metrics{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.traveler-dashboard-metrics .status-badge{
+  min-height:24px;
+  white-space:nowrap;
+}
+@media(max-width:900px){
+  .traveler-dashboard-metrics{grid-column:1 / -1;justify-content:flex-end;}
+}

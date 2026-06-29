@@ -142,21 +142,8 @@ const DEFAULT_ABSENCE_POLICY_SETTINGS = {
     { title: "غياب متقطع يزيد على 30 يومًا خلال السنة العقدية", penalty: "مؤهل للمادة 80", detail: "قابل للفصل وفق المادة 80 بشرط الإنذار الكتابي بعد 20 يومًا غيابًا متقطعًا." }
   ]
 };
-const seedEmployees = [
-  { id: "e1", name: "نورة العتيبي", email: "noura@nawah.sa", phone: "0551234567", department: "التقنية", role: "مهندسة برمجيات", joinDate: "2026-05-12", status: "active", salary: 14500, color: "teal", attendance: "08:01", nationality: "سعودي" },
-  { id: "e2", name: "سلمان الحربي", email: "salman@nawah.sa", phone: "0532345678", department: "التسويق", role: "مدير تسويق", joinDate: "2026-04-28", status: "active", salary: 16000, color: "blue", attendance: "08:17", nationality: "سعودي" },
-  { id: "e3", name: "عمر القحطاني", email: "omar@nawah.sa", phone: "0503456789", department: "المبيعات", role: "أخصائي مبيعات", joinDate: "2026-03-16", status: "active", salary: 11000, color: "violet", attendance: "07:55", nationality: "سعودي" },
-  { id: "e4", name: "ريم الدوسري", email: "reem@nawah.sa", phone: "0564567890", department: "الموارد البشرية", role: "أخصائية موارد بشرية", joinDate: "2026-02-09", status: "active", salary: 12500, color: "rose", attendance: "08:04", nationality: "سعودي" },
-  { id: "e5", name: "خالد الشمري", email: "khaled@nawah.sa", phone: "0545678901", department: "المالية", role: "محاسب أول", joinDate: "2025-12-21", status: "leave", salary: 13200, color: "amber", attendance: null, nationality: "سعودي" },
-  { id: "e6", name: "سارة المطيري", email: "sarah@nawah.sa", phone: "0586789012", department: "العمليات", role: "منسقة عمليات", joinDate: "2025-11-03", status: "active", salary: 9800, color: "blue", attendance: "08:32", nationality: "سعودي" },
-  { id: "e7", name: "عبدالله الزهراني", email: "abdullah@nawah.sa", phone: "0597890123", department: "التقنية", role: "مصمم تجربة مستخدم", joinDate: "2025-09-14", status: "active", salary: 13800, color: "violet", attendance: "07:58", nationality: "سعودي" },
-  { id: "e8", name: "لينا الغامدي", email: "lina@nawah.sa", phone: "0578901234", department: "المبيعات", role: "مديرة حسابات", joinDate: "2025-08-01", status: "active", salary: 15200, color: "rose", attendance: "08:06", nationality: "سعودي" }
-];
-const seedLeaves = [
-  { id: "l1", employeeId: "e2", type: "إجازة سنوية", from: "2026-06-21", to: "2026-06-25", days: 5, status: "pending", note: "إجازة عائلية" },
-  { id: "l2", employeeId: "e6", type: "إجازة مرضية", from: "2026-06-15", to: "2026-06-16", days: 2, status: "pending", note: "مرفق التقرير الطبي" },
-  { id: "l3", employeeId: "e4", type: "إجازة سنوية", from: "2026-05-24", to: "2026-05-28", days: 5, status: "approved", note: "" }
-];
+const seedEmployees = [];
+const seedLeaves = [];
 
 let db = null;
 let employees = [];
@@ -3805,6 +3792,94 @@ function showToast(message) {
   setTimeout(() => toast.remove(), 3200);
 }
 
+
+function showBlockingConflictMessage(message, title = "لا يمكن تنفيذ الطلب") {
+  try {
+    if (window.showModalMessage && typeof window.showModalMessage === "function") {
+      window.showModalMessage(message, title);
+      return;
+    }
+  } catch (_) {}
+  let dialog = document.querySelector("#systemConflictModal");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "systemConflictModal";
+    dialog.className = "app-dialog system-message-modal";
+    dialog.style.zIndex = "2147483647";
+    dialog.innerHTML = `<form method="dialog" class="modal-card system-message-card"><div class="modal-head"><div><h3 id="systemConflictTitle"></h3><p id="systemConflictText"></p></div></div><div class="modal-actions"><button class="primary-btn" value="ok">حسناً</button></div></form>`;
+    document.body.appendChild(dialog);
+  }
+  const titleEl = dialog.querySelector("#systemConflictTitle");
+  const textEl = dialog.querySelector("#systemConflictText");
+  if (titleEl) titleEl.textContent = title;
+  if (textEl) textEl.textContent = message || "يوجد تعارض في الطلب.";
+  try { dialog.showModal(); } catch (_) { showToast(message || "يوجد تعارض في الطلب."); }
+}
+window.nawahShowBlockingMessage = showBlockingConflictMessage;
+
+function blockingDateValue(value, openEnd = false) {
+  if (!value && openEnd) return new Date("9999-12-31T12:00:00").getTime();
+  if (!value) return null;
+  const date = new Date(`${value}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+function blockingRangesOverlap(fromA, toA, fromB, toB) {
+  const startA = blockingDateValue(fromA);
+  const endA = blockingDateValue(toA || fromA, !toA);
+  const startB = blockingDateValue(fromB);
+  const endB = blockingDateValue(toB || fromB, !toB);
+  if (startA === null || endA === null || startB === null || endB === null) return false;
+  return startA <= endB && startB <= endA;
+}
+
+function blockingTravelList() {
+  try {
+    const raw = localStorage.getItem("nawah-travel-requests");
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (_) { return []; }
+}
+
+function isBlockingTravelRecord(travel) {
+  if (!travel) return false;
+  const status = travel.status || "pending";
+  if (status === "rejected" || status === "returned") return false;
+  if (travel.workResumeDate || travel.returnedAt) return false;
+  return status === "pending" || status === "approved";
+}
+
+function findUnifiedRequestConflict(kind, employeeId, from, to, exclude = {}) {
+  const empId = String(employeeId || "");
+  if (!empId || !from) return null;
+  const leaveConflict = (Array.isArray(leaves) ? leaves : []).find((leave) => {
+    if (!leave || String(leave.employeeId || "") !== empId) return false;
+    if (kind === "leave" && String(leave.id || "") === String(exclude.leaveId || "")) return false;
+    if (!isBlockingLeaveRequest(leave)) return false;
+    return blockingRangesOverlap(from, to, leave.from, leave.to);
+  });
+  if (leaveConflict) return { source: "leave", request: leaveConflict };
+
+  const travelConflict = blockingTravelList().find((travel) => {
+    if (!travel || String(travel.employeeId || "") !== empId) return false;
+    if (kind === "travel" && String(travel.id || "") === String(exclude.travelId || "")) return false;
+    if (!isBlockingTravelRecord(travel)) return false;
+    return blockingRangesOverlap(from, to, travel.travelDate, travel.returnDate);
+  });
+  if (travelConflict) return { source: "travel", request: travelConflict };
+  return null;
+}
+window.nawahFindUnifiedRequestConflict = findUnifiedRequestConflict;
+
+function conflictMessageFor(kind, conflict) {
+  if (!conflict) return "يوجد طلب قائم أو متداخل لهذا الموظف.";
+  if (kind === "leave" && conflict.source === "travel") return "لا يمكن إصدار إجازة لهذا الموظف لوجود طلب سفر قائم أو متداخل. يجب رفض/إنهاء طلب السفر أو تسجيل المباشرة أولاً.";
+  if (kind === "travel" && conflict.source === "leave") return "لا يمكن إصدار سفر لهذا الموظف لوجود طلب إجازة قائم أو متداخل. يجب رفض/إنهاء طلب الإجازة أو تسجيل المباشرة أولاً.";
+  if (kind === "leave") return "يوجد طلب إجازة قائم أو متداخل لهذا الموظف. أنهِ الطلب السابق قبل إنشاء أو اعتماد طلب جديد.";
+  return "يوجد طلب سفر قائم أو متداخل لهذا الموظف. أنهِ الطلب السابق قبل إنشاء أو اعتماد طلب جديد.";
+}
+window.nawahConflictMessageFor = conflictMessageFor;
+
 function leaveConflictDateValue(value) {
   if (!value) return null;
   const date = new Date(`${value}T12:00:00`);
@@ -3829,12 +3904,7 @@ function isBlockingLeaveRequest(leave) {
 }
 
 function findLeaveConflict(employeeId, from, to, excludeId = "") {
-  return (Array.isArray(leaves) ? leaves : []).find((leave) => {
-    if (!leave || String(leave.id || "") === String(excludeId || "")) return false;
-    if (String(leave.employeeId || "") !== String(employeeId || "")) return false;
-    if (!isBlockingLeaveRequest(leave)) return false;
-    return leaveRangesOverlap(from, to, leave.from, leave.to);
-  });
+  return findUnifiedRequestConflict("leave", employeeId, from, to, { leaveId: excludeId });
 }
 
 function handleLeaveSubmit(event) {
@@ -3850,7 +3920,7 @@ function handleLeaveSubmit(event) {
   }
   const conflict = findLeaveConflict(values.employeeId, values.from, values.to);
   if (conflict) {
-    showToast("يوجد طلب إجازة قائم أو متداخل لهذا الموظف، أنهِ الطلب السابق قبل إنشاء طلب جديد");
+    showBlockingConflictMessage(conflictMessageFor("leave", conflict));
     return;
   }
   leaves.unshift({ id: `leave-${Date.now()}`, employeeId: values.employeeId, type: values.type, from: values.from, to: values.to, days: calculateDays(values.from, values.to), status: "pending", note: values.note.trim() });
@@ -3899,7 +3969,7 @@ async function approveLeaveOnly() {
   const employee = leave ? getEmployee(leave.employeeId) : null;
   if (!leave || !employee) return;
   const conflict = typeof findLeaveConflict === "function" ? findLeaveConflict(leave.employeeId, leave.from, leave.to, leave.id) : null;
-  if (conflict) { showToast("لا يمكن اعتماد الإجازة لوجود طلب إجازة قائم أو متداخل لنفس الموظف"); return; }
+  if (conflict) { showBlockingConflictMessage(conflictMessageFor("leave", conflict)); return; }
   await persistEmployeeRecord({
     ...employee,
     status: "leave",
@@ -3929,7 +3999,7 @@ async function confirmLeaveCommissionApproval() {
     ? [...(employee.commissions || []), commission]
     : [...(employee.commissions || [])];
   const conflict = typeof findLeaveConflict === "function" ? findLeaveConflict(leave.employeeId, leave.from, leave.to, leave.id) : null;
-  if (conflict) { showToast("لا يمكن اعتماد الإجازة لوجود طلب إجازة قائم أو متداخل لنفس الموظف"); return; }
+  if (conflict) { showBlockingConflictMessage(conflictMessageFor("leave", conflict)); return; }
   await persistEmployeeRecord({
     ...employee,
     status: "leave",
@@ -8896,6 +8966,9 @@ document.addEventListener("click", function(event) {
   }
 
   function findTravelConflict(employeeId, travelDate, returnDate, excludeId = ""){
+    if (typeof window.nawahFindUnifiedRequestConflict === "function") {
+      return window.nawahFindUnifiedRequestConflict("travel", employeeId, travelDate, returnDate, { travelId: excludeId });
+    }
     return (Array.isArray(travelRequests) ? travelRequests : []).find((travel) => {
       if (!travel || String(travel.id || "") === String(excludeId || "")) return false;
       if (String(travel.employeeId || "") !== String(employeeId || "")) return false;
@@ -8934,7 +9007,8 @@ document.addEventListener("click", function(event) {
     }
     const conflict = findTravelConflict(employeeId, travelDate, returnDate);
     if (conflict) {
-      showToast("يوجد طلب سفر قائم أو متداخل لهذا الموظف، أنهِ الطلب السابق قبل إنشاء طلب جديد");
+      const msg = typeof window.nawahConflictMessageFor === "function" ? window.nawahConflictMessageFor("travel", conflict) : "يوجد طلب سفر قائم أو متداخل لهذا الموظف";
+      if (typeof window.nawahShowBlockingMessage === "function") window.nawahShowBlockingMessage(msg); else showToast(msg);
       return;
     }
     travelRequests.unshift({
@@ -9075,7 +9149,11 @@ document.addEventListener("click", function(event) {
     const employee = travel ? employeeById(travel.employeeId) : null;
     if (!travel || !employee) return;
     const conflict = findTravelConflict(travel.employeeId, travel.travelDate, travel.returnDate, travel.id);
-    if (conflict) { showToast("لا يمكن اعتماد السفر لوجود طلب سفر قائم أو متداخل لنفس الموظف"); return; }
+    if (conflict) {
+      const msg = typeof window.nawahConflictMessageFor === "function" ? window.nawahConflictMessageFor("travel", conflict) : "لا يمكن اعتماد السفر لوجود طلب قائم أو متداخل";
+      if (typeof window.nawahShowBlockingMessage === "function") window.nawahShowBlockingMessage(msg); else showToast(msg);
+      return;
+    }
     const commission = paused && pendingTravelApproval.commission && pendingTravelApproval.commission.days && pendingTravelApproval.commission.amount ? pendingTravelApproval.commission : null;
     await persistEmployeeRecord(updateEmployeeTravelStatus(employee, travel, paused, commission));
     travelRequests = travelRequests.map((item) => item.id === travel.id ? {
@@ -9488,19 +9566,25 @@ document.addEventListener("click", function(event) {
     if (!panel) return;
     const travels = cleanTravelOrphansForDashboard().filter(t => t.status === "approved" && !t.workResumeDate && Boolean(empById(t.employeeId))).sort((a,b) => String(b.createdAt || b.travelDate || "").localeCompare(String(a.createdAt || a.travelDate || "")));
     panel.classList.add("travelers-dashboard-panel");
-    panel.innerHTML = `<div class="panel-head"><div><h3>المسافرون</h3><p>الموظفون المسافرون وحالة العودة والمباشرة</p></div><button class="text-btn" data-go-view="leaves">عرض الكل</button></div><div class="travelers-dashboard-list dashboard-list-ordered">${travels.length ? travels.slice(0, 7).map(travel => {
+    panel.innerHTML = `<div class="panel-head"><div><h3>المسافرون حالياً</h3><p>الموظفون الذين لديهم سفر قائم ولم يتم تسجيل مباشرتهم</p></div><button class="text-btn" data-go-view="leaves">عرض الكل</button></div><div class="travelers-dashboard-list dashboard-list-ordered">${travels.length ? travels.slice(0, 7).map(travel => {
       const employee = empById(travel.employeeId);
       if (!employee) return "";
-      const status = "معتمد";
-      const detail = `سفر · ${status} · ${travel.travelDate ? formatDate(travel.travelDate) : "غير محدد"}${travel.returnDate ? ` - ${formatDate(travel.returnDate)}` : ""}`;
+      const start = travel.travelDate ? formatDate(travel.travelDate) : "غير محدد";
+      const end = travel.returnDate ? formatDate(travel.returnDate) : "غير محددة";
+      const started = travel.travelDate ? Math.max(0, Math.floor((today() - parse(travel.travelDate)) / 86400000) + 1) : 0;
+      const remainingDays = travel.returnDate ? Math.ceil((parse(travel.returnDate) - today()) / 86400000) : null;
+      const elapsedText = travel.travelDate ? `${started} يوم` : "غير محدد";
+      const remaining = remainingDays === null ? "عودة غير محددة" : (remainingDays > 0 ? `متبقي ${remainingDays} يوم` : (remainingDays === 0 ? "العودة اليوم" : `متأخر ${Math.abs(remainingDays)} يوم`));
+      const remainClass = remainingDays !== null && remainingDays < 0 ? "status-rejected" : (remainingDays === 0 ? "status-pending" : "status-active");
       return `<div class="leave-preview-item dashboard-request-item traveler-request-row">
         ${typeof avatar === "function" ? avatar(employee) : ""}
         <div class="leave-preview-info">
           <button type="button" class="employee-name-link" data-edit-employee="${esc(employee.id)}">${esc(employee.name)}</button>
-          <span>${esc(detail)}</span>
+          <span>تاريخ السفر: ${esc(start)} · تاريخ العودة: ${esc(end)}</span>
         </div>
-        <div class="mini-actions dashboard-request-actions">
-          <button type="button" class="quick-view-btn" data-dashboard-request-view="travel:${esc(travel.id)}" title="عرض الطلب">${icon("eye")}</button>
+        <div class="traveler-dashboard-metrics">
+          <span class="status-badge status-leave">مضى ${esc(elapsedText)}</span>
+          <span class="status-badge ${remainClass}">${esc(remaining)}</span>
         </div>
       </div>`;
     }).join("") : `<div class="empty-state"><strong>لا يوجد مسافرون حاليًا</strong></div>`}</div>`;
@@ -17586,4 +17670,95 @@ document.addEventListener("click", function(event) {
       });
     });
   });
+})();
+
+
+/* =========================================================
+   v32 unified leave/travel conflict guard + clean testing state
+   ========================================================= */
+(function unifiedLeaveTravelGuardAndCleanStateV32(){
+  const CLEAN_VERSION = 'v32-clean-employees-leaves-travel-20260629';
+  const CLEAN_KEY = 'nawah-v32-clean-state-applied';
+
+  function message(text, title){
+    try { if (typeof window.nawahShowBlockingMessage === 'function') { window.nawahShowBlockingMessage(text, title || 'لا يمكن تنفيذ الطلب'); return; } } catch (_) {}
+    try { if (typeof window.showModalMessage === 'function') { window.showModalMessage(text, title || 'لا يمكن تنفيذ الطلب'); return; } } catch (_) {}
+    try { showToast(text); } catch (_) {}
+  }
+  function conflictMessage(kind, conflict){
+    try { if (typeof window.nawahConflictMessageFor === 'function') return window.nawahConflictMessageFor(kind, conflict); } catch (_) {}
+    return kind === 'leave' ? 'يوجد طلب إجازة أو سفر قائم أو متداخل لهذا الموظف.' : 'يوجد طلب سفر أو إجازة قائم أو متداخل لهذا الموظف.';
+  }
+  function conflict(kind, employeeId, from, to, exclude){
+    try { if (typeof window.nawahFindUnifiedRequestConflict === 'function') return window.nawahFindUnifiedRequestConflict(kind, employeeId, from, to, exclude || {}); } catch (_) {}
+    return null;
+  }
+
+  window.addEventListener('submit', function(event){
+    const form = event.target;
+    if (!form || form.id !== 'leaveForm') return;
+    const values = Object.fromEntries(new FormData(form).entries());
+    if (!values.employeeId || !values.from || !values.to) return;
+    const found = conflict('leave', values.employeeId, values.from, values.to, {});
+    if (found) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      message(conflictMessage('leave', found));
+    }
+  }, true);
+
+  window.addEventListener('click', function(event){
+    const saveTravel = event.target?.closest?.('#saveTravelRequestBtn');
+    if (saveTravel) {
+      const form = document.querySelector('#travelRequestForm');
+      if (!form) return;
+      const employeeId = (form.elements.employeeId?.value || '').trim();
+      const travelDate = (form.elements.travelDate?.value || '').trim();
+      const travelMode = form.elements.travelMode?.value || 'oneway';
+      const returnMode = form.elements.returnMode?.value || 'date';
+      let returnDate = (form.elements.returnDate?.value || '').trim();
+      if (travelMode === 'roundtrip' && returnMode === 'days') {
+        const days = Number(form.elements.returnDays?.value || 0);
+        if (days > 0 && travelDate && typeof parseDate === 'function') {
+          const base = parseDate(travelDate);
+          if (base) { base.setDate(base.getDate() + days); returnDate = base.toISOString().slice(0,10); }
+        }
+      }
+      if (!employeeId || !travelDate) return;
+      if (travelMode !== 'roundtrip') returnDate = '';
+      const found = conflict('travel', employeeId, travelDate, returnDate, {});
+      if (found) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        message(conflictMessage('travel', found));
+      }
+    }
+  }, true);
+
+  async function clearEmployeeStore(){
+    try {
+      if (typeof dbGetAllEmployees === 'function' && typeof dbDeleteEmployee === 'function') {
+        const rows = await dbGetAllEmployees();
+        if (Array.isArray(rows)) await Promise.all(rows.map(row => dbDeleteEmployee(row.id)));
+      }
+    } catch (_) {}
+  }
+  async function applyCleanStateOnce(){
+    try { if (localStorage.getItem(CLEAN_KEY) === CLEAN_VERSION) return; } catch (_) { return; }
+    if (!window.__nawahEmployeesReady) { setTimeout(applyCleanStateOnce, 250); return; }
+    try { employees = []; window.employees = employees; } catch (_) {}
+    try { leaves = []; } catch (_) {}
+    try { attendanceExceptions = []; } catch (_) {}
+    try { localStorage.setItem('nawah-employees', JSON.stringify([])); } catch (_) {}
+    try { localStorage.setItem('nawah-leaves', JSON.stringify([])); } catch (_) {}
+    try { localStorage.setItem('nawah-travel-requests', JSON.stringify([])); } catch (_) {}
+    try { localStorage.setItem('nawah-attendance-exceptions', JSON.stringify([])); } catch (_) {}
+    await clearEmployeeStore();
+    try { saveLocalMeta(); } catch (_) {}
+    try { await saveCloudStateNow({ force: true }); } catch (_) {}
+    try { localStorage.setItem(CLEAN_KEY, CLEAN_VERSION); } catch (_) {}
+    try { renderAll(); } catch (_) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(applyCleanStateOnce, 800));
+  else setTimeout(applyCleanStateOnce, 800);
 })();
