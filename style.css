@@ -11444,3 +11444,61 @@ body.auth-locked .app-shell {
 #leavesView .leave-table-panel thead th:last-child{
   padding-inline-end:28px !important;
 }
+
+/* V27 - Leaves/travel table visual correction only.
+   Keep request buttons and panel heads unchanged; fix only the table header/card shape. */
+#leavesView .travel-table-panel .table-wrap,
+#leavesView .leave-table-panel .table-wrap {
+  width: auto !important;
+  margin: 18px 30px 24px !important;
+  border: 1px solid #dfe7eb !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  overflow: auto !important;
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+}
+
+#leavesView .travel-table-panel .table-wrap table,
+#leavesView .leave-table-panel .table-wrap table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  margin: 0 !important;
+}
+
+#leavesView .travel-table-panel thead th,
+#leavesView .leave-table-panel thead th {
+  height: 50px !important;
+  padding: 13px 22px !important;
+  line-height: 1.35 !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  border-top: 0 !important;
+}
+
+#leavesView .travel-table-panel thead th:first-child,
+#leavesView .leave-table-panel thead th:first-child {
+  padding-inline-start: 26px !important;
+  border-top-right-radius: 16px !important;
+}
+
+#leavesView .travel-table-panel thead th:last-child,
+#leavesView .leave-table-panel thead th:last-child {
+  padding-inline-end: 26px !important;
+  border-top-left-radius: 16px !important;
+}
+
+#leavesView .travel-table-panel tbody td,
+#leavesView .leave-table-panel tbody td {
+  padding: 16px 22px !important;
+  vertical-align: middle !important;
+}
+
+@media (max-width: 860px) {
+  #leavesView .travel-table-panel .table-wrap,
+  #leavesView .leave-table-panel .table-wrap {
+    margin: 14px 14px 18px !important;
+  }
+}
