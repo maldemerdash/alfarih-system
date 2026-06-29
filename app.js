@@ -236,3 +236,141 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   try{ isBlockingTravelRecord=function(req){return activeTravel(req)}; }catch(e){}
   try{ isBlockingLeaveRequest=function(req){return activeLeave(req)}; }catch(e){}
 })();
+
+/* v68 travel/leave approval lifecycle UI correction
+   - Pending travel requests stay in a separate review panel, not in the travelers table.
+   - Travelers table shows only approved/returned travel records, so travel is not visually treated as issued before approval.
+   - Existing approval modal, ticket/visa attachments, balance overage, commission freeze, resume date and conflict logic remain unchanged. */
+(function(){
+  if (window.__v68TravelLeaveApprovalLifecycleFix) return;
+  window.__v68TravelLeaveApprovalLifecycleFix = true;
+  var TRAVEL_KEY = 'nawah-travel-requests';
+  function qs(sel){ return document.querySelector(sel); }
+  function esc(v){
+    try { return typeof escapeHtml === 'function' ? escapeHtml(v == null ? '' : v) : String(v == null ? '' : v).replace(/[&<>\"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];}); }
+    catch(_){ return String(v == null ? '' : v); }
+  }
+  function icon(name){ try { return typeof iconSvg === 'function' ? iconSvg(name) : ''; } catch(_) { return ''; } }
+  function fmtDate(v){ try { return typeof formatDate === 'function' ? formatDate(v) : (v || '—'); } catch(_) { return v || '—'; } }
+  function num(v){ try { return typeof arabicNumber === 'function' ? arabicNumber(v || 0) : Number(v || 0).toLocaleString('en-US'); } catch(_) { return String(v || 0); } }
+  function parse(v){ if(!v) return null; var d = new Date(String(v).slice(0,10) + 'T12:00:00'); return isNaN(d.getTime()) ? null : d; }
+  function today(){ try { return typeof formatInputDate === 'function' ? formatInputDate(typeof todayAtNoon === 'function' ? todayAtNoon() : new Date()) : new Date().toISOString().slice(0,10); } catch(_) { return new Date().toISOString().slice(0,10); } }
+  function daysInclusive(a,b){ var x=parse(a), y=parse(b || a); return x && y ? Math.max(0, Math.floor((y-x)/86400000)+1) : 0; }
+  function employeeById(id){
+    try { if (typeof getEmployee === 'function') return getEmployee(id); } catch(_) {}
+    try { var list = Array.isArray(employees) ? employees : (Array.isArray(window.employees) ? window.employees : []); return list.find(function(e){return String(e.id)===String(id);}); } catch(_) { return null; }
+  }
+  function employeeCellHtml(emp){ try { return typeof employeeCell === 'function' ? employeeCell(emp) : esc(emp && emp.name); } catch(_) { return esc(emp && emp.name); } }
+  function badge(text, cls){ return '<span class="status-badge '+(cls||'status-pending')+'">'+text+'</span>'; }
+  function travelStatus(req){
+    var st = req && (req.status || 'pending');
+    if(st === 'pending') return badge('بانتظار الاعتماد','status-pending');
+    if(st === 'rejected') return badge('مرفوض','status-rejected');
+    if(st === 'returned') return badge('باشر العمل '+fmtDate(req.workResumeDate),'status-active');
+    if(st === 'approved'){
+      if(req.returnDate){
+        var now=parse(today()), ret=parse(req.returnDate);
+        if(ret && now && ret < now) return badge('عاد - بانتظار المباشرة','status-warning');
+        if(ret && now && ret.getTime() === now.getTime()) return badge('العودة اليوم','status-warning');
+      }
+      return badge('مسافر','status-leave');
+    }
+    return badge('مسودة','status-pending');
+  }
+  function travelTiming(req){
+    var elapsed = req && req.travelDate ? num(daysInclusive(req.travelDate, req.workResumeDate || today())) + ' يوم' : 'غير محدد';
+    var remaining = 'عودة غير محددة';
+    if(req && req.returnDate){
+      var now=parse(today()), ret=parse(req.returnDate);
+      if(ret && now){
+        var diff=Math.ceil((ret-now)/86400000);
+        remaining = diff>0 ? 'متبقي '+num(diff)+' يوم' : (diff===0 ? 'العودة اليوم' : 'تجاوز العودة '+num(Math.abs(diff))+' يوم');
+      }
+    }
+    return {elapsed:elapsed, remaining:remaining};
+  }
+  function readTravels(){ try { var arr=JSON.parse(localStorage.getItem(TRAVEL_KEY)||'[]'); return Array.isArray(arr) ? arr : []; } catch(_) { return []; } }
+  function leavesList(){ try { return Array.isArray(leaves) ? leaves : (Array.isArray(window.leaves) ? window.leaves : []); } catch(_) { return []; } }
+  function leaveActionsHtml(req){
+    var st=req.status||'pending';
+    if(st==='pending') return '<button class="secondary-btn" data-leave-action="rejected" data-leave-id="'+esc(req.id)+'">رفض</button><button class="primary-btn" data-leave-action="approved" data-leave-id="'+esc(req.id)+'">اعتماد الإجازة</button>';
+    if(st==='approved' && !req.returnDate) return (typeof leaveStatusBadge==='function'?leaveStatusBadge(st):badge('تمت الموافقة','status-approved'))+'<button class="primary-btn" data-leave-return="'+esc(req.id)+'">تسجيل مباشرة</button>';
+    if(req.returnDate) return '<span class="status-badge status-active">تمت المباشرة '+fmtDate(req.returnDate)+'</span>';
+    return typeof leaveStatusBadge==='function'?leaveStatusBadge(st):badge(st,'status-pending');
+  }
+  function renderLeaveRequestsPanel(){
+    var list = leavesList();
+    var filtered = (typeof activeLeaveFilter !== 'undefined' && activeLeaveFilter !== 'all') ? list.filter(function(x){return x.status===activeLeaveFilter;}) : list;
+    if(!filtered.length) return '<tr><td colspan="7"><div class="empty-state"><strong>لا توجد طلبات في هذه الفئة</strong><p>اختر فئة أخرى أو أضف طلبًا جديدًا.</p></div></td></tr>';
+    return filtered.map(function(req){
+      var emp=employeeById(req.employeeId); if(!emp) return '';
+      return '<tr>'+
+        '<td>'+employeeCellHtml(emp)+'</td>'+
+        '<td>'+esc(req.type||'إجازة')+'</td>'+
+        '<td>'+fmtDate(req.from)+'</td>'+
+        '<td>'+fmtDate(req.to)+'</td>'+
+        '<td>'+num(req.days || daysInclusive(req.from, req.to))+' أيام</td>'+
+        '<td>'+(typeof leaveStatusBadge==='function'?leaveStatusBadge(req.status):badge(req.status||'pending','status-pending'))+'</td>'+
+        '<td><div class="travel-actions">'+leaveActionsHtml(req)+'</div></td>'+
+      '</tr>';
+    }).join('') || '<tr><td colspan="7"><div class="empty-state"><strong>لا توجد طلبات في هذه الفئة</strong></div></td></tr>';
+  }
+  function pendingTravelRows(list){
+    if(!list.length) return '<tr><td colspan="7"><div class="empty-state"><strong>لا توجد طلبات سفر بانتظار الموافقة</strong><p>طلب السفر لا يصبح مسافرًا إلا بعد الاعتماد وإرفاق مستنداته.</p></div></td></tr>';
+    return list.map(function(req){
+      var emp=employeeById(req.employeeId); if(!emp) return '';
+      var d=travelTiming(req);
+      return '<tr>'+
+        '<td>'+employeeCellHtml(emp)+'</td>'+
+        '<td>'+fmtDate(req.travelDate)+'</td>'+
+        '<td>'+(req.returnDate?fmtDate(req.returnDate):'غير محدد')+'</td>'+
+        '<td>'+d.elapsed+'</td>'+
+        '<td>'+travelStatus(req)+'</td>'+
+        '<td>'+esc(req.note||'—')+'</td>'+
+        '<td><div class="travel-actions"><button class="secondary-btn" data-travel-reject="'+esc(req.id)+'">رفض</button><button class="primary-btn" data-travel-approve="'+esc(req.id)+'">اعتماد السفر</button></div></td>'+
+      '</tr>';
+    }).join('');
+  }
+  function activeTravelRows(list){
+    if(!list.length) return '<tr><td colspan="8"><div class="empty-state"><strong>لا يوجد مسافرون معتمدون</strong><p>طلبات السفر المعلقة تظهر في جدول المراجعة ولا تدخل هنا إلا بعد الاعتماد.</p></div></td></tr>';
+    return list.map(function(req){
+      var emp=employeeById(req.employeeId); if(!emp) return '';
+      var d=travelTiming(req);
+      var actions = req.status==='approved' && !req.workResumeDate ? (travelStatus(req)+'<button class="primary-btn" data-travel-resume="'+esc(req.id)+'">تسجيل مباشرة عمل</button>') : travelStatus(req);
+      return '<tr>'+
+        '<td>'+employeeCellHtml(emp)+'</td>'+
+        '<td>'+fmtDate(req.travelDate)+'</td>'+
+        '<td>'+(req.returnDate?fmtDate(req.returnDate):'غير محدد')+'</td>'+
+        '<td>'+(req.workResumeDate?fmtDate(req.workResumeDate):'لم يباشر')+'</td>'+
+        '<td>'+d.elapsed+'</td>'+
+        '<td>'+d.remaining+'</td>'+
+        '<td>'+(req.commissionFrozenAt?badge('مجمدة','status-warning'):badge('غير مجمدة','status-active'))+'</td>'+
+        '<td><div class="travel-actions">'+actions+'</div></td>'+
+      '</tr>';
+    }).join('');
+  }
+  function renderLeavesV68(){
+    var view=qs('#leavesView'); if(!view) return;
+    var travel=readTravels().filter(function(req){ return !!employeeById(req.employeeId); });
+    var pending=travel.filter(function(req){ return (req.status||'pending')==='pending'; });
+    var issued=travel.filter(function(req){ var st=req.status||'pending'; return st==='approved' || st==='returned'; });
+    var rejected=travel.filter(function(req){ return (req.status||'pending')==='rejected'; });
+    var leaveList=leavesList();
+    try { qs('#allLeaveCount') && (qs('#allLeaveCount').textContent=num(leaveList.length)); } catch(_) {}
+    try { qs('#pendingLeaveCount') && (qs('#pendingLeaveCount').textContent=num(leaveList.filter(function(x){return x.status==='pending';}).length)); } catch(_) {}
+    view.innerHTML = '\n      <div class="leave-travel-hero">\n        <button type="button" class="request-card" id="newLeaveBtn"><span data-icon="calendar"></span><strong>طلب إجازة</strong><small>إنشاء طلب إجازة جديد</small></button>\n        <button type="button" class="request-card" id="newTravelBtn"><span data-icon="plane"></span><strong>طلب سفر</strong><small>طلب سفر بانتظار الاعتماد أولًا</small></button>\n      </div>\n      <div class="leave-tabs">\n        <button class="'+((typeof activeLeaveFilter==='undefined'||activeLeaveFilter==='all')?'active':'')+'" data-leave-filter="all">جميع الإجازات <span id="allLeaveCount">'+num(leaveList.length)+'</span></button>\n        <button class="'+((typeof activeLeaveFilter!=='undefined'&&activeLeaveFilter==='pending')?'active':'')+'" data-leave-filter="pending">إجازات بانتظار الموافقة <span id="pendingLeaveCount">'+num(leaveList.filter(function(x){return x.status==='pending';}).length)+'</span></button>\n        <button class="'+((typeof activeLeaveFilter!=='undefined'&&activeLeaveFilter==='approved')?'active':'')+'" data-leave-filter="approved">إجازات معتمدة</button>\n        <button class="'+((typeof activeLeaveFilter!=='undefined'&&activeLeaveFilter==='rejected')?'active':'')+'" data-leave-filter="rejected">إجازات مرفوضة</button>\n        <button class="travel-tab-info" type="button">طلبات سفر معلقة <span>'+num(pending.length)+'</span></button>\n      </div>\n      <div class="leave-travel-tables">\n        <article class="panel travel-table-panel travel-pending-panel">\n          <div class="panel-head"><div><h3>طلبات السفر بانتظار الموافقة</h3><p>لا تخصم من رصيد الإجازات ولا يظهر زر المباشرة إلا بعد الاعتماد.</p></div></div>\n          <div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>المدة</th><th>الحالة</th><th>ملاحظة</th><th>الإجراءات</th></tr></thead><tbody>'+pendingTravelRows(pending)+'</tbody></table></div>\n        </article>\n        <article class="panel travel-table-panel">\n          <div class="panel-head"><div><h3>المسافرون</h3><p>السفر المعتمد فقط، وتظهر المباشرة بعد الاعتماد.</p></div><button class="primary-btn" id="newTravelBtn">'+icon('plus')+'طلب سفر</button></div>\n          <div class="table-wrap"><table><thead><tr><th>الموظف</th><th>تاريخ السفر</th><th>تاريخ العودة</th><th>تاريخ المباشرة</th><th>مضى على السفر</th><th>المتبقي للعودة</th><th>العمولة</th><th>الإجراءات</th></tr></thead><tbody>'+activeTravelRows(issued)+'</tbody></table></div>\n        </article>\n        <article class="panel leave-table-panel">\n          <div class="panel-head"><div><h3>الإجازات</h3><p>جدول طلبات الإجازة كما هو بدون تغيير في المنطق</p></div><button class="primary-btn" id="newLeaveBtn">'+icon('plus')+'طلب إجازة</button></div>\n          <div class="table-wrap"><table><thead><tr><th>الموظف</th><th>نوع الإجازة</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>'+renderLeaveRequestsPanel()+'</tbody></table></div>\n        </article>\n      </div>';
+    if(typeof hydrateIcons==='function') hydrateIcons(view);
+    if(typeof hydrateAttachmentImages==='function') hydrateAttachmentImages(view);
+  }
+  var previousRenderAll = typeof renderAll === 'function' ? renderAll : null;
+  try { renderLeaves = renderLeavesV68; } catch(_) {}
+  window.renderLeaves = renderLeavesV68;
+  window.nawahRenderLeavesV68 = renderLeavesV68;
+  // Ensure the active leaves view is redrawn with the corrected layout after cloud/local data loads.
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ try { if(qs('#leavesView.active')) renderLeavesV68(); } catch(_){} }, 0); });
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('[data-leave-filter]')){
+      setTimeout(function(){ try { renderLeavesV68(); } catch(_){} }, 0);
+    }
+  }, true);
+})();
