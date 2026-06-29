@@ -18992,36 +18992,29 @@ document.addEventListener("click", function(event) {
   }
 
   async function uploadEmployeePhoto(file, owner){
-    if (!(typeof supabaseClient !== 'undefined' && supabaseClient && typeof cloudReady !== 'undefined' && cloudReady)) return '';
+    // v38: use the stable general attachment pipeline. It falls back locally when Supabase is slow/unavailable,
+    // instead of blocking the employee editor or showing a false failure popup.
     try {
-      const bucket = bucketName();
-      const path = `employees/${owner}/employee-photo/${Date.now()}-${Math.random().toString(16).slice(2)}-${safeStorageName(file.name)}`;
-      const upload = await supabaseClient.storage
-        .from(bucket)
-        .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream' });
-      if (upload?.error) throw upload.error;
-      const rowId = newUuid();
-      const inserted = await supabaseClient
-        .from('attachments')
-        .insert({
-          id: rowId,
-          related_table: `employees:${owner}:employee-photo`,
-          related_id: rowId,
-          file_name: file.name || 'employee-photo',
-          file_type: file.type || 'application/octet-stream',
-          file_size: Number(file.size || 0),
-          storage_path: `${bucket}/${path}`,
-          file_url: null,
-          uploaded_by: 'web'
-        })
-        .select('id')
-        .single();
-      if (inserted?.error) throw inserted.error;
-      return inserted?.data?.id || rowId;
+      if (typeof saveAttachment === 'function') {
+        const id = await saveAttachment(file, 'employee-photo');
+        if (id) return id;
+      }
     } catch (error) {
-      console.error('v37 employee photo upload failed', error);
-      return '';
+      console.warn('v38 stable employee photo saveAttachment fallback failed', error);
     }
+    try {
+      const id = `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      if (typeof requestResult === 'function' && typeof dbStore === 'function') {
+        await requestResult(dbStore('attachments', 'readwrite').put({
+          id, category: 'employee-photo', name: file.name || 'employee-photo',
+          type: file.type || 'image/*', blob: file, createdAt: new Date().toISOString()
+        }));
+        return id;
+      }
+    } catch (error) {
+      console.error('v38 local employee photo fallback failed', error);
+    }
+    return '';
   }
 
   function renderPreviewFromLocal(id, file){
@@ -19032,10 +19025,11 @@ document.addEventListener("click", function(event) {
   }
 
   async function refreshAfterPhoto(){
-    try { if (typeof renderEmployeePhoto === 'function') await renderEmployeePhoto(); } catch (_) {}
+    // v38: update the visible UI immediately; hydrate remote URLs in the background only.
+    try { if (typeof renderEmployeePhoto === 'function') renderEmployeePhoto(); } catch (_) {}
     try { if (typeof renderEmployees === 'function') renderEmployees(); } catch (_) {}
-    try { if (typeof hydrateAttachmentImages === 'function') await hydrateAttachmentImages(document); } catch (_) {}
-    try { if (typeof window.__applyStableTopbarPhoto === 'function') await window.__applyStableTopbarPhoto(); } catch (_) {}
+    setTimeout(() => { try { if (typeof hydrateAttachmentImages === 'function') hydrateAttachmentImages(document); } catch (_) {} }, 0);
+    setTimeout(() => { try { if (typeof window.__applyStableTopbarPhoto === 'function') window.__applyStableTopbarPhoto(); } catch (_) {} }, 0);
   }
 
   window.addEventListener('change', async (event) => {
@@ -19085,4 +19079,225 @@ document.addEventListener("click", function(event) {
     await refreshAfterPhoto();
     try { if (typeof showToast === 'function') showToast('تم حفظ صورة الموظف'); } catch (_) {}
   }, true);
+})();
+
+
+/* =========================================================
+   v38 corrective patch: fast Supabase startup + non-blocking employee photos/editor
+   - Opens employee editor immediately even when the employee has a photo.
+   - Does not wait for signed photo URLs before opening tables/modals.
+   - Starts from local cache first, then refreshes Supabase in the background.
+   - Suppresses forced cloud writes during startup to avoid heavy reloads.
+   - No visual redesign.
+   ========================================================= */
+(function v38FastDatabaseAndEmployeePhotoOpenFix(){
+  if (window.__v38FastDatabaseAndEmployeePhotoOpenFix) return;
+  window.__v38FastDatabaseAndEmployeePhotoOpenFix = true;
+
+  const text = (value) => String(value ?? '').trim();
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const PHOTO_CACHE = window.__employeePhotoSignedUrlCache || (window.__employeePhotoSignedUrlCache = new Map());
+  const LOCAL_URLS = window.__localAttachmentUrls || (window.__localAttachmentUrls = new Map());
+  const PHOTO_TTL = 50 * 60 * 1000;
+  let startupLoading = true;
+  let backgroundCloudRefreshRunning = false;
+
+  function cachedUrl(id){
+    const key = String(id || '');
+    if (!key) return '';
+    const local = LOCAL_URLS.get(key);
+    if (local) return local;
+    const cached = PHOTO_CACHE.get(key);
+    if (cached && cached.expires > Date.now() && cached.url) return cached.url;
+    return '';
+  }
+
+  function rememberUrl(id, url){
+    if (!id || !url) return;
+    PHOTO_CACHE.set(String(id), { url, expires: Date.now() + PHOTO_TTL });
+  }
+
+  const previousSaveCloudStateNowV38 = typeof saveCloudStateNow === 'function' ? saveCloudStateNow : null;
+  if (previousSaveCloudStateNowV38 && !previousSaveCloudStateNowV38.__v38StartupThrottle) {
+    const wrappedSaveCloudStateNow = async function(options = {}){
+      if (startupLoading) return;
+      return previousSaveCloudStateNowV38.apply(this, arguments);
+    };
+    wrappedSaveCloudStateNow.__v38StartupThrottle = true;
+    try { saveCloudStateNow = wrappedSaveCloudStateNow; window.saveCloudStateNow = wrappedSaveCloudStateNow; } catch (_) {}
+  }
+
+  const previousQueueCloudStateSaveV38 = typeof queueCloudStateSave === 'function' ? queueCloudStateSave : null;
+  if (previousQueueCloudStateSaveV38 && !previousQueueCloudStateSaveV38.__v38StartupThrottle) {
+    const wrappedQueueCloudStateSave = function(){
+      if (startupLoading) return;
+      return previousQueueCloudStateSaveV38.apply(this, arguments);
+    };
+    wrappedQueueCloudStateSave.__v38StartupThrottle = true;
+    try { queueCloudStateSave = wrappedQueueCloudStateSave; window.queueCloudStateSave = wrappedQueueCloudStateSave; } catch (_) {}
+  }
+
+  async function refreshCloudInBackground(){
+    if (backgroundCloudRefreshRunning) return;
+    backgroundCloudRefreshRunning = true;
+    try {
+      if (!supabaseClient) return;
+      const result = await loadCloudState();
+      if (result?.ok && result?.found && result?.state) {
+        const before = JSON.stringify((Array.isArray(employees) ? employees : []).map((e) => [e.id, e.photoAttachmentId, e.name]));
+        if (typeof applyCloudState === 'function') applyCloudState(result.state);
+        const after = JSON.stringify((Array.isArray(employees) ? employees : []).map((e) => [e.id, e.photoAttachmentId, e.name]));
+        if (before !== after) {
+          try { if (typeof renderAll === 'function') renderAll(); } catch (_) {}
+          try { setTimeout(() => { if (typeof hydrateAttachmentImages === 'function') hydrateAttachmentImages(document); }, 0); } catch (_) {}
+        }
+        try { if (typeof dbCacheEmployeesFast === 'function') setTimeout(() => dbCacheEmployeesFast(employees), 0); } catch (_) {}
+      }
+    } catch (error) {
+      console.warn('v38 background cloud refresh failed', error);
+    } finally {
+      backgroundCloudRefreshRunning = false;
+    }
+  }
+
+  const previousInitStorageV38 = typeof initStorage === 'function' ? initStorage : null;
+  async function initStorageV38(){
+    startupLoading = true;
+    try {
+      db = await openDatabase();
+      initSupabaseClient();
+      cloudSaveAllowed = false;
+      let storedEmployees = [];
+      try { storedEmployees = await dbGetAllEmployees(); } catch (_) { storedEmployees = []; }
+      if (Array.isArray(storedEmployees) && storedEmployees.length) {
+        employees = storedEmployees.map(normalizeEmployee);
+        cloudLoadAttempted = true;
+        cloudSaveAllowed = true;
+        setTimeout(refreshCloudInBackground, 80);
+        return;
+      }
+      const legacy = loadLocalData('nawah-employees', []);
+      if (Array.isArray(legacy) && legacy.length) {
+        employees = legacy.map(normalizeEmployee);
+        cloudLoadAttempted = true;
+        cloudSaveAllowed = true;
+        setTimeout(() => { try { dbCacheEmployeesFast(employees); } catch (_) {} }, 0);
+        setTimeout(refreshCloudInBackground, 80);
+        return;
+      }
+      const cloudResult = await loadCloudState();
+      if (cloudResult?.ok && cloudResult?.found && cloudResult?.state && applyCloudState(cloudResult.state)) {
+        cloudSaveAllowed = true;
+        setTimeout(() => { try { dbCacheEmployeesFast(employees); } catch (_) {} }, 0);
+        return;
+      }
+      employees = [];
+      cloudSaveAllowed = Boolean(cloudResult?.ok);
+    } catch (error) {
+      console.warn('v38 fast init failed; using previous storage initializer', error);
+      if (previousInitStorageV38) return previousInitStorageV38.apply(this, arguments);
+      throw error;
+    } finally {
+      setTimeout(() => { startupLoading = false; }, 1200);
+    }
+  }
+  try { initStorage = initStorageV38; window.initStorage = initStorageV38; } catch (_) {}
+
+  const previousAttachmentUrlV38 = typeof attachmentUrl === 'function' ? attachmentUrl : null;
+  async function attachmentUrlV38(id){
+    const key = String(id || '');
+    if (!key) return '';
+    const cached = cachedUrl(key);
+    if (cached) return cached;
+    let url = '';
+    try { url = previousAttachmentUrlV38 ? await previousAttachmentUrlV38.apply(this, arguments) : ''; } catch (_) { url = ''; }
+    if (url) rememberUrl(key, url);
+    return url;
+  }
+  try { attachmentUrl = attachmentUrlV38; window.attachmentUrl = attachmentUrlV38; } catch (_) {}
+
+  const previousHydrateAttachmentImagesV38 = typeof hydrateAttachmentImages === 'function' ? hydrateAttachmentImages : null;
+  function hydrateAttachmentImagesV38(root = document){
+    let images = [];
+    try { images = [...root.querySelectorAll('img[data-attachment-image]')]; } catch (_) { images = []; }
+    images.forEach((image) => {
+      const id = image.dataset.attachmentImage || '';
+      const quick = cachedUrl(id);
+      if (quick && image.src !== quick) image.src = quick;
+      if (!quick && id && !image.dataset.v38Loading) {
+        image.dataset.v38Loading = '1';
+        setTimeout(async () => {
+          try {
+            const url = await attachmentUrlV38(id);
+            if (url && image.isConnected) image.src = url;
+          } catch (_) {}
+          try { delete image.dataset.v38Loading; } catch (_) {}
+        }, 0);
+      }
+    });
+    return Promise.resolve();
+  }
+  try { hydrateAttachmentImages = hydrateAttachmentImagesV38; window.hydrateAttachmentImages = hydrateAttachmentImagesV38; } catch (_) {}
+
+  function renderEmployeePhotoV38(){
+    const preview = document.querySelector('#employeePhotoPreview');
+    if (!preview) return Promise.resolve();
+    const id = text(employeeFormState?.photoAttachmentId || '');
+    const legacy = text(employeeFormState?.legacyPhoto || '');
+    if (!id && !legacy) { try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) {} return Promise.resolve(); }
+    const quick = id ? cachedUrl(id) : legacy;
+    if (quick) {
+      preview.innerHTML = `<img src="${esc(quick)}" alt="صورة الموظف" />`;
+      return Promise.resolve();
+    }
+    try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) {}
+    if (id) {
+      setTimeout(async () => {
+        try {
+          const url = await attachmentUrlV38(id);
+          if (url && preview.isConnected && text(employeeFormState?.photoAttachmentId || '') === id) {
+            preview.innerHTML = `<img src="${esc(url)}" alt="صورة الموظف" />`;
+          }
+        } catch (_) {}
+      }, 0);
+    }
+    return Promise.resolve();
+  }
+  try { renderEmployeePhoto = renderEmployeePhotoV38; window.renderEmployeePhoto = renderEmployeePhotoV38; } catch (_) {}
+
+  function findEmployee(id){
+    const key = text(id);
+    if (!key) return null;
+    const list = Array.isArray(employees) ? employees : [];
+    return list.find((e) => [e?.id, e?.employeeId, e?.employee_id, e?.employeeNumber, e?.number].some((value) => text(value) === key)) || null;
+  }
+
+  const previousOpenEmployeeModalV38 = typeof openEmployeeModal === 'function' ? openEmployeeModal : window.openEmployeeModal;
+  async function openEmployeeModalV38(employeeId = null){
+    if (!employeeId) return previousOpenEmployeeModalV38 ? previousOpenEmployeeModalV38.apply(this, arguments) : undefined;
+    const employee = findEmployee(employeeId);
+    if (!employee) { try { showToast('تعذر العثور على بيانات الموظف'); } catch (_) {} return; }
+    const promise = previousOpenEmployeeModalV38 ? previousOpenEmployeeModalV38.call(this, employee.id) : null;
+    setTimeout(() => {
+      try {
+        const modal = document.querySelector('#employeeModal');
+        if (modal && !modal.open && typeof modal.showModal === 'function') modal.showModal();
+      } catch (_) {}
+    }, 50);
+    try { await Promise.race([Promise.resolve(promise), new Promise((resolve) => setTimeout(resolve, 150))]); } catch (_) {}
+  }
+  try { openEmployeeModal = openEmployeeModalV38; window.openEmployeeModal = openEmployeeModalV38; } catch (_) {}
+
+  document.addEventListener('click', function(event){
+    const target = event.target?.closest?.('.employee-name-link[data-edit-employee], [data-edit-employee], [data-employee-name-edit]');
+    if (!target) return;
+    const id = target.dataset.editEmployee || target.dataset.employeeNameEdit || '';
+    if (!findEmployee(id)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    openEmployeeModalV38(id);
+  }, true);
+
+  window.addEventListener('load', () => { setTimeout(() => { startupLoading = false; }, 1500); });
 })();
