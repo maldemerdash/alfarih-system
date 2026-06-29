@@ -12064,3 +12064,37 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 #financeView .finance-month-totals .finance-fund-highlight{width:100%!important;}
 @media(max-width:1500px){#financeView .finance-day-title{padding-left:0!important;}#financeView .finance-day-controls{position:static!important;transform:none!important;margin-top:10px!important;max-width:none!important;flex-wrap:wrap!important;}}
 @media(max-width:760px){#financeView .finance-header-close-day-btn,#financeView .finance-header-advance-btn{width:100%!important;justify-content:center!important;}}
+
+
+/* v61 finance summary shell: group only the upper cards in one large card, keep lower tables unchanged */
+#financeView .finance-cards-stack{
+  position:relative!important;
+  display:grid!important;
+  gap:12px!important;
+  padding:16px!important;
+  border:1px solid rgba(15,118,110,.12)!important;
+  border-radius:22px!important;
+  background:linear-gradient(135deg, rgba(255,255,255,.98), rgba(240,253,250,.64))!important;
+  box-shadow:0 16px 38px rgba(15,23,42,.075)!important;
+  overflow:hidden!important;
+}
+#financeView .finance-cards-stack::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:radial-gradient(circle at 8% 10%, rgba(20,184,166,.11), transparent 28%), radial-gradient(circle at 92% 0%, rgba(14,165,233,.08), transparent 24%);
+}
+#financeView .finance-cards-stack > .finance-row{
+  position:relative!important;
+  z-index:1!important;
+}
+#financeView .finance-cards-stack .finance-summary-card{
+  background:rgba(255,255,255,.96)!important;
+}
+@media(max-width:760px){
+  #financeView .finance-cards-stack{
+    padding:12px!important;
+    border-radius:18px!important;
+  }
+}
