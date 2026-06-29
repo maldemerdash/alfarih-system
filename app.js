@@ -4281,13 +4281,7 @@ function setupEvents() {
     if (name === "nationalityType") toggleNationalityField();
   });
 
-  document.querySelector("#employeePhotoInput").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    employeeFormState.photoAttachmentId = await saveAttachment(file, "employee-photo");
-    employeeFormState.legacyPhoto = "";
-    await renderEmployeePhoto();
-  });
+  document.querySelector("#employeePhotoInput").addEventListener("change", handleEmployeePhotoInputChange);
   document.querySelector("#removeEmployeePhoto").addEventListener("click", async () => {
     employeeFormState.photoAttachmentId = "";
     employeeFormState.legacyPhoto = "";
@@ -17951,7 +17945,7 @@ document.addEventListener("click", function(event) {
 
   document.addEventListener('change', async (event) => {
     const input = event.target;
-    if (!input?.matches?.('#employeePhotoInput')) return;
+    if (!input?.matches?.('#employeePhotoInput__disabled_by_clean_v40')) return;
     event.stopImmediatePropagation();
     const file = input.files?.[0];
     if (!file) return;
@@ -18775,7 +18769,7 @@ document.addEventListener("click", function(event) {
 
   document.addEventListener('change', async function(event){
     const input = event.target;
-    if (!input?.matches?.('#employeePhotoInput')) return;
+    if (!input?.matches?.('#employeePhotoInput__disabled_by_clean_v40')) return;
     const modal = input.closest('#employeeModal');
     if (!modal || !modal.open) return;
     const file = input.files?.[0];
@@ -18907,3 +18901,236 @@ document.addEventListener("click", function(event) {
   document.addEventListener('DOMContentLoaded', () => setTimeout(() => hydrateAttachmentImagesV39(document), 120));
   window.addEventListener('load', () => setTimeout(() => { startupPhase = false; hydrateAttachmentImagesV39(document); }, 1200));
 })();
+
+
+/* =========================================================
+   v40 clean unified employee photo logic
+   - Single active upload handler for #employeePhotoInput.
+   - Stable cached rendering for employee editor, employee table and linked-user topbar.
+   - Keeps opening the employee file independent from photo loading.
+   ========================================================= */
+const EMPLOYEE_PHOTO_CACHE_V40 = window.__EMPLOYEE_PHOTO_CACHE_V40 || (window.__EMPLOYEE_PHOTO_CACHE_V40 = new Map());
+const EMPLOYEE_PHOTO_LOCAL_URLS_V40 = window.__EMPLOYEE_PHOTO_LOCAL_URLS_V40 || (window.__EMPLOYEE_PHOTO_LOCAL_URLS_V40 = new Map());
+const EMPLOYEE_PHOTO_CACHE_TTL_V40 = 5 * 60 * 1000;
+
+function employeePhotoTextV40(value) {
+  return String(value ?? '').trim();
+}
+
+function employeePhotoEscV40(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function employeePhotoPopupV40(message, title = 'تنبيه') {
+  try {
+    if (typeof window.showModalMessage === 'function') return window.showModalMessage(message, title);
+  } catch (_) {}
+  try { if (typeof showToast === 'function') return showToast(message); } catch (_) {}
+  try { alert(message); } catch (_) {}
+}
+
+function employeePhotoOwnerReadyV40() {
+  try {
+    const form = document.querySelector('#employeeForm');
+    const identity = String(form?.elements?.identityNumber?.value || '').replace(/\D/g, '');
+    const phone = String(form?.elements?.phone?.value || '').replace(/\D/g, '');
+    return identity.length >= 2 && phone.length >= 2;
+  } catch (_) {
+    return false;
+  }
+}
+
+function rememberEmployeePhotoLocalUrlV40(id, file) {
+  const key = employeePhotoTextV40(id);
+  if (!key || !file) return '';
+  try {
+    const old = EMPLOYEE_PHOTO_LOCAL_URLS_V40.get(key);
+    if (old && old.startsWith('blob:')) URL.revokeObjectURL(old);
+  } catch (_) {}
+  try {
+    const url = URL.createObjectURL(file);
+    EMPLOYEE_PHOTO_LOCAL_URLS_V40.set(key, url);
+    EMPLOYEE_PHOTO_CACHE_V40.set(key, { url, expires: Date.now() + EMPLOYEE_PHOTO_CACHE_TTL_V40 });
+    try { window.__localAttachmentUrls?.set?.(key, url); } catch (_) {}
+    return url;
+  } catch (_) {
+    return '';
+  }
+}
+
+function cachedEmployeePhotoUrlV40(id) {
+  const key = employeePhotoTextV40(id);
+  if (!key) return '';
+  const local = EMPLOYEE_PHOTO_LOCAL_URLS_V40.get(key) || '';
+  if (local) return local;
+  const cached = EMPLOYEE_PHOTO_CACHE_V40.get(key);
+  if (cached?.url && cached.expires > Date.now()) return cached.url;
+  return '';
+}
+
+async function resolveEmployeePhotoUrlV40(id) {
+  const key = employeePhotoTextV40(id);
+  if (!key) return '';
+  const immediate = cachedEmployeePhotoUrlV40(key);
+  if (immediate) return immediate;
+  const url = typeof attachmentUrl === 'function' ? await attachmentUrl(key) : '';
+  if (url) EMPLOYEE_PHOTO_CACHE_V40.set(key, { url, expires: Date.now() + EMPLOYEE_PHOTO_CACHE_TTL_V40 });
+  return url || '';
+}
+
+function fetchEmployeePhotoUrlV40(id, callback) {
+  const key = employeePhotoTextV40(id);
+  if (!key) return;
+  const immediate = cachedEmployeePhotoUrlV40(key);
+  if (immediate) { callback(immediate); return; }
+  const existing = EMPLOYEE_PHOTO_CACHE_V40.get(key);
+  if (existing?.loading) return;
+  EMPLOYEE_PHOTO_CACHE_V40.set(key, { ...(existing || {}), loading: true, expires: existing?.expires || 0 });
+  resolveEmployeePhotoUrlV40(key).then((url) => {
+    const current = EMPLOYEE_PHOTO_CACHE_V40.get(key) || {};
+    EMPLOYEE_PHOTO_CACHE_V40.set(key, { url: url || current.url || '', expires: Date.now() + EMPLOYEE_PHOTO_CACHE_TTL_V40, loading: false });
+    if (url) callback(url);
+  }).catch(() => {
+    const current = EMPLOYEE_PHOTO_CACHE_V40.get(key) || {};
+    EMPLOYEE_PHOTO_CACHE_V40.set(key, { ...current, loading: false });
+  });
+}
+
+async function handleEmployeePhotoInputChange(event) {
+  const input = event?.target;
+  if (!input) return;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (file.type && !file.type.startsWith('image/')) {
+    input.value = '';
+    employeePhotoPopupV40('ملف صورة الموظف يجب أن يكون صورة فقط.', 'صيغة غير مقبولة');
+    return;
+  }
+  if (!employeePhotoOwnerReadyV40()) {
+    input.value = '';
+    employeePhotoPopupV40('أدخل رقم الهوية ورقم الجوال أولًا حتى يتم تكوين رقم الموظف وربط الصورة به.', 'لا يمكن رفع صورة الموظف');
+    return;
+  }
+  try {
+    const id = await saveAttachment(file, 'employee-photo');
+    if (!id) throw new Error('empty attachment id');
+    rememberEmployeePhotoLocalUrlV40(id, file);
+    employeeFormState.photoAttachmentId = id;
+    employeeFormState.legacyPhoto = '';
+    await renderEmployeePhoto();
+    try { await persistCurrentEmployeeOnly?.(); } catch (_) {}
+    try { renderEmployees?.(); } catch (_) {}
+    try { hydrateAttachmentImages(document); } catch (_) {}
+    setTimeout(() => { try { applyLinkedEmployeeTopbarPhotoV40(); } catch (_) {} }, 0);
+    try { showToast('تم حفظ صورة الموظف'); } catch (_) {}
+  } catch (error) {
+    console.warn('employee photo upload failed', error);
+    input.value = '';
+    employeePhotoPopupV40('تعذر رفع صورة الموظف. تأكد من الاتصال بقاعدة البيانات ثم حاول مرة أخرى.', 'فشل رفع الصورة');
+  }
+}
+window.handleEmployeePhotoInputChange = handleEmployeePhotoInputChange;
+
+function renderEmployeePhoto() {
+  const preview = document.querySelector('#employeePhotoPreview');
+  if (!preview) return Promise.resolve();
+  const photoId = employeePhotoTextV40(employeeFormState?.photoAttachmentId || '');
+  const legacyPhoto = employeePhotoTextV40(employeeFormState?.legacyPhoto || employeeFormState?.photo || '');
+  const key = photoId ? `att:${photoId}` : (legacyPhoto ? `legacy:${legacyPhoto}` : 'empty');
+  if (preview.dataset.photoKeyV40 === key && (preview.querySelector('img') || key === 'empty')) return Promise.resolve();
+  preview.dataset.photoKeyV40 = key;
+  if (!photoId && !legacyPhoto) {
+    try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) { preview.innerHTML = ''; }
+    return Promise.resolve();
+  }
+  const immediate = photoId ? cachedEmployeePhotoUrlV40(photoId) : legacyPhoto;
+  if (immediate) {
+    preview.innerHTML = `<img src="${employeePhotoEscV40(immediate)}" alt="صورة الموظف" />`;
+    return Promise.resolve();
+  }
+  try { preview.innerHTML = typeof iconSvg === 'function' ? iconSvg('user') : ''; } catch (_) {}
+  fetchEmployeePhotoUrlV40(photoId, (url) => {
+    if (!preview.isConnected || preview.dataset.photoKeyV40 !== key) return;
+    if (employeePhotoTextV40(employeeFormState?.photoAttachmentId || '') !== photoId) return;
+    preview.innerHTML = `<img src="${employeePhotoEscV40(url)}" alt="صورة الموظف" />`;
+  });
+  return Promise.resolve();
+}
+window.renderEmployeePhoto = renderEmployeePhoto;
+
+function hydrateAttachmentImages(root = document) {
+  let images = [];
+  try { images = [...root.querySelectorAll('img[data-attachment-image]')]; } catch (_) { images = []; }
+  images.forEach((image) => {
+    const id = employeePhotoTextV40(image.dataset.attachmentImage || '');
+    if (!id) return;
+    const immediate = cachedEmployeePhotoUrlV40(id);
+    if (immediate) {
+      if (image.src !== immediate) image.src = immediate;
+      return;
+    }
+    fetchEmployeePhotoUrlV40(id, (url) => {
+      if (image.isConnected && url && image.src !== url) image.src = url;
+    });
+  });
+  return Promise.resolve();
+}
+window.hydrateAttachmentImages = hydrateAttachmentImages;
+
+function linkedEmployeeForTopbarV40() {
+  try { const linked = window.employeePermissionMatrix?.linkedEmployee?.(); if (linked) return linked; } catch (_) {}
+  try {
+    const linkedId = authProfile?.employee_id || authProfile?.employeeId || authProfile?.linked_employee_id || authProfile?.linkedEmployeeId || '';
+    if (linkedId && Array.isArray(employees)) return employees.find((employee) => String(employee.id) === String(linkedId));
+  } catch (_) {}
+  return null;
+}
+
+async function applyLinkedEmployeeTopbarPhotoV40() {
+  const mark = document.querySelector('.topbar-user-mark');
+  if (!mark) return;
+  const employee = linkedEmployeeForTopbarV40();
+  const photoId = employeePhotoTextV40(employee?.photoAttachmentId || '');
+  const legacyPhoto = employeePhotoTextV40(employee?.legacyPhoto || employee?.photo || '');
+  const fallbackName = employeePhotoTextV40(employee?.name || authProfile?.full_name || authUser?.email || 'مستخدم');
+  const key = photoId ? `att:${photoId}` : (legacyPhoto ? `legacy:${legacyPhoto}` : 'empty');
+  if (!photoId && !legacyPhoto) {
+    if (mark.dataset.photoKeyV40 !== key || mark.querySelector('img')) {
+      mark.dataset.photoKeyV40 = key;
+      mark.classList.remove('has-employee-photo');
+      mark.textContent = fallbackName.charAt(0) || 'م';
+    }
+    return;
+  }
+  const immediate = photoId ? cachedEmployeePhotoUrlV40(photoId) : legacyPhoto;
+  if (immediate) {
+    if (mark.dataset.photoKeyV40 !== key || !mark.querySelector('img')) {
+      mark.dataset.photoKeyV40 = key;
+      mark.classList.add('has-employee-photo');
+      mark.innerHTML = `<img src="${employeePhotoEscV40(immediate)}" alt="" />`;
+    }
+    return;
+  }
+  fetchEmployeePhotoUrlV40(photoId, (url) => {
+    if (!mark.isConnected || mark.dataset.photoKeyV40 !== key) return;
+    mark.classList.add('has-employee-photo');
+    mark.innerHTML = `<img src="${employeePhotoEscV40(url)}" alt="" />`;
+  });
+  mark.dataset.photoKeyV40 = key;
+}
+window.applyLinkedEmployeeTopbarPhotoV40 = applyLinkedEmployeeTopbarPhotoV40;
+
+const updateTopbarUserBeforePhotoV40 = updateTopbarUser;
+function updateTopbarUser() {
+  const result = updateTopbarUserBeforePhotoV40.apply(this, arguments);
+  setTimeout(() => { try { applyLinkedEmployeeTopbarPhotoV40(); } catch (_) {} }, 0);
+  return result;
+}
+window.updateTopbarUser = updateTopbarUser;
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => { try { hydrateAttachmentImages(document); applyLinkedEmployeeTopbarPhotoV40(); } catch (_) {} }, 150);
+});
+window.addEventListener('load', () => {
+  setTimeout(() => { try { hydrateAttachmentImages(document); applyLinkedEmployeeTopbarPhotoV40(); } catch (_) {} }, 500);
+});
