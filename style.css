@@ -12254,3 +12254,63 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 #leavesView .leave-table-panel thead th {
   --leave-accent: #0891b2;
 }
+
+/* v72: إظهار عمود الإجراءات في جدول طلبات السفر بانتظار الموافقة.
+   السبب: كانت أعمدة جدول السفر العامة موزعة على 6 أعمدة بنسبة 100%،
+   فاختفى العمود السابع الخاص بالإجراءات في جدول الطلبات المعلقة. */
+#leavesView .travel-pending-panel table {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+#leavesView .travel-pending-panel th:nth-child(1),
+#leavesView .travel-pending-panel td:nth-child(1) { width: 18% !important; }
+#leavesView .travel-pending-panel th:nth-child(2),
+#leavesView .travel-pending-panel td:nth-child(2) { width: 13% !important; }
+#leavesView .travel-pending-panel th:nth-child(3),
+#leavesView .travel-pending-panel td:nth-child(3) { width: 13% !important; }
+#leavesView .travel-pending-panel th:nth-child(4),
+#leavesView .travel-pending-panel td:nth-child(4) { width: 10% !important; }
+#leavesView .travel-pending-panel th:nth-child(5),
+#leavesView .travel-pending-panel td:nth-child(5) { width: 14% !important; }
+#leavesView .travel-pending-panel th:nth-child(6),
+#leavesView .travel-pending-panel td:nth-child(6) { width: 14% !important; }
+#leavesView .travel-pending-panel th:nth-child(7),
+#leavesView .travel-pending-panel td:nth-child(7) {
+  width: 18% !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+#leavesView .travel-pending-panel td:nth-child(7) .travel-actions {
+  width: 100% !important;
+  justify-content: flex-start !important;
+}
+
+#leavesView .travel-pending-panel td:nth-child(7) .primary-btn,
+#leavesView .travel-pending-panel td:nth-child(7) .secondary-btn {
+  min-width: 72px !important;
+  padding: 0 12px !important;
+}
+
+/* ضبط جدول المسافرين المعتمدين الذي يحتوي 8 أعمدة حتى لا يضغط عمود الإجراءات. */
+#leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(1),
+#leavesView .travel-table-panel:not(.travel-pending-panel) td:nth-child(1) { width: 16% !important; }
+#leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(2),
+#leavesView .travel-table-panel:not(.travel-pending-panel) td:nth-child(2) { width: 12% !important; }
+#leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(3),
+#leavesView .travel-table-panel:not(.travel-pending-panel) td:nth-child(3) { width: 12% !important; }
+#leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(4),
+#leavesView .travel-table-panel:not(.travel-pending-panel) td:nth-child(4) { width: 12% !important; }
+#leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(5),
+#leavesView .travel-table-panel:not(.travel-pending-panel) td:nth-child(5) { width: 11% !important; }
+#leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(6),
+#leavesView .travel-table-panel:not(.travel-pending-panel) td:nth-child(6) { width: 12% !important; }
+#leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(7),
+#leavesView .travel-table-panel:not(.travel-pending-panel) td:nth-child(7) { width: 10% !important; }
+#leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(8),
+#leavesView .travel-table-panel:not(.travel-pending-panel) td:nth-child(8) {
+  width: 15% !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
