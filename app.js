@@ -596,3 +596,217 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('click', guardApproveClick, true);
   window.nawahFindStrictLeaveTravelConflictV73 = findConflict;
 })();
+
+/* v74 final strict travel/leave lifecycle guard
+   - No employee can have more than one active/unresolved travel request.
+   - Leave and travel cannot overlap for the same employee.
+   - Approval is re-checked before commit.
+   - Travel approval keeps the existing ticket/visa attachment modal and stores files through saveAttachment.
+   - Approval date becomes the new commission accrual start date for leave and travel. */
+(function(){
+  if(window.__v74FinalTravelLeaveGuard) return;
+  window.__v74FinalTravelLeaveGuard = true;
+  var TRAVEL_KEY = 'nawah-travel-requests';
+  var pendingTravelApprovalId = '';
+  var pendingLeaveApprovalId = '';
+  var DAY = 86400000;
+
+  function qs(s, r){ return (r||document).querySelector(s); }
+  function readTravels(){ try{ var a=JSON.parse(localStorage.getItem(TRAVEL_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+  function saveTravels(a){ try{ localStorage.setItem(TRAVEL_KEY, JSON.stringify(Array.isArray(a)?a:[])); }catch(_){} queueSave(); }
+  function readLeaves(){ try{ if(typeof leaves !== 'undefined' && Array.isArray(leaves)) return leaves; }catch(_){} try{ var a=JSON.parse(localStorage.getItem('nawah-leaves')||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+  function saveLeaves(a){ try{ leaves = Array.isArray(a)?a:[]; }catch(_){} try{ localStorage.setItem('nawah-leaves', JSON.stringify(Array.isArray(a)?a:[])); }catch(_){} try{ if(typeof saveLocalMeta==='function') saveLocalMeta(); }catch(_){} queueSave(); }
+  function queueSave(){ try{ if(typeof queueCloudStateSave === 'function') queueCloudStateSave(); }catch(_){} }
+  function today(){ try{ return typeof formatInputDate==='function' ? formatInputDate(typeof todayAtNoon==='function'?todayAtNoon():new Date()) : new Date().toISOString().slice(0,10); }catch(_){ return new Date().toISOString().slice(0,10); } }
+  function parse(v){ if(!v) return null; var d=new Date(String(v).slice(0,10)+'T12:00:00'); return isNaN(d.getTime())?null:d; }
+  function end(v){ return v ? parse(v) : new Date('9999-12-31T12:00:00'); }
+  function overlaps(a1,a2,b1,b2){ var x=parse(a1), y=end(a2||a1), p=parse(b1), q=end(b2||b1); return !!(x&&y&&p&&q&&x<=q&&p<=y); }
+  function days(a,b){ var x=parse(a), y=parse(b||a); return x&&y&&y>=x ? Math.floor((y-x)/DAY)+1 : 0; }
+  function employee(id){ try{ if(typeof getEmployee==='function') return getEmployee(id); }catch(_){} try{ if(Array.isArray(employees)) return employees.find(function(e){return String(e.id)===String(id);}); }catch(_){} return null; }
+  function empName(id){ var e=employee(id); return e && e.name ? e.name : 'الموظف'; }
+  function openTravel(r){ if(!r) return false; var st=r.status||'pending'; if(st==='rejected'||st==='returned'||st==='cancelled'||st==='canceled') return false; if(r.workResumeDate||r.returnedAt||r.closedAt) return false; return st==='pending'||st==='approved'||st==='travel'||st==='مسافر'; }
+  function openLeave(r){ if(!r) return false; var st=r.status||'pending'; if(st==='rejected'||st==='returned'||st==='cancelled'||st==='canceled') return false; if(r.returnDate||r.returnConfirmedAt||r.closedAt) return false; return st==='pending'||st==='approved'||st==='leave'||st==='إجازة'; }
+  function requestText(kind, r){ return (kind==='travel'?'طلب سفر':'طلب إجازة')+' بتاريخ '+(kind==='travel'?(r.travelDate||''):(r.from||'')); }
+  function showBlock(msg){ try{ if(typeof window.nawahShowBlockingMessage==='function'){ window.nawahShowBlockingMessage(msg); return; } }catch(_){} try{ if(typeof showToast==='function'){ showToast(msg); return; } }catch(_){} alert(msg); }
+  function conflictMessage(kind, employeeId, conflict){
+    var newLabel = kind==='travel' ? 'طلب سفر' : 'طلب إجازة';
+    var oldLabel = conflict && conflict.kind==='travel' ? 'طلب سفر' : 'طلب إجازة';
+    var extra = conflict && conflict.reason==='openTravel' ? 'الموظف لديه سفر قائم لم تتم مباشرته أو إغلاقه.' : 'يوجد تداخل أو طلب قائم لنفس الموظف.';
+    return 'لا يمكن تنفيذ '+newLabel+' للموظف '+empName(employeeId)+' لأن لديه '+oldLabel+' قائم أو متداخل.\n\n'+extra+'\n\nيجب رفض/إغلاق الطلب السابق أو تسجيل المباشرة أولاً.';
+  }
+  function findStrictConflict(kind, employeeId, from, to, exclude){
+    employeeId=String(employeeId||''); exclude=String(exclude||''); if(!employeeId||!from) return null;
+    var travels=readTravels();
+    for(var i=0;i<travels.length;i++){
+      var t=travels[i]; if(!t||String(t.id||'')===exclude||String(t.employeeId||'')!==employeeId||!openTravel(t)) continue;
+      if(kind==='travel') return {kind:'travel', request:t, reason:'openTravel'};
+      if(overlaps(from,to,t.travelDate,t.returnDate||'')) return {kind:'travel', request:t, reason:'overlapTravel'};
+    }
+    var ls=readLeaves();
+    for(var j=0;j<ls.length;j++){
+      var l=ls[j]; if(!l||String(l.id||'')===exclude||String(l.employeeId||'')!==employeeId||!openLeave(l)) continue;
+      if(overlaps(from,to,l.from,l.to||l.from)) return {kind:'leave', request:l, reason:'overlapLeave'};
+    }
+    return null;
+  }
+  window.nawahFindUnifiedRequestConflict = function(kind, employeeId, from, to, options){
+    options = options || {};
+    var exclude = kind==='travel' ? (options.travelId||'') : (options.leaveId||'');
+    return findStrictConflict(kind, employeeId, from, to, exclude);
+  };
+  window.nawahFindStrictLeaveTravelConflictV74 = findStrictConflict;
+  window.nawahConflictMessageFor = function(kind, conflict){
+    var req = conflict && conflict.request || {};
+    return conflictMessage(kind, req.employeeId || '', conflict);
+  };
+
+  function formTravelValues(form){
+    var employeeId=(form.elements.employeeId&&form.elements.employeeId.value||'').trim();
+    var mode=(form.elements.travelMode&&form.elements.travelMode.value||'oneway');
+    var returnMode=(form.elements.returnMode&&form.elements.returnMode.value||'date');
+    var from=(form.elements.travelDate&&form.elements.travelDate.value||'').trim();
+    var to=(form.elements.returnDate&&form.elements.returnDate.value||'').trim();
+    var rd=Number(form.elements.returnDays&&form.elements.returnDays.value||0);
+    if(mode==='roundtrip' && returnMode==='days' && from && rd>0){
+      try{ if(typeof addDaysToDateString==='function') to=addDaysToDateString(from, rd); }
+      catch(_){ var d=parse(from); if(d){ d.setDate(d.getDate()+rd-1); to=d.toISOString().slice(0,10); } }
+    }
+    if(mode!=='roundtrip') to='';
+    return {employeeId:employeeId, from:from, to:to};
+  }
+  function formLeaveValues(form){
+    return {employeeId:(form.elements.employeeId&&form.elements.employeeId.value||'').trim(), from:(form.elements.from&&form.elements.from.value||'').trim(), to:(form.elements.to&&form.elements.to.value||'').trim()};
+  }
+  function blockIfConflict(kind, vals, exclude){
+    if(!vals||!vals.employeeId||!vals.from) return false;
+    var c=findStrictConflict(kind, vals.employeeId, vals.from, vals.to, exclude||'');
+    if(c){ showBlock(conflictMessage(kind, vals.employeeId, c)); return true; }
+    return false;
+  }
+
+  async function persistEmployee(emp){
+    if(!emp) return null;
+    try{ if(typeof persistEmployeeRecord==='function') return await persistEmployeeRecord(emp); }catch(e){ console.warn(e); }
+    try{ employees = employees.map(function(x){ return String(x.id)===String(emp.id)?emp:x; }); }catch(_){}
+    try{ if(typeof dbSaveEmployee==='function') await dbSaveEmployee(emp); }catch(_){}
+    queueSave();
+    return emp;
+  }
+  function commissionRecord(emp, start, end, source, req){
+    try{ if(typeof buildCommissionRecord==='function') return buildCommissionRecord(emp, start, end, source, req); }catch(_){}
+    return null;
+  }
+  function currentAccrual(emp){ try{ if(typeof commissionAccrualStart==='function') return commissionAccrualStart(emp); }catch(_){} return emp && (emp.commissionAccrualStartDate||emp.joinDate||today()); }
+  function requestDays(kind, req){ return kind==='travel' ? days(req.travelDate, req.returnDate||req.travelDate) : Number(req.days||days(req.from, req.to||req.from)); }
+  function confirmBalance(kind, req, emp){ try{ if(typeof window.nawahConfirmBalanceOverageV66==='function') return window.nawahConfirmBalanceOverageV66(kind, req, emp, requestDays(kind, req)); }catch(_){} return true; }
+  async function saveApprovalAttachments(req){
+    var ticket=qs('#travelTicketAttachmentInput');
+    var visa=qs('#travelVisaAttachmentInput');
+    var out={};
+    try{ if(ticket && ticket.files && ticket.files[0] && typeof saveAttachment==='function') out.ticketAttachmentId = await saveAttachment(ticket.files[0], 'travel-ticket'); }catch(e){ console.warn(e); }
+    try{ if(visa && visa.files && visa.files[0] && typeof saveAttachment==='function') out.visaAttachmentId = await saveAttachment(visa.files[0], 'travel-visa'); }catch(e){ console.warn(e); }
+    return out;
+  }
+  function closeModal(id){ try{ qs('#'+id)?.close(); }catch(_){} }
+  function rerender(){ try{ if(typeof renderAll==='function') renderAll(); }catch(_){} }
+
+  async function approveTravel(id, freezeCommission){
+    var list=readTravels();
+    var req=list.find(function(x){return String(x.id)===String(id);});
+    if(!req) return showBlock('تعذر العثور على طلب السفر.');
+    var emp=employee(req.employeeId); if(!emp) return showBlock('تعذر العثور على الموظف.');
+    var c=findStrictConflict('travel', req.employeeId, req.travelDate, req.returnDate||'', req.id);
+    if(c) return showBlock(conflictMessage('travel', req.employeeId, c));
+    if(!confirmBalance('travel', req, emp)) return;
+    var approvalDate=today();
+    var files=await saveApprovalAttachments(req);
+    var rec = freezeCommission ? commissionRecord(emp, currentAccrual(emp), approvalDate, 'travel', {id:req.id,type:'سفر',from:req.travelDate,to:req.returnDate||req.travelDate}) : null;
+    var commissions = rec && rec.days && rec.amount ? [].concat(emp.commissions||[], [rec]) : (emp.commissions||[]);
+    await persistEmployee(Object.assign({}, emp, {
+      status:'travel', attendance:null,
+      travelStatus:{travelId:req.id,travelDate:req.travelDate,returnDate:req.returnDate||'',workResumeDate:'',commissionFrozen:!!freezeCommission,updatedAt:new Date().toISOString()},
+      commissions:commissions,
+      commissionAccrualStartDate:approvalDate,
+      commissionPaused:!!freezeCommission || !!emp.commissionPaused,
+      commissionPauseReason:freezeCommission ? ('متوقف بسبب السفر من '+(req.travelDate||'')) : (emp.commissionPauseReason||''),
+      commissionPausedByLeaveId:freezeCommission ? req.id : (emp.commissionPausedByLeaveId||''),
+      commissionPausedAt:freezeCommission ? new Date().toISOString() : (emp.commissionPausedAt||'')
+    }));
+    list=list.map(function(x){ return String(x.id)===String(req.id) ? Object.assign({}, x, files, {status:'approved', approvedAt:new Date().toISOString(), approvalDate:approvalDate, commissionAccrualStartDate:approvalDate, commissionFrozenAt:freezeCommission?new Date().toISOString():'', commissionIssuedId:rec&&rec.days&&rec.amount?rec.id:''}) : x; });
+    saveTravels(list);
+    closeModal('travelApprovalModal'); pendingTravelApprovalId=''; rerender();
+    try{ if(typeof showToast==='function') showToast(freezeCommission?'تم اعتماد السفر وتجميد العمولة':'تم اعتماد السفر فقط'); }catch(_){}
+  }
+  async function approveLeave(id, freezeCommission){
+    var list=readLeaves();
+    var req=list.find(function(x){return String(x.id)===String(id);});
+    if(!req) return showBlock('تعذر العثور على طلب الإجازة.');
+    var emp=employee(req.employeeId); if(!emp) return showBlock('تعذر العثور على الموظف.');
+    var c=findStrictConflict('leave', req.employeeId, req.from, req.to||req.from, req.id);
+    if(c) return showBlock(conflictMessage('leave', req.employeeId, c));
+    if(!confirmBalance('leave', req, emp)) return;
+    var approvalDate=today();
+    var rec = freezeCommission ? commissionRecord(emp, currentAccrual(emp), approvalDate, 'leave', req) : null;
+    var commissions = rec && rec.days && rec.amount ? [].concat(emp.commissions||[], [rec]) : (emp.commissions||[]);
+    await persistEmployee(Object.assign({}, emp, {
+      status:'leave', attendance:null,
+      commissions:commissions,
+      commissionAccrualStartDate:approvalDate,
+      commissionPaused:!!freezeCommission || !!emp.commissionPaused,
+      commissionPauseReason:freezeCommission ? ('متوقف بسبب '+(req.type||'إجازة')+' من '+(req.from||'')) : (emp.commissionPauseReason||''),
+      commissionPausedByLeaveId:freezeCommission ? req.id : (emp.commissionPausedByLeaveId||''),
+      commissionPausedAt:freezeCommission ? new Date().toISOString() : (emp.commissionPausedAt||'')
+    }));
+    list=list.map(function(x){ return String(x.id)===String(req.id) ? Object.assign({}, x, {status:'approved', approvedAt:new Date().toISOString(), approvalDate:approvalDate, commissionAccrualStartDate:approvalDate, commissionFrozenAt:freezeCommission?new Date().toISOString():'', commissionIssuedId:rec&&rec.days&&rec.amount?rec.id:''}) : x; });
+    saveLeaves(list);
+    closeModal('leaveCommissionModal'); pendingLeaveApprovalId=''; rerender();
+    try{ if(typeof showToast==='function') showToast(freezeCommission?'تم اعتماد الإجازة وتجميد العمولة':'تم اعتماد الإجازة فقط'); }catch(_){}
+  }
+
+  document.addEventListener('submit', function(e){
+    var f=e.target; if(!f || !f.id) return;
+    if(f.id==='travelRequestForm'){
+      var tv=formTravelValues(f); if(blockIfConflict('travel', tv, '')){ e.preventDefault(); e.stopImmediatePropagation(); }
+    }
+    if(f.id==='leaveForm'){
+      var lv=formLeaveValues(f); if(blockIfConflict('leave', lv, '')){ e.preventDefault(); e.stopImmediatePropagation(); }
+    }
+  }, true);
+
+  document.addEventListener('click', function(e){
+    var target=e.target; if(!target || !target.closest) return;
+    var saveTravel=target.closest('#saveTravelRequestBtn');
+    if(saveTravel){ var tf=qs('#travelRequestForm'); if(tf && blockIfConflict('travel', formTravelValues(tf), '')){ e.preventDefault(); e.stopImmediatePropagation(); return; } }
+    var travelApprove=target.closest('[data-travel-approve]');
+    if(travelApprove){
+      var id=travelApprove.getAttribute('data-travel-approve'); var req=readTravels().find(function(x){return String(x.id)===String(id);});
+      if(req){ var c=findStrictConflict('travel', req.employeeId, req.travelDate, req.returnDate||'', req.id); if(c){ e.preventDefault(); e.stopImmediatePropagation(); showBlock(conflictMessage('travel', req.employeeId, c)); return; } pendingTravelApprovalId=id; }
+      return;
+    }
+    var dash=target.closest('[data-dashboard-request-action="approve"]');
+    if(dash){
+      var key=dash.getAttribute('data-dashboard-request-key')||''; var parts=key.split(':'); var kind=parts[0], id2=parts.slice(1).join(':');
+      if(kind==='travel'){ var tr=readTravels().find(function(x){return String(x.id)===String(id2);}); if(tr){ var ct=findStrictConflict('travel', tr.employeeId, tr.travelDate, tr.returnDate||'', tr.id); if(ct){ e.preventDefault(); e.stopImmediatePropagation(); showBlock(conflictMessage('travel', tr.employeeId, ct)); return; } pendingTravelApprovalId=id2; } }
+      if(kind==='leave'){ var le=readLeaves().find(function(x){return String(x.id)===String(id2);}); if(le){ var cl=findStrictConflict('leave', le.employeeId, le.from, le.to||le.from, le.id); if(cl){ e.preventDefault(); e.stopImmediatePropagation(); showBlock(conflictMessage('leave', le.employeeId, cl)); return; } pendingLeaveApprovalId=id2; } }
+      return;
+    }
+    var leaveApprove=target.closest('[data-leave-action="approved"]');
+    if(leaveApprove){
+      var lid=leaveApprove.getAttribute('data-leave-id'); var lreq=readLeaves().find(function(x){return String(x.id)===String(lid);});
+      if(lreq){ var lc=findStrictConflict('leave', lreq.employeeId, lreq.from, lreq.to||lreq.from, lreq.id); if(lc){ e.preventDefault(); e.stopImmediatePropagation(); showBlock(conflictMessage('leave', lreq.employeeId, lc)); return; } pendingLeaveApprovalId=lid; }
+      return;
+    }
+    if(target.closest('#approveTravelOnlyBtn')){ e.preventDefault(); e.stopImmediatePropagation(); approveTravel(pendingTravelApprovalId, false); return; }
+    if(target.closest('#approveTravelWithCommissionBtn')){ e.preventDefault(); e.stopImmediatePropagation(); approveTravel(pendingTravelApprovalId, true); return; }
+    if(target.closest('#approveLeaveOnlyBtn')){ e.preventDefault(); e.stopImmediatePropagation(); approveLeave(pendingLeaveApprovalId, false); return; }
+    if(target.closest('#confirmLeaveCommissionBtn')){ e.preventDefault(); e.stopImmediatePropagation(); approveLeave(pendingLeaveApprovalId, true); return; }
+  }, true);
+
+  document.addEventListener('change', function(e){
+    if(e.target && e.target.closest && e.target.closest('#leaveCommissionModal')){
+      if(!pendingLeaveApprovalId){
+        try{ var pending=(readLeaves().filter(function(x){return (x.status||'pending')==='pending';})||[])[0]; if(pending) pendingLeaveApprovalId=pending.id; }catch(_){}
+      }
+    }
+  }, true);
+})();
