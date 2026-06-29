@@ -506,3 +506,93 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(schedule, 0); setTimeout(schedule, 700); });
   try { new MutationObserver(function(){ if(q('#leavesView.active') && !q('#leavesView .travel-pending-panel')) schedule(); }).observe(document.body, {childList:true, subtree:true}); } catch(_) {}
 })();
+
+/* v73 strict duplicate and cross-table conflict guard
+   Prevents creating or approving duplicate/unresolved leave/travel requests for the same employee.
+   Pending or approved unresolved requests block new requests and approvals across both tables.
+*/
+(function(){
+  if(window.__v73StrictDuplicateLeaveTravelGuard) return;
+  window.__v73StrictDuplicateLeaveTravelGuard = true;
+  var TRAVEL_KEY = 'nawah-travel-requests';
+  function readTravels(){ try{ var a=JSON.parse(localStorage.getItem(TRAVEL_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+  function readLeaves(){ try{ if(typeof leaves!=='undefined' && Array.isArray(leaves)) return leaves; }catch(_){} try{ if(Array.isArray(window.leaves)) return window.leaves; }catch(_){} try{ var a=JSON.parse(localStorage.getItem('nawah-leaves')||'[]'); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+  function parseDate(v){ if(!v) return null; var d=new Date(String(v).slice(0,10)+'T12:00:00'); return isNaN(d.getTime())?null:d; }
+  function openEnd(v){ return v ? parseDate(v) : new Date('9999-12-31T12:00:00'); }
+  function overlaps(a1,a2,b1,b2){ var x=parseDate(a1), y=openEnd(a2||a1), p=parseDate(b1), q=openEnd(b2||b1); return !!(x&&y&&p&&q&&x<=q&&p<=y); }
+  function unresolvedStatus(st){ st=st||'pending'; return st==='pending' || st==='approved'; }
+  function isOpenLeave(r){ return !!(r && unresolvedStatus(r.status) && !r.returnDate && !r.returnConfirmedAt); }
+  function isOpenTravel(r){ return !!(r && unresolvedStatus(r.status) && !r.workResumeDate && !r.returnedAt); }
+  function requestRange(kind, r){ return kind==='travel' ? {from:r.travelDate, to:r.returnDate||''} : {from:r.from, to:r.to||r.from||''}; }
+  function employeeName(id){ try{ var e = typeof getEmployee==='function' ? getEmployee(id) : null; if(!e && typeof employees!=='undefined' && Array.isArray(employees)) e = employees.find(function(x){ return String(x.id)===String(id); }); return e && e.name ? e.name : 'الموظف'; }catch(_){ return 'الموظف'; } }
+  function conflictLabel(c){ return c.kind==='travel' ? 'طلب سفر' : 'طلب إجازة'; }
+  function showBlock(message){ try{ if(typeof window.nawahShowBlockingMessage==='function'){ window.nawahShowBlockingMessage(message); return; } }catch(_){} try{ if(typeof showToast==='function'){ showToast(message); return; } }catch(_){} alert(message); }
+  function findConflict(kind, employeeId, from, to, exclude){
+    employeeId=String(employeeId||''); exclude=String(exclude||''); if(!employeeId || !from) return null;
+    var leavesList=readLeaves();
+    for(var i=0;i<leavesList.length;i++){
+      var l=leavesList[i]; if(!l || String(l.id||'')===exclude || String(l.employeeId||'')!==employeeId || !isOpenLeave(l)) continue;
+      if(overlaps(from,to,l.from,l.to||l.from)) return {kind:'leave', request:l};
+    }
+    var travelList=readTravels();
+    for(var j=0;j<travelList.length;j++){
+      var t=travelList[j]; if(!t || String(t.id||'')===exclude || String(t.employeeId||'')!==employeeId || !isOpenTravel(t)) continue;
+      if(overlaps(from,to,t.travelDate,t.returnDate||'')) return {kind:'travel', request:t};
+    }
+    return null;
+  }
+  function blockMessage(kind, employeeId, conflict){
+    var name=employeeName(employeeId), newType=kind==='travel'?'طلب سفر':'طلب إجازة';
+    return 'لا يمكن تنفيذ '+newType+' للموظف '+name+' لأن لديه '+conflictLabel(conflict)+' قائم أو بانتظار الموافقة في نفس الفترة.\n\nيجب اعتماد/رفض الطلب السابق أو تسجيل المباشرة أولًا، ثم إنشاء الطلب الجديد.';
+  }
+  function travelFormValues(form){
+    var employeeId=(form.elements.employeeId&&form.elements.employeeId.value||'').trim();
+    var travelDate=(form.elements.travelDate&&form.elements.travelDate.value||'').trim();
+    var mode=(form.elements.travelMode&&form.elements.travelMode.value||'oneway');
+    var returnDate=(form.elements.returnDate&&form.elements.returnDate.value||'').trim();
+    var returnDays=Number(form.elements.returnDays&&form.elements.returnDays.value||0);
+    if(mode==='roundtrip' && !returnDate && returnDays>0 && travelDate){
+      try{ if(typeof addDaysToDateString==='function') returnDate=addDaysToDateString(travelDate, returnDays); }catch(_){}
+    }
+    if(mode!=='roundtrip') returnDate='';
+    return {employeeId:employeeId, from:travelDate, to:returnDate};
+  }
+  function leaveFormValues(form){
+    var employeeId=(form.elements.employeeId&&form.elements.employeeId.value||'').trim();
+    var from=(form.elements.from&&form.elements.from.value||form.elements.startDate&&form.elements.startDate.value||'').trim();
+    var to=(form.elements.to&&form.elements.to.value||form.elements.endDate&&form.elements.endDate.value||from||'').trim();
+    return {employeeId:employeeId, from:from, to:to};
+  }
+  function guardSubmit(e){
+    var form=e.target; if(!form || !form.id) return;
+    var kind='', vals=null;
+    if(form.id==='travelRequestForm'){ kind='travel'; vals=travelFormValues(form); }
+    else if(form.id==='leaveForm'){ kind='leave'; vals=leaveFormValues(form); }
+    else return;
+    if(!vals || !vals.employeeId || !vals.from) return;
+    var c=findConflict(kind, vals.employeeId, vals.from, vals.to, '');
+    if(c){ e.preventDefault(); e.stopImmediatePropagation(); showBlock(blockMessage(kind, vals.employeeId, c)); }
+  }
+  function guardApproveClick(e){
+    var travelBtn=e.target && e.target.closest ? e.target.closest('[data-travel-approve]') : null;
+    var leaveBtn=e.target && e.target.closest ? e.target.closest('[data-leave-action="approved"]') : null;
+    if(travelBtn){
+      var tid=travelBtn.getAttribute('data-travel-approve');
+      var tr=readTravels().find(function(x){ return String(x.id||'')===String(tid); });
+      if(!tr) return;
+      var c=findConflict('travel', tr.employeeId, tr.travelDate, tr.returnDate||'', tr.id);
+      if(c){ e.preventDefault(); e.stopImmediatePropagation(); showBlock(blockMessage('travel', tr.employeeId, c)); }
+      return;
+    }
+    if(leaveBtn){
+      var lid=leaveBtn.getAttribute('data-leave-id');
+      var lv=readLeaves().find(function(x){ return String(x.id||'')===String(lid); });
+      if(!lv) return;
+      var c2=findConflict('leave', lv.employeeId, lv.from, lv.to||lv.from, lv.id);
+      if(c2){ e.preventDefault(); e.stopImmediatePropagation(); showBlock(blockMessage('leave', lv.employeeId, c2)); }
+    }
+  }
+  document.addEventListener('submit', guardSubmit, true);
+  document.addEventListener('click', guardApproveClick, true);
+  window.nawahFindStrictLeaveTravelConflictV73 = findConflict;
+})();
