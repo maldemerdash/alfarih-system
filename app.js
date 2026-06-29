@@ -20002,3 +20002,171 @@ document.addEventListener("click", function(event) {
     window.hydrateAttachmentImages = lazyHydrate;
   }
 })();
+
+/* =========================================================
+   v57 database/performance stabilization
+   - Reduces repeated Supabase saves while typing/changing forms.
+   - Prevents overlapping cloud upserts from stacking.
+   - Caches attachment metadata and signed URLs to avoid repeated DB/storage calls.
+   - Keeps current UI and business logic unchanged.
+   ========================================================= */
+(function v57DatabasePerformanceStabilization(){
+  if (window.__v57DatabasePerformanceStabilization) return;
+  window.__v57DatabasePerformanceStabilization = true;
+
+  const SAVE_DEBOUNCE_MS = 2500;
+  const SAVE_MAX_WAIT_MS = 8000;
+  const ATTACHMENT_CACHE_MS = 5 * 60 * 1000;
+  const SIGNED_URL_CACHE_MS = 50 * 60 * 1000;
+
+  let saveTimer = null;
+  let firstQueuedAt = 0;
+  let saveInFlight = false;
+  let saveAgainAfterFlight = false;
+  let lastSavedFingerprint = '';
+
+  function now(){ return Date.now(); }
+
+  function safeFingerprint(state){
+    try {
+      const employeesCount = Array.isArray(state?.employees) ? state.employees.length : 0;
+      const leavesCount = Array.isArray(state?.leaves) ? state.leaves.length : 0;
+      const travelCount = Array.isArray(state?.travelRequests) ? state.travelRequests.length : 0;
+      const lastEmployee = employeesCount ? state.employees[employeesCount - 1] : null;
+      return [
+        employeesCount,
+        leavesCount,
+        travelCount,
+        state?.savedAt ? String(state.savedAt).slice(0, 16) : '',
+        lastEmployee?.id || '',
+        lastEmployee?.updatedAt || lastEmployee?.createdAt || ''
+      ].join('|');
+    } catch (_) {
+      return String(Math.random());
+    }
+  }
+
+  const originalSaveCloudStateNow = typeof saveCloudStateNow === 'function' ? saveCloudStateNow : null;
+  if (originalSaveCloudStateNow && !originalSaveCloudStateNow.__v57DatabasePerformanceStabilization) {
+    const optimizedSaveCloudStateNow = async function(options = {}){
+      const force = Boolean(options && options.force);
+      if (!force && (!supabaseClient || !cloudReady || !cloudSaveAllowed)) return;
+
+      if (saveInFlight) {
+        saveAgainAfterFlight = true;
+        return;
+      }
+
+      saveInFlight = true;
+      try {
+        if (force) {
+          lastSavedFingerprint = '';
+          return await originalSaveCloudStateNow.apply(this, arguments);
+        }
+
+        // Avoid writing identical light-state twice in the same interaction burst.
+        const snapshot = typeof buildCloudState === 'function' ? buildCloudState() : null;
+        const fingerprint = safeFingerprint(snapshot);
+        if (fingerprint && fingerprint === lastSavedFingerprint) return;
+
+        if (!supabaseClient || !cloudReady) return;
+        const { error } = await supabaseClient
+          .from('app_settings')
+          .upsert({
+            setting_key: CLOUD_STATE_KEY,
+            setting_value: snapshot,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'setting_key' });
+        if (error) throw error;
+        lastSavedFingerprint = fingerprint;
+      } catch (error) {
+        console.warn('تعذر حفظ البيانات في Supabase، ستبقى محفوظة محليًا مؤقتًا.', error);
+      } finally {
+        saveInFlight = false;
+        if (saveAgainAfterFlight) {
+          saveAgainAfterFlight = false;
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => optimizedSaveCloudStateNow(), SAVE_DEBOUNCE_MS);
+        }
+      }
+    };
+    optimizedSaveCloudStateNow.__v57DatabasePerformanceStabilization = true;
+    try { saveCloudStateNow = optimizedSaveCloudStateNow; } catch (_) {}
+    window.saveCloudStateNow = optimizedSaveCloudStateNow;
+  }
+
+  const originalQueueCloudStateSave = typeof queueCloudStateSave === 'function' ? queueCloudStateSave : null;
+  if (originalQueueCloudStateSave && !originalQueueCloudStateSave.__v57DatabasePerformanceStabilization) {
+    const optimizedQueueCloudStateSave = function(){
+      if (!supabaseClient || !cloudReady || !cloudLoadAttempted || !cloudSaveAllowed) return;
+      const startedAt = firstQueuedAt || now();
+      firstQueuedAt = startedAt;
+      clearTimeout(saveTimer);
+      const elapsed = now() - startedAt;
+      const delay = elapsed >= SAVE_MAX_WAIT_MS ? 0 : SAVE_DEBOUNCE_MS;
+      saveTimer = setTimeout(() => {
+        firstQueuedAt = 0;
+        try { saveCloudStateNow(); } catch (_) {}
+      }, delay);
+    };
+    optimizedQueueCloudStateSave.__v57DatabasePerformanceStabilization = true;
+    try { queueCloudStateSave = optimizedQueueCloudStateSave; } catch (_) {}
+    window.queueCloudStateSave = optimizedQueueCloudStateSave;
+  }
+
+  const attachmentCache = new Map();
+  const signedUrlCache = new Map();
+
+  function cacheGet(map, key, ttl){
+    const item = map.get(String(key));
+    if (!item) return null;
+    if (now() - item.time > ttl) {
+      map.delete(String(key));
+      return null;
+    }
+    return item.value;
+  }
+
+  function cacheSet(map, key, value){
+    if (!key || !value) return value;
+    map.set(String(key), { value, time: now() });
+    return value;
+  }
+
+  const originalGetAttachment = typeof getAttachment === 'function' ? getAttachment : null;
+  if (originalGetAttachment && !originalGetAttachment.__v57DatabasePerformanceStabilization) {
+    const cachedGetAttachment = async function(id){
+      if (!id) return null;
+      const cached = cacheGet(attachmentCache, id, ATTACHMENT_CACHE_MS);
+      if (cached) return cached;
+      const result = await originalGetAttachment.apply(this, arguments);
+      return cacheSet(attachmentCache, id, result);
+    };
+    cachedGetAttachment.__v57DatabasePerformanceStabilization = true;
+    try { getAttachment = cachedGetAttachment; } catch (_) {}
+    window.getAttachment = cachedGetAttachment;
+  }
+
+  const originalAttachmentUrl = typeof attachmentUrl === 'function' ? attachmentUrl : null;
+  if (originalAttachmentUrl && !originalAttachmentUrl.__v57DatabasePerformanceStabilization) {
+    const cachedAttachmentUrl = async function(id){
+      if (!id) return '';
+      const cached = cacheGet(signedUrlCache, id, SIGNED_URL_CACHE_MS);
+      if (cached) return cached;
+      const result = await originalAttachmentUrl.apply(this, arguments);
+      return cacheSet(signedUrlCache, id, result);
+    };
+    cachedAttachmentUrl.__v57DatabasePerformanceStabilization = true;
+    try { attachmentUrl = cachedAttachmentUrl; } catch (_) {}
+    window.attachmentUrl = cachedAttachmentUrl;
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'hidden' && saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      firstQueuedAt = 0;
+      try { saveCloudStateNow(); } catch (_) {}
+    }
+  });
+})();
