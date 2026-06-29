@@ -19509,3 +19509,234 @@ document.addEventListener("click", function(event) {
     window.renderAll = optimizedRenderAll;
   }
 })();
+
+/* v54 - Correct manual commission payout date logic
+   Manual mode does NOT edit commission accrual start. It only adds a manual payout date
+   and uses that date as the commission end/payment date for the current clearance. */
+(function(){
+  'use strict';
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  function form(){ return document.querySelector('#employeeForm'); }
+  function toast(message){ try { showToast(message); } catch(_) {} }
+  function todayIso(){
+    try { return formatInputDate(todayAtNoon()); } catch(_) { return new Date().toISOString().slice(0,10); }
+  }
+  function toLocalNoonIso(dateValue){
+    if (!dateValue) return new Date().toISOString();
+    const d = new Date(String(dateValue).slice(0,10) + 'T12:00:00');
+    return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  }
+  function isManualCommissionMode(f){
+    return (f?.querySelector('[name="commissionStartMode"]')?.value || 'auto') === 'manual';
+  }
+  function manualPayoutDate(f){
+    return f?.querySelector('[name="commissionManualPaymentDate"]')?.value || '';
+  }
+  function commissionEndDateForUi(f){
+    if (isManualCommissionMode(f)) return manualPayoutDate(f) || '';
+    return todayIso();
+  }
+
+  function ensureManualPayoutField(){
+    const f = form();
+    if (!f) return;
+    try { if (typeof installEmployeeFormFields === 'function' && !f.querySelector('[name="commissionStartMode"]')) installEmployeeFormFields(); } catch(_) {}
+    const select = f.querySelector('[name="commissionStartMode"]');
+    if (!select || !f.elements?.commissionStartDate) return;
+
+    const label = select.closest('label');
+    const title = label?.querySelector('span');
+    if (title) title.textContent = 'طريقة صرف العمولة';
+    select.querySelector('option[value="auto"]') && (select.querySelector('option[value="auto"]').textContent = 'آلية');
+    select.querySelector('option[value="manual"]') && (select.querySelector('option[value="manual"]').textContent = 'يدوية');
+
+    const startLabel = f.elements.commissionStartDate.closest('label');
+    const startTitle = startLabel?.querySelector('span');
+    if (startTitle) startTitle.textContent = 'بداية الاستحقاق الآلية';
+
+    if (!f.querySelector('[name="commissionManualPaymentDate"]')) {
+      const payoutLabel = document.createElement('label');
+      payoutLabel.className = 'commission-manual-payout-field';
+      payoutLabel.innerHTML = '<span>تاريخ استحقاق الصرف</span><input type="date" name="commissionManualPaymentDate" />';
+      label?.insertAdjacentElement('afterend', payoutLabel);
+      payoutLabel.querySelector('input')?.addEventListener('input', () => {
+        try { updateCommissionCalculations(); } catch(_) {}
+      });
+    }
+
+    if (!select.__v54ManualPayoutBound) {
+      select.__v54ManualPayoutBound = true;
+      select.addEventListener('change', () => {
+        if (select.value === 'manual') {
+          const manual = f.querySelector('[name="commissionManualPaymentDate"]');
+          if (manual && !manual.value) manual.value = todayIso();
+        }
+        applyCommissionStartModeUiV54();
+        try { updateCommissionCalculations(); } catch(_) {}
+      });
+    }
+    applyCommissionStartModeUiV54();
+  }
+
+  function applyCommissionStartModeUiV54(){
+    const f = form();
+    if (!f || !f.elements?.commissionStartDate) return;
+    const manual = isManualCommissionMode(f);
+    const payoutLabel = f.querySelector('[name="commissionManualPaymentDate"]')?.closest('label');
+    if (payoutLabel) payoutLabel.hidden = !manual;
+    // Start date is always automatic/read-only. Manual mode changes payout date only.
+    f.elements.commissionStartDate.readOnly = true;
+    f.elements.commissionStartDate.classList.add('calculated-field');
+    f.elements.commissionStartDate.classList.remove('manual-field');
+  }
+
+  // Replace old v52 UI behavior that made accrual start editable.
+  try {
+    applyCommissionStartModeUi = applyCommissionStartModeUiV54;
+    window.applyCommissionStartModeUi = applyCommissionStartModeUiV54;
+  } catch(_) {}
+
+  // Keep the old installer, then add the correct manual payout date field.
+  try {
+    const previousInstall = typeof installEmployeeFormFields === 'function' ? installEmployeeFormFields : null;
+    const installV54 = function(){
+      if (previousInstall) previousInstall.apply(this, arguments);
+      ensureManualPayoutField();
+    };
+    installV54.__v54ManualPayout = true;
+    installEmployeeFormFields = installV54;
+    window.installEmployeeFormFields = installV54;
+  } catch(_) {}
+
+  // Commission display/calculation: automatic start is preserved. Manual mode only changes the end/payment date.
+  const updateCommissionCalculationsV54 = function(){
+    const f = form();
+    if (!f) return;
+    ensureManualPayoutField();
+    const payButton = document.querySelector('#payCommissionBtn');
+    const setPayButtonAvailability = (available) => {
+      if (!payButton) return;
+      payButton.hidden = !available;
+      payButton.disabled = !available;
+    };
+    const salary = calculateSalaryFromForm();
+    const workStartDate = f.elements.workStartDate.value || f.elements.contractStartDate.value;
+    const initialCycle = !employeeFormState.commissions.length && !employeeFormState.commissionPausedByLeaveId;
+    if (initialCycle && workStartDate) employeeFormState.commissionAccrualStartDate = workStartDate;
+
+    const startDate = employeeFormState.commissionAccrualStartDate || workStartDate || f.elements.commissionStartDate.value;
+    f.elements.commissionStartDate.value = startDate || '';
+
+    if (employeeFormState.commissionPaused) {
+      f.elements.commissionAmount.value = formatNumberEn(0, 2);
+      f.elements.commissionWords.value = '';
+      f.elements.commissionStatusText.value = employeeFormState.commissionPauseReason || 'متوقف بسبب إجازة';
+      setPayButtonAvailability(false);
+      return;
+    }
+    if (f.elements.status.value !== 'active') {
+      f.elements.commissionAmount.value = formatNumberEn(0, 2);
+      f.elements.commissionWords.value = '';
+      f.elements.commissionStatusText.value = 'متوقف لأن حالة العمل ليست على رأس العمل';
+      setPayButtonAvailability(false);
+      return;
+    }
+
+    const manual = isManualCommissionMode(f);
+    const endDate = commissionEndDateForUi(f);
+    if (manual && !endDate) {
+      f.elements.commissionAmount.value = formatNumberEn(0, 2);
+      f.elements.commissionWords.value = '';
+      f.elements.commissionStatusText.value = startDate ? 'أدخل تاريخ استحقاق الصرف اليدوي' : 'أدخل تاريخ المباشرة لبدء الاستحقاق';
+      setPayButtonAvailability(false);
+      return;
+    }
+    const { days, amount } = calculateCommission(salary.base, startDate, endDate || todayIso());
+    f.elements.commissionAmount.value = formatNumberEn(amount, 2);
+    f.elements.commissionWords.value = amount ? amountToWords(amount) : '';
+    const endLabel = manual && endDate ? ` حتى ${formatDate(endDate)}` : '';
+    f.elements.commissionStatusText.value = startDate
+      ? `نشط من ${formatDate(startDate)}${endLabel} - ${arabicNumber(days)} يوم مستحق`
+      : 'أدخل تاريخ المباشرة لبدء الاستحقاق';
+    setPayButtonAvailability(Boolean(startDate && days > 0 && amount > 0));
+    applyCommissionStartModeUiV54();
+  };
+  updateCommissionCalculationsV54.__v54ManualPayout = true;
+  try { updateCommissionCalculations = updateCommissionCalculationsV54; window.updateCommissionCalculations = updateCommissionCalculationsV54; } catch(_) {}
+
+  // Start payment: manual mode uses manual payout date as both endDate and paymentDate.
+  const startCommissionPaymentV54 = async function(){
+    const f = form();
+    if (!f) return;
+    ensureManualPayoutField();
+    const startDate = f.elements.commissionStartDate.value;
+    const salary = calculateSalaryFromForm();
+    const manual = isManualCommissionMode(f);
+    const manualDate = manualPayoutDate(f);
+    const endDate = manual ? manualDate : todayIso();
+    if (employeeFormState.commissionPaused || f.elements.status.value !== 'active') {
+      toast('لا يمكن صرف العمولة إلا لموظف على رأس العمل واستحقاقه نشط');
+      return;
+    }
+    if (manual && !manualDate) {
+      toast('أدخل تاريخ استحقاق الصرف اليدوي');
+      return;
+    }
+    const { days, amount } = calculateCommission(salary.base, startDate, endDate);
+    if (!startDate || !days || !amount) {
+      toast('تأكد من بداية الاستحقاق وتاريخ الصرف وتفاصيل الراتب');
+      return;
+    }
+    pendingClearance = {
+      id: `commission-${Date.now()}`,
+      startDate,
+      endDate,
+      days,
+      amount,
+      paymentDate: manual ? toLocalNoonIso(endDate) : new Date().toISOString(),
+      employee: currentFormEmployeeSnapshot(),
+      authType: 'signature',
+      source: manual ? 'manual-payout-date' : 'automatic-payout',
+      payoutMode: manual ? 'manual' : 'auto',
+      manualPayoutDate: manual ? endDate : ''
+    };
+    const sig = document.querySelector('[name="commissionAuth"][value="signature"]');
+    if (sig) sig.checked = true;
+    document.querySelector('#commissionAuthModal')?.showModal();
+  };
+  startCommissionPaymentV54.__v54ManualPayout = true;
+  try { startCommissionPayment = startCommissionPaymentV54; window.startCommissionPayment = startCommissionPaymentV54; } catch(_) {}
+
+  // After successful issuance, clear manual payout UI and return to auto for the next payout.
+  try {
+    const previousIssue = typeof issueClearance === 'function' ? issueClearance : null;
+    const issueV54 = async function(){
+      const result = previousIssue ? await previousIssue.apply(this, arguments) : undefined;
+      if (typeof pendingClearance !== 'undefined' && !pendingClearance) {
+        const f = form();
+        const sel = f?.querySelector('[name="commissionStartMode"]');
+        const manualDate = f?.querySelector('[name="commissionManualPaymentDate"]');
+        if (sel) sel.value = 'auto';
+        if (manualDate) manualDate.value = '';
+        if (employeeFormState) {
+          employeeFormState.commissionStartMode = 'auto';
+          employeeFormState.commissionManualStartDate = '';
+          employeeFormState.commissionManualPaymentDate = '';
+        }
+        applyCommissionStartModeUiV54();
+        try { updateCommissionCalculationsV54(); } catch(_) {}
+      }
+      return result;
+    };
+    issueV54.__v54ManualPayout = true;
+    issueClearance = issueV54;
+    window.issueClearance = issueV54;
+  } catch(_) {}
+
+  document.addEventListener('DOMContentLoaded', () => setTimeout(ensureManualPayoutField, 0));
+  document.addEventListener('click', (event) => {
+    if (event.target?.closest?.('[data-edit-employee], [data-quick-view], #addEmployeeBtn')) {
+      setTimeout(ensureManualPayoutField, 120);
+    }
+  }, true);
+})();
