@@ -11162,3 +11162,177 @@ body.auth-locked .app-shell {
     align-self: start !important;
   }
 }
+
+/* Final attachment download and linked employee topbar photo polish */
+.attachment-view-btn.attachment-download-btn,
+.attachment-download-btn {
+  display: inline-grid;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  place-items: center;
+  padding: 0 !important;
+  border: 1px solid rgba(15, 118, 110, 0.16) !important;
+  border-radius: 10px;
+  background: rgba(17, 166, 151, 0.08) !important;
+  color: var(--primary) !important;
+  font-size: 0 !important;
+  line-height: 1;
+  vertical-align: middle;
+}
+.attachment-download-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.topbar-user-mark.has-employee-photo {
+  overflow: hidden;
+  background: #fff;
+  padding: 0;
+  border: 2px solid rgba(17, 166, 151, 0.18);
+}
+.topbar-user-mark.has-employee-photo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+
+/* Final v3 layout for employee attachment controls */
+.employee-attachment-inline-wrap {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+.employee-attachment-inline-wrap .compact-file-control {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+.employee-attachment-inline-wrap .employee-attachment-download-inline,
+.employee-attachment-download-inline {
+  flex: 0 0 30px !important;
+  margin: 0 !important;
+}
+.repeatable-row label .employee-attachment-inline-wrap,
+.employee-form-section label .employee-attachment-inline-wrap {
+  margin-top: 0 !important;
+}
+.topbar-user-mark.has-employee-photo {
+  color: transparent !important;
+}
+
+/* v5 attachment/header safe repair */
+.topbar-user-mark.has-employee-photo{overflow:hidden;background:transparent;padding:0;}
+.topbar-user-mark.has-employee-photo img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;}
+.employee-attachment-inline-wrap{display:inline-flex;align-items:center;gap:8px;width:100%;max-width:100%;}
+.employee-attachment-inline-wrap .compact-file-control{flex:1 1 auto;min-width:0;}
+.employee-attachment-download-inline,.attachment-download-btn{width:40px;height:40px;min-width:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;}
+.attachment-download-btn svg{width:18px;height:18px;}
+
+/* v16: keep the attachment download mark beside the attachment text, never below it */
+.employee-attachment-inline-wrap,
+.employee-attachment-inline-wrap-v16 {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: stretch !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+}
+.employee-attachment-inline-wrap .compact-file-control,
+.employee-attachment-inline-wrap-v16 .compact-file-control {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+}
+.employee-attachment-download-inline,
+.employee-attachment-inline-wrap .attachment-download-btn,
+.employee-attachment-inline-wrap-v16 .attachment-download-btn {
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: middle !important;
+}
+.employee-attachment-inline-wrap .attachment-download-btn svg,
+.employee-attachment-inline-wrap-v16 .attachment-download-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* v17 clean inline attachment controls */
+.employee-attachment-inline-wrap,
+.employee-attachment-inline-wrap-v17 {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+}
+.employee-attachment-inline-wrap .compact-file-control,
+.employee-attachment-inline-wrap-v17 .compact-file-control {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+}
+.employee-attachment-download-inline,
+.employee-attachment-inline-wrap .attachment-download-btn,
+.employee-attachment-inline-wrap-v17 .attachment-download-btn {
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: middle !important;
+}
+.employee-attachment-inline-wrap .attachment-download-btn svg,
+.employee-attachment-inline-wrap-v17 .attachment-download-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* v19: hidden attachment download buttons must stay hidden even when older CSS gives them display:flex!important */
+.attachment-view-btn[hidden],
+.attachment-download-btn[hidden],
+.employee-attachment-download-inline[hidden],
+[data-view-single-attachment][hidden],
+[data-view-attachment][hidden] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
