@@ -18051,3 +18051,528 @@ document.addEventListener("click", function(event) {
   window.addEventListener('load', () => setTimeout(() => { updateConsentModalUi(''); applyTopbarPhotoV33(); }, 180));
   setTimeout(() => { updateConsentModalUi(''); applyTopbarPhotoV33(); }, 600);
 })();
+
+/* =========================================================
+   v34 leave balance policies and negative balance approval
+   - Adds configurable leave-balance policy without changing approved page identity.
+   - Keeps dashboard layout stable by adding a compact summary inside the existing leave card.
+   - Warns for insufficient annual leave balance and allows override only for authorized approval users.
+   ========================================================= */
+(function leaveBalancePolicyV34(){
+  if (window.__leaveBalancePolicyV34) return;
+  window.__leaveBalancePolicyV34 = true;
+
+  const SETTINGS_KEY = 'nawah-leave-balance-settings';
+  const ADJUSTMENTS_KEY = 'nawah-leave-balance-adjustments';
+  const ONE_DAY = 86400000;
+  const DEFAULTS = {
+    annualDaysBeforeFiveYears: 21,
+    annualDaysAfterFiveYears: 30,
+    accrualMethod: 'monthly',
+    dayCountMode: 'calendar',
+    excludeOfficialHolidays: true,
+    allowNegativeWithApproval: true,
+    carryForwardEnabled: false,
+    carryForwardLimit: 0,
+    deductedTypes: ['إجازة سنوية'],
+    holidayDates: []
+  };
+
+  let pendingNegativeApprovalLeaveId = '';
+
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const num = (value) => { try { return typeof arabicNumber === 'function' ? arabicNumber(value) : new Intl.NumberFormat('ar-SA').format(value); } catch (_) { return String(value); } };
+  const fmt = (value) => { try { return typeof formatDate === 'function' ? formatDate(value) : String(value || '—'); } catch (_) { return String(value || '—'); } };
+  const todayIso = () => { try { return typeof formatInputDate === 'function' ? formatInputDate(todayAtNoon()) : new Date().toISOString().slice(0,10); } catch (_) { return new Date().toISOString().slice(0,10); } };
+
+  function popup(message, title = 'تنبيه'){
+    try { if (typeof window.nawahShowBlockingMessage === 'function') { window.nawahShowBlockingMessage(message, title); return; } } catch (_) {}
+    try { if (typeof window.showModalMessage === 'function') { window.showModalMessage(message, title); return; } } catch (_) {}
+    try { showToast(message); } catch (_) { alert(message); }
+  }
+
+  function dateObj(value){
+    if (!value) return null;
+    const d = new Date(`${String(value).slice(0,10)}T12:00:00`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  function iso(d){
+    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function addDays(d, n){ const out = new Date(d.getTime()); out.setDate(out.getDate() + n); return out; }
+  function daysBetweenInclusive(from, to){
+    const a = dateObj(from); const b = dateObj(to || from);
+    if (!a || !b) return 0;
+    return Math.max(1, Math.round((b - a) / ONE_DAY) + 1);
+  }
+
+  function settings(){
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) { stored = {}; }
+    const merged = { ...DEFAULTS, ...stored };
+    merged.annualDaysBeforeFiveYears = Math.max(0, Number(merged.annualDaysBeforeFiveYears || DEFAULTS.annualDaysBeforeFiveYears));
+    merged.annualDaysAfterFiveYears = Math.max(0, Number(merged.annualDaysAfterFiveYears || DEFAULTS.annualDaysAfterFiveYears));
+    merged.carryForwardLimit = Math.max(0, Number(merged.carryForwardLimit || 0));
+    merged.deductedTypes = Array.isArray(merged.deductedTypes) && merged.deductedTypes.length ? merged.deductedTypes.map(String) : DEFAULTS.deductedTypes.slice();
+    merged.holidayDates = Array.isArray(merged.holidayDates) ? [...new Set(merged.holidayDates.map((d)=>String(d).slice(0,10)).filter(Boolean))].sort() : [];
+    if (!['monthly','annual','manual'].includes(merged.accrualMethod)) merged.accrualMethod = DEFAULTS.accrualMethod;
+    if (!['calendar','workdays'].includes(merged.dayCountMode)) merged.dayCountMode = DEFAULTS.dayCountMode;
+    return merged;
+  }
+  function saveSettings(next){
+    const normalized = { ...settings(), ...(next || {}) };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));
+    try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch (_) {}
+    try { renderLeaveBalanceSettingsPanel(); } catch (_) {}
+    try { refreshLeaveBalancePreview(); } catch (_) {}
+    try { renderDashboard(); } catch (_) {}
+  }
+  function adjustments(){
+    try { const list = JSON.parse(localStorage.getItem(ADJUSTMENTS_KEY) || '[]'); return Array.isArray(list) ? list : []; } catch (_) { return []; }
+  }
+
+  function isAdmin(){
+    try { if (String(authProfile?.role || '').trim() === 'admin') return true; } catch (_) {}
+    try { if (typeof currentRoleKey === 'function' && currentRoleKey() === 'admin') return true; } catch (_) {}
+    return false;
+  }
+  function can(permission){
+    try { if (isAdmin()) return true; } catch (_) {}
+    try { if (window.employeePermissionMatrix?.can?.(permission)) return true; } catch (_) {}
+    return false;
+  }
+  function canApproveNegativeBalance(){
+    const s = settings();
+    if (!s.allowNegativeWithApproval) return false;
+    return isAdmin() || can('leaves.approveNegativeBalance') || can('leaves.approve');
+  }
+
+  function employeeById(id){
+    try { return typeof getEmployee === 'function' ? getEmployee(id) : (Array.isArray(employees) ? employees.find((e)=>String(e.id) === String(id)) : null); } catch (_) { return null; }
+  }
+  function employeeStartDate(employee){
+    return employee?.workStartDate || employee?.contractStartDate || employee?.joinDate || '';
+  }
+  function serviceYears(employee, asOf = todayIso()){
+    const start = dateObj(employeeStartDate(employee)); const end = dateObj(asOf);
+    if (!start || !end || end < start) return 0;
+    return (end - start) / (365.25 * ONE_DAY);
+  }
+  function contractYear(employee, asOf = todayIso()){
+    const ref = dateObj(asOf) || new Date();
+    const start = dateObj(employeeStartDate(employee));
+    if (!start) return { start: new Date(ref.getFullYear(),0,1,12), end: new Date(ref.getFullYear(),11,31,12) };
+    let yStart = new Date(ref.getFullYear(), start.getMonth(), start.getDate(), 12);
+    if (yStart > ref) yStart = new Date(ref.getFullYear()-1, start.getMonth(), start.getDate(), 12);
+    const yEnd = addDays(new Date(yStart.getFullYear()+1, yStart.getMonth(), yStart.getDate(), 12), -1);
+    return { start: yStart, end: yEnd };
+  }
+  function annualEntitlement(employee, asOf = todayIso()){
+    const s = settings();
+    return serviceYears(employee, asOf) >= 5 ? s.annualDaysAfterFiveYears : s.annualDaysBeforeFiveYears;
+  }
+  function isHoliday(dateIso){ return settings().holidayDates.includes(String(dateIso || '').slice(0,10)); }
+  function isWorkday(dateIso){
+    try {
+      const d = dateObj(dateIso); if (!d) return true;
+      const day = normalizeWorkSettings?.(workSettings)?.days?.[d.getDay()];
+      return day ? Boolean(day.enabled) : true;
+    } catch (_) { return true; }
+  }
+  function countLeaveDays(from, to, options = {}){
+    const s = settings();
+    const mode = options.dayCountMode || s.dayCountMode;
+    const excludeHolidays = options.excludeOfficialHolidays ?? s.excludeOfficialHolidays;
+    const start = dateObj(from); const end = dateObj(to || from);
+    if (!start || !end || end < start) return 0;
+    let count = 0;
+    for (let d = new Date(start.getTime()); d <= end && count < 500; d = addDays(d, 1)) {
+      const dayIso = iso(d);
+      if (mode === 'workdays' && !isWorkday(dayIso)) continue;
+      if (excludeHolidays && isHoliday(dayIso)) continue;
+      count += 1;
+    }
+    return Math.max(0, count);
+  }
+  function deductsFromAnnual(type){
+    const types = settings().deductedTypes;
+    return types.includes(String(type || '').trim() || 'إجازة سنوية');
+  }
+  function overlapsYear(leave, range){
+    const from = dateObj(leave.from); const to = dateObj(leave.to || leave.from);
+    if (!from || !to) return false;
+    return from <= range.end && range.start <= to;
+  }
+  function leaveDaysForBalance(leave){
+    if (!deductsFromAnnual(leave.type)) return 0;
+    return Number(leave.balanceDays ?? leave.days ?? countLeaveDays(leave.from, leave.to)) || 0;
+  }
+  function balanceForEmployee(employeeId, asOf = todayIso(), options = {}){
+    const employee = employeeById(employeeId);
+    if (!employee) return null;
+    const s = settings();
+    const year = contractYear(employee, asOf);
+    const start = dateObj(employeeStartDate(employee));
+    const ref = dateObj(asOf) || new Date();
+    const annual = annualEntitlement(employee, asOf);
+    let accrued = 0;
+    if (s.accrualMethod === 'manual') {
+      accrued = Number(employee.leaveOpeningBalance || employee.annualLeaveBalance || 0) || 0;
+    } else if (s.accrualMethod === 'annual') {
+      accrued = annual;
+    } else {
+      const accrueStart = start && start > year.start ? start : year.start;
+      const accrueEnd = ref < year.end ? ref : year.end;
+      const elapsed = accrueEnd >= accrueStart ? Math.round((accrueEnd - accrueStart) / ONE_DAY) + 1 : 0;
+      const total = Math.round((year.end - year.start) / ONE_DAY) + 1;
+      accrued = total ? annual * (elapsed / total) : 0;
+    }
+    const carry = s.carryForwardEnabled ? Math.min(Number(employee.leaveCarryForward || 0) || 0, s.carryForwardLimit || 9999) : 0;
+    const manual = adjustments().filter((item)=>String(item.employeeId) === String(employeeId)).reduce((sum,item)=>sum + (Number(item.days) || 0), 0);
+    const rows = (Array.isArray(leaves) ? leaves : []).filter((leave)=>String(leave.employeeId) === String(employeeId) && overlapsYear(leave, year) && deductsFromAnnual(leave.type));
+    let used = 0; let reserved = 0;
+    rows.forEach((leave)=>{
+      if (options.excludeLeaveId && String(leave.id) === String(options.excludeLeaveId)) return;
+      if (leave.status === 'rejected') return;
+      const days = leaveDaysForBalance(leave);
+      if (leave.returnDate || leave.returnConfirmedAt) used += days;
+      else if (leave.status === 'pending' || leave.status === 'approved') reserved += days;
+    });
+    const available = accrued + carry + manual - used - reserved;
+    return {
+      employee,
+      annual,
+      accrued: roundDays(accrued),
+      carry: roundDays(carry),
+      manual: roundDays(manual),
+      used: roundDays(used),
+      reserved: roundDays(reserved),
+      available: roundDays(available),
+      yearStart: iso(year.start),
+      yearEnd: iso(year.end)
+    };
+  }
+  function roundDays(value){ return Math.round((Number(value) || 0) * 100) / 100; }
+  function projectedBalance(employeeId, from, to, type, excludeLeaveId = ''){
+    const bal = balanceForEmployee(employeeId, todayIso(), { excludeLeaveId });
+    if (!bal) return null;
+    const days = deductsFromAnnual(type) ? countLeaveDays(from, to) : 0;
+    return { ...bal, requestDays: days, projected: roundDays(bal.available - days), deducts: deductsFromAnnual(type) };
+  }
+  window.nawahLeaveBalanceV34 = { settings, saveSettings, countLeaveDays, balanceForEmployee, projectedBalance, canApproveNegativeBalance };
+
+  const oldSaveLocalMeta = typeof saveLocalMeta === 'function' ? saveLocalMeta : null;
+  if (oldSaveLocalMeta && !oldSaveLocalMeta.__v34LeaveBalance) {
+    const wrapped = function(){
+      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings())); } catch (_) {}
+      return oldSaveLocalMeta.apply(this, arguments);
+    };
+    wrapped.__v34LeaveBalance = true;
+    try { saveLocalMeta = wrapped; window.saveLocalMeta = wrapped; } catch (_) {}
+  }
+  const oldBuildCloudState = typeof buildCloudState === 'function' ? buildCloudState : null;
+  if (oldBuildCloudState && !oldBuildCloudState.__v34LeaveBalance) {
+    const wrapped = function(){
+      const state = oldBuildCloudState.apply(this, arguments) || {};
+      state.leaveBalanceSettings = settings();
+      state.leaveBalanceAdjustments = adjustments();
+      return state;
+    };
+    wrapped.__v34LeaveBalance = true;
+    try { buildCloudState = wrapped; window.buildCloudState = wrapped; } catch (_) {}
+  }
+  const oldApplyCloudState = typeof applyCloudState === 'function' ? applyCloudState : null;
+  if (oldApplyCloudState && !oldApplyCloudState.__v34LeaveBalance) {
+    const wrapped = function(state){
+      const result = oldApplyCloudState.apply(this, arguments);
+      try { if (state?.leaveBalanceSettings) localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULTS, ...state.leaveBalanceSettings })); } catch (_) {}
+      try { if (Array.isArray(state?.leaveBalanceAdjustments)) localStorage.setItem(ADJUSTMENTS_KEY, JSON.stringify(state.leaveBalanceAdjustments)); } catch (_) {}
+      return result;
+    };
+    wrapped.__v34LeaveBalance = true;
+    try { applyCloudState = wrapped; window.applyCloudState = wrapped; } catch (_) {}
+  }
+
+  function ensureLeaveBalanceSettingsUi(){
+    const nav = document.querySelector('#settingsNav');
+    const panel = document.querySelector('.settings-panel');
+    if (!nav || !panel) return;
+    if (!nav.querySelector('[data-settings-section="leaveBalance"]')) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.settingsSection = 'leaveBalance';
+      btn.innerHTML = '<span data-icon="calendar"></span>سياسات الإجازات والرصيد';
+      nav.appendChild(btn);
+    }
+    if (!panel.querySelector('[data-settings-panel="leaveBalance"]')) {
+      const section = document.createElement('section');
+      section.className = 'settings-section';
+      section.dataset.settingsPanel = 'leaveBalance';
+      section.innerHTML = `
+        <div class="panel-head"><div><h3>سياسات الإجازات والرصيد</h3><p>التحكم في الاستحقاق، آلية الاحتساب، الترحيل، والرصيد السالب.</p></div></div>
+        <form id="leaveBalanceSettingsForm" class="settings-form work-settings-form">
+          <div class="leave-balance-settings-summary" id="leaveBalanceSettingsSummary"></div>
+          <div class="work-settings-block">
+            <div class="section-title-with-action"><div><h4>استحقاق الإجازة السنوية</h4><p>هذه القيم تستخدم في حساب الرصيد المتاح والمحجوز والمستخدم.</p></div></div>
+            <div class="form-grid">
+              <label><span>قبل إكمال ٥ سنوات</span><input type="number" min="0" step="0.5" data-leave-setting="annualDaysBeforeFiveYears" /></label>
+              <label><span>بعد إكمال ٥ سنوات</span><input type="number" min="0" step="0.5" data-leave-setting="annualDaysAfterFiveYears" /></label>
+              <label><span>طريقة الاحتساب</span><select data-leave-setting="accrualMethod"><option value="monthly">تراكمي حسب مدة الخدمة</option><option value="annual">سنوي كامل</option><option value="manual">يدوي من رصيد الموظف</option></select></label>
+              <label><span>احتساب أيام الإجازة</span><select data-leave-setting="dayCountMode"><option value="calendar">كل الأيام بين من/إلى</option><option value="workdays">أيام العمل فقط</option></select></label>
+            </div>
+          </div>
+          <div class="work-settings-block">
+            <div class="section-title-with-action"><div><h4>المنع والتنبيه</h4><p>التعارض الزمني يمنع الطلب، أما نقص الرصيد فيظهر كتجاوز يحتاج صلاحية.</p></div></div>
+            <div class="form-grid">
+              <label class="settings-check-row"><input type="checkbox" data-leave-setting="excludeOfficialHolidays" /><span>استبعاد العطل الرسمية من مدة الإجازة</span></label>
+              <label class="settings-check-row"><input type="checkbox" data-leave-setting="allowNegativeWithApproval" /><span>السماح بالرصيد السالب بصلاحية اعتماد</span></label>
+              <label class="settings-check-row"><input type="checkbox" data-leave-setting="carryForwardEnabled" /><span>تفعيل ترحيل الرصيد</span></label>
+              <label><span>حد الترحيل الأعلى</span><input type="number" min="0" step="0.5" data-leave-setting="carryForwardLimit" /></label>
+            </div>
+          </div>
+          <div class="work-settings-block">
+            <div class="section-title-with-action"><div><h4>العطل الرسمية والأنواع التي تخصم</h4><p>أدخل التواريخ والأنواع كل قيمة في سطر مستقل.</p></div></div>
+            <div class="form-grid">
+              <label><span>العطل الرسمية</span><textarea rows="4" data-leave-setting="holidayDates" placeholder="2026-09-23"></textarea></label>
+              <label><span>أنواع الإجازات التي تخصم من السنوية</span><textarea rows="4" data-leave-setting="deductedTypes">إجازة سنوية</textarea></label>
+            </div>
+          </div>
+          <div class="form-actions"><button type="button" class="secondary-btn" id="resetLeaveBalanceSettingsBtn">استعادة الافتراضي</button><button type="submit" class="primary-btn">حفظ سياسة الإجازات</button></div>
+        </form>`;
+      panel.appendChild(section);
+    }
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(nav); } catch (_) {}
+    renderLeaveBalanceSettingsPanel();
+  }
+  function renderLeaveBalanceSettingsPanel(){
+    const form = document.querySelector('#leaveBalanceSettingsForm');
+    if (!form) return;
+    const s = settings();
+    form.querySelectorAll('[data-leave-setting]').forEach((field)=>{
+      const key = field.dataset.leaveSetting;
+      if (field.type === 'checkbox') field.checked = Boolean(s[key]);
+      else if (key === 'holidayDates') field.value = s.holidayDates.join('\n');
+      else if (key === 'deductedTypes') field.value = s.deductedTypes.join('\n');
+      else field.value = s[key] ?? '';
+    });
+    const summary = form.querySelector('#leaveBalanceSettingsSummary');
+    if (summary) summary.innerHTML = `
+      <div><span>قبل ٥ سنوات</span><strong>${num(s.annualDaysBeforeFiveYears)} يوم</strong></div>
+      <div><span>بعد ٥ سنوات</span><strong>${num(s.annualDaysAfterFiveYears)} يوم</strong></div>
+      <div><span>طريقة الاحتساب</span><strong>${s.accrualMethod === 'monthly' ? 'تراكمي' : s.accrualMethod === 'annual' ? 'سنوي' : 'يدوي'}</strong></div>
+      <div><span>الرصيد السالب</span><strong>${s.allowNegativeWithApproval ? 'بصلاحية' : 'غير مسموح'}</strong></div>`;
+  }
+  function collectLeaveBalanceSettingsForm(){
+    const form = document.querySelector('#leaveBalanceSettingsForm');
+    if (!form) return settings();
+    const get = (key) => form.querySelector(`[data-leave-setting="${key}"]`);
+    return {
+      annualDaysBeforeFiveYears: Number(get('annualDaysBeforeFiveYears')?.value || DEFAULTS.annualDaysBeforeFiveYears),
+      annualDaysAfterFiveYears: Number(get('annualDaysAfterFiveYears')?.value || DEFAULTS.annualDaysAfterFiveYears),
+      accrualMethod: get('accrualMethod')?.value || DEFAULTS.accrualMethod,
+      dayCountMode: get('dayCountMode')?.value || DEFAULTS.dayCountMode,
+      excludeOfficialHolidays: Boolean(get('excludeOfficialHolidays')?.checked),
+      allowNegativeWithApproval: Boolean(get('allowNegativeWithApproval')?.checked),
+      carryForwardEnabled: Boolean(get('carryForwardEnabled')?.checked),
+      carryForwardLimit: Number(get('carryForwardLimit')?.value || 0),
+      holidayDates: String(get('holidayDates')?.value || '').split(/\n|,/).map((x)=>x.trim()).filter(Boolean),
+      deductedTypes: String(get('deductedTypes')?.value || '').split(/\n|,/).map((x)=>x.trim()).filter(Boolean)
+    };
+  }
+
+  function ensureLeaveBalancePreview(){
+    const form = document.querySelector('#leaveForm');
+    if (!form || form.querySelector('#leaveBalancePreview')) return;
+    const note = document.createElement('div');
+    note.id = 'leaveBalancePreview';
+    note.className = 'leave-balance-preview-card';
+    note.innerHTML = '<strong>رصيد الموظف</strong><p>اختر الموظف وفترة الإجازة لعرض الرصيد المتوقع.</p>';
+    const grid = form.querySelector('.modal-body .form-grid.one-column');
+    const noteField = form.querySelector('textarea[name="note"]')?.closest('label');
+    if (grid && noteField) grid.insertBefore(note, noteField);
+    else form.querySelector('.modal-body')?.appendChild(note);
+  }
+  function balanceMiniHtml(result){
+    if (!result) return '<strong>رصيد الموظف</strong><p>اختر الموظف وفترة الإجازة لعرض الرصيد المتوقع.</p>';
+    const cls = !result.deducts ? 'is-neutral' : result.projected < 0 ? 'is-negative' : result.available <= 3 ? 'is-warning' : 'is-good';
+    const note = !result.deducts ? 'هذا النوع لا يخصم من رصيد الإجازة السنوية حسب الإعداد الحالي.' : result.projected < 0 ? 'الرصيد غير كافٍ، وسيحتاج اعتمادًا بصلاحية الرصيد السالب.' : 'الرصيد كافٍ للطلب الحالي.';
+    return `<strong>رصيد الموظف</strong><div class="leave-balance-preview-grid ${cls}">
+      <div><span>المستحق</span><b>${num(result.accrued)} يوم</b></div>
+      <div><span>المستخدم</span><b>${num(result.used)} يوم</b></div>
+      <div><span>المحجوز</span><b>${num(result.reserved)} يوم</b></div>
+      <div><span>المتاح</span><b>${num(result.available)} يوم</b></div>
+      <div><span>مدة الطلب</span><b>${num(result.requestDays)} يوم</b></div>
+      <div><span>الرصيد المتوقع</span><b>${num(result.projected)} يوم</b></div>
+    </div><p>${note}</p>`;
+  }
+  function refreshLeaveBalancePreview(){
+    ensureLeaveBalancePreview();
+    const form = document.querySelector('#leaveForm');
+    const preview = document.querySelector('#leaveBalancePreview');
+    if (!form || !preview) return;
+    const employeeId = form.elements?.employeeId?.value || '';
+    const from = form.elements?.from?.value || '';
+    const to = form.elements?.to?.value || '';
+    const type = form.elements?.type?.value || '';
+    if (!employeeId || !from || !to) { preview.innerHTML = balanceMiniHtml(null); return; }
+    preview.innerHTML = balanceMiniHtml(projectedBalance(employeeId, from, to, type));
+  }
+
+  function showNegativeBalanceDialog(data, callbacks = {}){
+    let dialog = document.querySelector('#negativeLeaveBalanceModal');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = 'negativeLeaveBalanceModal';
+      dialog.className = 'modal small-modal negative-leave-balance-modal';
+      dialog.innerHTML = `
+        <div class="modal-head"><div><h2>الرصيد غير كافٍ</h2><p>يحتاج الطلب إلى اعتماد خاص قبل المتابعة.</p></div><button type="button" class="icon-btn" data-negative-leave-cancel><span data-icon="x"></span></button></div>
+        <div class="modal-body"><div class="negative-balance-message" id="negativeLeaveBalanceContent"></div></div>
+        <div class="modal-actions"><button type="button" class="secondary-btn" data-negative-leave-cancel>إلغاء</button><button type="button" class="primary-btn" id="negativeLeaveApproveBtn">اعتماد بالرغم من الرصيد</button></div>`;
+      document.body.appendChild(dialog);
+    }
+    const content = dialog.querySelector('#negativeLeaveBalanceContent');
+    const canOverride = canApproveNegativeBalance();
+    content.innerHTML = `<strong>${esc(data.employee?.name || 'الموظف')}</strong>
+      <p>الرصيد المتاح ${num(data.available)} يوم، ومدة الطلب ${num(data.requestDays)} يوم.</p>
+      <div class="negative-balance-grid"><div><span>الرصيد المتوقع</span><b>${num(data.projected)} يوم</b></div><div><span>الفترة</span><b>${fmt(data.from)} إلى ${fmt(data.to)}</b></div></div>
+      <p>${canOverride ? 'يمكن لصاحب الصلاحية اعتماد الطلب، وسيظهر الرصيد بالسالب ويُغطى من الاستحقاق القادم بعد تسجيل المباشرة.' : 'لا تملك صلاحية اعتماد الرصيد السالب. اطلب من المسؤول اعتماد التجاوز أو عدّل مدة الإجازة.'}</p>`;
+    const approve = dialog.querySelector('#negativeLeaveApproveBtn');
+    approve.hidden = !canOverride;
+    approve.style.display = canOverride ? 'inline-flex' : 'none';
+    dialog.querySelectorAll('[data-negative-leave-cancel]').forEach((btn)=>{ btn.onclick = () => { dialog.close(); callbacks.cancel?.(); }; });
+    approve.onclick = () => { dialog.close(); callbacks.approve?.(); };
+    try { if (typeof hydrateIcons === 'function') hydrateIcons(dialog); } catch (_) {}
+    dialog.showModal();
+  }
+
+  function createLeaveFromForm(form, override = false){
+    const values = Object.fromEntries(new FormData(form).entries());
+    const days = countLeaveDays(values.from, values.to);
+    const projected = projectedBalance(values.employeeId, values.from, values.to, values.type);
+    const row = {
+      id: `leave-${Date.now()}`,
+      employeeId: values.employeeId,
+      type: values.type,
+      from: values.from,
+      to: values.to,
+      days,
+      balanceDays: days,
+      status: 'pending',
+      note: String(values.note || '').trim(),
+      negativeBalanceOverrideRequested: Boolean(override),
+      projectedBalanceAfterRequest: projected ? projected.projected : null
+    };
+    try { leaves.unshift(row); } catch (_) {}
+    try { saveLocalMeta(); } catch (_) {}
+    try { form.closest('dialog')?.close(); form.reset(); } catch (_) {}
+    try { renderAll(); } catch (_) {}
+    try { showToast(override ? 'تم إرسال طلب الإجازة مع تنبيه رصيد سالب' : 'تم إرسال طلب الإجازة'); } catch (_) {}
+  }
+
+  document.addEventListener('submit', function(event){
+    const form = event.target;
+    if (!form || form.id !== 'leaveForm') return;
+    const values = Object.fromEntries(new FormData(form).entries());
+    if (!values.employeeId || !values.from || !values.to) return;
+    const projected = projectedBalance(values.employeeId, values.from, values.to, values.type);
+    if (!projected || !projected.deducts || projected.projected >= 0) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    showNegativeBalanceDialog({ ...projected, from: values.from, to: values.to }, { approve: () => createLeaveFromForm(form, true) });
+  }, true);
+
+  document.addEventListener('click', function(event){
+    const approveBtn = event.target?.closest?.('[data-leave-action="approved"]');
+    if (!approveBtn) return;
+    const leave = (Array.isArray(leaves) ? leaves : []).find((item)=>String(item.id) === String(approveBtn.dataset.leaveId || ''));
+    if (!leave || leave.status !== 'pending' || !deductsFromAnnual(leave.type)) return;
+    const projected = projectedBalance(leave.employeeId, leave.from, leave.to, leave.type, leave.id);
+    if (!projected || projected.projected >= 0 || leave.negativeBalanceOverrideApproved) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    showNegativeBalanceDialog({ ...projected, from: leave.from, to: leave.to }, { approve: () => {
+      pendingNegativeApprovalLeaveId = leave.id;
+      try {
+        leaves = leaves.map((item)=>String(item.id) === String(leave.id) ? { ...item, negativeBalanceOverrideApproved: true, negativeBalanceApprovedAt: new Date().toISOString(), negativeBalanceApprovedBy: (authProfile?.full_name || currentUser || 'النظام'), projectedBalanceAfterApproval: projected.projected } : item);
+        saveLocalMeta();
+      } catch (_) {}
+      try { if (typeof openLeaveCommissionApproval === 'function') openLeaveCommissionApproval(leave.id); } catch (_) {}
+    }});
+  }, true);
+
+  function dashboardSummaryHtml(){
+    const low = (Array.isArray(employees) ? employees : []).filter((emp)=>{
+      const b = balanceForEmployee(emp.id); return b && b.available <= 3;
+    }).length;
+    const negativeRequests = (Array.isArray(leaves) ? leaves : []).filter((leave)=> leave && (leave.negativeBalanceOverrideRequested || leave.negativeBalanceOverrideApproved || Number(leave.projectedBalanceAfterRequest) < 0 || Number(leave.projectedBalanceAfterApproval) < 0) && !leave.returnDate && leave.status !== 'rejected').length;
+    const reserved = (Array.isArray(leaves) ? leaves : []).filter((leave)=> leave && ['pending','approved'].includes(leave.status || '') && !leave.returnDate && deductsFromAnnual(leave.type)).reduce((sum, leave)=>sum + leaveDaysForBalance(leave), 0);
+    const active = (Array.isArray(leaves) ? leaves : []).filter((leave)=> leave && leave.status === 'approved' && !leave.returnDate).length;
+    return `<div class="dashboard-leave-balance-summary" id="dashboardLeaveBalanceSummary">
+      <div><span>أرصدة منخفضة</span><strong>${num(low)}</strong></div>
+      <div><span>تجاوزات رصيد</span><strong>${num(negativeRequests)}</strong></div>
+      <div><span>رصيد محجوز</span><strong>${num(roundDays(reserved))}</strong></div>
+      <div><span>إجازات قائمة</span><strong>${num(active)}</strong></div>
+    </div>`;
+  }
+  function injectDashboardSummary(){
+    const panel = document.querySelector('.leave-panel');
+    const list = document.querySelector('#leavePreviewList');
+    if (!panel || !list) return;
+    let box = panel.querySelector('#dashboardLeaveBalanceSummary');
+    if (!box) {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = dashboardSummaryHtml();
+      box = wrapper.firstElementChild;
+      panel.insertBefore(box, list);
+    } else {
+      const wrapper = document.createElement('div'); wrapper.innerHTML = dashboardSummaryHtml(); box.replaceWith(wrapper.firstElementChild);
+    }
+  }
+  const oldRenderDashboard = typeof renderDashboard === 'function' ? renderDashboard : null;
+  if (oldRenderDashboard && !oldRenderDashboard.__v34LeaveBalance) {
+    const wrapped = function(){
+      const result = oldRenderDashboard.apply(this, arguments);
+      try { injectDashboardSummary(); } catch (_) {}
+      return result;
+    };
+    wrapped.__v34LeaveBalance = true;
+    try { renderDashboard = wrapped; window.renderDashboard = wrapped; } catch (_) {}
+  }
+
+  const oldRenderAll = typeof renderAll === 'function' ? renderAll : null;
+  if (oldRenderAll && !oldRenderAll.__v34LeaveBalance) {
+    const wrapped = function(){
+      const result = oldRenderAll.apply(this, arguments);
+      setTimeout(()=>{ try { ensureLeaveBalanceSettingsUi(); ensureLeaveBalancePreview(); refreshLeaveBalancePreview(); injectDashboardSummary(); } catch (_) {} }, 0);
+      return result;
+    };
+    wrapped.__v34LeaveBalance = true;
+    try { renderAll = wrapped; window.renderAll = wrapped; } catch (_) {}
+  }
+
+  document.addEventListener('change', function(event){
+    if (event.target?.matches?.('#leaveForm select[name="employeeId"], #leaveForm select[name="type"], #leaveForm input[name="from"], #leaveForm input[name="to"]')) {
+      setTimeout(refreshLeaveBalancePreview, 0);
+    }
+  }, true);
+  document.addEventListener('click', function(event){
+    if (event.target?.closest?.('#newLeaveBtn')) setTimeout(()=>{ ensureLeaveBalancePreview(); refreshLeaveBalancePreview(); }, 40);
+    if (event.target?.closest?.('#resetLeaveBalanceSettingsBtn')) { event.preventDefault(); saveSettings(DEFAULTS); try { showToast('تمت استعادة سياسة الإجازات الافتراضية'); } catch (_) {} }
+  }, true);
+  document.addEventListener('submit', function(event){
+    if (!event.target?.matches?.('#leaveBalanceSettingsForm')) return;
+    event.preventDefault();
+    saveSettings(collectLeaveBalanceSettingsForm());
+    try { showToast('تم حفظ سياسة الإجازات والرصيد'); } catch (_) {}
+  }, true);
+
+  function boot(){
+    ensureLeaveBalanceSettingsUi();
+    ensureLeaveBalancePreview();
+    refreshLeaveBalancePreview();
+    injectDashboardSummary();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 180));
+  else setTimeout(boot, 180);
+})();
