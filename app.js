@@ -18919,3 +18919,170 @@ document.addEventListener("click", function(event) {
     try { showToast = wrappedShowToast; window.showToast = wrappedShowToast; } catch (_) {}
   }
 })();
+
+/* =========================================================
+   v37 corrective patch: employee photo upload scope + stable upload
+   - Prevents hidden/old employee photo input events from firing outside the employee form.
+   - Handles employee photo upload before older document-level handlers, so Users/Permissions screens cannot trigger photo upload popups.
+   - Keeps the visual design unchanged.
+   ========================================================= */
+(function employeePhotoUploadScopeFixV37(){
+  if (window.__employeePhotoUploadScopeFixV37) return;
+  window.__employeePhotoUploadScopeFixV37 = true;
+
+  const text = (value) => String(value ?? '').trim();
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const digits = (value) => {
+    try { return typeof normalizeNumerals === 'function' ? normalizeNumerals(value).replace(/\D/g, '') : String(value ?? '').replace(/\D/g, ''); }
+    catch (_) { return String(value ?? '').replace(/\D/g, ''); }
+  };
+  const localUrls = window.__localAttachmentUrls || (window.__localAttachmentUrls = new Map());
+
+  function popup(message, title = 'تنبيه'){
+    try { if (typeof window.showModalMessage === 'function') return window.showModalMessage(message, title); } catch (_) {}
+    try { if (typeof window.nawahShowBlockingMessage === 'function') return window.nawahShowBlockingMessage(message, title); } catch (_) {}
+    try { if (typeof showToast === 'function') return showToast(message); } catch (_) {}
+  }
+
+  function employeeModalIsOpen(){
+    const modal = document.querySelector('#employeeModal');
+    return Boolean(modal && modal.open);
+  }
+
+  function activeEmployeePhotoInput(input){
+    return Boolean(input && input.matches && input.matches('#employeePhotoInput') && input.closest('#employeeModal'));
+  }
+
+  function ownerKeyFromCurrentForm(){
+    const form = document.querySelector('#employeeForm');
+    const id = digits(form?.elements?.identityNumber?.value || '');
+    const phone = digits(form?.elements?.phone?.value || '');
+    return id.length >= 2 && phone.length >= 2 ? `${id.slice(-2)}${phone.slice(-2)}` : '';
+  }
+
+  function newUuid(){
+    try { if (crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID(); } catch (_) {}
+    const raw = `photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    let h = 0;
+    for (let i = 0; i < raw.length; i += 1) h = Math.imul(31, h) + raw.charCodeAt(i) | 0;
+    return `photo-${Date.now()}-${Math.abs(h).toString(16)}`;
+  }
+
+  function safeStorageName(name){
+    try { if (typeof sanitizeStorageName === 'function') return sanitizeStorageName(name); } catch (_) {}
+    return String(name || 'employee-photo').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-120) || 'employee-photo';
+  }
+
+  function bucketName(){
+    try { if (typeof bucketForAttachmentCategory === 'function') return bucketForAttachmentCategory('employee-photo'); } catch (_) {}
+    return 'employee-attachments';
+  }
+
+  function setLocalUrl(id, file){
+    if (!id || !file) return '';
+    try {
+      const old = localUrls.get(String(id));
+      if (old && old.startsWith('blob:')) URL.revokeObjectURL(old);
+    } catch (_) {}
+    try {
+      const url = URL.createObjectURL(file);
+      localUrls.set(String(id), url);
+      return url;
+    } catch (_) { return ''; }
+  }
+
+  async function uploadEmployeePhoto(file, owner){
+    if (!(typeof supabaseClient !== 'undefined' && supabaseClient && typeof cloudReady !== 'undefined' && cloudReady)) return '';
+    try {
+      const bucket = bucketName();
+      const path = `employees/${owner}/employee-photo/${Date.now()}-${Math.random().toString(16).slice(2)}-${safeStorageName(file.name)}`;
+      const upload = await supabaseClient.storage
+        .from(bucket)
+        .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream' });
+      if (upload?.error) throw upload.error;
+      const rowId = newUuid();
+      const inserted = await supabaseClient
+        .from('attachments')
+        .insert({
+          id: rowId,
+          related_table: `employees:${owner}:employee-photo`,
+          related_id: rowId,
+          file_name: file.name || 'employee-photo',
+          file_type: file.type || 'application/octet-stream',
+          file_size: Number(file.size || 0),
+          storage_path: `${bucket}/${path}`,
+          file_url: null,
+          uploaded_by: 'web'
+        })
+        .select('id')
+        .single();
+      if (inserted?.error) throw inserted.error;
+      return inserted?.data?.id || rowId;
+    } catch (error) {
+      console.error('v37 employee photo upload failed', error);
+      return '';
+    }
+  }
+
+  function renderPreviewFromLocal(id, file){
+    const preview = document.querySelector('#employeePhotoPreview');
+    if (!preview) return;
+    const url = setLocalUrl(id, file);
+    if (url) preview.innerHTML = `<img src="${esc(url)}" alt="صورة الموظف" />`;
+  }
+
+  async function refreshAfterPhoto(){
+    try { if (typeof renderEmployeePhoto === 'function') await renderEmployeePhoto(); } catch (_) {}
+    try { if (typeof renderEmployees === 'function') renderEmployees(); } catch (_) {}
+    try { if (typeof hydrateAttachmentImages === 'function') await hydrateAttachmentImages(document); } catch (_) {}
+    try { if (typeof window.__applyStableTopbarPhoto === 'function') await window.__applyStableTopbarPhoto(); } catch (_) {}
+  }
+
+  window.addEventListener('change', async (event) => {
+    const input = event.target;
+    if (!activeEmployeePhotoInput(input)) return;
+
+    // Stop older target/document listeners before they try to upload from the wrong screen/state.
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    const file = input.files?.[0];
+    if (!file) return;
+
+    if (!employeeModalIsOpen()) {
+      input.value = '';
+      return;
+    }
+
+    const owner = ownerKeyFromCurrentForm();
+    if (!owner) {
+      input.value = '';
+      popup('أدخل رقم الهوية ورقم الجوال أولًا حتى يتم تكوين رقم الموظف وربط الصورة به.', 'لا يمكن رفع صورة الموظف');
+      return;
+    }
+
+    const tempId = `local-photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    renderPreviewFromLocal(tempId, file);
+
+    const id = await uploadEmployeePhoto(file, owner);
+    if (!id) {
+      input.value = '';
+      try { if (employeeFormState) employeeFormState.photoAttachmentId = ''; } catch (_) {}
+      await refreshAfterPhoto();
+      popup('تعذر رفع صورة الموظف. تأكد من الاتصال بقاعدة البيانات ثم حاول مرة أخرى.', 'فشل رفع الصورة');
+      return;
+    }
+
+    try {
+      localUrls.delete(String(tempId));
+      setLocalUrl(id, file);
+      employeeFormState.photoAttachmentId = id;
+      employeeFormState.legacyPhoto = '';
+    } catch (_) {}
+
+    try { if (typeof persistCurrentEmployeeOnly === 'function') await persistCurrentEmployeeOnly(); } catch (_) {}
+    await refreshAfterPhoto();
+    try { if (typeof showToast === 'function') showToast('تم حفظ صورة الموظف'); } catch (_) {}
+  }, true);
+})();
