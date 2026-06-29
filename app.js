@@ -18165,3 +18165,349 @@ document.addEventListener("click", function(event) {
   else setTimeout(boot, 150);
   window.addEventListener('load', () => setTimeout(boot, 500));
 })();
+
+/* v49 - Clean dynamic annual leave balance: calculation, employee profile card, leave request preview, and approval guard */
+(function leaveBalanceV49(){
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const ANNUAL_LEAVE_TYPES = ['إجازة سنوية', 'سنوية', 'annual', 'annual_leave'];
+
+  function esc(value){
+    try { if (typeof escapeHtml === 'function') return escapeHtml(value); } catch(_) {}
+    return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[ch]));
+  }
+  function num(value){
+    const n = Number(value || 0);
+    try { if (typeof arabicNumber === 'function') return arabicNumber(n); } catch(_) {}
+    try { return new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 2 }).format(n); } catch(_) { return String(n); }
+  }
+  function fmt(value){
+    try { if (typeof formatDate === 'function') return formatDate(value); } catch(_) {}
+    return value || '—';
+  }
+  function parseDateOnly(value){
+    if (!value) return null;
+    const d = new Date(String(value).slice(0, 10) + 'T12:00:00');
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  function isoDate(date){
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    return date.toISOString().slice(0, 10);
+  }
+  function diffDaysInclusive(from, to){
+    const a = parseDateOnly(from);
+    const b = parseDateOnly(to || from);
+    if (!a || !b || b < a) return 0;
+    return Math.floor((b - a) / DAY_MS) + 1;
+  }
+  function round2(value){ return Math.round(Number(value || 0) * 100) / 100; }
+  function employeeById(id){
+    try { if (typeof getEmployee === 'function') return getEmployee(id); } catch(_) {}
+    try { if (typeof getEmployeeById === 'function') return getEmployeeById(id); } catch(_) {}
+    try { return (Array.isArray(employees) ? employees : []).find(emp => String(emp.id) === String(id)); } catch(_) { return null; }
+  }
+  function allEmployees(){
+    try { return Array.isArray(employees) ? employees : []; } catch(_) { return []; }
+  }
+  function allLeaves(){
+    try { return Array.isArray(leaves) ? leaves : []; } catch(_) { return []; }
+  }
+  function employeeStartDate(employee){
+    return employee?.workStartDate || employee?.contractStartDate || employee?.joinDate || employee?.employmentDate || '';
+  }
+  function addYears(date, years){
+    const d = new Date(date.getTime());
+    d.setFullYear(d.getFullYear() + years);
+    return d;
+  }
+  function annualEntitlementForDate(employee, date){
+    const start = parseDateOnly(employeeStartDate(employee));
+    const at = parseDateOnly(isoDate(date instanceof Date ? date : new Date(date || Date.now())));
+    if (!start || !at || at < start) return 0;
+    return at >= addYears(start, 5) ? 30 : 21;
+  }
+  function accruedLeaveDays(employee, asOfValue){
+    const start = parseDateOnly(employeeStartDate(employee));
+    const asOf = parseDateOnly(asOfValue || isoDate(new Date()));
+    if (!start || !asOf || asOf < start) return 0;
+    const fifth = addYears(start, 5);
+    let total = 0;
+    if (asOf < fifth) {
+      total += diffDaysInclusive(isoDate(start), isoDate(asOf)) * (21 / 365);
+    } else {
+      const beforeEnd = new Date(fifth.getTime() - DAY_MS);
+      if (beforeEnd >= start) total += diffDaysInclusive(isoDate(start), isoDate(beforeEnd)) * (21 / 365);
+      total += diffDaysInclusive(isoDate(fifth), isoDate(asOf)) * (30 / 365);
+    }
+    return round2(total);
+  }
+  function isDeductibleLeaveType(type){
+    const normalized = String(type || '').trim().toLowerCase();
+    return ANNUAL_LEAVE_TYPES.some(item => normalized === String(item).trim().toLowerCase());
+  }
+  function leaveActualDays(leave){
+    if (!leave) return 0;
+    if (Number(leave.days || 0) > 0) return Number(leave.days || 0);
+    return diffDaysInclusive(leave.from, leave.to);
+  }
+  function usedLeaveDays(employee, list, options = {}){
+    const employeeId = String(employee?.id || '');
+    const excludeId = options.excludeId ? String(options.excludeId) : '';
+    return (Array.isArray(list) ? list : allLeaves()).reduce((sum, leave) => {
+      if (!leave || String(leave.employeeId || '') !== employeeId) return sum;
+      if (excludeId && String(leave.id || '') === excludeId) return sum;
+      if (String(leave.status || '') !== 'approved') return sum;
+      if (!isDeductibleLeaveType(leave.type || leave.leaveType)) return sum;
+      return sum + leaveActualDays(leave);
+    }, 0);
+  }
+  function openingBalance(employee){
+    return Number(employee?.leaveOpeningBalance ?? employee?.openingLeaveBalance ?? employee?.leaveBalanceOpening ?? 0) || 0;
+  }
+  function leaveBalance(employee, asOfValue, options = {}){
+    const asOf = asOfValue || isoDate(new Date());
+    const start = employeeStartDate(employee);
+    const annual = annualEntitlementForDate(employee, asOf);
+    const accrued = accruedLeaveDays(employee, asOf);
+    const opening = openingBalance(employee);
+    const used = round2(usedLeaveDays(employee, allLeaves(), options));
+    const remaining = round2(opening + accrued - used);
+    return { startDate: start, annualEntitlement: annual, accrued: round2(accrued), opening: round2(opening), used, remaining };
+  }
+  function balanceStateClass(remaining){
+    const value = Number(remaining || 0);
+    if (value < 0) return 'is-negative';
+    if (value <= 3) return 'is-warning';
+    return 'is-good';
+  }
+  function balanceCardHtml(employee, asOfValue, options = {}){
+    if (!employee) return '';
+    const b = leaveBalance(employee, asOfValue, options);
+    if (!b.startDate) {
+      return '<section class="leave-balance-profile-card is-warning"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>غير متاح</span></div><p class="leave-balance-card-note">لم يتم تحديد تاريخ بداية العمل للموظف.</p></section>';
+    }
+    const state = balanceStateClass(b.remaining);
+    return '<section class="leave-balance-profile-card ' + state + '">'
+      + '<div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>حتى اليوم</span></div>'
+      + '<div class="leave-balance-main-number"><strong>' + num(b.remaining) + '</strong><span>يوم متبقي</span></div>'
+      + '<div class="leave-balance-mini-grid">'
+      + '<div><span>المستحق</span><b>' + num(b.accrued) + ' يوم</b></div>'
+      + '<div><span>المستخدم</span><b>' + num(b.used) + ' يوم</b></div>'
+      + '<div><span>السنوي</span><b>' + num(b.annualEntitlement) + ' يوم</b></div>'
+      + '</div>'
+      + '<p class="leave-balance-card-note">بداية الاستحقاق: <b>' + esc(fmt(b.startDate)) + '</b></p>'
+      + '</section>';
+  }
+  function requestPreviewHtml(employee, from, to, type, leaveId = ''){
+    if (!employee) return '<div class="leave-balance-request-card is-empty">اختر الموظف لعرض رصيد الإجازات.</div>';
+    const requestDays = from && to ? diffDaysInclusive(from, to) : 0;
+    const asOf = from || isoDate(new Date());
+    const b = leaveBalance(employee, asOf, { excludeId: leaveId });
+    const deductible = isDeductibleLeaveType(type);
+    const after = deductible ? round2(b.remaining - requestDays) : b.remaining;
+    const state = !deductible ? 'is-neutral' : balanceStateClass(after);
+    const detail = requestDays ? ('مدة الطلب: ' + num(requestDays) + ' يوم | الرصيد بعد الطلب: ' + num(after) + ' يوم') : ('الرصيد المتاح: ' + num(b.remaining) + ' يوم');
+    const warning = deductible && requestDays && after < 0
+      ? '<p class="leave-balance-warning">مدة الإجازة أكبر من الرصيد المتاح. العجز: ' + num(Math.abs(after)) + ' يوم.</p>'
+      : '';
+    return '<div class="leave-balance-request-card ' + state + '">'
+      + '<strong>رصيد الموظف: ' + num(b.remaining) + ' يوم متاح</strong>'
+      + '<span>المستحق: ' + num(b.accrued) + ' يوم | المستخدم: ' + num(b.used) + ' يوم | السنوي: ' + num(b.annualEntitlement) + ' يوم</span>'
+      + '<em>' + esc(detail) + '</em>'
+      + (!deductible ? '<p class="leave-balance-note-inline">هذا النوع لا يخصم من رصيد الإجازة السنوية.</p>' : '')
+      + warning
+      + '</div>';
+  }
+  function teamBalanceSummaryHtml(){
+    const list = allEmployees().filter(emp => emp && emp.status !== 'terminated');
+    if (!list.length) return '';
+    const totals = list.reduce((acc, emp) => {
+      const b = leaveBalance(emp);
+      acc.accrued += Number(b.accrued || 0);
+      acc.used += Number(b.used || 0);
+      acc.remaining += Number(b.remaining || 0);
+      return acc;
+    }, { accrued: 0, used: 0, remaining: 0 });
+    const avg = round2(totals.remaining / list.length);
+    return '<section class="leave-balance-dashboard-card ' + balanceStateClass(avg) + '">'
+      + '<div class="leave-balance-dashboard-title"><span>رصيد الإجازات</span><strong>متوسط رصيد الفريق</strong></div>'
+      + '<div class="leave-balance-dashboard-number"><strong>' + num(avg) + '</strong><span>يوم متبقي للموظف</span></div>'
+      + '<div class="leave-balance-dashboard-grid">'
+      + '<div><span>إجمالي المستحق</span><b>' + num(round2(totals.accrued)) + '</b></div>'
+      + '<div><span>إجمالي المستخدم</span><b>' + num(round2(totals.used)) + '</b></div>'
+      + '<div><span>إجمالي المتبقي</span><b>' + num(round2(totals.remaining)) + '</b></div>'
+      + '</div>'
+      + '<p>يتم الحساب تلقائياً من تاريخ بداية العمل، ولا يتم الخصم إلا من الإجازات السنوية المعتمدة.</p>'
+      + '</section>';
+  }
+  function injectLeaveDashboardCard(){
+    const view = document.querySelector('#leavesView');
+    if (!view) return;
+    if (view.querySelector('.leave-balance-dashboard-card')) return;
+    const tabs = view.querySelector('.leave-tabs');
+    const html = teamBalanceSummaryHtml();
+    if (!html) return;
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    if (tabs && tabs.nextSibling) view.insertBefore(wrapper.firstElementChild, tabs.nextSibling);
+    else view.prepend(wrapper.firstElementChild);
+  }
+  function ensureLeaveFormPreview(){
+    const form = document.querySelector('#leaveForm');
+    if (!form) return;
+    const employeeSelect = form.querySelector('select[name="employeeId"]');
+    if (!employeeSelect) return;
+    let slot = form.querySelector('#leaveBalancePreview');
+    if (!slot) {
+      slot = document.createElement('div');
+      slot.id = 'leaveBalancePreview';
+      slot.className = 'leave-balance-preview-slot';
+      const employeeLabel = employeeSelect.closest('label');
+      if (employeeLabel?.parentNode) employeeLabel.parentNode.insertBefore(slot, employeeLabel.nextSibling);
+      else form.querySelector('.modal-body')?.appendChild(slot);
+    }
+    updateLeaveFormPreview();
+  }
+  function updateLeaveFormPreview(){
+    const form = document.querySelector('#leaveForm');
+    const slot = document.querySelector('#leaveBalancePreview');
+    if (!form || !slot) return;
+    const values = Object.fromEntries(new FormData(form).entries());
+    const employee = employeeById(values.employeeId);
+    slot.innerHTML = requestPreviewHtml(employee, values.from, values.to, values.type);
+  }
+  function validateLeaveRequestForm(form){
+    const values = Object.fromEntries(new FormData(form).entries());
+    if (!values.employeeId || !values.from || !values.to) return true;
+    if (!isDeductibleLeaveType(values.type)) return true;
+    const employee = employeeById(values.employeeId);
+    if (!employee) return true;
+    const days = diffDaysInclusive(values.from, values.to);
+    const b = leaveBalance(employee, values.from);
+    if (days > b.remaining) {
+      try { showToast('مدة الإجازة أكبر من الرصيد المتاح. المتاح: ' + num(b.remaining) + ' يوم، ومدة الطلب: ' + num(days) + ' يوم.'); } catch(_) {}
+      updateLeaveFormPreview();
+      return false;
+    }
+    return true;
+  }
+  function validateLeaveApproval(leaveId){
+    const leave = allLeaves().find(item => String(item.id) === String(leaveId));
+    if (!leave || !isDeductibleLeaveType(leave.type)) return true;
+    const employee = employeeById(leave.employeeId);
+    if (!employee) return true;
+    const b = leaveBalance(employee, leave.from, { excludeId: leave.id });
+    const days = leaveActualDays(leave);
+    if (days > b.remaining) {
+      try { showToast('لا يمكن اعتماد الإجازة السنوية لأن مدة الطلب أكبر من الرصيد المتاح. المتاح: ' + num(b.remaining) + ' يوم.'); } catch(_) {}
+      return false;
+    }
+    return true;
+  }
+  function injectQuickProfileBalance(){
+    const content = document.querySelector('#quickViewContent');
+    if (!content || content.querySelector('.leave-balance-profile-card')) return;
+    const employeeId = content.querySelector('[data-edit-employee]')?.dataset?.editEmployee
+      || document.querySelector('#quickViewModal [data-edit-employee]')?.dataset?.editEmployee;
+    let employee = employeeId ? employeeById(employeeId) : null;
+    if (!employee) {
+      const title = content.querySelector('.employee-profile-side h3')?.textContent?.trim();
+      if (title) employee = allEmployees().find(emp => String(emp.name || '').trim() === title);
+    }
+    if (!employee) return;
+    const stats = content.querySelector('.employee-profile-stats-card');
+    if (stats) stats.insertAdjacentHTML('afterend', balanceCardHtml(employee));
+    else content.querySelector('.employee-profile-main')?.insertAdjacentHTML('afterbegin', balanceCardHtml(employee));
+  }
+  function injectEmployeeEditBalance(){
+    const form = document.querySelector('#employeeForm');
+    if (!form || form.querySelector('.leave-balance-profile-card')) return;
+    const id = form.elements?.employeeId?.value || form.querySelector('[name="employeeId"]')?.value || '';
+    const employee = id ? employeeById(id) : null;
+    if (!employee) return;
+    const target = form.querySelector('.employee-form-summary, .employee-profile-stats-card, .form-section, .modal-body');
+    if (target) target.insertAdjacentHTML('afterend', balanceCardHtml(employee));
+  }
+  function patchAfterRender(){
+    try { injectLeaveDashboardCard(); } catch(_) {}
+    try { ensureLeaveFormPreview(); } catch(_) {}
+    try { injectQuickProfileBalance(); } catch(_) {}
+    try { injectEmployeeEditBalance(); } catch(_) {}
+  }
+
+  const originalRenderLeaves = window.renderLeaves || (typeof renderLeaves === 'function' ? renderLeaves : null);
+  if (originalRenderLeaves && !originalRenderLeaves.__leaveBalanceV49) {
+    const wrapped = function(){
+      const result = originalRenderLeaves.apply(this, arguments);
+      setTimeout(patchAfterRender, 0);
+      return result;
+    };
+    wrapped.__leaveBalanceV49 = true;
+    try { renderLeaves = wrapped; } catch(_) {}
+    window.renderLeaves = wrapped;
+  }
+  const originalRenderAll = window.renderAll || (typeof renderAll === 'function' ? renderAll : null);
+  if (originalRenderAll && !originalRenderAll.__leaveBalanceV49) {
+    const wrappedAll = function(){
+      const result = originalRenderAll.apply(this, arguments);
+      setTimeout(patchAfterRender, 0);
+      return result;
+    };
+    wrappedAll.__leaveBalanceV49 = true;
+    try { renderAll = wrappedAll; } catch(_) {}
+    window.renderAll = wrappedAll;
+  }
+  const originalSwitchView = window.switchView || (typeof switchView === 'function' ? switchView : null);
+  if (originalSwitchView && !originalSwitchView.__leaveBalanceV49) {
+    const wrappedSwitch = function(viewName){
+      const result = originalSwitchView.apply(this, arguments);
+      if (viewName === 'leaves') setTimeout(patchAfterRender, 30);
+      return result;
+    };
+    wrappedSwitch.__leaveBalanceV49 = true;
+    try { switchView = wrappedSwitch; } catch(_) {}
+    window.switchView = wrappedSwitch;
+  }
+  const originalHandleLeaveAction = typeof handleLeaveAction === 'function' ? handleLeaveAction : null;
+  if (originalHandleLeaveAction && !originalHandleLeaveAction.__leaveBalanceV49) {
+    const wrappedAction = function(id, status){
+      if (status === 'approved' && !validateLeaveApproval(id)) return;
+      return originalHandleLeaveAction.apply(this, arguments);
+    };
+    wrappedAction.__leaveBalanceV49 = true;
+    try { handleLeaveAction = wrappedAction; } catch(_) {}
+    window.handleLeaveAction = wrappedAction;
+  }
+
+  document.addEventListener('input', function(event){
+    if (event.target?.closest?.('#leaveForm')) updateLeaveFormPreview();
+  }, true);
+  document.addEventListener('change', function(event){
+    if (event.target?.closest?.('#leaveForm')) updateLeaveFormPreview();
+  }, true);
+  document.addEventListener('submit', function(event){
+    const form = event.target?.closest?.('#leaveForm');
+    if (!form) return;
+    if (!validateLeaveRequestForm(form)) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+  document.addEventListener('click', function(event){
+    const approve = event.target?.closest?.('[data-leave-action="approved"]');
+    if (!approve) return;
+    if (!validateLeaveApproval(approve.dataset.leaveId)) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+
+  const observer = new MutationObserver(() => { setTimeout(patchAfterRender, 0); });
+  try { observer.observe(document.body, { childList: true, subtree: true }); } catch(_) {}
+  const boot = () => { patchAfterRender(); setTimeout(patchAfterRender, 250); setTimeout(patchAfterRender, 900); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  window.leaveBalanceV49 = { leaveBalance, accruedLeaveDays, usedLeaveDays, isDeductibleLeaveType };
+})();
