@@ -19284,3 +19284,228 @@ document.addEventListener("click", function(event) {
 
   window.v52ContractTools = { effectiveContractEnd, contractExtensions, extendContractForEmployeeId, contractNoticeDays };
 })();
+
+/* =========================================================
+   v53 performance repair: local-first boot + cached auth profile + lighter rendering
+   - Does not change business logic or page design.
+   - Paints cached/local data first, then refreshes Supabase in the background.
+   ========================================================= */
+(function performanceLocalFirstV53(){
+  if (window.__performanceLocalFirstV53) return;
+  window.__performanceLocalFirstV53 = true;
+
+  const CLOUD_FAST_TIMEOUT_MS = 1800;
+  const BACKGROUND_RENDER_DELAY_MS = 80;
+  const AUTH_PROFILE_CACHE_KEY = 'nawah-auth-profile-cache-v53';
+
+  function cloneSafe(value){
+    try { return structuredClone(value); } catch (_) {
+      try { return JSON.parse(JSON.stringify(value)); } catch (__) { return value; }
+    }
+  }
+
+  function withTimeout(promise, ms, label){
+    let timer = null;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(label || 'timeout')), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  }
+
+  function getCachedAuthProfile(user){
+    try {
+      if (!user?.id) return null;
+      const cache = JSON.parse(sessionStorage.getItem(AUTH_PROFILE_CACHE_KEY) || '{}');
+      const item = cache[user.id];
+      if (!item || !item.profile) return null;
+      if (item.email && user.email && String(item.email).toLowerCase() !== String(user.email).toLowerCase()) return null;
+      return item.profile;
+    } catch (_) { return null; }
+  }
+
+  function setCachedAuthProfile(user, profile){
+    try {
+      if (!user?.id || !profile) return;
+      const cache = JSON.parse(sessionStorage.getItem(AUTH_PROFILE_CACHE_KEY) || '{}');
+      cache[user.id] = { email: user.email || '', savedAt: Date.now(), profile };
+      sessionStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify(cache));
+    } catch (_) {}
+  }
+
+  const previousLoadAuthProfile = typeof loadAuthProfile === 'function' ? loadAuthProfile : null;
+  if (previousLoadAuthProfile && !previousLoadAuthProfile.__performanceLocalFirstV53) {
+    const wrappedLoadAuthProfile = async function(user){
+      const cached = getCachedAuthProfile(user);
+      if (cached && cached.is_active) {
+        // Update silently in the background so menu/permissions do not wait for two Supabase reads.
+        setTimeout(async () => {
+          try {
+            const fresh = await withTimeout(previousLoadAuthProfile.call(this, user), 2500, 'auth-profile-refresh-timeout');
+            if (fresh) setCachedAuthProfile(user, fresh);
+          } catch (_) {}
+        }, 10);
+        return cached;
+      }
+      const profile = await previousLoadAuthProfile.apply(this, arguments);
+      if (profile) setCachedAuthProfile(user, profile);
+      return profile;
+    };
+    wrappedLoadAuthProfile.__performanceLocalFirstV53 = true;
+    try { loadAuthProfile = wrappedLoadAuthProfile; } catch (_) {}
+    window.loadAuthProfile = wrappedLoadAuthProfile;
+  }
+
+  async function readLocalEmployeesFast(){
+    try {
+      const rows = await dbGetAllEmployees();
+      if (Array.isArray(rows) && rows.length) return rows.map(normalizeEmployee);
+    } catch (_) {}
+    try {
+      const legacy = loadLocalData('nawah-employees', []);
+      if (Array.isArray(legacy) && legacy.length) return legacy.map(normalizeEmployee);
+    } catch (_) {}
+    return [];
+  }
+
+  function renderAfterBackgroundRefresh(){
+    try { populateFormOptions(); } catch (_) {}
+    try { if (typeof renderAll === 'function') renderAll(); } catch (_) {}
+    try { if (typeof applyRolePermissions === 'function') applyRolePermissions(); } catch (_) {}
+  }
+
+  function persistEmployeesToIndexedDbInBackground(list){
+    const source = Array.isArray(list) ? list.slice() : [];
+    if (!source.length) return;
+    let index = 0;
+    const step = () => {
+      const slice = source.slice(index, index + 20);
+      index += slice.length;
+      Promise.all(slice.map((employee) => requestResult(dbStore('employees', 'readwrite').put(employee)).catch(() => null)))
+        .finally(() => {
+          if (index < source.length) setTimeout(step, 0);
+        });
+    };
+    setTimeout(step, 0);
+  }
+
+  async function applyCloudStateInBackground(cloudResult){
+    if (!cloudResult?.ok || !cloudResult.found || !cloudResult.state) {
+      cloudSaveAllowed = true;
+      return;
+    }
+    try {
+      const applied = applyCloudState(cloneSafe(cloudResult.state));
+      if (applied) {
+        persistEmployeesToIndexedDbInBackground(employees);
+        cloudSaveAllowed = true;
+        setTimeout(renderAfterBackgroundRefresh, BACKGROUND_RENDER_DELAY_MS);
+        return;
+      }
+    } catch (error) {
+      console.warn('تعذر تطبيق بيانات Supabase في الخلفية.', error);
+    }
+    cloudSaveAllowed = true;
+  }
+
+  const previousInitStorage = typeof initStorage === 'function' ? initStorage : null;
+  if (previousInitStorage && !previousInitStorage.__performanceLocalFirstV53) {
+    const optimizedInitStorage = async function(){
+      db = await openDatabase();
+      initSupabaseClient();
+      cloudSaveAllowed = false;
+
+      const localEmployees = await readLocalEmployeesFast();
+      if (localEmployees.length) {
+        employees = localEmployees;
+        // Return immediately so the UI and sidebar paint from local cache.
+        setTimeout(async () => {
+          try {
+            const cloudResult = await loadCloudState();
+            await applyCloudStateInBackground(cloudResult);
+          } catch (error) {
+            console.warn('تعذر تحديث بيانات Supabase في الخلفية.', error);
+            cloudSaveAllowed = true;
+          }
+        }, 0);
+        return;
+      }
+
+      // First device/browser: wait briefly for Supabase, then fall back instead of freezing the UI.
+      let cloudResult = null;
+      try {
+        cloudResult = await withTimeout(loadCloudState(), CLOUD_FAST_TIMEOUT_MS, 'cloud-load-timeout');
+      } catch (error) {
+        cloudResult = { ok: false, found: false, state: null, error };
+      }
+
+      if (cloudResult.ok && cloudResult.found && cloudResult.state && applyCloudState(cloneSafe(cloudResult.state))) {
+        cloudSaveAllowed = true;
+        persistEmployeesToIndexedDbInBackground(employees);
+        return;
+      }
+
+      const legacy = loadLocalData('nawah-employees', []);
+      employees = Array.isArray(legacy) && legacy.length ? legacy.map(normalizeEmployee) : [];
+      cloudSaveAllowed = Boolean(cloudResult.ok);
+
+      if (cloudResult.ok && !cloudResult.found) {
+        try { await saveCloudStateNow({ force: true }); } catch (_) {}
+      } else if (!cloudResult.ok && supabaseClient) {
+        setTimeout(async () => {
+          try {
+            const later = await loadCloudState();
+            await applyCloudStateInBackground(later);
+          } catch (_) { cloudSaveAllowed = true; }
+        }, 1200);
+      }
+    };
+    optimizedInitStorage.__performanceLocalFirstV53 = true;
+    try { initStorage = optimizedInitStorage; } catch (_) {}
+    window.initStorage = optimizedInitStorage;
+  }
+
+  const previousRenderAll = typeof renderAll === 'function' ? renderAll : null;
+  if (previousRenderAll && !previousRenderAll.__performanceLocalFirstV53) {
+    let idleTimer = null;
+    let isRendering = false;
+    const optimizedRenderAll = function(){
+      if (isRendering) return;
+      isRendering = true;
+      try {
+        const active = document.querySelector('.view.active')?.id || 'dashboardView';
+        if (active === 'dashboardView') {
+          try { renderDashboard(); } catch (_) {}
+        } else if (active === 'employeesView') {
+          try { renderEmployees(); } catch (_) {}
+        } else if (active === 'attendanceView') {
+          try { renderAttendance(); } catch (_) {}
+        } else if (active === 'leavesView') {
+          try { renderLeaves(); } catch (_) {}
+        } else if (active === 'financeView' && typeof renderFinance === 'function') {
+          try { renderFinance(); } catch (_) {}
+        } else if (active === 'payrollView') {
+          try { renderPayroll(); } catch (_) {}
+        } else if (active === 'departmentsView') {
+          try { renderDepartments(); } catch (_) {}
+        } else if (active === 'settingsView') {
+          try { renderSettings(); } catch (_) {}
+        } else if (active === 'usersView') {
+          try { ensureUsersManagementView(); renderUsersManagement(); } catch (_) {}
+        } else {
+          try { renderDashboard(); } catch (_) {}
+        }
+        try { populateFormOptions(); } catch (_) {}
+        try { hydrateIcons(document.querySelector('.view.active') || document); } catch (_) {}
+      } finally {
+        isRendering = false;
+      }
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        try { previousRenderAll.apply(this, arguments); } catch (_) {}
+      }, 450);
+    };
+    optimizedRenderAll.__performanceLocalFirstV53 = true;
+    try { renderAll = optimizedRenderAll; } catch (_) {}
+    window.renderAll = optimizedRenderAll;
+  }
+})();
