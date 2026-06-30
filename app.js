@@ -1586,14 +1586,54 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   setInterval(normalizeLoginLogo,1200);
 })();
 
-/* v96 - login screen background image from company settings */
+/* v96/v97 - login screen background image from company settings with client-side compression */
 (function(){
   if(window.__v96LoginBackgroundImage)return;window.__v96LoginBackgroundImage=true;
   const STORAGE_KEY='nawah-company-settings-v92';
   function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
   function readCompany(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')||{}}catch(_){return {}}}
-  function writeCompany(patch){const current=readCompany();const next={...current,...patch};try{localStorage.setItem(STORAGE_KEY,JSON.stringify(next))}catch(e){throw e}try{if(typeof saveCloudStateNow==='function')saveCloudStateNow({force:true});else if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){}return next}
-  function fileToDataUrl(file,maxSize){return new Promise((resolve,reject)=>{if(!file)return resolve('');if(file.size>maxSize)return reject(new Error('حجم الصورة أكبر من الحد المسموح.'));const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('تعذر قراءة الصورة.'));reader.readAsDataURL(file)})}
+  function writeCompany(patch){const current=readCompany();const next={...current,...patch};try{localStorage.setItem(STORAGE_KEY,JSON.stringify(next))}catch(e){
+    if((e&&String(e.message||e.name).toLowerCase().includes('quota'))&&patch&&patch.loginBackgroundDataUrl){
+      const lighter={...next,loginBackgroundDataUrl:'',loginBackgroundFileName:''};
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(lighter))}catch(_){}
+      throw new Error('مساحة التخزين في المتصفح ممتلئة. تم منع حفظ الصورة الكبيرة؛ اختر صورة أخف أو امسح بيانات الموقع ثم أعد الرفع.');
+    }
+    throw e
+  }try{if(typeof saveCloudStateNow==='function')saveCloudStateNow({force:true});else if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){}return next}
+  function fileToDataUrl(file,maxSize){
+    return new Promise((resolve,reject)=>{
+      if(!file)return resolve('');
+      if(!/^image\/(png|jpe?g|webp)$/i.test(file.type||''))return reject(new Error('اختر صورة بصيغة PNG أو JPG أو WEBP.'));
+      const reader=new FileReader();
+      reader.onerror=()=>reject(new Error('تعذر قراءة الصورة.'));
+      reader.onload=()=>{
+        const raw=String(reader.result||'');
+        const img=new Image();
+        img.onerror=()=>reject(new Error('تعذر تجهيز الصورة.'));
+        img.onload=()=>{
+          try{
+            const MAX_W=1600,MAX_H=1000;
+            let w=img.naturalWidth||img.width||1600,h=img.naturalHeight||img.height||900;
+            const ratio=Math.min(1,MAX_W/w,MAX_H/h);
+            w=Math.max(1,Math.round(w*ratio));h=Math.max(1,Math.round(h*ratio));
+            const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+            const ctx=canvas.getContext('2d');
+            ctx.drawImage(img,0,0,w,h);
+            let out='',q=.78;
+            for(let i=0;i<5;i++){
+              out=canvas.toDataURL('image/jpeg',q);
+              if(out.length<=700000)break;
+              q-=.12;
+            }
+            if(out.length>900000)return reject(new Error('الصورة كبيرة جدًا بعد الضغط. اختر صورة أخف أو أصغر.'));
+            resolve(out);
+          }catch(err){reject(new Error('تعذر ضغط الصورة قبل الحفظ.'))}
+        };
+        img.src=raw;
+      };
+      reader.readAsDataURL(file);
+    })
+  }
   function applyLoginBackground(data=readCompany()){
     const url=String(data.loginBackgroundDataUrl||'');
     document.body.classList.toggle('has-login-bg-image',Boolean(url));
