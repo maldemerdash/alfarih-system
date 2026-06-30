@@ -1428,3 +1428,104 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     if(e.target&&e.target.closest&&e.target.closest('[data-travel-resume], [data-action="resume-travel"], .travel-resume-btn'))resumeBypassUntil=Date.now()+8000;
   },true);
 })();
+
+/* v89 - empty package helpers and employee basic-form layout refinements */
+(function(){
+  if(window.__v89EmployeeBasicLayout)return;
+  window.__v89EmployeeBasicLayout=true;
+  var scheduled=false;
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function text(el){return (el&&el.textContent||'').replace(/\s+/g,' ').trim()}
+  function labelOfField(field){
+    if(!field)return '';
+    var l=field.querySelector('label,.field-label,.employee-field-label,.form-label');
+    return text(l)||text(field).slice(0,60);
+  }
+  function closestField(el){return el&&el.closest&&el.closest('.employee-field,.form-field,.input-field,.field,.v86-select-choice-field,.v87-normal-select-field,[class*="field"]')}
+  function sectionTitle(sec){var h=sec&&sec.querySelector&&sec.querySelector('.employee-section-title,.form-section-title,h2,h3');return text(h)}
+  function personalSection(){
+    var form=q('#employeeForm, #employeeModal form, #employeeModal'); if(!form)return null;
+    var sections=qa('.employee-section,.form-section,.employee-section-content,.employee-form-section',form);
+    for(var i=0;i<sections.length;i++){if(/بيانات\s*الموظف/.test(sectionTitle(sections[i])||text(sections[i]).slice(0,80)))return sections[i]}
+    return q('#employeeModal .employee-section-content:not([hidden])')||form;
+  }
+  function makeSelect(name,label,options,value){
+    var wrap=document.createElement('div');
+    wrap.className='employee-field v89-basic-select-field';
+    wrap.setAttribute('data-v89-field',name);
+    var lab=document.createElement('label');lab.textContent=label;
+    var sel=document.createElement('select');sel.name=name;sel.className='v89-basic-select';
+    options.forEach(function(o){var opt=document.createElement('option');opt.value=o.value;opt.textContent=o.text;sel.appendChild(opt)});
+    if(value!=null)sel.value=value;
+    wrap.appendChild(lab);wrap.appendChild(sel);
+    return wrap;
+  }
+  function normalizeValue(v,kind){
+    v=String(v||'').trim();
+    if(kind==='gender')return /أنث|female/i.test(v)?'female':'male';
+    if(kind==='nationalityType')return /غير|non/i.test(v)?'nonSaudi':'saudi';
+    return v;
+  }
+  function existingSelectValue(form,names,kind,def){
+    for(var i=0;i<names.length;i++){
+      var el=form.elements&&form.elements[names[i]]; if(el&&el.value)return normalizeValue(el.value,kind);
+    }
+    var txt='';
+    names.forEach(function(n){var el=q('[name="'+n+'"]',form); if(el)txt+=' '+(el.value||text(closestField(el))||'')});
+    return txt.trim()?normalizeValue(txt,kind):def;
+  }
+  function hideOldChoiceFields(form){
+    ['nationalityType','gender','sex'].forEach(function(n){qa('[name="'+n+'"]',form).forEach(function(el){var f=closestField(el); if(f&&!f.classList.contains('v89-basic-select-field')){f.classList.add('v89-hidden-old-choice');}})});
+    qa('input[type="radio"]',form).forEach(function(el){var f=closestField(el);var ft=text(f);if(/سعودي|غير سعودي|ذكر|أنثى/.test(ft))f.classList.add('v89-hidden-old-choice')});
+  }
+  function moveAgeUnderPhoto(form){
+    try{
+      var side=q('.employee-form-sidebar,.employee-profile-side,.employee-side-card',q('#employeeModal'));
+      if(!side)return;
+      var ageField=null;
+      qa('.employee-field,.form-field,.field',form).some(function(f){if(/العمر/.test(labelOfField(f))){ageField=f;return true}return false});
+      if(!ageField)return;
+      var val=(q('input,select,textarea',ageField)||{}).value||text(ageField).replace(/العمر/g,'').trim()||'—';
+      var host=q('.v89-age-under-photo',side);
+      if(!host){host=document.createElement('div');host.className='v89-age-under-photo';var duration=q('.employee-side-duration,.employee-service-duration',side)||qa('.employee-profile-side .employee-profile-value,.employee-form-sidebar .employee-profile-value',side).pop(); if(duration&&duration.parentNode)duration.parentNode.insertBefore(host,duration.nextSibling); else side.appendChild(host);}
+      host.innerHTML='<span>العمر</span><strong>'+val+'</strong>';
+      ageField.classList.add('v89-age-original-hidden');
+    }catch(_){ }
+  }
+  function layoutBasicFields(){
+    var form=q('#employeeForm, #employeeModal form'); if(!form)return;
+    var sec=personalSection(); if(!sec)return;
+    var grid=q('.form-grid,.form-grid-4,.employee-fields-grid,.employee-section-grid',sec)||sec;
+    if(grid.getAttribute('data-v89-basic-layout')==='1')return;
+    var genderValue=existingSelectValue(form,['gender','sex'],'gender','male');
+    var natTypeValue=existingSelectValue(form,['nationalityType'],'nationalityType','saudi');
+    hideOldChoiceFields(form);
+    var gender=makeSelect('gender','النوع',[{value:'male',text:'ذكر'},{value:'female',text:'أنثى'}],genderValue);
+    var nat=makeSelect('nationalityType','الجنسية',[{value:'saudi',text:'سعودي'},{value:'nonSaudi',text:'غير سعودي'}],natTypeValue);
+    var nationalityPicked=null,birth=null,lastName=null,status=null;
+    qa('.employee-field,.form-field,.field,.v86-select-choice-field,.v87-normal-select-field',sec).forEach(function(f){
+      var l=labelOfField(f);
+      if(!nationalityPicked && /الجنسية\s*المختارة/.test(l))nationalityPicked=f;
+      else if(!birth && /تاريخ\s*الميلاد/.test(l))birth=f;
+      else if(!lastName && /اسم\s*العائلة/.test(l))lastName=f;
+      else if(!status && /حالة\s*العمل/.test(l))status=f;
+    });
+    gender.setAttribute('data-v89-position','gender');
+    nat.setAttribute('data-v89-position','nationality-type');
+    try{var name1=qa('.employee-field,.form-field,.field',sec).filter(function(f){return /الاسم\s*الأول/.test(labelOfField(f))})[0]; if(name1&&name1.parentNode)name1.parentNode.insertBefore(gender,name1.nextSibling); else grid.appendChild(gender);}catch(_){grid.appendChild(gender)}
+    try{if(nationalityPicked&&nationalityPicked.parentNode)nationalityPicked.parentNode.insertBefore(nat,nationalityPicked); else grid.appendChild(nat);}catch(_){grid.appendChild(nat)}
+    try{if(birth&&lastName&&lastName.parentNode){lastName.parentNode.insertBefore(birth,lastName.nextSibling);birth.classList.add('v89-birth-under-family')}}catch(_){ }
+    try{if(status){status.classList.add('v89-status-bottom');grid.appendChild(status)}}catch(_){ }
+    moveAgeUnderPhoto(form);
+    grid.setAttribute('data-v89-basic-layout','1');
+  }
+  function fixActionsAndSidebar(){
+    try{var modal=q('#employeeModal.employee-profile-modal, #employeeModal'); if(!modal)return; var sidebar=q('.employee-form-sidebar',modal); var actions=q('.employee-form-actions',modal); if(sidebar)sidebar.classList.add('v89-sidebar-to-actions'); if(actions)actions.classList.add('v89-actions-strip');}catch(_){ }
+  }
+  function run(){scheduled=false;layoutBasicFields();fixActionsAndSidebar()}
+  function schedule(){if(scheduled)return;scheduled=true;setTimeout(run,80)}
+  document.addEventListener('DOMContentLoaded',schedule);
+  document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#addEmployeeBtn,.edit-employee-btn,[data-edit-employee],[data-employee-section],#employeeModal .employee-section-nav button'))schedule()},true);
+  try{var m=q('#employeeModal')||q('#employeeForm'); if(m)new MutationObserver(schedule).observe(m,{attributes:true,childList:true,subtree:true,attributeFilter:['open','class']});}catch(_){ }
+})();
