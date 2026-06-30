@@ -1433,7 +1433,8 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   function saveCompany(data){const current=getCompany(),next={...current,...data};localStorage.setItem(STORAGE_KEY,JSON.stringify(next));try{if(typeof saveCloudStateNow==='function')saveCloudStateNow({force:true});else if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){}return next}
   function escape(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
   function arr(x){return Array.isArray(x)?x:Array.isArray(x?.data)?x.data:Array.isArray(x?.regions)?x.regions:Array.isArray(x?.cities)?x.cities:Array.isArray(x?.districts)?x.districts:[]}
-  function getId(o){return String(o?.id??o?.region_id??o?.city_id??o?.district_id??o?.RegionID??o?.CityID??o?.DistrictID??'')}
+  function getId(o){return String(o?.id??o?.region_id??o?.RegionID??'')}
+  function getCityId(o){return String(o?.city_id??o?.cityId??o?.CityID??o?.id??'')}
   function getName(o){return String(o?.name_ar??o?.nameAr??o?.arabic_name??o?.name??o?.NameAr??o?.name_en??'').trim()}
   function regionOfCity(o){return String(o?.region_id??o?.regionId??o?.RegionID??o?.region?.id??'')}
   function cityOfDistrict(o){return String(o?.city_id??o?.cityId??o?.CityID??o?.city?.id??'')}
@@ -1444,18 +1445,18 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
       const regions=arr(regionsJson),cities=arr(citiesJson),districts=arr(districtsJson);
       const regionMap=new Map(),cityMap=new Map(),guide={};
       regions.forEach(r=>{const id=getId(r),name=getName(r);if(id&&name){regionMap.set(id,name);guide[name]={}}});
-      cities.forEach(c=>{const id=getId(c),name=getName(c),regionName=regionMap.get(regionOfCity(c));if(id&&name&&regionName){cityMap.set(id,{name,region:regionName});guide[regionName][name]=guide[regionName][name]||[]}});
+      cities.forEach(c=>{const id=getCityId(c),name=getName(c),regionName=regionMap.get(regionOfCity(c));if(id&&name&&regionName){cityMap.set(id,{name,region:regionName});guide[regionName][name]=guide[regionName][name]||[]}});
       districts.forEach(d=>{const city=cityMap.get(cityOfDistrict(d)),name=getName(d);if(city&&name){const list=guide[city.region][city.name]||(guide[city.region][city.name]=[]);if(!list.includes(name))list.push(name)}});
       Object.keys(guide).forEach(r=>Object.keys(guide[r]).forEach(c=>guide[r][c].sort((a,b)=>a.localeCompare(b,'ar'))));
-      loadedGuide=Object.keys(guide).length?guide:FALLBACK_GUIDE;return loadedGuide;
-    }).catch(()=>{loadedGuide=FALLBACK_GUIDE;return loadedGuide});
+      loadedGuide=Object.keys(guide).length?guide:FALLBACK_GUIDE;try{window.__NAWAH_SAUDI_GUIDE__=loadedGuide}catch(_){}return loadedGuide;
+    }).catch(()=>{loadedGuide=FALLBACK_GUIDE;try{window.__NAWAH_SAUDI_GUIDE__=loadedGuide}catch(_){}return loadedGuide});
     return loadingGuide;
   }
-  function guideNow(){return loadedGuide||FALLBACK_GUIDE}
+  function guideNow(){const g=loadedGuide||FALLBACK_GUIDE;try{window.__NAWAH_SAUDI_GUIDE__=g}catch(_){}return g}
   function options(items,value,placeholder='اختر'){return [`<option value="">${escape(placeholder)}</option>`].concat((items||[]).map(x=>`<option value="${escape(x)}" ${String(x)===String(value||'')?'selected':''}>${escape(x)}</option>`)).join('')}
   function fileToDataUrl(file,maxSize){return new Promise((resolve,reject)=>{if(!file)return resolve('');if(file.size>maxSize)return reject(new Error('حجم الملف أكبر من الحد المسموح.'));const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('تعذر قراءة الملف.'));reader.readAsDataURL(file)})}
   function downloadDataUrl(dataUrl,filename){if(!dataUrl)return;const a=document.createElement('a');a.href=dataUrl;a.download=filename||'national-address';document.body.appendChild(a);a.click();a.remove()}
-  function applyLogoPreview(data){const box=document.querySelector('#companyLogoPreview');if(box)box.innerHTML=data?.logoDataUrl?`<img src="${escape(data.logoDataUrl)}" alt="شعار المنشأة">`:'<span>شعار</span>';document.querySelectorAll('.auth-logo.has-company-logo img,.auth-logo img').forEach(img=>{img.style.objectFit='contain';img.style.borderRadius='16px'});}
+  function applyLogoPreview(data){const box=document.querySelector('#companyLogoPreview');if(box)box.innerHTML=data?.logoDataUrl?`<img src="${escape(data.logoDataUrl)}" alt="شعار المنشأة">`:'<span>شعار</span>';document.querySelectorAll('.auth-logo.has-company-logo img,.auth-logo img').forEach(img=>{img.style.objectFit='cover';img.style.borderRadius='50%';img.style.padding='0';img.style.background='transparent'});}
   function applyCompanyBrandingV94(data=getCompany()){
     const name=(data.company||DEFAULT_COMPANY.company).trim(),title=`${name} | إدارة الموظفين`;if(document.title!==title)document.title=title;
     document.querySelectorAll('.auth-logo').forEach(el=>{if(data.logoDataUrl){el.classList.add('has-company-logo','v94-brand-logo');el.innerHTML=`<img src="${escape(data.logoDataUrl)}" alt="${escape(name)}" loading="eager" decoding="async">`}else{el.classList.remove('has-company-logo','v94-brand-logo');el.textContent=(name||'ن').charAt(0)}});
@@ -1478,7 +1479,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
       <form id="settingsForm" class="settings-form company-settings-real-form v94-company-form" data-v92-company="1" data-v94-company="1">
         <div class="company-logo-upload company-logo-upload-real v94-logo-upload">
           <div class="company-logo-preview" id="companyLogoPreview"></div>
-          <div class="company-logo-copy"><strong>شعار المنشأة الفعلي</strong><span>يظهر بحجم أوضح داخل بطاقة تسجيل الدخول بدون قص دائري، ويفضل PNG أو JPG.</span></div>
+          <div class="company-logo-copy"><strong>شعار المنشأة الفعلي</strong><span>يظهر في تسجيل الدخول بشكل دائري مثل صورة الموظف، ويتم قص الصورة تلقائيًا حسب أبعادها.</span></div>
           <label class="secondary-btn company-logo-btn">تغيير الشعار<input type="file" name="logoFile" accept="image/png,image/jpeg,image/webp" hidden></label>
         </div>
         <div class="form-grid company-real-grid">
@@ -1520,4 +1521,67 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{renderCompanySettingsV94();applyCompanyBrandingV94()},120)});
   window.addEventListener('load',()=>setTimeout(()=>{renderCompanySettingsV94();applyCompanyBrandingV94()},260));
   setTimeout(()=>{renderCompanySettingsV94();applyCompanyBrandingV94()},500);
+})();
+
+
+/* v95 - strict hierarchical Saudi address selects + circular cropped login logo */
+(function(){
+  if(window.__v95CompanyHierarchyAndLogoFix)return;window.__v95CompanyHierarchyAndLogoFix=true;
+  function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+  function optionList(items,value,placeholder){return [`<option value="">${esc(placeholder||'اختر')}</option>`].concat((items||[]).map(x=>`<option value="${esc(x)}" ${String(x)===String(value||'')?'selected':''}>${esc(x)}</option>`)).join('')}
+  function getStoredCompany(){try{return JSON.parse(localStorage.getItem('nawah-company-settings-v92')||'{}')}catch(_){return {}}}
+  function normalizeLoginLogo(){
+    document.querySelectorAll('.auth-logo').forEach(el=>{
+      if(el.querySelector('img'))el.classList.add('v95-login-logo-circle');
+    });
+  }
+  function fixHierarchicalSelects(){
+    const form=document.querySelector('#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"]');
+    if(!form)return;
+    const region=form.elements.region,city=form.elements.city,district=form.elements.district;
+    if(!region||!city||!district)return;
+    const alreadyBound=form.dataset.v95HierarchyBound==='1';
+    form.dataset.v95HierarchyBound='1';
+    const fallback=window.__NAWAH_SAUDI_GUIDE__||null;
+    function readGuide(){
+      try{
+        const v94Guide=(typeof window.guideNow==='function')?window.guideNow():null;
+        return v94Guide||fallback||null;
+      }catch(_){return fallback}
+    }
+    function currentGuide(){
+      const guide=readGuide();
+      if(guide&&guide[region.value])return guide;
+      // Build a guide directly from the current options if the loader is still finishing.
+      return guide||{};
+    }
+    function updateCities(keep){
+      const guide=currentGuide(),cities=Object.keys(guide[region.value]||{}).sort((a,b)=>a.localeCompare(b,'ar'));
+      const nextCity=keep&&cities.includes(city.value)?city.value:'';
+      city.innerHTML=optionList(cities,nextCity,region.value?'اختر المدينة':'اختر المنطقة أولاً');
+      city.disabled=!region.value||!cities.length;
+      updateDistricts(false);
+    }
+    function updateDistricts(keep){
+      const guide=currentGuide(),items=((guide[region.value]||{})[city.value]||[]).slice().sort((a,b)=>a.localeCompare(b,'ar'));
+      const nextDistrict=keep&&items.includes(district.value)?district.value:'';
+      district.innerHTML=optionList(items,nextDistrict,city.value?'اختر الحي':'اختر المدينة أولاً');
+      district.disabled=!city.value||!items.length;
+    }
+    if(!alreadyBound){region.addEventListener('change',()=>updateCities(false));
+    city.addEventListener('change',()=>updateDistricts(false));}
+    updateCities(true);
+    const saved=getStoredCompany();
+    if(saved.city&&Array.from(city.options).some(o=>o.value===saved.city)){city.value=saved.city;updateDistricts(true)}
+    if(saved.district&&Array.from(district.options).some(o=>o.value===saved.district))district.value=saved.district;
+  }
+  const oldRender=window.renderSettings||('function'==typeof renderSettings?renderSettings:null);
+  if(oldRender&&!oldRender.__v95CompanyHierarchyAndLogoFix){
+    const wrapped=function(){const r=oldRender.apply(this,arguments);setTimeout(()=>{fixHierarchicalSelects();normalizeLoginLogo()},90);setTimeout(()=>{fixHierarchicalSelects();normalizeLoginLogo()},450);return r};
+    wrapped.__v95CompanyHierarchyAndLogoFix=true;try{renderSettings=wrapped}catch(_){}window.renderSettings=wrapped;
+  }
+  document.addEventListener('change',e=>{if(e.target?.matches?.('#settingsForm select[name="region"],#settingsForm select[name="city"]'))setTimeout(fixHierarchicalSelects,0)},true);
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{fixHierarchicalSelects();normalizeLoginLogo()},220);setTimeout(normalizeLoginLogo,700)});
+  window.addEventListener('load',()=>setTimeout(()=>{fixHierarchicalSelects();normalizeLoginLogo()},300));
+  setInterval(normalizeLoginLogo,1200);
 })();
