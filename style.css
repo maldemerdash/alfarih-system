@@ -2808,7 +2808,6 @@ dialog::backdrop {
   .toast { min-width: 0; }
 }
 
-/* Employee profile workspace */
 .employee-table th:first-child,
 .employee-table td:first-child {
   width: auto;
@@ -3659,7 +3658,6 @@ dialog::backdrop {
   }
 }
 
-/* Screenshot-inspired application shell */
 :root {
   --bg: #f3f5f8;
   --surface: #ffffff;
@@ -3889,7 +3887,6 @@ textarea:focus-visible {
   outline-color: rgba(24, 174, 225, 0.23);
 }
 
-/* Employee editor follows the reference page layout */
 .employee-profile-modal[open] {
   position: fixed;
   inset: var(--topbar-height) var(--sidebar-width) 0 0;
@@ -4330,7 +4327,6 @@ textarea:focus-visible {
   }
 }
 
-/* Visual scale and readability balance */
 :root {
   --sidebar-width: 250px;
   --topbar-height: 84px;
@@ -4567,7 +4563,6 @@ table td {
   }
 }
 
-/* Scroll-free employee editor viewport */
 html:has(#employeeModal[open]),
 body:has(#employeeModal[open]) {
   height: 100%;
@@ -4774,7 +4769,6 @@ body {
   }
 }
 
-/* Employee add/edit personal data refinements */
 .employee-personal-grid .nationality-select-field select:disabled {
   border-style: dashed;
   background: #f4f6f9;
@@ -4861,7 +4855,6 @@ body {
   }
 }
 
-/* Employee modal sidebar menu and action button refinements */
 .employee-profile-modal .employee-form-sidebar {
   overflow: hidden;
 }
@@ -4945,7 +4938,6 @@ body {
   }
 }
 
-/* Employee form menu and footer action refinements */
 @media (min-width: 721px) {
   .employee-profile-modal form {
     overflow: hidden;
@@ -5039,7 +5031,6 @@ body {
   }
 }
 
-/* Employee editor sidebar menu and action buttons refinement */
 @media (min-width: 721px) {
   .employee-form-sidebar {
     display: flex;
@@ -5140,7 +5131,6 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Stable salary insurance deduction layout */
 .salary-fields .salary-insurance-toggle,
 .salary-fields .salary-insurance-value,
 .salary-fields .salary-total-field,
@@ -5212,8 +5202,6 @@ body {
   }
 }
 
-
-/* Notes and minutes section */
 .notes-records-panel {
   display: grid;
   gap: 14px;
@@ -5328,7 +5316,6 @@ body {
     flex-direction: column;
   }
 }
-
 
 .attendance-auto-note {
   display: flex;
@@ -5464,7 +5451,6 @@ body {
   }
 }
 
-/* Employee full profile view from eye button */
 .quick-view-modal {
   width: min(1180px, calc(100vw - 30px));
 }
@@ -5658,7 +5644,6 @@ body {
   }
 }
 
-/* Final employee eye-profile layout: move monthly cards to the bottom and color expiry status */
 .employee-profile-stats-bottom {
   grid-column: 1 / -1;
   margin-top: 2px;
@@ -5698,7 +5683,6 @@ body {
   }
 }
 
-/* Corrected employee profile view: monthly cards at the top, banking under main data, and 30-day expiry warning */
 .employee-profile-main .employee-profile-stats-top {
   order: -1;
   margin-bottom: 2px;
@@ -5728,7 +5712,6 @@ body {
   }
 }
 
-/* Settings activation and work schedule */
 .settings-section { display: none; }
 .settings-section.active { display: block; }
 .settings-placeholder-card {
@@ -5838,7 +5821,6 @@ body {
   .workday-row { grid-template-columns: 1fr; align-items: stretch; }
 }
 
-/* Multi-period work settings update */
 .work-settings-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .workday-row {
   grid-template-columns: 1fr;
@@ -5878,8 +5860,6 @@ body {
   .workday-shift-line { grid-template-columns: 1fr; }
 }
 
-
-/* Period UI polish - match site inputs and cards */
 .shift-row,
 .workday-shift-line {
   border: 1px solid #dfe6e8;
@@ -5943,7 +5923,6 @@ body {
   border-style: solid;
 }
 
-/* Featured period picker - settings/work schedule */
 .period-add-card {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) auto;
@@ -6005,7 +5984,6 @@ body {
   }
 }
 
-/* Absence policy database - settings/work */
 .absence-policy-block {
   background: linear-gradient(180deg, #ffffff, #fbfdfd);
 }
@@ -6135,7 +6113,6 @@ body {
   .absence-policy-grid { grid-template-columns: 1fr; }
 }
 
-/* Absence rules final update */
 .settings-nav .settings-sub-nav {
   margin-inline-start: 18px;
   width: calc(100% - 18px);
@@ -6226,8 +6203,6 @@ body {
   .absence-policy-choice .status-badge { grid-column: 2; justify-self: start; }
 }
 
-
-/* Absence database and deductions update */
 .settings-nav button[data-settings-section="absence"] {
   font-weight: 800;
 }
@@ -6322,7 +6297,6 @@ body {
   }
 }
 
-/* إعداد المحاضر وربط نموذج المحاضر بهوية الموقع */
 .minute-template-list {
   display: grid;
   gap: 14px;
@@ -6407,7 +6381,6 @@ body {
   }
 }
 
-/* Vacation approval and end-service refinements */
 .approval-question-card,
 .end-service-warning {
   border: 1px solid #dbe7ea;
@@ -6502,7 +6475,6 @@ body {
   }
 }
 
-/* Final employee modal footer layout: keep save/cancel on the left and place end-service under sidebar */
 @media (min-width: 721px) {
   .employee-profile-modal .employee-form-actions {
     display: grid !important;
@@ -6577,8 +6549,6 @@ body {
   }
 }
 
-
-/* Final correction: separate end-service card from save/cancel card and keep button dimensions consistent */
 @media (min-width: 721px) {
   .employee-profile-modal .employee-form-actions {
     display: grid !important;
@@ -6660,8 +6630,6 @@ body {
   }
 }
 
-
-/* Visual fix: restore previous footer button height and remove bottom visual distortion */
 @media (min-width: 721px) {
   .employee-profile-modal .employee-form-actions {
     grid-template-columns: minmax(0, 1fr) 310px !important;
@@ -6735,8 +6703,6 @@ body {
   }
 }
 
-
-/* Final footer alignment correction: 4 balanced cards without visual distortion */
 @media (min-width: 1181px) {
   .employee-profile-modal .employee-form-actions {
     display: grid !important;
@@ -6818,8 +6784,6 @@ body {
   }
 }
 
-
-/* Hierarchical organization screen */
 .org-hierarchy-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -6985,8 +6949,6 @@ body {
   }
 }
 
-
-/* Final logic screens: minute builder, document types and danger buttons */
 .minute-builder-modal .modal-body.minute-builder-body {
   padding: 18px 26px 22px;
 }
@@ -7019,8 +6981,6 @@ body {
   padding: 0;
 }
 
-
-/* Sidebar repair: keep dynamically added views identical to normal menu items */
 .sidebar .main-nav > button[data-view="establishmentDocuments"],
 .sidebar nav > button[data-view="establishmentDocuments"] {
   display: grid !important;
@@ -7060,7 +7020,6 @@ body {
   color: #fff !important;
 }
 
-/* Minute builder final refinement: scroll, close, employee data choices */
 .minute-builder-modal {
   max-height: calc(100vh - 28px);
   overflow: hidden !important;
@@ -7134,7 +7093,6 @@ body {
   font-weight: 800;
 }
 
-/* Minute builder visual correction: compact employee-data checkboxes and safe scrolling */
 .minute-builder-modal {
   width: min(1120px, calc(100vw - 54px)) !important;
   max-height: calc(100vh - 36px) !important;
@@ -7250,8 +7208,6 @@ body {
   }
 }
 
-
-/* Final visual polish for document settings and minute actions */
 .settings-entry-modal .modal-body label,
 .settings-entry-modal .modal-body .toggle-line {
   display: grid;
@@ -7319,7 +7275,6 @@ body {
   color: #0f766e;
 }
 
-/* Precision patch styling for minute/document logic */
 .minute-types-table .row-actions,
 .minutes-table .row-actions {
   display: inline-flex;
@@ -7343,7 +7298,6 @@ body {
   box-shadow: 0 0 0 5px rgba(24, 174, 225, .12);
 }
 
-/* Establishment documents v2 */
 .establishment-document-modal-v2 {
   width: min(920px, calc(100vw - 32px));
 }
@@ -7392,7 +7346,6 @@ body {
   color: #334155;
 }
 
-/* Hard fix: establishment documents */
 .est-doc-status{display:inline-flex;align-items:center;justify-content:center;min-width:86px;min-height:26px;border-radius:999px;padding:0 10px;font-size:11px;font-weight:800;white-space:nowrap}
 .est-doc-status.valid{background:#dcfce7;color:#15803d}
 .est-doc-status.warning{background:#fef3c7;color:#b45309}
@@ -7406,7 +7359,6 @@ body {
 .establishment-document-hard-modal .modal-body{max-height:calc(100vh - 220px);overflow:auto;padding-inline-end:6px}
 .establishment-docs-table th,.establishment-docs-table td{white-space:nowrap}
 
-/* Authority modal visual fix: match site field design */
 .doc-authority-modal .authority-modal-body {
   display: grid;
   grid-template-columns: 1fr;
@@ -7468,8 +7420,6 @@ body {
   accent-color: var(--primary);
 }
 
-
-/* Visual refinement for establishment document filters */
 #establishmentDocumentsView .est-doc-filter-panel {
   padding: 14px 18px !important;
   margin-bottom: 14px !important;
@@ -7534,16 +7484,12 @@ body {
   }
 }
 
-
-/* Employee written warnings section */
 .warnings-area-card{border-color:#fde68a;background:linear-gradient(180deg,#fff,#fffbeb)}
 .warnings-table .warning-status-badge{display:inline-flex;align-items:center;justify-content:center;min-width:54px;padding:5px 10px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:800;font-size:11px}
 .warnings-table td{vertical-align:middle}
 
-/* Travel and leaves visual patch */
 .leave-travel-hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}.request-card{border:1px solid var(--border);background:var(--card);border-radius:24px;padding:18px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;box-shadow:var(--shadow-sm);cursor:pointer;text-align:right;color:var(--text)}.request-card span[data-icon]{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(20,184,166,.12);color:var(--primary)}.request-card strong{font-size:18px}.request-card small{color:var(--muted)}.request-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}.leave-travel-tables{display:grid;gap:18px}.travel-table-panel table,.leave-table-panel table{min-width:980px}.travel-actions{display:flex;gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap}.travel-tab-info{pointer-events:none;opacity:.9}.travel-modal-card{max-width:760px}.travel-approval-preview{margin-bottom:14px}.split-actions{justify-content:flex-end;gap:10px}.danger-btn{color:#dc2626!important;border-color:rgba(220,38,38,.28)!important;background:rgba(220,38,38,.06)!important}.travelers-dashboard-panel .travelers-dashboard-list{display:grid;gap:12px}.traveler-card-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px;border:1px solid var(--border);border-radius:18px;background:var(--surface)}.traveler-card-row div:nth-child(2){display:flex;flex-direction:column;gap:3px}.traveler-card-row span,.traveler-card-row small{color:var(--muted);font-size:12px}.traveler-card-row strong{display:block;text-align:left;color:var(--text)}@media(max-width:860px){.leave-travel-hero{grid-template-columns:1fr}.travel-table-panel table,.leave-table-panel table{min-width:760px}.traveler-card-row{grid-template-columns:auto 1fr}.traveler-card-row>div:last-child{grid-column:1/-1;text-align:right}}
 
-/* Travel request modal visual refinement */
 .full-span{grid-column:1 / -1}
 .travel-modal-card{
   width:min(920px, calc(100vw - 48px));
@@ -7708,7 +7654,6 @@ body {
   .travel-request-shell .travel-modal-head h3{font-size:26px}
 }
 
-/* Dashboard requests: leave + travel review */
 .dashboard-request-item .leave-preview-info span b {
   color: var(--primary, #2563eb);
   font-weight: 800;
@@ -7726,8 +7671,6 @@ body {
   margin-top: 12px;
 }
 
-
-/* Dashboard layout refinement: compact welcome, clickable colored KPIs, equal main cards */
 .dashboard-welcome-compact {
   min-height: 76px;
   padding: 14px 22px;
@@ -7828,8 +7771,6 @@ body {
   .dashboard-welcome-compact .eyebrow { width: 100%; margin-right: 0; }
 }
 
-
-/* Final dashboard height/date refinement */
 .dashboard-welcome-compact .welcome-copy {
   min-height: 42px;
 }
@@ -7853,8 +7794,6 @@ body {
   .leave-preview-list { max-height: 250px !important; }
 }
 
-
-/* Final requested dashboard corrections */
 .dashboard-welcome-compact { position: relative; min-height: 72px !important; padding: 12px 22px !important; }
 .dashboard-welcome-compact .welcome-copy { position: relative; min-height: 48px !important; padding-left: 230px; }
 .dashboard-welcome-compact .eyebrow {
@@ -7897,8 +7836,6 @@ body {
   .dashboard-grid > .panel { min-height: 245px !important; }
 }
 
-
-/* Requested precise fixes: red absence button, far-left date, and inline red expiry remaining */
 .dashboard-welcome-compact {
   position: relative !important;
   overflow: hidden;
@@ -7979,8 +7916,6 @@ body {
   .dashboard-welcome-compact .eyebrow { top: 8px !important; transform: none !important; left: 18px !important; font-size: 16px !important; }
 }
 
-
-/* Identity refinement: login, dashboard welcome gradient, and colored main cards */
 body.auth-locked .app-shell {
   filter: none !important;
 }
@@ -8047,7 +7982,6 @@ body.auth-locked .app-shell {
   font-weight: 900 !important;
 }
 
-/* Ultimate leave/travel color identity and popup layering */
 .leave-travel-hero .request-card {
   position: relative !important;
   overflow: hidden !important;
@@ -8142,11 +8076,8 @@ body.auth-locked .app-shell {
   opacity: 1 !important;
 }
 
-
-/* Definitive leave/travel visual colors and modal stacking */
 .leave-travel-hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}.leave-travel-hero .request-card{position:relative;overflow:hidden;border:0;border-radius:24px;padding:20px;min-height:118px;box-shadow:0 16px 35px rgba(15,23,42,.10);transition:transform .2s ease,box-shadow .2s ease}.leave-travel-hero .request-card:hover{transform:translateY(-2px);box-shadow:0 20px 42px rgba(15,23,42,.14)}.leave-travel-hero .request-card::before{content:"";position:absolute;inset:0;opacity:.96;z-index:0}.leave-travel-hero .request-card>*{position:relative;z-index:1}.leave-travel-hero .request-card strong,.leave-travel-hero .request-card small{color:#fff}.leave-travel-hero .request-card span[data-icon]{background:rgba(255,255,255,.22);color:#fff}.request-card-leave::before{background:linear-gradient(135deg,#0f766e,#0ea5a8 48%,#2563eb)}.request-card-travel::before{background:linear-gradient(135deg,#0ea5a8,#0891b2 48%,#1d4ed8)}.leave-tabs-fixed{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px}.leave-tabs-fixed button{border:1px solid rgba(14,165,168,.22);background:#fff;color:#0f172a;border-radius:999px;padding:10px 14px;cursor:pointer}.leave-tabs-fixed button.active{background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;border-color:transparent;box-shadow:0 10px 22px rgba(8,145,178,.20)}.travel-colored-panel,.leave-colored-panel{position:relative;overflow:hidden;border:1px solid transparent}.travel-colored-panel::before,.leave-colored-panel::before{content:"";position:absolute;top:0;left:0;right:0;height:6px}.travel-colored-panel::before{background:linear-gradient(90deg,#0f766e,#0891b2,#2563eb)}.leave-colored-panel::before{background:linear-gradient(90deg,#f59e0b,#0ea5a8,#2563eb)}.travel-colored-panel .panel-head{background:linear-gradient(135deg,rgba(15,118,110,.10),rgba(37,99,235,.08));margin:-20px -20px 14px;padding:22px 20px 16px}.leave-colored-panel .panel-head{background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(14,165,168,.08));margin:-20px -20px 14px;padding:22px 20px 16px}.travel-colored-panel thead th{background:rgba(8,145,178,.10);color:#0f766e}.leave-colored-panel thead th{background:rgba(245,158,11,.12);color:#92400e}#systemMessageModal,#identityAlertModal{z-index:2147483647!important}#systemMessageModal::backdrop,#identityAlertModal::backdrop{background:rgba(15,23,42,.55)!important;backdrop-filter:none!important}.system-message-card,.identity-alert-card{max-width:460px!important;border-radius:24px!important}.modal select[name="employeeId"]{pointer-events:auto!important;opacity:1!important}select.readonly-employee-select{pointer-events:auto!important;opacity:1!important}@media(max-width:860px){.leave-travel-hero{grid-template-columns:1fr}}
 
-/* Final leave/travel page layout: remove top request cards, split page into two clear halves */
 #leavesView .leave-travel-hero{
   display:none !important;
 }
@@ -8208,7 +8139,6 @@ body.auth-locked .app-shell {
   }
 }
 
-/* Definitive: make leave/travel tabs truly clickable and visually active */
 #leavesView .leave-tabs,
 #leavesView .definitive-leave-travel-tabs{
   position: relative !important;
@@ -8236,8 +8166,6 @@ body.auth-locked .app-shell {
   gap: 18px !important;
 }
 
-
-/* Final correction: clickable leave/travel tabs and clean table headers */
 #leavesView .final-clickable-tabs,
 #leavesView .definitive-leave-travel-tabs{
   display:flex !important;
@@ -8374,7 +8302,6 @@ body.auth-locked .app-shell {
   #leavesView .compact-table-action{width:100% !important;}
 }
 
-/* Compact travel request modal: same width, less vertical scroll */
 #travelRequestModal .travel-modal-card{
   max-height:calc(100vh - 42px);
   overflow:auto;
@@ -8474,7 +8401,6 @@ body.auth-locked .app-shell {
   #travelRequestModal .travel-form-grid{grid-template-columns:1fr;}
 }
 
-/* Payroll advances action button in dashboard welcome bar */
 .dashboard-welcome-compact .banner-advance-action,
 #dashboardAdvanceBtn {
   position: relative !important;
@@ -8533,7 +8459,6 @@ body.auth-locked .app-shell {
   }
 }
 
-/* Payroll advances clean implementation */
 .payroll-advances-panel {
   margin: 18px 0;
   border: 1px solid rgba(20, 184, 166, 0.20);
@@ -8676,7 +8601,6 @@ body.auth-locked .app-shell {
   .payroll-add-advance-btn { width: 100%; justify-content: center; }
 }
 
-/* Payroll compact advances table and semantic payroll colors */
 #payrollAdvancesPanel {
   margin: 14px 0 16px !important;
 }
@@ -8829,7 +8753,6 @@ body.auth-locked .app-shell {
   box-shadow: none !important;
 }
 
-/* Payroll month archive selector */
 .payroll-period-controls {
   display: flex;
   align-items: end;
@@ -8883,7 +8806,6 @@ body.auth-locked .app-shell {
   .payroll-period-apply { flex: 1 1 120px; }
 }
 
-/* Payroll visual balance fix after month selector */
 #payrollView .payroll-hero {
   grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.05fr) minmax(300px, .9fr) !important;
   grid-template-rows: auto auto !important;
@@ -9038,14 +8960,12 @@ body.auth-locked .app-shell {
   }
 }
 
-/* Final payroll tables compact fix: no horizontal scroll, keep advances logic */
 #payrollAdvancesPanel .payroll-advances-table-wrap,
 #payrollView .panel:not(#payrollAdvancesPanel) .table-wrap {
   overflow-x: hidden !important;
   overflow-y: visible !important;
 }
 
-/* Advances summary must stay compact: employee + arrow in one row, total nearby */
 #payrollAdvancesPanel .payroll-advances-table {
   width: min(620px, 100%) !important;
   min-width: 0 !important;
@@ -9126,7 +9046,6 @@ body.auth-locked .app-shell {
   table-layout: fixed !important;
 }
 
-/* Payroll details: fit all columns inside the card without a scrollbar */
 #payrollView .panel:not(#payrollAdvancesPanel) .table-wrap table {
   width: 100% !important;
   min-width: 0 !important;
@@ -9194,7 +9113,6 @@ body.auth-locked .app-shell {
   white-space: nowrap !important;
 }
 
-/* FINAL OVERRIDE - payroll tables must fit with no horizontal scrollbar */
 #payrollView,
 #payrollView .panel,
 #payrollAdvancesPanel,
@@ -9212,7 +9130,6 @@ body.auth-locked .app-shell {
   display: none !important;
 }
 
-/* Advances table: keep old logic, but no wasted width */
 #payrollAdvancesPanel .payroll-advances-table-wrap {
   display: block !important;
   padding: 0 !important;
@@ -9320,7 +9237,6 @@ body.auth-locked .app-shell {
   text-overflow: ellipsis !important;
 }
 
-/* Payroll details: force all eleven columns inside card, no scroll */
 #payrollView .panel:not(#payrollAdvancesPanel) .table-wrap table {
   width: 100% !important;
   max-width: 100% !important;
@@ -9404,8 +9320,6 @@ body.auth-locked .app-shell {
   white-space: nowrap !important;
 }
 
-/* FINAL PRECISE FIX - payroll advances details and employee warning highlight */
-/* Keep payroll tables inside the card without horizontal scroll */
 #payrollView .table-wrap,
 #payrollAdvancesPanel .payroll-advances-table-wrap {
   overflow-x: hidden !important;
@@ -9420,7 +9334,6 @@ body.auth-locked .app-shell {
   table-layout: fixed !important;
 }
 
-/* Advances summary: no wasted width, employee and total stay close and readable */
 #payrollAdvancesPanel .payroll-advances-table > thead > tr > th:first-child,
 #payrollAdvancesPanel .payroll-advances-table > tbody > tr.advance-summary-row > td:first-child {
   width: 62% !important;
@@ -9455,7 +9368,6 @@ body.auth-locked .app-shell {
   overflow: hidden !important;
 }
 
-/* Advance detail rows: restore the missing amount column: date + day + amount */
 #payrollAdvancesPanel .advance-detail-row > td {
   padding: 6px 12px !important;
   background: rgba(240, 253, 250, 0.78) !important;
@@ -9488,7 +9400,6 @@ body.auth-locked .app-shell {
   white-space: nowrap !important;
 }
 
-/* Payroll warning: do not paint the avatar area red; highlight only employee text block and required amount */
 #payrollTableBody .payroll-row-card-withdraw td {
   background: #fff !important;
 }
@@ -9539,17 +9450,12 @@ body.auth-locked .app-shell {
   box-shadow: none !important;
 }
 
-
-/* Payroll print/export buttons - scoped, preserves current visual identity */
 .payroll-advances-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .payroll-print-btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 @media (max-width: 720px){.payroll-advances-actions{width:100%;justify-content:stretch}.payroll-advances-actions .primary-btn,.payroll-advances-actions .secondary-btn{flex:1;justify-content:center}}
 
-
-/* Finance scaffold - compact visual identity */
 .finance-page-shell{display:grid;gap:12px}.finance-toolbar{align-items:center;margin-bottom:2px}.finance-cards-stack{display:grid;gap:10px}.finance-row{display:grid;gap:10px}.finance-row-two{grid-template-columns:repeat(2,minmax(0,1fr))}.finance-row-four{grid-template-columns:repeat(4,minmax(0,1fr))}.finance-row-five{grid-template-columns:repeat(5,minmax(0,1fr))}.finance-row-six{grid-template-columns:repeat(6,minmax(0,1fr))}.finance-close-day-row{display:flex;justify-content:center;padding-top:2px}.finance-close-day-btn{min-width:170px;justify-content:center}.finance-close-day-btn:disabled{opacity:.55;cursor:not-allowed}.finance-summary-card{position:relative;display:grid;align-content:space-between;gap:4px;min-height:82px;padding:10px 12px!important;border-radius:16px!important;background:#fff;box-shadow:0 8px 20px rgba(15,23,42,.052);overflow:hidden}.finance-summary-card::before{content:"";position:absolute;inset-inline-start:0;top:16px;width:4px;height:30px;border-radius:999px;background:linear-gradient(180deg,var(--primary),#22c7d8)}.finance-summary-card span{font-size:11px;font-weight:800;color:#64748b;line-height:1.35;white-space:normal}.finance-summary-card strong{font-size:22px;line-height:1.08;color:#0f172a;letter-spacing:-.02em}.finance-summary-card small{font-size:10px;color:#94a3b8;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.finance-total-sales{border-color:rgba(20,184,166,.30);box-shadow:0 10px 22px rgba(20,184,166,.10)}.finance-entry-grid{align-items:stretch}.finance-entry-card{display:grid;gap:8px;min-height:112px}.finance-entry-card .panel-head{padding:12px 14px 6px}.finance-entry-card .panel-head h3{font-size:13px}.finance-entry-card .panel-head p{font-size:10px}.finance-inline-field{display:grid;gap:6px;font-weight:800;color:#334155;padding:0 14px}.finance-inline-field input{width:100%;height:38px;border:1px solid var(--border);border-radius:12px;padding:0 12px;font-family:inherit;background:#f8fafc}.finance-balance-status{margin:0 14px 14px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;color:#64748b;padding:8px 10px;font-size:10px;font-weight:800}.finance-content-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.finance-content-grid .panel{min-width:0}.finance-content-grid .panel-head{padding:12px 14px 8px}.finance-content-grid .panel-head h3{font-size:13px}.finance-content-grid .panel-head p{font-size:10px}@media(max-width:1500px){.finance-row-six{grid-template-columns:repeat(3,minmax(0,1fr))}.finance-row-five{grid-template-columns:repeat(5,minmax(120px,1fr))}.finance-content-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:1200px){.finance-row-four{grid-template-columns:repeat(2,minmax(0,1fr))}.finance-row-five,.finance-row-six{grid-template-columns:repeat(2,minmax(0,1fr))}.finance-row-two,.finance-entry-grid,.finance-content-grid{grid-template-columns:1fr}}@media(max-width:640px){.finance-row,.finance-content-grid{grid-template-columns:1fr}}
 
-/* Finance card semantic colors */
 .finance-summary-card.finance-positive::before,.finance-entry-card.finance-positive::before,.finance-table-card.finance-positive::before{background:linear-gradient(180deg,#16a34a,#22c55e)}
 .finance-summary-card.finance-negative::before,.finance-entry-card.finance-negative::before,.finance-table-card.finance-negative::before{background:linear-gradient(180deg,#dc2626,#f87171)}
 .finance-summary-card.finance-result::before{background:linear-gradient(180deg,var(--primary),#22c7d8)}
@@ -9564,13 +9470,11 @@ body.auth-locked .app-shell {
 .finance-entry-card.finance-positive,.finance-table-card.finance-positive{border-color:rgba(22,163,74,.20)}
 .finance-entry-card.finance-negative,.finance-table-card.finance-negative{border-color:rgba(220,38,38,.20)}
 
-/* Finance Saudi Riyal symbol */
 .money-with-symbol{display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;direction:ltr;flex-direction:row-reverse;white-space:nowrap}
 .money-with-symbol .sar-symbol{width:19px;height:19px;object-fit:contain;display:inline-block;flex:0 0 auto}
 .finance-summary-card strong.money-with-symbol{font-size:25px;line-height:1.04}
 @media(max-width:640px){.money-with-symbol .sar-symbol{width:16px;height:16px}}
 
-/* Finance layout refinement - grouped cards above matching tables */
 .finance-row-three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .finance-top-totals{align-items:stretch}
 .finance-linked-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:start}
@@ -9586,7 +9490,6 @@ body.auth-locked .app-shell {
 @media(max-width:1500px){.finance-linked-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1200px){.finance-row-three{grid-template-columns:1fr}.finance-linked-grid{grid-template-columns:1fr}}
 
-/* Finance cards font size adjustment - slightly larger while preserving compact layout */
 .finance-summary-card span{
   font-size:12.5px;
 }
@@ -9610,8 +9513,6 @@ body.auth-locked .app-shell {
   font-size:11px;
 }
 
-
-/* Finance fund amount highlight */
 .finance-summary-card.finance-fund-highlight{
   background:linear-gradient(135deg,#ecfdf5 0%,#ffffff 46%,#dcfce7 100%);
   border-color:rgba(22,163,74,.34)!important;
@@ -9642,7 +9543,6 @@ body.auth-locked .app-shell {
   pointer-events:none;
 }
 
-/* Finance step 3: daily editable tables and live totals */
 .finance-card-field{display:flex;align-items:center;justify-content:flex-start;gap:6px;margin-top:2px;direction:ltr}
 .finance-card-field input{width:100%;height:30px;border:1px solid rgba(148,163,184,.45);border-radius:10px;background:#f8fafc;padding:0 8px;font-family:inherit;font-size:18px;font-weight:900;color:#0f172a;text-align:center;outline:none}
 .finance-card-field input:focus{border-color:rgba(20,184,166,.7);box-shadow:0 0 0 3px rgba(20,184,166,.12);background:#fff}
@@ -9654,7 +9554,6 @@ body.auth-locked .app-shell {
 .finance-balance-mini.is-match{color:#166534!important;background:rgba(22,163,74,.10);border:1px solid rgba(22,163,74,.22);border-radius:999px;padding:3px 8px;width:max-content;max-width:100%}
 .finance-balance-mini.is-unmatch{color:#991b1b!important;background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.22);border-radius:999px;padding:3px 8px;width:max-content;max-width:100%}
 
-/* Finance cards numbers - larger readable amount text */
 .finance-summary-card strong{
   font-size:27px;
   line-height:1.03;
@@ -9672,7 +9571,6 @@ body.auth-locked .app-shell {
   height:18px;
 }
 
-/* Finance cards: unified clear value size for all cards */
 .finance-summary-card strong,
 .finance-summary-card strong.money-with-symbol{
   font-size:30px!important;
@@ -9691,7 +9589,6 @@ body.auth-locked .app-shell {
   height:18px!important;
 }
 
-/* Finance cards: unified amount font size requested */
 .finance-summary-card strong,
 .finance-summary-card strong.money-with-symbol,
 .finance-card-field input{
@@ -9702,7 +9599,6 @@ body.auth-locked .app-shell {
   height:36px!important;
 }
 
-/* Finance page: final unified large readable numeric sizing */
 #financeView .finance-summary-card strong,
 #financeView .finance-summary-card strong.money-with-symbol,
 #financeView .finance-summary-card [data-finance-money],
@@ -9744,8 +9640,6 @@ body.auth-locked .app-shell {
   min-height:88px!important;
 }
 
-
-/* Finance final correction: unified 25px numbers and fund card under rows */
 #financeView .finance-summary-card strong,
 #financeView .finance-summary-card strong.money-with-symbol,
 #financeView .finance-summary-card [data-finance-money],
@@ -9804,8 +9698,6 @@ body.auth-locked .app-shell {
   }
 }
 
-
-/* Finance day header and date navigation */
 #financeView .finance-day-header{
   display:flex!important;
   align-items:center!important;
@@ -9882,7 +9774,6 @@ body.auth-locked .app-shell {
   }
 }
 
-/* Finance header final alignment: match attendance visual spacing, date at far left */
 #financeView .finance-day-header{
   position:relative!important;
   display:flex!important;
@@ -9971,7 +9862,6 @@ body.auth-locked .app-shell {
   }
 }
 
-/* Finance header final: match attendance header layout + calendar picker */
 #financeView .finance-day-header{
   position:relative!important;
   display:flex!important;
@@ -10116,7 +10006,6 @@ body.auth-locked .app-shell {
   }
 }
 
-/* Finance final logic: side submenu and linked display panels */
 .finance-side-subnav{
   display:flex;
   flex-direction:column;
@@ -10167,8 +10056,6 @@ body.auth-locked .app-shell {
   display:flex!important;
 }
 
-
-/* Finance final polish: requested 18px numeric size, header advance button, no submenu, card colors */
 #financeView .finance-summary-card strong,
 #financeView .finance-summary-card strong.money-with-symbol,
 #financeView .finance-summary-card [data-finance-money],
@@ -10270,7 +10157,6 @@ body.auth-locked .app-shell {
   #financeView .finance-header-advance-btn{width:100%!important;justify-content:center!important;}
 }
 
-/* Finance close modal + final table layout polish */
 #financeView .finance-linked-grid{
   grid-template-columns:1.3fr 1.3fr .7fr .7fr!important;
   align-items:stretch!important;
@@ -10440,7 +10326,6 @@ body.auth-locked .app-shell {
   .finance-close-confirm-summary{grid-template-columns:1fr;}
 }
 
-/* FINAL FIX: payroll run name cell without red highlight and no horizontal scroll */
 #payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell,
 #payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell .employee-cell,
 #payrollTableBody .payroll-row-card-withdraw .payroll-employee-cell .employee-cell > div:last-child {
@@ -10532,8 +10417,6 @@ body.auth-locked .app-shell {
   white-space: nowrap !important;
 }
 
-
-/* Final payroll/advances persistence layout fix - keeps names wide and removes phone lines */
 #payrollView .panel:not(#payrollAdvancesPanel) .table-wrap {
   overflow-x: hidden !important;
 }
@@ -10642,7 +10525,6 @@ body.auth-locked .app-shell {
   display: none !important;
 }
 
-/* Final finance pending deletion + compact amount/statement spacing */
 #financeView .finance-entry-table[data-finance-table="pending"],
 #financeView .finance-entry-table[data-finance-table="expenses"]{
   table-layout: fixed !important;
@@ -10759,8 +10641,6 @@ body.auth-locked .app-shell {
   font-weight: 800 !important;
 }
 
-
-/* Final finance visual fix: fixed top cards, active pending delete, equal row field heights, log under advances */
 #financeView .finance-linked-block > .finance-summary-card{
   height: 118px !important;
   min-height: 118px !important;
@@ -10839,8 +10719,6 @@ body.auth-locked .app-shell {
   }
 }
 
-
-/* Finance identity confirmation modal: replaces browser confirm */
 .finance-site-confirm-modal {
   border: 1px solid rgba(15, 118, 110, 0.16) !important;
   padding: 0 !important;
@@ -10885,7 +10763,6 @@ body.auth-locked .app-shell {
   background: linear-gradient(135deg, #0f766e, #0ea5e9) !important;
 }
 
-/* Final finance fix: cash and card sales amount fields fill their cards */
 #financeView .finance-entry-table[data-finance-table="cashSales"],
 #financeView .finance-entry-table[data-finance-table="cardSales"]{
   width: 100% !important;
@@ -10914,7 +10791,6 @@ body.auth-locked .app-shell {
   text-align: center !important;
 }
 
-/* Final finance visual tune: shorter four finance cards and compact advance amounts */
 #financeView .finance-linked-block > .finance-summary-card{
   height: 92px !important;
   min-height: 92px !important;
@@ -10970,7 +10846,6 @@ body.auth-locked .app-shell {
   }
 }
 
-/* Final finance correction: keep sales tables pinned to the top */
 #financeView .finance-linked-grid{
   align-items: start !important;
 }
@@ -11007,7 +10882,6 @@ body.auth-locked .app-shell {
   padding-bottom: 8px !important;
 }
 
-/* Final finance correction: compact finance table rows to show more rows */
 #financeView .finance-entry-table th,
 #financeView .finance-entry-table td{
   padding-top: 3px !important;
@@ -11070,7 +10944,6 @@ body.auth-locked .app-shell {
   padding-bottom: 4px !important;
 }
 
-/* FINAL finance alignment: make cash/network table cards match expenses/pending from the bottom */
 #financeView .finance-linked-grid{
   align-items: stretch !important;
 }
@@ -11114,7 +10987,6 @@ body.auth-locked .app-shell {
   padding-inline: 8px !important;
 }
 
-/* Final fix: employee documents delete icon alignment */
 #documentsList .repeatable-row.document-row {
   grid-template-columns: minmax(150px, 1.15fr) minmax(120px, .9fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(92px, .62fr) 42px !important;
   align-items: end !important;
@@ -11163,7 +11035,6 @@ body.auth-locked .app-shell {
   }
 }
 
-/* Final attachment download and linked employee topbar photo polish */
 .attachment-view-btn.attachment-download-btn,
 .attachment-download-btn {
   display: inline-grid;
@@ -11199,8 +11070,6 @@ body.auth-locked .app-shell {
   object-fit: cover;
 }
 
-
-/* Final v3 layout for employee attachment controls */
 .employee-attachment-inline-wrap {
   display: inline-flex !important;
   align-items: center !important;
@@ -11225,7 +11094,6 @@ body.auth-locked .app-shell {
   color: transparent !important;
 }
 
-/* v5 attachment/header safe repair */
 .topbar-user-mark.has-employee-photo{overflow:hidden;background:transparent;padding:0;}
 .topbar-user-mark.has-employee-photo img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;}
 .employee-attachment-inline-wrap{display:inline-flex;align-items:center;gap:8px;width:100%;max-width:100%;}
@@ -11233,7 +11101,6 @@ body.auth-locked .app-shell {
 .employee-attachment-download-inline,.attachment-download-btn{width:40px;height:40px;min-width:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;}
 .attachment-download-btn svg{width:18px;height:18px;}
 
-/* v16: keep the attachment download mark beside the attachment text, never below it */
 .employee-attachment-inline-wrap,
 .employee-attachment-inline-wrap-v16 {
   display: flex !important;
@@ -11280,7 +11147,6 @@ body.auth-locked .app-shell {
   height: 18px !important;
 }
 
-/* v17 clean inline attachment controls */
 .employee-attachment-inline-wrap,
 .employee-attachment-inline-wrap-v17 {
   display: flex !important;
@@ -11325,7 +11191,6 @@ body.auth-locked .app-shell {
   height: 18px !important;
 }
 
-/* v19: hidden attachment download buttons must stay hidden even when older CSS gives them display:flex!important */
 .attachment-view-btn[hidden],
 .attachment-download-btn[hidden],
 .employee-attachment-download-inline[hidden],
@@ -11337,8 +11202,6 @@ body.auth-locked .app-shell {
   pointer-events: none !important;
 }
 
-
-/* v20: show attachment download buttons again when an attachment id exists after reload */
 [data-view-single-attachment]:not([hidden])[data-attachment-id]:not([data-attachment-id=""]),
 .attachment-download-btn:not([hidden])[data-attachment-id]:not([data-attachment-id=""]) {
   display: inline-flex !important;
@@ -11347,7 +11210,6 @@ body.auth-locked .app-shell {
   pointer-events: auto !important;
 }
 
-/* v21: keep employee dialog close buttons always clickable */
 #employeeModal .modal-head,
 #quickViewModal .modal-head {
   position: relative;
@@ -11360,7 +11222,6 @@ body.auth-locked .app-shell {
   pointer-events: auto;
 }
 
-/* v22: remove the empty top gap in add/edit employee screen */
 #employeeModal.employee-profile-modal {
   margin-top: 0 !important;
 }
@@ -11403,9 +11264,6 @@ body.auth-locked .app-shell {
   padding-top: 14px !important;
 }
 
-
-/* v23: restore red cancel button after the v22 top-gap layout correction.
-   Keep this at the end so older generic secondary-btn rules cannot override it. */
 #employeeModal.employee-profile-modal .employee-form-actions .employee-main-actions .employee-cancel-btn,
 #employeeModal.employee-profile-modal .employee-form-actions .employee-main-actions button.employee-cancel-btn.secondary-btn {
   background: #e34d4d !important;
@@ -11426,9 +11284,6 @@ body.auth-locked .app-shell {
   stroke: #ffffff !important;
 }
 
-
-/* v30: lock leave/travel table visual layout across all request states.
-   CSS only: keeps the approved header/card design stable whether rows are pending, approved, resumed, or rejected. */
 #leavesView .travel-table-panel,
 #leavesView .leave-table-panel {
   overflow: hidden !important;
@@ -11543,7 +11398,6 @@ body.auth-locked .app-shell {
   border-radius: 12px !important;
 }
 
-/* stable desktop column widths so status/action changes do not resize the table */
 #leavesView .travel-table-panel th:nth-child(1),
 #leavesView .travel-table-panel td:nth-child(1) { width: 20% !important; }
 #leavesView .travel-table-panel th:nth-child(2),
@@ -11588,7 +11442,6 @@ body.auth-locked .app-shell {
   }
 }
 
-/* V32 dashboard travelers metrics: keep approved visual identity and status colors */
 .traveler-dashboard-metrics{
   display:flex;
   align-items:center;
@@ -11604,14 +11457,12 @@ body.auth-locked .app-shell {
   .traveler-dashboard-metrics{grid-column:1 / -1;justify-content:flex-end;}
 }
 
-/* v33 - consent attachment confirmation only; keeps approved design identity */
 #consentPendingViewBtn[hidden]{display:none!important;}
 #consentPendingViewBtn{margin-top:8px;align-self:flex-start;}
 #consentModal .compact-file-control.has-file{border-style:solid;border-color:#a8e2d1;background:#effcf7;color:#12835f;}
 .topbar-user-mark.has-employee-photo{overflow:hidden;padding:0;}
 .topbar-user-mark.has-employee-photo img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit;}
 
-/* v34 leave balance policy UI - scoped additions only */
 .leave-balance-settings-summary,
 .dashboard-leave-balance-summary {
   display: grid;
@@ -11751,9 +11602,6 @@ body.auth-locked .app-shell {
   }
 }
 
-/* =========================================================
-   v44 smooth employee photos: keep images lightweight and non-blocking
-   ========================================================= */
 .employee-cell { position: relative; }
 .employee-cell .avatar,
 .employee-cell .avatar-photo,
@@ -11793,9 +11641,6 @@ body.auth-locked .app-shell {
   object-fit: cover !important;
 }
 
-/* =========================================================
-   v45 clean employee photo UI
-   ========================================================= */
 .avatar-photo {
   position: relative !important;
   overflow: hidden !important;
@@ -11839,7 +11684,6 @@ button[data-edit-employee] {
   border-radius: inherit !important;
 }
 
-/* v49 - Dynamic leave balance visual blocks */
 .leave-balance-dashboard-card {
   margin: 12px 0 16px;
   padding: 16px;
@@ -11986,14 +11830,12 @@ button[data-edit-employee] {
   .leave-balance-dashboard-number { align-items: flex-start; flex-direction: column; }
 }
 
-/* v50 - Toast auto-hide safeguard */
 .toast.is-hiding {
   opacity: 0;
   transform: translateY(8px);
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* V51 - document expiry notification colors */
 .expiry-doc-row.expiry-state-expired {
   border-color: rgba(220, 38, 38, .28) !important;
   background: linear-gradient(180deg, #fff, #fff1f2) !important;
@@ -12030,7 +11872,6 @@ button[data-edit-employee] {
 .expiry-doc-row.expiry-state-danger strong { color: #7f1d1d !important; }
 .expiry-doc-row.expiry-state-warning strong { color: #78350f !important; }
 
-/* V52 scoped fixes */
 .employee-number-cell { text-align: center; align-items: center; }
 .employee-number-cell strong, .employee-number-cell small { text-align: center; }
 .v52-hidden-contract-radios { display: none !important; }
@@ -12047,7 +11888,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .travel-return-days-field input[disabled] { background: #eef4f4; color: #748287; cursor: not-allowed; }
 .quick-view-modal .employee-profile-side .leave-balance-profile-card { width: 100%; margin-top: 12px; }
 
-/* v60 finance header/layout: close-day next to advance, fund card under new carried */
 #financeView .finance-header-close-day-btn{
   order:5!important;
   height:42px!important;
@@ -12065,8 +11905,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 @media(max-width:1500px){#financeView .finance-day-title{padding-left:0!important;}#financeView .finance-day-controls{position:static!important;transform:none!important;margin-top:10px!important;max-width:none!important;flex-wrap:wrap!important;}}
 @media(max-width:760px){#financeView .finance-header-close-day-btn,#financeView .finance-header-advance-btn{width:100%!important;justify-content:center!important;}}
 
-
-/* v61 finance summary shell: group only the upper cards in one large card, keep lower tables unchanged */
 #financeView .finance-cards-stack{
   position:relative!important;
   display:grid!important;
@@ -12103,7 +11941,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   }
 }
 
-/* v63 - Quick employee view: show leave balance as a single number only */
 #quickViewModal .leave-balance-profile-card .leave-balance-card-head span,
 #quickViewModal .leave-balance-profile-card .leave-balance-mini-grid,
 #quickViewModal .leave-balance-profile-card .leave-balance-card-note {
@@ -12122,9 +11959,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   margin: 0;
 }
 
-/* v70: إصلاح التشوه البصري في شاشة الإجازات والسفر بعد إضافة جدول طلبات السفر المعلقة.
-   السبب كان أن تخطيط الجداول مضبوط على ارتفاع نافذة ثابت لجدولين فقط، وبعد إضافة جدول ثالث
-   أصبح جدول الإجازات يطلع مقصوصًا. هذا التعديل يجعل الأقسام الثلاثة تتدفق طبيعيًا بدون قص. */
 #leavesView .leave-travel-tables,
 #leavesView .final-leave-travel-layout,
 #leavesView .definitive-leave-travel-layout {
@@ -12183,8 +12017,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   flex: 0 0 76px !important;
 }
 
-/* v71: جعل جدول الإجازات بنفس تنسيق جدول المسافرون تمامًا.
-   تعديل بصري فقط: لا يغير منطق الإجازات أو السفر أو الحفظ. */
 #leavesView .leave-table-panel {
   border: 1px solid rgba(8,145,178,.24) !important;
   box-shadow: 0 16px 34px rgba(8,145,178,.11) !important;
@@ -12247,7 +12079,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   border-color: transparent !important;
 }
 
-/* إلغاء أي هوية برتقالية قديمة لجدول الإجازات حتى يطابق جدول المسافرون */
 #leavesView .leave-colored-panel .panel-head,
 #leavesView .leave-colored-panel thead th,
 #leavesView .leave-table-panel .panel-head,
@@ -12255,9 +12086,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   --leave-accent: #0891b2;
 }
 
-/* v72: إظهار عمود الإجراءات في جدول طلبات السفر بانتظار الموافقة.
-   السبب: كانت أعمدة جدول السفر العامة موزعة على 6 أعمدة بنسبة 100%،
-   فاختفى العمود السابع الخاص بالإجراءات في جدول الطلبات المعلقة. */
 #leavesView .travel-pending-panel table {
   table-layout: fixed !important;
   width: 100% !important;
@@ -12293,7 +12121,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   padding: 0 12px !important;
 }
 
-/* ضبط جدول المسافرين المعتمدين الذي يحتوي 8 أعمدة حتى لا يضغط عمود الإجراءات. */
 #leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(1),
 #leavesView .travel-table-panel:not(.travel-pending-panel) td:nth-child(1) { width: 16% !important; }
 #leavesView .travel-table-panel:not(.travel-pending-panel) th:nth-child(2),
@@ -12315,7 +12142,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   text-overflow: clip !important;
 }
 
-/* v76 - صفحة الإجازات والسفر: تبويبان داخليان، جدول واحد لكل تبويب، بدون سكرول أفقي */
 #leavesView .v76-leave-page{
   display:flex;
   flex-direction:column;
@@ -12488,7 +12314,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 }
 #leavesView .status-badge{white-space:normal;text-align:center;}
 
-/* v76 - نافذة اعتماد السفر بهوية الموقع */
 .v76-travel-approval-modal{
   width:min(760px,94vw);
   max-width:94vw;
@@ -12603,7 +12428,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   .v76-attachment-grid{grid-template-columns:1fr;}
 }
 
-/* v78 clean leaves/travel layout - final single structure */
 #leavesView .leave-balance-profile,
 #leavesView .leave-balance-card,
 #leavesView .leave-balance-main,
@@ -12678,7 +12502,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .v78-approval-actions{padding:14px 20px 18px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
 @media (max-width:900px){#leavesView .v78-leave-page{height:auto;min-height:520px;}#leavesView .v78-data-card{max-height:calc(100vh - 180px);}#leavesView .v78-soft-table tbody td,#leavesView .v78-soft-table thead th{font-size:.76rem;padding:10px 7px}.v78-approval-summary{grid-template-columns:repeat(2,minmax(0,1fr));}.v78-attachment-grid{grid-template-columns:1fr;}}
 
-/* v80 - Employee profile leave/travel history */
 .v80-employee-history-card{margin-top:16px;overflow:hidden;background:linear-gradient(180deg,#ffffff 0%,#fbfcff 100%);border:1px solid rgba(214,222,235,.95);box-shadow:0 12px 34px rgba(18,30,54,.07)}
 .v80-history-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
 .v80-history-head h3{margin:0;color:#172033;font-size:18px;font-weight:900}
@@ -12714,7 +12537,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .v80-employee-history-card .status-badge{display:inline-flex;align-items:center;justify-content:center;min-width:0;white-space:normal;text-align:center;padding:5px 7px;font-size:10px;border-radius:999px}
 @media (max-width:900px){.v80-history-table{font-size:10px}.v80-history-table thead th,.v80-history-table tbody td{padding:8px 5px}.v80-history-table-shell{max-height:300px}.v80-history-filters button{padding:6px 8px;font-size:10px}}
 
-/* v81 - Professional employee leave/travel history placement and direct actions */
 .employee-profile-main > .v81-quick-history-card{
   grid-column:1 / -1;
   width:100%;
@@ -12794,7 +12616,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .v81-print-frame{position:fixed;left:-9999px;top:0;width:0;height:0;border:0;opacity:0;pointer-events:none}
 @media(max-width:900px){.v81-history-table{font-size:10.5px}.v81-history-table thead th,.v81-history-table tbody td{padding:8px 5px}.v81-history-filters button{font-size:10px;padding:6px 8px}.v81-history-table-shell{max-height:320px}}
 
-/* v82 - professional employee form tabs: icons, no top X, closer to header */
 #employeeModal [data-close-modal="employeeModal"].icon-btn,
 #employeeModal .modal-head > button.icon-btn[data-close-modal="employeeModal"]{
   display:none !important;
@@ -12852,8 +12673,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   color:var(--primary);
 }
 
-
-/* v83 - restore full employee form side menu and keep icons visible without increasing height */
 #employeeModal.employee-profile-modal .employee-workspace{
   padding-top:6px !important;
   padding-bottom:10px !important;
