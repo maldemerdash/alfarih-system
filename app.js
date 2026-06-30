@@ -1246,3 +1246,124 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   },true);
   document.addEventListener('DOMContentLoaded',polish);
 })();
+
+(function v92CompanySettingsActualData(){
+  if(window.__v92CompanySettingsActualData)return;
+  window.__v92CompanySettingsActualData=true;
+  const STORAGE_KEY='nawah-company-settings-v92';
+  const DEFAULT_COMPANY={
+    company:'شركة نواة للحلول الرقمية',
+    unifiedNumber:'7012345678',
+    email:'info@nawah.sa',
+    phone:'0112345678',
+    shortAddress:'',poBox:'',region:'',city:'',district:'',street:'',additionalNumber:'',postalCode:'',
+    logoDataUrl:'',nationalAddressFileName:'',nationalAddressFileDataUrl:''
+  };
+  const GUIDE={
+    'منطقة الرياض':{'الرياض':['الملقا','الصحافة','العقيق','النرجس','الياسمين','حطين','الروضة','النسيم','السليمانية','العليا','المرسلات','قرطبة'],'الخرج':['الخزامى','الريان','السلام','اليمامة'],'الدرعية':['البجيري','الطريف','الخالدية']},
+    'منطقة مكة المكرمة':{'مكة المكرمة':['العوالي','الشوقية','النوارية','الشرائع','العزيزية','بطحاء قريش'],'جدة':['الشاطئ','السلامة','الروضة','الصفا','النسيم','الفيصلية','الحمراء','النهضة'],'الطائف':['شهار','الحوية','النسيم','الفيصلية']},
+    'المنطقة الشرقية':{'الدمام':['الشاطئ','الفيصلية','النور','الروضة','المزروعية','طيبة'],'الخبر':['العقربية','الثقبة','الراكة','الحزام الذهبي','الكورنيش'],'الظهران':['الدوحة','القشلة','حي الجامعة']},
+    'منطقة المدينة المنورة':{'المدينة المنورة':['العزيزية','قباء','الهجرة','الخالدية','العوالي'],'ينبع':['السميري','البندر','النواة']},
+    'منطقة القصيم':{'بريدة':['الريان','الإسكان','الصفراء','الخالدية'],'عنيزة':['الأشرفية','الفاخرية','الملك خالد']},
+    'منطقة عسير':{'أبها':['المنسك','المروج','الخالدية','النميص'],'خميس مشيط':['الواحة','النسيم','الرصراص']},
+    'منطقة جازان':{'جازان':['الروضة','الشاطئ','السويس','المطار'],'صبيا':['الملك فهد','النهضة']},
+    'منطقة تبوك':{'تبوك':['المروج','الورود','العليا','السليمانية']},
+    'منطقة حائل':{'حائل':['النقرة','المنتزه','الزبارة','الخزامى']},
+    'منطقة نجران':{'نجران':['الفهد','الفيصلية','أبا السعود','العريسة']},
+    'منطقة الباحة':{'الباحة':['الظفير','شهبة','الزرقاء']},
+    'منطقة الحدود الشمالية':{'عرعر':['المساعدية','الفيصلية','الروضة'],'رفحاء':['المدينة','اليرموك']},
+    'منطقة الجوف':{'سكاكا':['الرحمانية','الشلهوب','المحمدية'],'القريات':['الفيصلية','النسيم']}
+  };
+  function safeParse(v,f){try{return v?JSON.parse(v):f}catch(_){return f}}
+  function getCompany(){return {...DEFAULT_COMPANY,...safeParse(localStorage.getItem(STORAGE_KEY),{})}}
+  function saveCompany(data){const current=getCompany();const next={...current,...data};localStorage.setItem(STORAGE_KEY,JSON.stringify(next));applyCompanyBranding(next);try{if(typeof saveCloudStateNow==='function')saveCloudStateNow({force:true});else if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){}return next}
+  function escape(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+  function options(items,value){return ['<option value="">اختر</option>'].concat(items.map(x=>`<option value="${escape(x)}" ${String(x)===String(value||'')?'selected':''}>${escape(x)}</option>`)).join('')}
+  function fileToDataUrl(file,maxSize){return new Promise((resolve,reject)=>{if(!file)return resolve('');if(file.size>maxSize)return reject(new Error('حجم الملف أكبر من الحد المسموح.'));const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('تعذر قراءة الملف.'));reader.readAsDataURL(file)})}
+  function renderPreviewLogo(data){const box=document.querySelector('#companyLogoPreview');if(!box)return;box.innerHTML=data?.logoDataUrl?`<img src="${escape(data.logoDataUrl)}" alt="شعار المنشأة">`:'<span>شعار</span>'}
+  function updateCityDistrictOptions(){const form=document.querySelector('#settingsForm[data-v92-company="1"]');if(!form)return;const region=form.elements.region?.value||'';const city=form.elements.city?.value||'';const cities=Object.keys(GUIDE[region]||{});const currentCity=cities.includes(city)?city:'';form.elements.city.innerHTML=options(cities,currentCity);const districts=(GUIDE[region]?.[currentCity]||[]);const currentDistrict=districts.includes(form.elements.district?.value)?form.elements.district.value:'';form.elements.district.innerHTML=options(districts,currentDistrict)}
+  function renderCompanySettingsForm(){
+    const section=document.querySelector('[data-settings-panel="company"]');
+    if(!section)return;
+    const data=getCompany();
+    section.innerHTML=`
+      <div class="panel-head"><div><h3>بيانات المنشأة</h3><p>بيانات فعلية يتم حفظها واستخدامها في واجهة النظام وتسجيل الدخول.</p></div></div>
+      <form id="settingsForm" class="settings-form company-settings-real-form" data-v92-company="1">
+        <div class="company-logo-upload company-logo-upload-real">
+          <div class="company-logo-preview" id="companyLogoPreview"></div>
+          <div class="company-logo-copy"><strong>شعار المنشأة الفعلي</strong><span>يظهر في منتصف بطاقة تسجيل الدخول، ويفضل PNG أو JPG بحد أقصى ٢ ميجابايت.</span></div>
+          <label class="secondary-btn company-logo-btn">تغيير الشعار<input type="file" name="logoFile" accept="image/png,image/jpeg,image/webp" hidden></label>
+        </div>
+        <div class="form-grid company-real-grid">
+          <label><span>اسم المنشأة</span><input name="company" value="${escape(data.company)}" autocomplete="organization" /></label>
+          <label><span>الرقم الموحد</span><input name="unifiedNumber" value="${escape(data.unifiedNumber)}" inputmode="numeric" /></label>
+          <label><span>البريد الإلكتروني</span><input type="email" name="email" value="${escape(data.email)}" /></label>
+          <label><span>رقم التواصل</span><input name="phone" value="${escape(data.phone)}" inputmode="tel" /></label>
+        </div>
+        <div class="national-address-card">
+          <div class="national-address-head"><h4>العنوان الوطني السعودي</h4><p>المنطقة والمدينة والحي اختيار من الدليل، وباقي البيانات حسب شهادة العنوان الوطني.</p></div>
+          <div class="form-grid company-address-grid">
+            <label><span>العنوان المختصر</span><input name="shortAddress" value="${escape(data.shortAddress)}" placeholder="مثال: RDBA1234" /></label>
+            <label><span>صندوق البريد</span><input name="poBox" value="${escape(data.poBox)}" inputmode="numeric" /></label>
+            <label><span>المنطقة</span><select name="region">${options(Object.keys(GUIDE),data.region)}</select></label>
+            <label><span>المدينة</span><select name="city"></select></label>
+            <label><span>الحي</span><select name="district"></select></label>
+            <label><span>اسم الشارع</span><input name="street" value="${escape(data.street)}" placeholder="اكتب اسم الشارع" /></label>
+            <label><span>الرقم الإضافي</span><input name="additionalNumber" value="${escape(data.additionalNumber)}" inputmode="numeric" maxlength="4" /></label>
+            <label><span>الرمز البريدي</span><input name="postalCode" value="${escape(data.postalCode)}" inputmode="numeric" maxlength="5" /></label>
+            <label class="full-field national-address-attachment"><span>إرفاق العنوان الوطني</span><div class="attachment-line"><strong id="nationalAddressFileName">${escape(data.nationalAddressFileName||'لم يتم إرفاق ملف')}</strong><label class="secondary-btn">اختيار ملف<input type="file" name="nationalAddressFile" accept="application/pdf,image/png,image/jpeg,image/webp" hidden></label></div></label>
+          </div>
+        </div>
+        <div class="form-actions"><button type="button" class="secondary-btn" id="resetCompanySettingsBtn">إلغاء التغييرات</button><button type="submit" class="primary-btn">حفظ بيانات المنشأة</button></div>
+      </form>`;
+    renderPreviewLogo(data);
+    const form=section.querySelector('form');
+    updateCityDistrictOptions();
+    if(form.elements.city&&data.city){form.elements.city.value=data.city;}
+    const ds=GUIDE[data.region]?.[data.city]||[];form.elements.district.innerHTML=options(ds,data.district);
+    form.elements.region?.addEventListener('change',()=>{form.elements.city.dataset.manual='';form.elements.district.dataset.manual='';updateCityDistrictOptions()});
+    form.elements.city?.addEventListener('change',()=>{const region=form.elements.region.value, city=form.elements.city.value;form.elements.district.innerHTML=options(GUIDE[region]?.[city]||'', '')});
+    form.elements.company?.addEventListener('input',()=>applyCompanyBranding({...getCompany(),company:form.elements.company.value}));
+    form.elements.logoFile?.addEventListener('change',async e=>{try{const logoDataUrl=await fileToDataUrl(e.target.files?.[0],2*1024*1024);if(logoDataUrl){saveCompany({logoDataUrl});renderPreviewLogo(getCompany());}}catch(err){alert(err.message||'تعذر رفع الشعار')}});
+    form.elements.nationalAddressFile?.addEventListener('change',async e=>{try{const file=e.target.files?.[0];const nationalAddressFileDataUrl=await fileToDataUrl(file,5*1024*1024);if(nationalAddressFileDataUrl){saveCompany({nationalAddressFileDataUrl,nationalAddressFileName:file.name});const el=document.querySelector('#nationalAddressFileName');if(el)el.textContent=file.name;}}catch(err){alert(err.message||'تعذر رفع ملف العنوان الوطني')}});
+    document.querySelector('#resetCompanySettingsBtn')?.addEventListener('click',()=>renderCompanySettingsForm());
+  }
+  function collectCompanyForm(form){return {
+    company:form.elements.company?.value?.trim()||DEFAULT_COMPANY.company,
+    unifiedNumber:form.elements.unifiedNumber?.value?.trim()||'',
+    email:form.elements.email?.value?.trim()||'',
+    phone:form.elements.phone?.value?.trim()||'',
+    shortAddress:form.elements.shortAddress?.value?.trim()||'',
+    poBox:form.elements.poBox?.value?.trim()||'',
+    region:form.elements.region?.value||'',city:form.elements.city?.value||'',district:form.elements.district?.value||'',
+    street:form.elements.street?.value?.trim()||'',additionalNumber:form.elements.additionalNumber?.value?.trim()||'',postalCode:form.elements.postalCode?.value?.trim()||''
+  }}
+  function applyCompanyBranding(data=getCompany()){
+    const name=(data.company||DEFAULT_COMPANY.company).trim();
+    document.title=`${name} | إدارة الموظفين`;
+    document.querySelectorAll('.auth-logo').forEach(el=>{if(data.logoDataUrl){el.classList.add('has-company-logo');el.innerHTML=`<img src="${escape(data.logoDataUrl)}" alt="${escape(name)}">`}else{el.classList.remove('has-company-logo');el.textContent=(name||'ن').trim().charAt(0)||'ن'}});
+    const authTitle=document.querySelector('.auth-card h2');
+    if(authTitle&&!authTitle.dataset.v92Static)authTitle.textContent='تسجيل الدخول';
+  }
+  document.addEventListener('submit',e=>{const form=e.target?.closest?.('#settingsForm[data-v92-company="1"]');if(!form)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation?.();const next=saveCompany(collectCompanyForm(form));renderCompanySettingsForm();try{typeof showToast==='function'?showToast('تم حفظ بيانات المنشأة وتحديث هوية تسجيل الدخول.'):alert('تم حفظ بيانات المنشأة.')}catch(_){alert('تم حفظ بيانات المنشأة.')}},true);
+  const previousRenderSettings=typeof renderSettings==='function'?renderSettings:null;
+  if(previousRenderSettings&&!previousRenderSettings.__v92CompanySettings){
+    const wrapped=function(){const result=previousRenderSettings.apply(this,arguments);setTimeout(renderCompanySettingsForm,0);setTimeout(()=>applyCompanyBranding(),0);return result};
+    wrapped.__v92CompanySettings=true;try{renderSettings=wrapped}catch(_){}window.renderSettings=wrapped;
+  }
+  const previousBuildCloudState=typeof buildCloudState==='function'?buildCloudState:null;
+  if(previousBuildCloudState&&!previousBuildCloudState.__v92CompanySettings){
+    const wrapped=function(){const state=previousBuildCloudState.apply(this,arguments)||{};state.companySettingsV92=getCompany();return state};
+    wrapped.__v92CompanySettings=true;try{buildCloudState=wrapped}catch(_){}window.buildCloudState=wrapped;
+  }
+  const previousApplyCloudState=typeof applyCloudState==='function'?applyCloudState:null;
+  if(previousApplyCloudState&&!previousApplyCloudState.__v92CompanySettings){
+    const wrapped=function(state){const result=previousApplyCloudState.apply(this,arguments);try{if(state?.companySettingsV92)localStorage.setItem(STORAGE_KEY,JSON.stringify({...DEFAULT_COMPANY,...state.companySettingsV92}))}catch(_){}setTimeout(()=>{renderCompanySettingsForm();applyCompanyBranding()},0);return result};
+    wrapped.__v92CompanySettings=true;try{applyCloudState=wrapped}catch(_){}window.applyCloudState=wrapped;
+  }
+  const obs=new MutationObserver(()=>applyCompanyBranding());
+  try{obs.observe(document.documentElement,{childList:true,subtree:true})}catch(_){}
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{renderCompanySettingsForm();applyCompanyBranding()},80)});
+  window.addEventListener('load',()=>setTimeout(()=>{renderCompanySettingsForm();applyCompanyBranding()},160));
+  setTimeout(()=>{renderCompanySettingsForm();applyCompanyBranding()},400);
+})();
