@@ -810,3 +810,97 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     }
   }, true);
 })();
+
+
+/* v75 fix: travel resume must close travel only; never create a leave row that asks for another return.
+   Some older travel-resume code generated an approved leave with sourceTravelId to deduct travel days.
+   In the current approved logic, travel is already deducted from the unified leave balance, so these generated leave rows
+   must be removed from UI, localStorage, and cloud saves. */
+(function(){
+  if(window.__v75TravelResumeNoGeneratedLeave) return;
+  window.__v75TravelResumeNoGeneratedLeave = true;
+  var LEAVE_KEY = 'nawah-leaves';
+  function isTravelGeneratedLeave(x){
+    if(!x) return false;
+    var note = String(x.note || '');
+    return !!(x.sourceTravelId || x.sourceTravelRequestId || x.travelRequestId || note.indexOf('خصم مدة السفر') >= 0 || String(x.id || '').indexOf('travel-leave-') === 0);
+  }
+  function filterList(list){ return Array.isArray(list) ? list.filter(function(x){ return !isTravelGeneratedLeave(x); }) : list; }
+  function cleanLocal(){
+    try{
+      var raw = localStorage.getItem(LEAVE_KEY);
+      if(!raw) return;
+      var list = JSON.parse(raw);
+      if(!Array.isArray(list)) return;
+      var clean = filterList(list);
+      if(clean.length !== list.length) nativeSet.call(localStorage, LEAVE_KEY, JSON.stringify(clean));
+    }catch(_){}
+  }
+  function cleanGlobal(){
+    try{
+      if(typeof leaves !== 'undefined' && Array.isArray(leaves)){
+        var clean = filterList(leaves);
+        if(clean.length !== leaves.length) leaves = clean;
+      }
+    }catch(_){}
+    cleanLocal();
+  }
+
+  var nativeSet = localStorage.setItem;
+  try{
+    localStorage.setItem = function(key, value){
+      if(String(key) === LEAVE_KEY){
+        try{
+          var list = JSON.parse(String(value || '[]'));
+          if(Array.isArray(list)) value = JSON.stringify(filterList(list));
+        }catch(_){}
+      }
+      return nativeSet.call(this, key, value);
+    };
+  }catch(_){}
+
+  try{
+    if(typeof saveLocalData === 'function' && !saveLocalData.__v75NoTravelGeneratedLeave){
+      var oldSaveLocalData = saveLocalData;
+      var wrappedSaveLocalData = function(key, value){
+        if(String(key) === LEAVE_KEY) value = filterList(value);
+        return oldSaveLocalData.apply(this, arguments.length > 1 ? [key, value] : arguments);
+      };
+      wrappedSaveLocalData.__v75NoTravelGeneratedLeave = true;
+      saveLocalData = wrappedSaveLocalData;
+      window.saveLocalData = wrappedSaveLocalData;
+    }
+  }catch(_){}
+
+  try{
+    if(typeof queueCloudStateSave === 'function' && !queueCloudStateSave.__v75CleanTravelLeaveBeforeCloud){
+      var oldQueueCloudStateSave = queueCloudStateSave;
+      var wrappedQueueCloudStateSave = function(){ cleanGlobal(); return oldQueueCloudStateSave.apply(this, arguments); };
+      wrappedQueueCloudStateSave.__v75CleanTravelLeaveBeforeCloud = true;
+      queueCloudStateSave = wrappedQueueCloudStateSave;
+      window.queueCloudStateSave = wrappedQueueCloudStateSave;
+    }
+  }catch(_){}
+
+  try{
+    if(typeof renderAll === 'function' && !renderAll.__v75CleanTravelLeaveBeforeRender){
+      var oldRenderAllV75 = renderAll;
+      var wrappedRenderAllV75 = function(){ cleanGlobal(); return oldRenderAllV75.apply(this, arguments); };
+      wrappedRenderAllV75.__v75CleanTravelLeaveBeforeRender = true;
+      renderAll = wrappedRenderAllV75;
+      window.renderAll = wrappedRenderAllV75;
+    }
+  }catch(_){}
+
+  try{
+    document.addEventListener('click', function(e){
+      if(e.target && e.target.closest && e.target.closest('#travelResumeForm button[type="submit"], #travelResumeForm .primary-btn, [data-travel-resume]')){
+        setTimeout(function(){ cleanGlobal(); try{ if(typeof renderAll === 'function') renderAll(); }catch(_){} }, 250);
+        setTimeout(function(){ cleanGlobal(); }, 900);
+      }
+    }, true);
+  }catch(_){}
+
+  cleanGlobal();
+  window.nawahCleanTravelGeneratedLeavesV75 = cleanGlobal;
+})();
