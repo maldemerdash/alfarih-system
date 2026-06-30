@@ -2135,3 +2135,155 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){migrateOldCompanyBase64().finally(function(){scheduleBranding(0);});},900);setTimeout(function(){scheduleBranding(0);},160);},{once:true});
   window.addEventListener('load',function(){setTimeout(function(){scheduleBranding(0);},180);},{once:true});
 })();
+
+/* v102 - employee scoped deletion controls for commissions, leaves and travel
+   - Commissions are cash-only records and never affect payroll runs.
+   - Leaves/travel can be deleted as record-only or with reverse effect.
+   - All confirmations use site-styled dialog, not browser confirm/alert. */
+(function(){
+  if(window.__v102EmployeeScopedRecordDeletion) return;
+  window.__v102EmployeeScopedRecordDeletion = true;
+  var TRAVEL_KEY='nawah-travel-requests';
+  var LEAVE_KEY='nawah-leaves';
+  var refreshTimer=null;
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function esc(v){return String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c})}
+  function icon(name){try{return typeof iconSvg==='function'?iconSvg(name):''}catch(_){return ''}}
+  function toast(msg){try{if(typeof showToast==='function')showToast(msg)}catch(_){}}
+  function readTravels(){try{var a=JSON.parse(localStorage.getItem(TRAVEL_KEY)||'[]');return Array.isArray(a)?a:[]}catch(_){return []}}
+  function writeTravels(list){try{localStorage.setItem(TRAVEL_KEY,JSON.stringify(Array.isArray(list)?list:[]))}catch(_){} try{if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){}}
+  function readLeaves(){try{if(typeof leaves!=='undefined'&&Array.isArray(leaves))return leaves.slice()}catch(_){} try{var a=JSON.parse(localStorage.getItem(LEAVE_KEY)||'[]');return Array.isArray(a)?a:[]}catch(_){return []}}
+  function writeLeaves(list){list=Array.isArray(list)?list:[];try{leaves=list}catch(_){} try{localStorage.setItem(LEAVE_KEY,JSON.stringify(list))}catch(_){} try{if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){}}
+  function getEmp(id){try{if(typeof getEmployee==='function')return getEmployee(id)}catch(_){} try{return (employees||[]).find(function(e){return String(e.id)===String(id)})||null}catch(_){return null}}
+  function formEmpId(){var f=q('#employeeForm');try{return f&&f.elements&&f.elements.employeeId?String(f.elements.employeeId.value||'').trim():''}catch(_){return ''}}
+  function quickEmp(){try{var name=(q('#quickViewContent .employee-profile-side h3')||{}).textContent||'';return (employees||[]).find(function(e){return String(e.name||'').trim()===String(name).trim()})||null}catch(_){return null}}
+  function currentEmpId(context){return (context&&context.closest&&context.closest('[data-v81-emp-id],[data-v80-emp-id]')&&(context.closest('[data-v81-emp-id],[data-v80-emp-id]').getAttribute('data-v81-emp-id')||context.closest('[data-v81-emp-id],[data-v80-emp-id]').getAttribute('data-v80-emp-id'))) || formEmpId() || (quickEmp()&&quickEmp().id) || ''}
+  function saveEmp(emp){
+    if(!emp||!emp.id)return Promise.resolve(false);
+    try{employees=(employees||[]).map(function(e){return String(e.id)===String(emp.id)?emp:e})}catch(_){}
+    try{if(typeof dbSaveEmployee==='function')return Promise.resolve(dbSaveEmployee(emp)).then(function(){try{if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){};return true})}catch(_){}
+    try{if(typeof persistEmployeeRecord==='function')return Promise.resolve(persistEmployeeRecord(emp)).then(function(){try{if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){};return true})}catch(_){}
+    try{if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){}
+    return Promise.resolve(true);
+  }
+  function parse(v){if(!v)return null;var d=new Date(String(v).slice(0,10)+'T12:00:00');return isNaN(d.getTime())?null:d}
+  function days(a,b){var x=parse(a),y=parse(b||a);return x&&y&&y>=x?Math.floor((y-x)/86400000)+1:0}
+  function statusKeyTravel(r){var s=String((r&&r.status)||'pending');if(s==='rejected')return'rejected';if(r&&(r.workResumeDate||r.returnedAt||r.closedAt||s==='returned'))return'finished';if(s==='approved'||s==='travel'||s==='مسافر')return'active';return'pending'}
+  function statusKeyLeave(r){var s=String((r&&r.status)||'pending');if(s==='rejected')return'rejected';if(r&&(r.returnDate||r.returnConfirmedAt||r.closedAt||s==='returned'||s==='finished'))return'finished';if(s==='approved')return'active';return'pending'}
+  function filterRows(rows,filter,keyFn){if(!filter||filter==='all')return rows;return rows.filter(function(r){return keyFn(r)===filter})}
+  function travelRowsFor(empId,filter){return filterRows(readTravels().filter(function(r){return String(r.employeeId||'')===String(empId)}),filter,statusKeyTravel).sort(function(a,b){return String(b.travelDate||'').localeCompare(String(a.travelDate||''))})}
+  function leaveRowsFor(empId,filter){return filterRows(readLeaves().filter(function(r){return String(r.employeeId||'')===String(empId)&&!r.sourceTravelId&&!r.generatedFromTravel}),filter,statusKeyLeave).sort(function(a,b){return String(b.from||'').localeCompare(String(a.from||''))})}
+  function modal(opts){
+    opts=opts||{};
+    return new Promise(function(resolve){
+      var dlg=q('#v102RecordDeleteModal');
+      if(!dlg){dlg=document.createElement('dialog');dlg.id='v102RecordDeleteModal';dlg.className='modal v102-delete-modal';document.body.appendChild(dlg)}
+      var buttons=(opts.buttons||[]).map(function(b){return '<button type="button" class="'+esc(b.className||'secondary-btn')+'" data-v102-choice="'+esc(b.value)+'">'+esc(b.label)+'</button>'}).join('');
+      dlg.innerHTML='<div class="v102-delete-shell" dir="rtl"><div class="v102-delete-head"><div class="v102-delete-icon"><span data-icon="trash"></span></div><div><h2>'+esc(opts.title||'تأكيد الحذف')+'</h2><p>'+esc(opts.subtitle||'راجع الإجراء قبل المتابعة.')+'</p></div><button type="button" class="icon-btn" data-v102-choice="cancel" aria-label="إغلاق"><span data-icon="x"></span></button></div><div class="v102-delete-body">'+(opts.body||'')+'</div><div class="modal-actions v102-delete-actions">'+buttons+'</div></div>';
+      var done=false;
+      function finish(v){if(done)return;done=true;try{dlg.close()}catch(_){} resolve(v||'cancel')}
+      dlg.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('[data-v102-choice]'):null;if(b){e.preventDefault();finish(b.getAttribute('data-v102-choice'))}}, {once:true});
+      dlg.addEventListener('cancel',function(e){e.preventDefault();finish('cancel')},{once:true});
+      try{if(typeof hydrateIcons==='function')hydrateIcons(dlg)}catch(_){}
+      try{dlg.showModal()}catch(_){try{document.body.appendChild(dlg);dlg.showModal()}catch(__){resolve('cancel')}}
+    });
+  }
+  function confirmCommission(all){return modal({title:all?'حذف كامل سجل العمولات':'حذف سجل العمولة',subtitle:'العمولات مبالغ نقدية مستقلة ولا تدخل في مسير الرواتب.',body:'<div class="v102-warning-card"><strong>تنبيه</strong><p>'+(all?'سيتم حذف كامل سجل العمولات النقدية لهذا الموظف فقط.':'سيتم حذف سجل العمولة المحدد فقط.')+' لن يتم تعديل أي مسير رواتب لأن العمولات منفصلة نقديًا.</p></div>',buttons:[{value:'delete',label:all?'حذف كامل السجل':'حذف السجل',className:'danger-btn v102-danger-btn'},{value:'cancel',label:'إلغاء',className:'secondary-btn'}]})}
+  function confirmRecord(kind,all){
+    var label=kind==='travel'?'السفر':'الإجازات';
+    return modal({title:all?'حذف كامل سجل '+label:'حذف سجل '+(kind==='travel'?'السفر':'الإجازة'),subtitle:'اختر طريقة الحذف المناسبة لهذا الإجراء.',body:'<div class="v102-choice-grid"><div><strong>حذف مع عكس الأثر</strong><p>'+(kind==='leave'?'يحذف السجل ويجعل رصيد الإجازات يعاد احتسابه بدون هذا السجل.':'يحذف السفر ويعكس آثاره المرتبطة به مثل حالة السفر والإجازة الآلية المرتبطة إن وجدت.')+'</p></div><div><strong>حذف السجل فقط</strong><p>يحذف الصف من السجل فقط بدون تعديل الحالات أو السجلات المرتبطة الأخرى.</p></div></div>',buttons:[{value:'reverse',label:'حذف مع عكس الأثر',className:'danger-btn v102-danger-btn'},{value:'record',label:'حذف السجل فقط',className:'secondary-btn'},{value:'cancel',label:'إلغاء',className:'secondary-btn'}]})
+  }
+  function setEmployeeNormalIfRelated(empId,kind,ids){
+    var emp=getEmp(empId); if(!emp)return Promise.resolve(false);
+    var copy=Object.assign({},emp), changed=false;
+    ids=(ids||[]).map(String);
+    if(kind==='travel' && copy.travelStatus && ids.indexOf(String(copy.travelStatus.travelId||copy.travelStatus.id||''))>=0){copy.status='active';copy.travelStatus=null;copy.attendance=copy.attendance||null;changed=true}
+    if(kind==='leave' && copy.leaveStatus && ids.indexOf(String(copy.leaveStatus.leaveId||copy.leaveStatus.id||''))>=0){copy.status='active';copy.leaveStatus=null;changed=true}
+    if(copy.commissionPausedByLeaveId && ids.indexOf(String(copy.commissionPausedByLeaveId))>=0){copy.commissionPaused=false;copy.commissionPauseReason='';copy.commissionPausedByLeaveId='';copy.commissionPausedAt='';changed=true}
+    return changed?saveEmp(copy):Promise.resolve(false);
+  }
+  function refreshHistoryCards(){
+    qa('.v81-employee-history-card,.v80-employee-history-card').forEach(function(card){
+      try{var active=q('[data-v81-filter].active,[data-v80-filter].active',card); if(active) active.click(); else {var tab=q('[data-v81-history-tab].active,[data-v80-history-tab].active',card); if(tab) tab.click();}}catch(_){}
+    });
+    setTimeout(decorate,60);
+  }
+  async function deleteTravel(empId,id,mode){
+    var list=readTravels(), ids=id?[String(id)]:list.filter(function(r){return String(r.employeeId||'')===String(empId)}).map(function(r){return String(r.id||'')});
+    if(!ids.length)return;
+    writeTravels(list.filter(function(r){return !(String(r.employeeId||'')===String(empId)&&ids.indexOf(String(r.id||''))>=0)}));
+    if(mode==='reverse'){
+      var ll=readLeaves().filter(function(l){return !(String(l.employeeId||'')===String(empId)&&(ids.indexOf(String(l.sourceTravelId||''))>=0||ids.indexOf(String(l.generatedFromTravel||''))>=0||ids.indexOf(String(l.travelId||''))>=0))});
+      writeLeaves(ll);
+      await setEmployeeNormalIfRelated(empId,'travel',ids);
+    }
+    refreshHistoryCards(); toast(id?'تم حذف سجل السفر.':'تم حذف كامل سجل السفر.');
+  }
+  async function deleteLeave(empId,id,mode){
+    var list=readLeaves(), ids=id?[String(id)]:list.filter(function(r){return String(r.employeeId||'')===String(empId)&&!r.sourceTravelId&&!r.generatedFromTravel}).map(function(r){return String(r.id||'')});
+    if(!ids.length)return;
+    writeLeaves(list.filter(function(r){return !(String(r.employeeId||'')===String(empId)&&ids.indexOf(String(r.id||''))>=0)}));
+    if(mode==='reverse') await setEmployeeNormalIfRelated(empId,'leave',ids);
+    refreshHistoryCards(); toast(id?'تم حذف سجل الإجازة.':'تم حذف كامل سجل الإجازات.');
+  }
+  async function deleteCommission(empId,idx,all){
+    var emp=getEmp(empId); if(!emp)return;
+    var arr=Array.isArray(emp.commissions)?emp.commissions.slice():[];
+    if(!arr.length)return;
+    emp=Object.assign({},emp,{commissions:all?[]:arr.filter(function(_,i){return i!==Number(idx)})});
+    try{if(typeof employeeFormState!=='undefined'&&employeeFormState&&String(formEmpId())===String(empId))employeeFormState.commissions=emp.commissions}catch(_){}
+    await saveEmp(emp);
+    refreshCommissionSections(); toast(all?'تم حذف كامل سجل العمولات.':'تم حذف سجل العمولة.');
+  }
+  function addDeleteCell(row,kind,id){
+    if(!row||row.querySelector('.v102-row-delete-cell'))return;
+    var td=document.createElement('td');td.className='v102-row-delete-cell';
+    td.innerHTML='<button type="button" class="v102-icon-delete" data-v102-delete="'+esc(kind)+'" data-v102-id="'+esc(id)+'" title="حذف السجل"><span data-icon="trash"></span></button>';
+    row.appendChild(td);
+  }
+  function decorateHistory(card){
+    if(!card)return; var empId=card.getAttribute('data-v81-emp-id')||card.getAttribute('data-v80-emp-id')||formEmpId(); if(!empId)return;
+    var isLeave=!!q('[data-v81-history-tab="leave"].active,[data-v80-history-tab="leave"].active',card), kind=isLeave?'leave':'travel';
+    var filter=(q('[data-v81-filter].active,[data-v80-filter].active',card)||{}).getAttribute?((q('[data-v81-filter].active,[data-v80-filter].active',card)||{}).getAttribute('data-v81-filter')||(q('[data-v81-filter].active,[data-v80-filter].active',card)||{}).getAttribute('data-v80-filter')||'all'):'all';
+    var head=q('.v81-history-head,.v80-history-head',card);
+    if(head&&!q('[data-v102-delete-all]',head)){
+      var btn=document.createElement('button');btn.type='button';btn.className='secondary-btn v102-delete-all';btn.setAttribute('data-v102-delete-all',kind);btn.innerHTML='<span data-icon="trash"></span><span class="v102-delete-all-text">حذف كامل سجل '+(kind==='travel'?'السفر':'الإجازات')+'</span>';head.appendChild(btn);
+    } else if(head){var b=q('[data-v102-delete-all]',head); if(b){b.setAttribute('data-v102-delete-all',kind); var t=q('.v102-delete-all-text',b); if(t)t.textContent='حذف كامل سجل '+(kind==='travel'?'السفر':'الإجازات')}}
+    var table=q('table',card); if(!table)return;
+    var hrow=q('thead tr',table); if(hrow&&!q('.v102-delete-th',hrow)){var th=document.createElement('th');th.className='v102-delete-th';th.textContent='حذف';hrow.appendChild(th)}
+    var rows=kind==='travel'?travelRowsFor(empId,filter):leaveRowsFor(empId,filter);
+    qa('tbody tr',table).forEach(function(row,i){if(row.querySelector('.v81-history-empty,.v80-history-empty'))return;var rec=rows[i];if(rec&&rec.id)addDeleteCell(row,kind,rec.id)});
+    try{if(typeof hydrateIcons==='function')hydrateIcons(card)}catch(_){}
+  }
+  function employeeFromSection(section){var empId=formEmpId()||currentEmpId(section);return empId?getEmp(empId):null}
+  function refreshCommissionSections(){setTimeout(function(){decorate()},60)}
+  function decorateCommissions(){
+    qa('[data-section-panel="commissions"], .employee-profile-card').forEach(function(section){
+      var text=(section.textContent||''); if(text.indexOf('عمول')<0)return;
+      var emp=employeeFromSection(section); if(!emp||!emp.id)return;
+      var title=q('.form-section-title,.employee-profile-card h3',section);
+      var container=title&&title.classList&&title.classList.contains('form-section-title')?title:(title?title.parentElement:null);
+      if(container&&!q('[data-v102-delete-commissions-all]',container)){
+        var btn=document.createElement('button');btn.type='button';btn.className='secondary-btn v102-delete-all v102-commission-delete-all';btn.setAttribute('data-v102-delete-commissions-all',String(emp.id));btn.innerHTML='<span data-icon="trash"></span>حذف كامل سجل العمولات';container.appendChild(btn);
+      }
+      var table=q('table',section); if(!table)return;
+      var hrow=q('thead tr',table); if(hrow&&!q('.v102-delete-th',hrow)){var th=document.createElement('th');th.className='v102-delete-th';th.textContent='حذف';hrow.appendChild(th)}
+      var arr=Array.isArray(emp.commissions)?emp.commissions:[];
+      qa('tbody tr',table).forEach(function(row,i){if(row.querySelector('.v102-row-delete-cell')||/لا توجد|لا يوجد/.test(row.textContent||''))return;addDeleteCell(row,'commission',String(i));});
+      try{if(typeof hydrateIcons==='function')hydrateIcons(section)}catch(_){}
+    });
+  }
+  function decorate(){qa('.v81-employee-history-card,.v80-employee-history-card').forEach(decorateHistory);decorateCommissions()}
+  document.addEventListener('click',async function(e){
+    var allCom=e.target&&e.target.closest?e.target.closest('[data-v102-delete-commissions-all]'):null;
+    if(allCom){e.preventDefault();e.stopPropagation();var empId=allCom.getAttribute('data-v102-delete-commissions-all')||currentEmpId(allCom);if(await confirmCommission(true)==='delete')await deleteCommission(empId,0,true);return}
+    var all=e.target&&e.target.closest?e.target.closest('[data-v102-delete-all]'):null;
+    if(all){e.preventDefault();e.stopPropagation();var kind=all.getAttribute('data-v102-delete-all'),empId=currentEmpId(all),choice=await confirmRecord(kind,true);if(choice==='reverse'||choice==='record'){if(kind==='travel')await deleteTravel(empId,null,choice);else await deleteLeave(empId,null,choice)}return}
+    var row=e.target&&e.target.closest?e.target.closest('[data-v102-delete]'):null;
+    if(row){e.preventDefault();e.stopPropagation();var kind=row.getAttribute('data-v102-delete'),id=row.getAttribute('data-v102-id'),empId=currentEmpId(row);if(kind==='commission'){if(await confirmCommission(false)==='delete')await deleteCommission(empId,Number(id),false);return}var choice=await confirmRecord(kind,false);if(choice==='reverse'||choice==='record'){if(kind==='travel')await deleteTravel(empId,id,choice);else await deleteLeave(empId,id,choice)}return}
+  },true);
+  document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('[data-v81-history-tab],[data-v81-filter],[data-v80-history-tab],[data-v80-filter],[data-employee-section="commissions"],[data-employee-section="leaveTravelHistory"],#addEmployeeBtn,[data-edit-employee],.edit-employee-btn,[data-view-employee],.view-employee-btn'))setTimeout(decorate,120)},true);
+  try{new MutationObserver(function(){clearTimeout(refreshTimer);refreshTimer=setTimeout(decorate,180)}).observe(document.body,{childList:true,subtree:true})}catch(_){}
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(decorate,250)}); setTimeout(decorate,500);
+})();
