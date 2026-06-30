@@ -1920,3 +1920,218 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   },true);
   document.addEventListener('submit',function(e){if(e.target&&e.target.closest&&e.target.closest('#settingsForm,#employeeForm'))schedule(150);},true);
 })();
+
+/* v101 - real Supabase Storage for company media + lighter startup/cache */
+(function(){
+  if(window.__v101RealStorageMediaAndSpeed)return;
+  window.__v101RealStorageMediaAndSpeed=true;
+  const COMPANY_KEY='nawah-company-settings-v92';
+  const URL_CACHE=new Map();
+  const CACHE_TTL=55*60*1000;
+  let settingsRenderTimer=null;
+  function now(){return Date.now();}
+  function esc(v){try{return typeof escapeHtml==='function'?escapeHtml(String(v||'')):String(v||'').replace(/[&<>'\"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[ch]||ch;});}catch(_){return String(v||'');}}
+  function readCompany(){try{return JSON.parse(localStorage.getItem(COMPANY_KEY)||'{}')||{};}catch(_){return {};}}
+  function writeCompany(patch){
+    const current=readCompany();
+    const next=Object.assign({},current,patch||{});
+    // Prevent heavy base64 images from returning to localStorage/cloud state.
+    if(next.logoAttachmentId)next.logoDataUrl='';
+    if(next.loginBackgroundAttachmentId)next.loginBackgroundDataUrl='';
+    if(next.nationalAddressAttachmentId)next.nationalAddressFileDataUrl='';
+    try{localStorage.setItem(COMPANY_KEY,JSON.stringify(next));}catch(err){
+      try{
+        delete next.logoDataUrl;delete next.loginBackgroundDataUrl;delete next.nationalAddressFileDataUrl;
+        localStorage.setItem(COMPANY_KEY,JSON.stringify(next));
+      }catch(_){throw err;}
+    }
+    try{if(typeof saveCloudStateNow==='function')saveCloudStateNow({force:true});else if(typeof queueCloudStateSave==='function')queueCloudStateSave();}catch(_){}
+    scheduleBranding(0);
+    return next;
+  }
+  function requireCloud(){
+    if(!(typeof supabaseClient!=='undefined'&&supabaseClient&&typeof cloudReady!=='undefined'&&cloudReady)){
+      throw new Error('تعذر رفع الملف للسحابة. تأكد من الاتصال بقاعدة البيانات ثم أعد المحاولة. لم يتم حفظ الملف محليًا حتى لا يختلف بين الأجهزة.');
+    }
+  }
+  function cleanName(name){try{return typeof sanitizeStorageName==='function'?sanitizeStorageName(name):String(name||'file').replace(/[^a-zA-Z0-9._-]+/g,'-').slice(-120)||'file';}catch(_){return 'file';}}
+  function bucketFor(category){try{return typeof bucketForAttachmentCategory==='function'?bucketForAttachmentCategory(category):(String(category||'').includes('company')?'company-documents':'employee-attachments');}catch(_){return 'company-documents';}}
+  async function imageToBlob(file,opts){
+    opts=Object.assign({maxW:1600,maxH:1200,quality:.82,type:'image/jpeg'},opts||{});
+    if(!file||!/^image\//i.test(file.type||''))return file;
+    if(file.size<420*1024 && !String(file.type||'').includes('png'))return file;
+    const raw=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(new Error('تعذر قراءة الصورة.'));r.readAsDataURL(file);});
+    const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('تعذر تجهيز الصورة.'));im.src=raw;});
+    let w=img.naturalWidth||img.width||opts.maxW,h=img.naturalHeight||img.height||opts.maxH;
+    const ratio=Math.min(1,opts.maxW/w,opts.maxH/h);w=Math.max(1,Math.round(w*ratio));h=Math.max(1,Math.round(h*ratio));
+    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+    const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,w,h);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,opts.type,opts.quality));
+    if(!blob)return file;
+    const base=String(file.name||'image').replace(/\.[^.]+$/,'')||'image';
+    return new File([blob],base+'.jpg',{type:opts.type,lastModified:Date.now()});
+  }
+  async function prepareFile(file,category){
+    if(!file)return file;
+    const cat=String(category||'');
+    if(!/^image\//i.test(file.type||''))return file;
+    if(cat.includes('login-background'))return imageToBlob(file,{maxW:1920,maxH:1200,quality:.78,type:'image/jpeg'});
+    if(cat.includes('logo'))return imageToBlob(file,{maxW:720,maxH:720,quality:.86,type:'image/jpeg'});
+    if(cat.includes('photo')||cat.includes('profile'))return imageToBlob(file,{maxW:900,maxH:900,quality:.84,type:'image/jpeg'});
+    return imageToBlob(file,{maxW:1600,maxH:1600,quality:.82,type:'image/jpeg'});
+  }
+  async function uploadToStorage(file,category){
+    if(!file)return '';
+    requireCloud();
+    const prepared=await prepareFile(file,category);
+    const bucket=bucketFor(category);
+    const path=(category||'attachment')+'/'+Date.now()+'-'+Math.random().toString(16).slice(2)+'-'+cleanName(prepared.name||file.name||'file');
+    const upload=await supabaseClient.storage.from(bucket).upload(path,prepared,{cacheControl:'31536000',upsert:false,contentType:prepared.type||file.type||'application/octet-stream'});
+    if(upload.error)throw upload.error;
+    const row={related_table:category||'general',related_id:null,file_name:file.name||prepared.name||'file',file_type:prepared.type||file.type||'application/octet-stream',file_size:prepared.size||file.size||0,storage_path:bucket+'/'+path,uploaded_by:'web'};
+    const inserted=await supabaseClient.from('attachments').insert(row).select('id, file_name, file_type, file_size, storage_path, created_at').single();
+    if(inserted.error)throw inserted.error;
+    return inserted.data&&inserted.data.id?inserted.data.id:'';
+  }
+  // Future uploads: real cloud storage only. No browser-only attachment fallback.
+  const previousSaveAttachment=typeof saveAttachment==='function'?saveAttachment:null;
+  if(previousSaveAttachment&&!previousSaveAttachment.__v101RealStorageOnly){
+    const wrapped=async function(file,category){
+      try{return await uploadToStorage(file,category||'general');}
+      catch(err){console.warn('تعذر رفع المرفق إلى Supabase Storage.',err);try{typeof showToast==='function'?showToast('تعذر رفع المرفق للسحابة. لم يتم حفظه محليًا حتى تبقى البيانات موحدة بين الأجهزة.'):alert('تعذر رفع المرفق للسحابة.');}catch(_){alert('تعذر رفع المرفق للسحابة.');}throw err;}
+    };
+    wrapped.__v101RealStorageOnly=true;
+    try{saveAttachment=wrapped;}catch(_){}
+    window.saveAttachment=wrapped;
+  }
+  async function signedUrl(id){
+    if(!id)return '';
+    const key=String(id);const cached=URL_CACHE.get(key);
+    if(cached&&now()-cached.time<CACHE_TTL)return cached.url;
+    let url='';
+    try{if(typeof attachmentUrl==='function')url=await attachmentUrl(id)||'';}catch(_){}
+    if(url)URL_CACHE.set(key,{url,time:now()});
+    return url;
+  }
+  function setAuthLogo(url,name){
+    const title=(name||'نواة إدارة الموظفين').trim();
+    const docTitle=title+' | إدارة الموظفين';
+    if(document.title!==docTitle)document.title=docTitle;
+    document.querySelectorAll('.auth-logo').forEach(function(el){
+      const key=String(url||'')+'|'+title;
+      if(el.dataset.v101LogoKey===key)return;
+      el.dataset.v101LogoKey=key;
+      if(url){el.classList.add('has-company-logo','v95-login-logo-circle','v101-storage-logo');el.innerHTML='<img src="'+esc(url)+'" alt="'+esc(title)+'" loading="eager" decoding="async">';}
+      else{el.classList.remove('has-company-logo','v101-storage-logo');el.textContent=(title||'ن').charAt(0)||'ن';}
+    });
+  }
+  function setLoginBackground(url){
+    document.querySelectorAll('.auth-gate').forEach(function(gate){
+      if(url){gate.style.setProperty('--login-bg-image','url("'+String(url).replace(/"/g,'%22')+'")');gate.classList.add('has-login-bg-image','v101-storage-bg');document.body.classList.add('has-login-bg-image');}
+      else{gate.style.removeProperty('--login-bg-image');gate.classList.remove('has-login-bg-image','v101-storage-bg');document.body.classList.remove('has-login-bg-image');}
+    });
+  }
+  async function applyCompanyMedia(){
+    const c=readCompany();
+    const logoUrl=c.logoAttachmentId?await signedUrl(c.logoAttachmentId):(c.logoDataUrl||'');
+    const bgUrl=c.loginBackgroundAttachmentId?await signedUrl(c.loginBackgroundAttachmentId):(c.loginBackgroundDataUrl||'');
+    setAuthLogo(logoUrl,c.company||'نواة إدارة الموظفين');
+    setLoginBackground(bgUrl);
+    updateCompanyPreviews(logoUrl,bgUrl,c);
+    try{await applyTopbarAvatarV101();}catch(_){}
+  }
+  function scheduleBranding(delay){clearTimeout(settingsRenderTimer);settingsRenderTimer=setTimeout(function(){applyCompanyMedia().catch(function(e){console.warn(e);});},Math.max(0,delay||0));}
+  async function applyTopbarAvatarV101(){
+    const mark=document.querySelector('.topbar-user-mark');if(!mark)return;
+    let emp=null;
+    try{emp=window.employeePermissionMatrix&&typeof window.employeePermissionMatrix.linkedEmployee==='function'?window.employeePermissionMatrix.linkedEmployee():null;}catch(_){}
+    try{if(!emp&&authProfile){const id=authProfile.employee_id||authProfile.employeeId;if(id&&Array.isArray(employees))emp=employees.find(x=>String(x.id)===String(id))||null;}}catch(_){}
+    let src='',alt='';
+    if(emp){alt=emp.name||emp.email||'الموظف';try{if(emp.photoAttachmentId)src=await signedUrl(emp.photoAttachmentId);}catch(_){}src=src||emp.legacyPhoto||emp.photo||emp.photoDataUrl||'';}
+    else{const c=readCompany();alt=c.company||authProfile?.full_name||authUser?.email||'مستخدم';src=c.logoAttachmentId?await signedUrl(c.logoAttachmentId):(c.logoDataUrl||'');}
+    const key=String(src||'')+'|'+alt;
+    if(mark.dataset.v101AvatarKey===key&&mark.querySelector('img'))return;
+    mark.dataset.v101AvatarKey=key;
+    if(src){mark.classList.add('has-employee-photo','v101-topbar-avatar');mark.innerHTML='<img src="'+esc(src)+'" alt="'+esc(alt)+'" loading="eager" decoding="async">';}
+    else{mark.classList.remove('has-employee-photo','v101-topbar-avatar');mark.textContent=String(alt||'م').trim().charAt(0)||'م';}
+  }
+  window.applyCompanyMediaV101=applyCompanyMedia;
+  window.applyTopbarAvatarNoFlickerV99=applyTopbarAvatarV101;
+  window.applyTopbarLoginImageFallbackV98=applyTopbarAvatarV101;
+  function updateCompanyPreviews(logoUrl,bgUrl,c){
+    const logoBox=document.querySelector('#companyLogoPreview');
+    if(logoBox){logoBox.innerHTML=logoUrl?'<img src="'+esc(logoUrl)+'" alt="شعار المنشأة">':'<span>شعار</span>';}
+    const bgBox=document.querySelector('#loginBgPreview');
+    if(bgBox){bgBox.innerHTML=bgUrl?'<img src="'+esc(bgUrl)+'" alt="خلفية تسجيل الدخول">':'<span>خلفية</span>';}
+    const fileName=document.querySelector('#nationalAddressFileName');
+    if(fileName){
+      fileName.textContent=c.nationalAddressFileName||'لم يتم إرفاق ملف';
+      const line=fileName.closest('.attachment-line')||fileName.parentElement;
+      if(line&&c.nationalAddressAttachmentId&&!line.querySelector('[data-v101-download-national]')){
+        const btn=document.createElement('button');btn.type='button';btn.className='secondary-btn v101-national-download';btn.dataset.v101DownloadNational='1';btn.textContent='تنزيل';
+        line.appendChild(btn);
+      }
+    }
+  }
+  async function uploadCompanyInput(input,field){
+    const file=input&&input.files&&input.files[0];if(!file)return;
+    const map={logoFile:['company-logo','logoAttachmentId','logoFileName'],loginBackgroundFile:['company-login-background','loginBackgroundAttachmentId','loginBackgroundFileName'],nationalAddressFile:['company-national-address','nationalAddressAttachmentId','nationalAddressFileName']};
+    const cfg=map[field];if(!cfg)return;
+    const id=await uploadToStorage(file,cfg[0]);
+    const patch={};patch[cfg[1]]=id;patch[cfg[2]]=file.name||'';
+    if(field==='logoFile')patch.logoDataUrl='';
+    if(field==='loginBackgroundFile')patch.loginBackgroundDataUrl='';
+    if(field==='nationalAddressFile')patch.nationalAddressFileDataUrl='';
+    writeCompany(patch);
+    try{typeof showToast==='function'?showToast('تم رفع الملف وحفظه في Supabase Storage.'):null;}catch(_){}
+    scheduleBranding(0);
+  }
+  document.addEventListener('change',function(e){
+    const t=e.target;if(!t||!t.matches)return;
+    if(t.matches('input[name="logoFile"],input[name="loginBackgroundFile"],input[name="nationalAddressFile"]')){
+      e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+      const name=t.getAttribute('name');
+      uploadCompanyInput(t,name).catch(function(err){console.warn(err);alert(err&&err.message?err.message:'تعذر رفع الملف للسحابة.');});
+    }
+  },true);
+  document.addEventListener('click',function(e){
+    const rm=e.target&&e.target.closest&&e.target.closest('#removeLoginBackgroundBtn');
+    if(rm){e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();writeCompany({loginBackgroundAttachmentId:'',loginBackgroundFileName:'',loginBackgroundDataUrl:''});setLoginBackground('');scheduleBranding(0);}
+    const dl=e.target&&e.target.closest&&e.target.closest('[data-v101-download-national]');
+    if(dl){e.preventDefault();const c=readCompany();signedUrl(c.nationalAddressAttachmentId).then(function(url){if(!url)return alert('تعذر تحميل مرفق العنوان الوطني.');const a=document.createElement('a');a.href=url;a.download=c.nationalAddressFileName||'national-address';a.rel='noopener';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();},0);});}
+  },true);
+  // Strip heavy base64 fields from cloud state so the site stays light across devices.
+  const previousBuild=typeof buildCloudState==='function'?buildCloudState:null;
+  if(previousBuild&&!previousBuild.__v101StripCompanyBase64){
+    const wrapped=function(){const state=previousBuild.apply(this,arguments)||{};if(state.companySettingsV92){state.companySettingsV92=Object.assign({},state.companySettingsV92);delete state.companySettingsV92.logoDataUrl;delete state.companySettingsV92.loginBackgroundDataUrl;delete state.companySettingsV92.nationalAddressFileDataUrl;}return state;};
+    wrapped.__v101StripCompanyBase64=true;try{buildCloudState=wrapped;}catch(_){}window.buildCloudState=wrapped;
+  }
+  const previousApply=typeof applyCloudState==='function'?applyCloudState:null;
+  if(previousApply&&!previousApply.__v101CompanyMediaApply){
+    const wrapped=function(state){const result=previousApply.apply(this,arguments);try{if(state&&state.companySettingsV92){const clean=Object.assign({},readCompany(),state.companySettingsV92);if(clean.logoAttachmentId)clean.logoDataUrl='';if(clean.loginBackgroundAttachmentId)clean.loginBackgroundDataUrl='';if(clean.nationalAddressAttachmentId)clean.nationalAddressFileDataUrl='';localStorage.setItem(COMPANY_KEY,JSON.stringify(clean));}}catch(_){}scheduleBranding(80);return result;};
+    wrapped.__v101CompanyMediaApply=true;try{applyCloudState=wrapped;}catch(_){}window.applyCloudState=wrapped;
+  }
+  async function migrateDataUrlField(dataUrl,name,category){
+    if(!dataUrl||!String(dataUrl).startsWith('data:'))return '';
+    requireCloud();
+    const res=await fetch(dataUrl);const blob=await res.blob();
+    const ext=(blob.type&&blob.type.includes('png'))?'.png':(blob.type&&blob.type.includes('webp'))?'.webp':'.jpg';
+    const file=new File([blob],name||('migrated'+ext),{type:blob.type||'image/jpeg'});
+    return uploadToStorage(file,category);
+  }
+  async function migrateOldCompanyBase64(){
+    const c=readCompany();let patch={};let changed=false;
+    try{if(c.logoDataUrl&&!c.logoAttachmentId){patch.logoAttachmentId=await migrateDataUrlField(c.logoDataUrl,c.logoFileName||'company-logo.jpg','company-logo');patch.logoDataUrl='';changed=Boolean(patch.logoAttachmentId)||changed;}}catch(e){console.warn('تعذر نقل شعار المنشأة إلى Storage',e);}
+    try{if(c.loginBackgroundDataUrl&&!c.loginBackgroundAttachmentId){patch.loginBackgroundAttachmentId=await migrateDataUrlField(c.loginBackgroundDataUrl,c.loginBackgroundFileName||'login-background.jpg','company-login-background');patch.loginBackgroundDataUrl='';changed=Boolean(patch.loginBackgroundAttachmentId)||changed;}}catch(e){console.warn('تعذر نقل خلفية تسجيل الدخول إلى Storage',e);}
+    try{if(c.nationalAddressFileDataUrl&&!c.nationalAddressAttachmentId){patch.nationalAddressAttachmentId=await migrateDataUrlField(c.nationalAddressFileDataUrl,c.nationalAddressFileName||'national-address.jpg','company-national-address');patch.nationalAddressFileDataUrl='';changed=Boolean(patch.nationalAddressAttachmentId)||changed;}}catch(e){console.warn('تعذر نقل مرفق العنوان الوطني إلى Storage',e);}
+    if(changed)writeCompany(patch);
+  }
+  function afterSettingsRender(){scheduleBranding(80);}
+  const oldRender=typeof renderSettings==='function'?renderSettings:null;
+  if(oldRender&&!oldRender.__v101CompanyMediaRefresh){const wrapped=function(){const r=oldRender.apply(this,arguments);setTimeout(afterSettingsRender,160);setTimeout(afterSettingsRender,600);return r;};wrapped.__v101CompanyMediaRefresh=true;try{renderSettings=wrapped;}catch(_){}window.renderSettings=wrapped;}
+  const oldTopbar=typeof updateTopbarUser==='function'?updateTopbarUser:null;
+  if(oldTopbar&&!oldTopbar.__v101TopbarStorageAvatar){const wrapped=function(){const r=oldTopbar.apply(this,arguments);Promise.resolve().then(applyTopbarAvatarV101);return r;};wrapped.__v101TopbarStorageAvatar=true;try{updateTopbarUser=wrapped;}catch(_){}window.updateTopbarUser=wrapped;}
+  document.addEventListener('submit',function(e){if(e.target&&e.target.closest&&e.target.closest('#settingsForm'))setTimeout(function(){scheduleBranding(0);},120);},true);
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){migrateOldCompanyBase64().finally(function(){scheduleBranding(0);});},900);setTimeout(function(){scheduleBranding(0);},160);},{once:true});
+  window.addEventListener('load',function(){setTimeout(function(){scheduleBranding(0);},180);},{once:true});
+})();

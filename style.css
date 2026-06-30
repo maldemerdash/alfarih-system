@@ -13582,3 +13582,12 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   content-visibility:auto;
   contain-intrinsic-size:1px 260px;
 }
+
+/* v101 - storage-backed media polish and lighter rendering */
+.auth-logo.v101-storage-logo,.auth-logo.v95-login-logo-circle{border:none!important;box-shadow:none!important;background:transparent!important;padding:0!important;overflow:hidden!important;border-radius:50%!important;}
+.auth-logo.v101-storage-logo img,.auth-logo.v95-login-logo-circle img{width:100%!important;height:100%!important;display:block!important;object-fit:cover!important;border-radius:50%!important;border:none!important;background:transparent!important;padding:0!important;}
+.topbar-user-mark.v101-topbar-avatar{overflow:hidden!important;border-radius:50%!important;background:transparent!important;}
+.topbar-user-mark.v101-topbar-avatar img{width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%!important;display:block!important;}
+.v101-national-download{margin-inline-start:8px;white-space:nowrap;}
+.company-logo-preview img,.login-bg-preview img{content-visibility:auto;}
+.auth-gate.v101-storage-bg::before{background-image:var(--login-bg-image);}
