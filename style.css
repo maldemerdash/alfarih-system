@@ -13166,3 +13166,113 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 }
 #employeeModal .v89-age-under-photo span{font-size:11px !important;font-weight:800 !important;color:#94a3b8 !important;}
 #employeeModal .v89-age-under-photo strong{font-size:13px !important;font-weight:900 !important;color:#172033 !important;}
+
+/* v90: final employee modal layout + clean nationality fields + foreground warnings */
+@media (min-width:721px){
+  #employeeModal.employee-profile-modal .employee-workspace.v90-employee-workspace,
+  #employeeModal.employee-profile-modal .employee-workspace{
+    display:grid !important;
+    grid-template-columns: minmax(0,1fr) 292px !important;
+    grid-auto-rows:auto !important;
+    align-items:stretch !important;
+    gap:16px !important;
+  }
+  #employeeModal.employee-profile-modal .employee-form-content,
+  #employeeModal.employee-profile-modal .employee-content-card,
+  #employeeModal.employee-profile-modal .employee-section-panel{
+    grid-column:1 !important;
+  }
+  #employeeModal.employee-profile-modal .employee-form-sidebar.v90-sidebar-to-action-bottom,
+  #employeeModal.employee-profile-modal .employee-form-sidebar{
+    grid-column:2 !important;
+    grid-row:1 / span 2 !important;
+    align-self:stretch !important;
+    height:auto !important;
+    min-height:0 !important;
+    margin:0 !important;
+  }
+  #employeeModal.employee-profile-modal .employee-form-actions.v90-actions-card-contained,
+  #employeeModal.employee-profile-modal .employee-form-actions{
+    grid-column:1 !important;
+    grid-row:2 !important;
+    width:100% !important;
+    max-width:100% !important;
+    margin:0 !important;
+    padding:14px 16px !important;
+    background:#fff !important;
+    border:1px solid rgba(226,232,240,.95) !important;
+    border-radius:20px !important;
+    box-shadow:0 14px 35px rgba(15,23,42,.07) !important;
+  }
+  #employeeModal.employee-profile-modal .employee-main-actions{
+    background:transparent !important;
+    box-shadow:none !important;
+    border:0 !important;
+    padding:0 !important;
+    gap:12px !important;
+    justify-content:flex-start !important;
+  }
+}
+#employeeModal .v90-hidden-duplicate-choice{display:none !important;}
+#employeeModal .v90-normal-field{
+  min-width:0 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  gap:7px !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  border-radius:0 !important;
+}
+#employeeModal .v90-normal-field label,
+#employeeModal .v90-read-field label{
+  color:#667085 !important;
+  font-size:12px !important;
+  font-weight:800 !important;
+  line-height:1.2 !important;
+  margin-inline-start:8px !important;
+}
+#employeeModal .v90-normal-field select,
+#employeeModal .v90-normal-select,
+#employeeModal .v90-read-field div{
+  width:100% !important;
+  height:48px !important;
+  min-height:48px !important;
+  border:1px solid #dbe3ef !important;
+  border-radius:13px !important;
+  background:#fff !important;
+  color:#172033 !important;
+  font-weight:800 !important;
+  padding:0 14px !important;
+  box-sizing:border-box !important;
+  outline:none !important;
+  box-shadow:none !important;
+  display:flex !important;
+  align-items:center !important;
+}
+#employeeModal .v90-normal-field select:focus{border-color:rgba(24,174,225,.65) !important;box-shadow:0 0 0 3px rgba(24,174,225,.10) !important;}
+#employeeModal .v90-nationality-disabled{opacity:.78 !important;}
+#employeeModal .v90-age-service-row{
+  grid-column:1 / -1 !important;
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:14px !important;
+  margin-top:2px !important;
+}
+#employeeModal .v90-read-field{display:flex !important;flex-direction:column !important;gap:7px !important;min-width:0 !important;}
+#employeeModal .v90-age-source-hidden{display:none !important;}
+#employeeModal .v89-age-original-hidden.v90-age-source-hidden{display:none !important;}
+#employeeModal .v90-status-bottom{grid-column:1 / -1 !important;}
+#employeeModal .v90-birth-under-family{grid-column:auto !important;}
+.toast-container,.toast,#systemMessageModal,#identityAlertModal,#v90BalanceDecisionModal{z-index:2147483647 !important;}
+.v90-balance-decision-modal{border:0 !important;background:transparent !important;padding:0 !important;max-width:520px !important;width:min(520px,calc(100vw - 28px)) !important;}
+.v90-balance-decision-modal::backdrop{background:rgba(15,23,42,.55) !important;}
+.v90-decision-card{background:#fff;border-radius:24px;border:1px solid rgba(226,232,240,.95);box-shadow:0 30px 90px rgba(15,23,42,.25);overflow:hidden;direction:rtl;color:#172033;}
+.v90-decision-head{display:flex;gap:12px;align-items:flex-start;padding:18px 20px;background:linear-gradient(135deg,rgba(14,165,168,.12),rgba(37,99,235,.08));border-bottom:1px solid rgba(226,232,240,.9);}
+.v90-decision-head span[data-icon]{width:38px;height:38px;border-radius:14px;background:#fff;color:#0f766e;display:grid;place-items:center;box-shadow:0 8px 20px rgba(15,23,42,.08);}
+.v90-decision-head h3{margin:0 0 5px;font-size:18px;font-weight:900;}.v90-decision-head p{margin:0;color:#667085;font-size:13px;font-weight:700;}
+.v90-decision-body{padding:18px 20px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+.v90-decision-body div{border:1px solid #edf2f7;border-radius:14px;padding:10px 12px;background:#fbfdff;}.v90-decision-body span{display:block;color:#94a3b8;font-size:11px;font-weight:900;margin-bottom:4px}.v90-decision-body strong{font-size:14px;font-weight:900;color:#172033;}
+.v90-decision-actions{display:flex;justify-content:flex-start;gap:10px;padding:14px 20px 18px;border-top:1px solid rgba(226,232,240,.9);}
+@media (max-width:720px){#employeeModal .v90-age-service-row{grid-template-columns:1fr !important}.v90-decision-body{grid-template-columns:1fr}}
