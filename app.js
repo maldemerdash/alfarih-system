@@ -1177,3 +1177,99 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   });
   try{var v83FixTimer=null;function scheduleV83Fix(){if(v83FixTimer)return;v83FixTimer=setTimeout(function(){v83FixTimer=null;fixMenu()},140)}var v83Form=document.getElementById('employeeForm')||document; if(v83Form&&v83Form!==document)new MutationObserver(scheduleV83Fix).observe(v83Form,{attributes:true,childList:true,subtree:false,attributeFilter:['open','class']});}catch(_){ }
 })();
+
+/* v86 - employee form alignment/select fields + system-manager over-balance authority */
+(function(){
+  if(window.__v86EmployeeFormAlignmentSelectorsAndBalanceAuthority)return;
+  window.__v86EmployeeFormAlignmentSelectorsAndBalanceAuthority=true;
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function esc(v){return String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c})}
+  function form(){return q('#employeeForm')}
+  function currentFormEmployee(){
+    var f=form(); if(!f)return null;
+    var id=''; try{id=f.elements.employeeId&&f.elements.employeeId.value||''}catch(_){ }
+    if(!id)return null;
+    try{if(typeof getEmployee==='function')return getEmployee(id)}catch(_){ }
+    try{return Array.isArray(employees)?employees.find(function(e){return String(e.id)===String(id)}):null}catch(_){return null}
+  }
+  function valueFromRadios(f,name,def){
+    var checked=q('input[type="radio"][name="'+name+'"]:checked',f)||q('input[type="radio"][data-v86-old-name="'+name+'"]:checked',f);
+    if(checked)return checked.value;
+    var sel=q('select[data-v86-select="'+name+'"]',f);
+    if(sel&&sel.value)return sel.value;
+    var emp=currentFormEmployee();
+    if(emp&&emp[name])return emp[name];
+    return def;
+  }
+  function replaceChoice(name,label,options,fieldSelector,defaultValue){
+    var f=form(); if(!f)return;
+    var field=q(fieldSelector,f);
+    if(!field)return;
+    var current=name==='nationalityType'?(function(){var emp=currentFormEmployee();return (emp&&emp.nationalityType)||valueFromRadios(f,name,defaultValue)})():name==='gender'?(function(){var emp=currentFormEmployee();return (emp&&emp.gender)||valueFromRadios(f,name,defaultValue)})():valueFromRadios(f,name,defaultValue);
+    if(!current)current=defaultValue;
+    field.classList.add('v86-select-choice-field');
+    field.classList.remove('choice-field');
+    field.innerHTML='<label class="v86-select-choice-label" for="v86-'+name+'">'+esc(label)+'</label><select id="v86-'+name+'" name="'+name+'" data-v86-select="'+name+'">'+options.map(function(o){return '<option value="'+esc(o.value)+'">'+esc(o.text)+'</option>'}).join('')+'</select>';
+    var sel=q('select[data-v86-select="'+name+'"]',field);
+    if(sel){
+      sel.value=options.some(function(o){return o.value===current})?current:defaultValue;
+      sel.onchange=function(){
+        try{ if(name==='nationalityType' && typeof toggleNationalityField==='function') toggleNationalityField(); }catch(_){ }
+        try{ if(typeof updatePersonalCalculations==='function') updatePersonalCalculations(); }catch(_){ }
+      };
+      if(name==='nationalityType'){
+        try{ if(typeof toggleNationalityField==='function') toggleNationalityField(); }catch(_){ }
+      }
+    }
+  }
+  function applyEmployeeSelects(){
+    replaceChoice('nationalityType','الجنسية',[{value:'saudi',text:'سعودي'},{value:'nonSaudi',text:'غير سعودي'}],'.nationality-type-field','saudi');
+    replaceChoice('gender','النوع',[{value:'male',text:'ذكر'},{value:'female',text:'أنثى'}],'.gender-field','male');
+  }
+  function isSystemManager(){
+    try{
+      var text='';
+      var userBox=q('.user-info, .top-user, .header-user, .profile-meta, header');
+      if(userBox)text+=userBox.textContent||'';
+      text+=' '+(document.body&&document.body.getAttribute('data-user-role')||'');
+      text+=' '+(window.currentUserRole||window.userRole||'');
+      try{var p=JSON.parse(localStorage.getItem('nawah-current-user')||'{}'); text+=' '+Object.values(p||{}).join(' ')}catch(_){ }
+      return /مدير\s*النظام|system\s*admin|super\s*admin|admin/i.test(text);
+    }catch(_){return false}
+  }
+  function parseDateOnly(v){if(!v)return null;var d=new Date(String(v).slice(0,10)+'T12:00:00');return isNaN(d.getTime())?null:d}
+  function requestDays(type,req){
+    try{if(type==='travel'){var a=parseDateOnly(req.travelDate),b=parseDateOnly(req.returnDate||req.workResumeDate||req.travelDate);return a&&b&&b>=a?Math.floor((b-a)/86400000)+1:0}
+      var x=parseDateOnly(req.from),y=parseDateOnly(req.to||req.from);return x&&y&&y>=x?Math.floor((y-x)/86400000)+1:Number(req.days||0)||0}catch(_){return Number(req&&req.days||0)||0}
+  }
+  function getRemaining(emp,at,excludeId){
+    try{if(window.leaveBalanceV49&&typeof window.leaveBalanceV49.leaveBalance==='function'){return Number(window.leaveBalanceV49.leaveBalance(emp,at,{excludeId:excludeId}).remaining||0)}}catch(_){ }
+    return 0;
+  }
+  if(typeof window.nawahConfirmBalanceOverageV66==='function'&&!window.nawahConfirmBalanceOverageV66.__v86RoleGuard){
+    var oldConfirm=window.nawahConfirmBalanceOverageV66;
+    var guarded=function(type,request,employee,requestDaysValue){
+      try{
+        var d=Number(requestDaysValue||0)||requestDays(type,request||{});
+        var at=type==='travel'?((request&&request.travelDate)||new Date().toISOString().slice(0,10)):((request&&request.from)||new Date().toISOString().slice(0,10));
+        var remaining=getRemaining(employee,at,request&&request.id);
+        var over=Math.max(0,Math.round((d-remaining)*100)/100);
+        if(over>0&&!isSystemManager()){
+          alert('رصيد الإجازات غير كافٍ. تجاوز الطلب الرصيد بمقدار '+over+' يوم. اعتماد الطلب رغم التجاوز متاح لمدير النظام فقط.');
+          return false;
+        }
+      }catch(_){ }
+      return oldConfirm.apply(this,arguments);
+    };
+    guarded.__v86RoleGuard=true;
+    window.nawahConfirmBalanceOverageV66=guarded;
+  }
+  function schedule(){setTimeout(applyEmployeeSelects,40);setTimeout(applyEmployeeSelects,180)}
+  document.addEventListener('DOMContentLoaded',schedule);
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-edit-employee], #addEmployeeBtn, .edit-employee-btn, [data-employee-section="personal"]'))schedule();
+  },true);
+  try{var f=form()||q('#employeeModal'); if(f)new MutationObserver(function(){schedule()}).observe(f,{attributes:true,attributeFilter:['open','class']});}catch(_){ }
+  window.v86ApplyEmployeeSelects=applyEmployeeSelects;
+})();
