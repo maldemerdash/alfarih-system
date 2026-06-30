@@ -672,10 +672,6 @@
               <strong class="employee-side-number" id="employeeSideNumber">00-00</strong>
               <small>آخر رقمين من الهوية - آخر رقمين من الجوال</small>
             </div>
-            <div class="employee-side-stat">
-              <span class="employee-side-label">مدة الخدمة</span>
-              <strong class="employee-side-service" id="employeeSideService">0 يوم</strong>
-            </div>
             <nav class="employee-section-nav" aria-label="أقسام ملف الموظف">
               <button type="button" class="active" data-employee-section="personal"><span data-icon="user"></span>بيانات الموظف</button>
               <button type="button" data-employee-section="identity"><span data-icon="shield"></span>الهوية والجوازات</button>
@@ -703,6 +699,7 @@
                 <fieldset class="choice-field gender-field"><legend>النوع</legend><div class="choice-cards"><label><input type="radio" name="gender" value="male" checked /><span>ذكر</span></label><label><input type="radio" name="gender" value="female" /><span>أنثى</span></label></div></fieldset>
                 <label class="birth-date-field"><span>تاريخ الميلاد</span><input name="birthDate" type="date" /></label>
                 <label class="age-field"><span>العمر</span><input name="age" class="calculated-field" readonly /></label>
+                <label class="service-duration-field"><span>مدة الخدمة</span><input name="serviceDuration" id="employeeServiceDuration" class="calculated-field" readonly /></label>
                 <label class="work-status-field"><span>حالة العمل</span><select name="status"><option value="active">على رأس العمل</option><option value="suspended">متوقف عن العمل</option><option value="leave">إجازة</option><option value="travel">مسافر</option><option value="terminated">تم إنهاء خدماته</option></select></label>
               </div>
             </section>

@@ -12893,3 +12893,68 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
     min-height: 42px !important;
   }
 }
+
+/* v86 - نقل مدة الخدمة إلى محتوى بيانات الموظف وترتيب حقول بيانات الموظف */
+#employeeModal.employee-profile-modal .employee-personal-grid .service-duration-field input{
+  font-weight:800;
+  text-align:center;
+}
+#employeeModal.employee-profile-modal .employee-personal-grid .age-field input,
+#employeeModal.employee-profile-modal .employee-personal-grid .service-duration-field input{
+  min-height:42px;
+}
+#employeeModal.employee-profile-modal .employee-personal-grid .work-status-field{
+  align-items:stretch;
+  justify-content:flex-start;
+}
+#employeeModal.employee-profile-modal .employee-personal-grid .work-status-field select{
+  min-height:42px;
+}
+@media (min-width: 1101px){
+  #employeeModal.employee-profile-modal .employee-personal-grid .nationality-type-field{
+    grid-column:1;
+    grid-row:2;
+  }
+  #employeeModal.employee-profile-modal .employee-personal-grid .nationality-select-field{
+    grid-column:2;
+    grid-row:2;
+  }
+  #employeeModal.employee-profile-modal .employee-personal-grid .gender-field{
+    grid-column:3;
+    grid-row:2;
+  }
+  #employeeModal.employee-profile-modal .employee-personal-grid .birth-date-field{
+    grid-column:4;
+    grid-row:2;
+  }
+  #employeeModal.employee-profile-modal .employee-personal-grid .age-field{
+    grid-column:1 / span 2;
+    grid-row:3;
+  }
+  #employeeModal.employee-profile-modal .employee-personal-grid .service-duration-field{
+    grid-column:3 / span 2;
+    grid-row:3;
+  }
+  #employeeModal.employee-profile-modal .employee-personal-grid .work-status-field{
+    grid-column:1 / -1;
+    grid-row:4;
+  }
+}
+@media (max-width: 1100px) and (min-width: 721px){
+  #employeeModal.employee-profile-modal .employee-personal-grid .age-field{
+    grid-column:1;
+  }
+  #employeeModal.employee-profile-modal .employee-personal-grid .service-duration-field{
+    grid-column:2;
+  }
+  #employeeModal.employee-profile-modal .employee-personal-grid .work-status-field{
+    grid-column:1 / -1;
+    grid-row:auto;
+  }
+}
+@media (max-width: 720px){
+  #employeeModal.employee-profile-modal .employee-personal-grid .service-duration-field,
+  #employeeModal.employee-profile-modal .employee-personal-grid .work-status-field{
+    grid-column:1 / -1;
+  }
+}
