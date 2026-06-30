@@ -1273,3 +1273,59 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   try{var f=form()||q('#employeeModal'); if(f)new MutationObserver(function(){schedule()}).observe(f,{attributes:true,attributeFilter:['open','class']});}catch(_){ }
   window.v86ApplyEmployeeSelects=applyEmployeeSelects;
 })();
+
+/* v87 - employee form visual correction + travel resume direct bypass */
+(function(){
+  if(window.__v87EmployeeFormAndResumeFix)return;
+  window.__v87EmployeeFormAndResumeFix=true;
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function normalizeSelectFields(){
+    try{
+      var modal=q('#employeeModal.employee-profile-modal, #employeeForm, #employeeModal');
+      if(!modal)return;
+      qa('.v86-select-choice-field',modal).forEach(function(field){
+        field.classList.add('v87-normal-select-field');
+        var label=q('.v86-select-choice-label',field);
+        if(label)label.classList.add('v87-normal-select-label');
+      });
+    }catch(_){ }
+  }
+  function fixActionAndSidebar(){
+    try{
+      var modal=q('#employeeModal.employee-profile-modal');
+      if(!modal)return;
+      var actions=q('.employee-form-actions',modal), sidebar=q('.employee-form-sidebar',modal), workspace=q('.employee-workspace',modal);
+      if(actions)actions.classList.add('v87-actions-contained');
+      if(sidebar)sidebar.classList.add('v87-sidebar-extended');
+      if(workspace)workspace.classList.add('v87-workspace-balanced');
+    }catch(_){ }
+  }
+  function schedule(){setTimeout(function(){normalizeSelectFields();fixActionAndSidebar()},40)}
+  document.addEventListener('DOMContentLoaded',schedule);
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-edit-employee], #addEmployeeBtn, .edit-employee-btn, [data-employee-section], .employee-section-nav button'))schedule();
+  },true);
+  try{
+    var m=q('#employeeModal')||q('#employeeForm');
+    if(m)new MutationObserver(schedule).observe(m,{attributes:true,childList:true,subtree:true,attributeFilter:['open','class']});
+  }catch(_){ }
+  function isTravelResumeContext(type,request){
+    try{
+      if(String(type||'')!=='travel')return false;
+      var modal=q('#travelResumeModal[open], #travelResumeModal.open, #travelResumeModal, #travelResumeForm');
+      if(!modal)return false;
+      var st=String(request&&request.status||'');
+      return st==='approved'||st==='travel'||st==='مسافر'||!!(request&&request.travelDate);
+    }catch(_){return false}
+  }
+  if(typeof window.nawahConfirmBalanceOverageV66==='function'&&!window.nawahConfirmBalanceOverageV66.__v87ResumeBypass){
+    var oldConfirm=window.nawahConfirmBalanceOverageV66;
+    var wrapped=function(type,request,employee,requestDaysValue){
+      if(isTravelResumeContext(type,request))return true;
+      return oldConfirm.apply(this,arguments);
+    };
+    wrapped.__v87ResumeBypass=true;
+    window.nawahConfirmBalanceOverageV66=wrapped;
+  }
+})();

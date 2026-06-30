@@ -12966,3 +12966,115 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
     background: linear-gradient(135deg, #f0fbff 0%, #f2fff8 100%) !important;
   }
 }
+
+/* v87: align employee form exactly with content card, normalize select fields */
+@media (min-width: 721px){
+  #employeeModal.employee-profile-modal .employee-workspace.v87-workspace-balanced,
+  #employeeModal.employee-profile-modal .employee-workspace{
+    align-items: stretch !important;
+  }
+  #employeeModal.employee-profile-modal .employee-form-sidebar.v87-sidebar-extended,
+  #employeeModal.employee-profile-modal .employee-form-sidebar{
+    align-self: stretch !important;
+    height: auto !important;
+    min-height: calc(100vh - 180px) !important;
+    padding-bottom: 16px !important;
+  }
+  #employeeModal.employee-profile-modal .employee-section-nav{
+    justify-content: flex-start !important;
+    gap: 4px !important;
+  }
+  #employeeModal.employee-profile-modal .employee-section-nav button{
+    min-height: 34px !important;
+    padding: 0 13px !important;
+  }
+  #employeeModal.employee-profile-modal .employee-form-actions.v87-actions-contained,
+  #employeeModal.employee-profile-modal .employee-form-actions{
+    width: calc(100% - 340px) !important;
+    max-width: calc(100% - 340px) !important;
+    margin: 0 auto 18px 28px !important;
+    box-sizing: border-box !important;
+    padding: 14px 18px !important;
+    background: #fff !important;
+    border: 1px solid rgba(203, 213, 225, .72) !important;
+    border-radius: 18px !important;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, .07) !important;
+  }
+  #employeeModal.employee-profile-modal .employee-main-actions{
+    width: auto !important;
+    max-width: 100% !important;
+    justify-content: flex-start !important;
+  }
+  #employeeModal.employee-profile-modal .v86-select-choice-field,
+  #employeeModal.employee-profile-modal .v87-normal-select-field{
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  #employeeModal.employee-profile-modal .v86-select-choice-label,
+  #employeeModal.employee-profile-modal .v87-normal-select-label{
+    color: #667085 !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    margin-inline-start: 8px !important;
+  }
+  #employeeModal.employee-profile-modal .v86-select-choice-field select,
+  #employeeModal.employee-profile-modal .v87-normal-select-field select{
+    width: 100% !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    border: 1px solid #dbe3ef !important;
+    border-radius: 13px !important;
+    background: #fff !important;
+    color: #172033 !important;
+    font-weight: 800 !important;
+    padding: 0 14px !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  #employeeModal.employee-profile-modal .v86-select-choice-field select:focus,
+  #employeeModal.employee-profile-modal .v87-normal-select-field select:focus{
+    border-color: rgba(24, 174, 225, .65) !important;
+    box-shadow: 0 0 0 3px rgba(24,174,225,.10) !important;
+  }
+}
+@media (max-width: 1180px) and (min-width: 721px){
+  #employeeModal.employee-profile-modal .employee-form-actions{
+    width: calc(100% - 305px) !important;
+    max-width: calc(100% - 305px) !important;
+    margin-left: 24px !important;
+  }
+}
+@media (max-width: 720px){
+  #employeeModal.employee-profile-modal .employee-form-actions{
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 12px 12px !important;
+    padding: 12px !important;
+  }
+  #employeeModal.employee-profile-modal .v86-select-choice-field,
+  #employeeModal.employee-profile-modal .v87-normal-select-field{
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  #employeeModal.employee-profile-modal .v86-select-choice-field select,
+  #employeeModal.employee-profile-modal .v87-normal-select-field select{
+    min-height: 46px !important;
+    height: 46px !important;
+    border: 1px solid #dbe3ef !important;
+    border-radius: 13px !important;
+    background: #fff !important;
+  }
+}
