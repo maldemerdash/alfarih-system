@@ -1585,3 +1585,53 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   window.addEventListener('load',()=>setTimeout(()=>{fixHierarchicalSelects();normalizeLoginLogo()},300));
   setInterval(normalizeLoginLogo,1200);
 })();
+
+/* v96 - login screen background image from company settings */
+(function(){
+  if(window.__v96LoginBackgroundImage)return;window.__v96LoginBackgroundImage=true;
+  const STORAGE_KEY='nawah-company-settings-v92';
+  function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+  function readCompany(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')||{}}catch(_){return {}}}
+  function writeCompany(patch){const current=readCompany();const next={...current,...patch};try{localStorage.setItem(STORAGE_KEY,JSON.stringify(next))}catch(e){throw e}try{if(typeof saveCloudStateNow==='function')saveCloudStateNow({force:true});else if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){}return next}
+  function fileToDataUrl(file,maxSize){return new Promise((resolve,reject)=>{if(!file)return resolve('');if(file.size>maxSize)return reject(new Error('حجم الصورة أكبر من الحد المسموح.'));const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('تعذر قراءة الصورة.'));reader.readAsDataURL(file)})}
+  function applyLoginBackground(data=readCompany()){
+    const url=String(data.loginBackgroundDataUrl||'');
+    document.body.classList.toggle('has-login-bg-image',Boolean(url));
+    document.querySelectorAll('.auth-gate').forEach(gate=>{
+      if(url){gate.style.setProperty('--login-bg-image',`url("${url.replace(/"/g,'%22')}")`);gate.classList.add('has-login-bg-image')}
+      else{gate.style.removeProperty('--login-bg-image');gate.classList.remove('has-login-bg-image')}
+    });
+  }
+  function renderBackgroundControl(){
+    const form=document.querySelector('#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"]');
+    if(!form||form.dataset.v96LoginBackgroundReady==='1')return;
+    form.dataset.v96LoginBackgroundReady='1';
+    const data=readCompany();
+    const logoBlock=form.querySelector('.company-logo-upload-real,.company-logo-upload')||form.firstElementChild;
+    const html=`
+      <div class="company-logo-upload company-logo-upload-real v96-login-bg-upload" data-v96-login-bg-control="1">
+        <div class="login-bg-preview" id="loginBgPreview">${data.loginBackgroundDataUrl?`<img src="${esc(data.loginBackgroundDataUrl)}" alt="خلفية تسجيل الدخول">`:'<span>خلفية</span>'}</div>
+        <div class="company-logo-copy"><strong>خلفية شاشة تسجيل الدخول</strong><span>هذه الصورة تكون خلفية للشاشة كاملة فقط، وليست خلفية بطاقة تسجيل الدخول.</span></div>
+        <div class="v96-bg-actions">
+          <label class="secondary-btn company-logo-btn">تغيير الخلفية<input type="file" name="loginBackgroundFile" accept="image/png,image/jpeg,image/webp" hidden></label>
+          ${data.loginBackgroundDataUrl?'<button type="button" class="light-btn" id="removeLoginBackgroundBtn">حذف الخلفية</button>':''}
+        </div>
+      </div>`;
+    if(logoBlock)logoBlock.insertAdjacentHTML('afterend',html);else form.insertAdjacentHTML('afterbegin',html);
+    const input=form.elements.loginBackgroundFile;
+    input?.addEventListener('change',async e=>{
+      try{
+        const file=e.target.files?.[0];
+        const loginBackgroundDataUrl=await fileToDataUrl(file,4*1024*1024);
+        if(loginBackgroundDataUrl){writeCompany({loginBackgroundDataUrl,loginBackgroundFileName:file.name});applyLoginBackground();form.dataset.v96LoginBackgroundReady='';renderBackgroundControl();}
+      }catch(err){alert(err.message||'تعذر رفع خلفية تسجيل الدخول')}
+    });
+    form.querySelector('#removeLoginBackgroundBtn')?.addEventListener('click',()=>{writeCompany({loginBackgroundDataUrl:'',loginBackgroundFileName:''});applyLoginBackground();const ctrl=form.querySelector('[data-v96-login-bg-control]');ctrl?.remove();form.dataset.v96LoginBackgroundReady='';renderBackgroundControl();});
+  }
+  const oldRender=window.renderSettings||('function'==typeof renderSettings?renderSettings:null);
+  if(oldRender&&!oldRender.__v96LoginBackgroundImage){const wrapped=function(){const r=oldRender.apply(this,arguments);setTimeout(()=>{renderBackgroundControl();applyLoginBackground()},120);setTimeout(renderBackgroundControl,520);return r};wrapped.__v96LoginBackgroundImage=true;try{renderSettings=wrapped}catch(_){}window.renderSettings=wrapped;}
+  document.addEventListener('submit',e=>{const form=e.target?.closest?.('#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"]');if(!form)return;setTimeout(()=>applyLoginBackground(),80)},true);
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{renderBackgroundControl();applyLoginBackground()},250)});
+  window.addEventListener('load',()=>setTimeout(()=>{renderBackgroundControl();applyLoginBackground()},350));
+  setInterval(applyLoginBackground,1600);
+})();
