@@ -1329,3 +1329,102 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     window.nawahConfirmBalanceOverageV66=wrapped;
   }
 })();
+
+/* v88 - manager decision popup for over-balance approvals */
+(function(){
+  if(window.__v88ManagerOverBalanceDecision)return;
+  window.__v88ManagerOverBalanceDecision=true;
+  var resumeBypassUntil=0;
+  function q(s,r){return (r||document).querySelector(s)}
+  function isResumeFlow(){
+    try{
+      if(Date.now()<resumeBypassUntil)return true;
+      return !!q('#travelResumeModal[open], #travelResumeModal.open, #travelResumeForm');
+    }catch(_){return false}
+  }
+  function isSystemManager(){
+    try{
+      var text='';
+      var userBox=q('.user-info, .top-user, .header-user, .profile-meta, header');
+      if(userBox)text+=userBox.textContent||'';
+      text+=' '+(document.body&&document.body.getAttribute('data-user-role')||'');
+      text+=' '+(window.currentUserRole||window.userRole||'');
+      try{var p=JSON.parse(localStorage.getItem('nawah-current-user')||'{}'); text+=' '+Object.values(p||{}).join(' ')}catch(_){ }
+      return /مدير\s*النظام|system\s*admin|super\s*admin|admin/i.test(text);
+    }catch(_){return false}
+  }
+  function parseDateOnly(v){if(!v)return null;var d=new Date(String(v).slice(0,10)+'T12:00:00');return isNaN(d.getTime())?null:d}
+  function daysBetween(a,b){var x=parseDateOnly(a),y=parseDateOnly(b||a);return x&&y&&y>=x?Math.floor((y-x)/86400000)+1:0}
+  function requestDays(type,req){
+    try{
+      if(String(type||'')==='travel')return daysBetween(req&&req.travelDate, (req&&req.returnDate)||(req&&req.workResumeDate)||(req&&req.travelDate));
+      return daysBetween(req&&req.from, (req&&req.to)||(req&&req.from)) || Number(req&&req.days||0)||0;
+    }catch(_){return Number(req&&req.days||0)||0}
+  }
+  function getRemaining(emp,at,excludeId){
+    try{if(window.leaveBalanceV49&&typeof window.leaveBalanceV49.leaveBalance==='function')return Number(window.leaveBalanceV49.leaveBalance(emp,at,{excludeId:excludeId}).remaining||0)}catch(_){ }
+    return 0;
+  }
+  function formatNum(v){
+    try{return typeof arabicNumber==='function'?arabicNumber(Number(v||0)):Number(v||0).toLocaleString('en-US')}
+    catch(_){return String(v||0)}
+  }
+  function readTravel(){try{var r=JSON.parse(localStorage.getItem('nawah-travel-requests')||'[]');return Array.isArray(r)?r:[]}catch(_){return[]}}
+  function saveTravel(list){try{localStorage.setItem('nawah-travel-requests',JSON.stringify(Array.isArray(list)?list:[]))}catch(_){ }try{typeof queueCloudStateSave==='function'&&queueCloudStateSave()}catch(_){ }}
+  function persistApproval(type,request,remaining,d,over){
+    try{
+      if(!request)return;
+      var id=String(request.id||'');
+      request.carryOverFromNextYear=true;
+      request.carryOverDays=over;
+      request.overBalanceApprovedAt=new Date().toISOString();
+      request.overBalanceApprovedBy='مدير النظام';
+      request.generalLeaveBalanceBefore=remaining;
+      request.generalLeaveRequestDays=d;
+      request.generalLeaveOverageDays=over;
+      if(String(type||'')==='travel'){
+        var list=readTravel().map(function(x){return String(x.id||'')===id?Object.assign({},x,{carryOverFromNextYear:true,carryOverDays:over,overBalanceApprovedAt:request.overBalanceApprovedAt,overBalanceApprovedBy:'مدير النظام',generalLeaveBalanceBefore:remaining,generalLeaveRequestDays:d,generalLeaveOverageDays:over}):x});
+        saveTravel(list);
+      }else if(Array.isArray(window.leaves)||typeof leaves!=='undefined'){
+        try{leaves=(leaves||[]).map(function(x){return String(x.id||'')===id?Object.assign({},x,{carryOverFromNextYear:true,carryOverDays:over,overBalanceApprovedAt:request.overBalanceApprovedAt,overBalanceApprovedBy:'مدير النظام',generalLeaveBalanceBefore:remaining,generalLeaveRequestDays:d,generalLeaveOverageDays:over}):x});localStorage.setItem('nawah-leaves',JSON.stringify(leaves));typeof queueCloudStateSave==='function'&&queueCloudStateSave()}catch(_){ }
+      }
+    }catch(_){ }
+  }
+  function managerDecision(type,request,employee,requestDaysValue){
+    try{
+      if(isResumeFlow())return true;
+      if(!request||!employee)return true;
+      var d=Number(requestDaysValue||0)||requestDays(type,request||{});
+      if(!d)return true;
+      var at=String(type||'')==='travel'?((request&&request.travelDate)||new Date().toISOString().slice(0,10)):((request&&request.from)||new Date().toISOString().slice(0,10));
+      var remaining=getRemaining(employee,at,request&&request.id);
+      var over=Math.max(0,Math.round((d-remaining)*100)/100);
+      request.generalLeaveBalanceBefore=remaining;
+      request.generalLeaveRequestDays=d;
+      request.generalLeaveOverageDays=over;
+      if(over<=0)return true;
+      var label=String(type||'')==='travel'?'السفر':'الإجازة';
+      if(!isSystemManager()){
+        alert('لا يمكن الاعتماد بسبب تجاوز رصيد الإجازات. الاعتماد رغم التجاوز متاح لمدير النظام فقط.');
+        return false;
+      }
+      var msg='تنبيه تجاوز رصيد الإجازات\n\n'+
+        'الموظف: '+(employee.name||'')+'\n'+
+        'نوع الطلب: '+label+'\n'+
+        'الرصيد المتاح: '+formatNum(remaining)+' يوم\n'+
+        'مدة الطلب: '+formatNum(d)+' يوم\n'+
+        'مقدار التجاوز: '+formatNum(over)+' يوم\n\n'+
+        'قبول: اعتماد الطلب وترحيل الزيادة على السنة الجديدة.\n'+
+        'رفض: إلغاء الاعتماد وعدم تنفيذ الطلب.';
+      var ok=confirm(msg);
+      if(ok){persistApproval(type,request,remaining,d,over);return true}
+      return false;
+    }catch(_){return true}
+  }
+  window.nawahConfirmBalanceOverageV66=function(type,request,employee,requestDaysValue){
+    return managerDecision(type,request,employee,requestDaysValue);
+  };
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-travel-resume], [data-action="resume-travel"], .travel-resume-btn'))resumeBypassUntil=Date.now()+8000;
+  },true);
+})();
