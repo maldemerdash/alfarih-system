@@ -12851,3 +12851,132 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 #employeeModal.employee-profile-modal .employee-section-nav button.active span[data-icon]{
   color:var(--primary);
 }
+
+
+/* v83 - restore full employee form side menu and keep icons visible without increasing height */
+#employeeModal.employee-profile-modal .employee-workspace{
+  padding-top:6px !important;
+  padding-bottom:10px !important;
+  gap:14px !important;
+}
+#employeeModal.employee-profile-modal .employee-form-sidebar{
+  padding:12px 13px 10px !important;
+  display:flex !important;
+  flex-direction:column !important;
+  overflow:hidden !important;
+}
+#employeeModal.employee-profile-modal .employee-side-photo{
+  width:94px !important;
+  height:94px !important;
+  min-width:94px !important;
+  min-height:94px !important;
+  margin:0 auto 0 !important;
+  border-width:2px !important;
+}
+#employeeModal.employee-profile-modal .employee-photo-upload{
+  min-height:30px !important;
+  height:30px !important;
+  margin-top:6px !important;
+  padding:0 13px !important;
+  border-radius:18px !important;
+  font-size:10px !important;
+  gap:5px !important;
+}
+#employeeModal.employee-profile-modal .employee-photo-upload svg{
+  width:13px !important;
+  height:13px !important;
+}
+#employeeModal.employee-profile-modal .employee-photo-remove{
+  margin-top:4px !important;
+  font-size:8.5px !important;
+  line-height:1.1 !important;
+}
+#employeeModal.employee-profile-modal .employee-side-stat{
+  min-height:43px !important;
+  margin-top:7px !important;
+  padding:6px 10px !important;
+  border-radius:12px !important;
+}
+#employeeModal.employee-profile-modal .employee-side-stat + .employee-side-stat{
+  min-height:40px !important;
+  margin-top:6px !important;
+}
+#employeeModal.employee-profile-modal .employee-side-label{
+  font-size:9px !important;
+  line-height:1.1 !important;
+}
+#employeeModal.employee-profile-modal .employee-side-number,
+#employeeModal.employee-profile-modal .employee-side-service{
+  font-size:12.5px !important;
+  margin-top:3px !important;
+  line-height:1.15 !important;
+}
+#employeeModal.employee-profile-modal .employee-side-stat small{
+  font-size:7px !important;
+  line-height:1.2 !important;
+  margin-top:2px !important;
+}
+#employeeModal.employee-profile-modal .employee-section-nav{
+  flex:0 0 auto !important;
+  margin-top:8px !important;
+  padding-top:8px !important;
+  gap:4px !important;
+  justify-content:flex-start !important;
+  overflow:visible !important;
+}
+#employeeModal.employee-profile-modal .employee-section-nav button{
+  flex:0 0 30px !important;
+  height:30px !important;
+  min-height:30px !important;
+  max-height:30px !important;
+  padding:0 10px !important;
+  border-radius:10px !important;
+  font-size:11px !important;
+  font-weight:800 !important;
+  line-height:1 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:7px !important;
+  text-align:right !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+}
+#employeeModal.employee-profile-modal .employee-section-nav button span[data-icon],
+#employeeModal.employee-profile-modal .employee-section-nav button svg{
+  width:13px !important;
+  height:13px !important;
+  min-width:13px !important;
+  flex:0 0 13px !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  color:#71818b !important;
+  opacity:.95 !important;
+  stroke:currentColor !important;
+}
+#employeeModal.employee-profile-modal .employee-section-nav button.active span[data-icon],
+#employeeModal.employee-profile-modal .employee-section-nav button.active svg{
+  color:var(--primary) !important;
+  opacity:1 !important;
+}
+#employeeModal.employee-profile-modal .employee-section-nav button .v83-tab-text{
+  display:block !important;
+  min-width:0 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+}
+@media (max-width:1180px){
+  #employeeModal.employee-profile-modal .employee-section-nav button{
+    height:29px !important;
+    min-height:29px !important;
+    max-height:29px !important;
+    font-size:10.5px !important;
+  }
+  #employeeModal.employee-profile-modal .employee-side-photo{
+    width:82px !important;
+    height:82px !important;
+    min-width:82px !important;
+    min-height:82px !important;
+  }
+}

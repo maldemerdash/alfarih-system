@@ -1142,3 +1142,36 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   }catch(_){ }
   window.v82ForceEmployeeHistoryDownload=forceBlobDownload;
 })();
+
+
+/* v83 - guarantee every employee form submenu item has compact icon + visible label */
+(function(){
+  if(window.__v83EmployeeSideMenuFullList)return;
+  window.__v83EmployeeSideMenuFullList=true;
+  var iconMap={
+    personal:'user',identity:'shield',employment:'building',salary:'wallet',leaveTravelHistory:'calendar',
+    commissions:'trend-up',banking:'wallet',contact:'phone',notes:'notes',documents:'file',documentation:'check-circle'
+  };
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function normalizeButton(btn){
+    if(!btn||!btn.getAttribute)return;
+    var key=btn.getAttribute('data-employee-section')||'';
+    var icon=iconMap[key]||'file';
+    var label=(btn.textContent||'').replace(/\s+/g,' ').trim();
+    btn.innerHTML='<span data-icon="'+icon+'"></span><span class="v83-tab-text">'+label+'</span>';
+  }
+  function fixMenu(){
+    var nav=q('#employeeForm .employee-section-nav');
+    if(!nav)return;
+    qa('button[data-employee-section]',nav).forEach(normalizeButton);
+    try{ if(typeof hydrateIcons==='function') hydrateIcons(nav); }catch(_){ }
+  }
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(fixMenu,0);setTimeout(fixMenu,250)});
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-edit-employee], #addEmployeeBtn, .edit-employee-btn, [data-employee-section]')){
+      setTimeout(fixMenu,50);setTimeout(fixMenu,220);
+    }
+  });
+  try{new MutationObserver(function(){fixMenu()}).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open','class']});}catch(_){ }
+})();
