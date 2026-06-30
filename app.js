@@ -1675,3 +1675,71 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   window.addEventListener('load',()=>setTimeout(()=>{renderBackgroundControl();applyLoginBackground()},350));
   setInterval(applyLoginBackground,1600);
 })();
+
+/* v98 - use login image in topbar when user is not linked to an employee */
+(function(){
+  if(window.__v98TopbarLoginImageFallback)return;
+  window.__v98TopbarLoginImageFallback=true;
+  const COMPANY_KEY='nawah-company-settings-v92';
+  function safeEscape(value){
+    try{return typeof escapeHtml==='function'?escapeHtml(String(value||'')):String(value||'').replace(/[&<>'\"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[ch]||ch;});}
+    catch(_){return String(value||'');}
+  }
+  function getCompanySettings(){
+    try{return JSON.parse(localStorage.getItem(COMPANY_KEY)||'{}')||{};}catch(_){return {};}
+  }
+  function getLinkedEmployeeV98(){
+    try{const emp=window.employeePermissionMatrix&&typeof window.employeePermissionMatrix.linkedEmployee==='function'?window.employeePermissionMatrix.linkedEmployee():null;if(emp)return emp;}catch(_){}
+    try{
+      const employeeId=authProfile&&(authProfile.employee_id||authProfile.employeeId);
+      if(employeeId&&Array.isArray(employees)){const emp=employees.find(item=>String(item.id)===String(employeeId));if(emp)return emp;}
+      const email=String((authUser&&authUser.email)||(authProfile&&authProfile.email)||'').trim().toLowerCase();
+      if(email&&Array.isArray(employees)){return employees.find(item=>String(item.email||'').trim().toLowerCase()===email)||null;}
+    }catch(_){}
+    return null;
+  }
+  async function resolveEmployeePhotoV98(emp){
+    if(!emp)return'';
+    try{if(emp.photoAttachmentId&&typeof attachmentUrl==='function'){const url=await attachmentUrl(emp.photoAttachmentId);if(url)return url;}}catch(_){}
+    return emp.legacyPhoto||emp.photo||emp.photoDataUrl||'';
+  }
+  function setTopbarMarkImageV98(src,alt,isLoginFallback){
+    const mark=document.querySelector('.topbar-user-mark');
+    if(!mark)return;
+    mark.classList.remove('v98-topbar-login-image','v98-topbar-employee-image');
+    if(src){
+      mark.classList.add('has-employee-photo',isLoginFallback?'v98-topbar-login-image':'v98-topbar-employee-image');
+      mark.innerHTML=`<img src="${safeEscape(src)}" alt="${safeEscape(alt||'')}" loading="eager" decoding="async">`;
+      return;
+    }
+    mark.classList.remove('has-employee-photo');
+    const fallback=String(alt||authProfile?.full_name||authUser?.email||'م').trim().charAt(0)||'م';
+    mark.textContent=fallback;
+  }
+  async function applyTopbarLoginImageFallbackV98(){
+    const linked=getLinkedEmployeeV98();
+    if(linked){
+      const photo=await resolveEmployeePhotoV98(linked);
+      setTopbarMarkImageV98(photo,linked.name||linked.email||'الموظف',false);
+      return;
+    }
+    const company=getCompanySettings();
+    const loginImage=company.logoDataUrl||'';
+    setTopbarMarkImageV98(loginImage,company.company||authProfile?.full_name||authUser?.email||'مستخدم',true);
+  }
+  window.applyTopbarLoginImageFallbackV98=applyTopbarLoginImageFallbackV98;
+  const previousUpdateTopbar=typeof updateTopbarUser==='function'?updateTopbarUser:null;
+  if(previousUpdateTopbar&&!previousUpdateTopbar.__v98TopbarLoginImageFallback){
+    const wrapped=function(){
+      const result=previousUpdateTopbar.apply(this,arguments);
+      setTimeout(()=>{try{applyTopbarLoginImageFallbackV98();}catch(_){}},0);
+      return result;
+    };
+    wrapped.__v98TopbarLoginImageFallback=true;
+    try{updateTopbarUser=wrapped;}catch(_){}
+    window.updateTopbarUser=wrapped;
+  }
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{try{applyTopbarLoginImageFallbackV98();}catch(_){}},250));
+  document.addEventListener('submit',e=>{if(e.target?.closest?.('#settingsForm'))setTimeout(()=>{try{applyTopbarLoginImageFallbackV98();}catch(_){}},250);},true);
+  document.addEventListener('change',e=>{if(e.target?.matches?.('input[name="logoFile"]'))setTimeout(()=>{try{applyTopbarLoginImageFallbackV98();}catch(_){}},450);},true);
+})();
