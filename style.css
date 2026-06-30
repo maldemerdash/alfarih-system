@@ -13679,3 +13679,90 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   .v106-commission-delete-actions{margin-inline-start:0;justify-content:stretch}
   .v106-commission-delete-actions .v102-commission-delete-all{width:100%;justify-content:center}
 }
+
+/* v107: show employee bottom action buttons immediately and keep them stable */
+#employeeModal.employee-profile-modal .employee-form-actions {
+  display: block !important;
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 80 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  pointer-events: auto !important;
+  content-visibility: visible !important;
+  contain: layout style paint !important;
+  background: transparent !important;
+  margin: 0 28px 18px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#employeeModal.employee-profile-modal .employee-main-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 14px !important;
+  min-height: 70px !important;
+  width: 100% !important;
+  padding: 14px 20px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+  box-shadow: var(--shadow-soft) !important;
+  box-sizing: border-box !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  direction: ltr !important;
+}
+
+#employeeModal.employee-profile-modal .employee-main-actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  border-radius: 10px !important;
+  padding: 0 17px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  direction: rtl !important;
+}
+
+#employeeModal.employee-profile-modal .employee-main-actions .employee-save-btn {
+  min-width: 205px !important;
+}
+
+#employeeModal.employee-profile-modal .employee-main-actions .employee-cancel-btn {
+  min-width: 100px !important;
+  background: #e34d4d !important;
+  border-color: #e34d4d !important;
+  color: #fff !important;
+}
+
+#employeeModal.employee-profile-modal .employee-main-actions .employee-end-service-btn {
+  min-width: 205px !important;
+  margin: 0 !important;
+}
+
+@media (max-width: 720px) {
+  #employeeModal.employee-profile-modal .employee-form-actions {
+    margin: 0 12px 12px !important;
+  }
+  #employeeModal.employee-profile-modal .employee-main-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    min-height: 0 !important;
+  }
+  #employeeModal.employee-profile-modal .employee-main-actions button {
+    width: 100% !important;
+  }
+}
