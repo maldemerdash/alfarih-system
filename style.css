@@ -13531,20 +13531,3 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   margin:0!important;
   background:transparent!important;
 }
-
-/* v99 - stop header/topbar avatar flicker while the final image is being resolved */
-.topbar-user-mark.v99-avatar-pending{
-  visibility:hidden!important;
-}
-.topbar-user-mark.v99-avatar-ready,
-.topbar-user-mark.has-employee-photo{
-  visibility:visible!important;
-}
-.topbar-user-mark.has-employee-photo img{
-  width:100%!important;
-  height:100%!important;
-  object-fit:cover!important;
-  object-position:center!important;
-  border-radius:50%!important;
-  display:block!important;
-}
