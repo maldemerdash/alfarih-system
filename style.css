@@ -12958,3 +12958,161 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
     grid-column:1 / -1;
   }
 }
+
+
+/* v88 - بطاقة تسجيل مباشرة عمل لطلب السفر */
+#travelResumeModal.v88-travel-resume-dialog::backdrop{
+  background:rgba(15,23,42,.42);
+  backdrop-filter:blur(4px);
+}
+#travelResumeModal .v88-travel-resume-card{
+  width:min(720px, calc(100vw - 32px));
+  max-width:720px;
+  padding:0;
+  overflow:hidden;
+  border:1px solid rgba(226,232,240,.95);
+  border-radius:28px;
+  background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%);
+  box-shadow:0 28px 80px rgba(15,23,42,.22);
+}
+.v88-travel-resume-head{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:start;
+  gap:14px;
+  padding:22px 24px 18px;
+  background:linear-gradient(135deg,#f8fbff 0%,#f3f7ff 52%,#fff 100%);
+  border-bottom:1px solid #edf2f7;
+}
+.v88-travel-resume-icon{
+  width:46px;
+  height:46px;
+  display:grid;
+  place-items:center;
+  border-radius:16px;
+  background:linear-gradient(135deg,#eef7ff,#f6f2ff);
+  border:1px solid #dbeafe;
+  color:#2563eb;
+  box-shadow:0 10px 24px rgba(37,99,235,.12);
+}
+.v88-travel-resume-icon svg{width:22px;height:22px}
+.v88-travel-resume-title span{
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:3px 10px;
+  border-radius:999px;
+  background:#eef6ff;
+  color:#2563eb;
+  font-size:12px;
+  font-weight:800;
+  margin-bottom:7px;
+}
+.v88-travel-resume-title h3{
+  margin:0;
+  font-size:22px;
+  line-height:1.35;
+  color:#172033;
+}
+.v88-travel-resume-title p{
+  margin:6px 0 0;
+  color:#667085;
+  font-size:13px;
+  line-height:1.8;
+}
+.v88-travel-resume-close{
+  width:36px;
+  height:36px;
+  border-radius:12px;
+  background:#fff;
+  border:1px solid #e5eaf3;
+  color:#475467;
+}
+.v88-travel-resume-body{
+  display:grid;
+  gap:14px;
+  padding:18px 24px 20px;
+}
+.v88-travel-resume-summary,.v88-travel-resume-input-card{
+  border:1px solid #e8edf5;
+  border-radius:20px;
+  background:#fff;
+  padding:16px;
+  box-shadow:0 10px 24px rgba(15,23,42,.045);
+}
+.v88-travel-resume-section-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+.v88-travel-resume-section-title strong{
+  color:#172033;
+  font-size:15px;
+}
+.v88-travel-resume-section-title small{
+  color:#98a2b3;
+  font-size:12px;
+}
+#travelResumeModal .v88-travel-resume-preview{
+  margin:0;
+  border-radius:16px;
+  background:#f8fafc;
+  border:1px solid #edf2f7;
+}
+.v88-travel-resume-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+.v88-travel-resume-grid label{
+  display:grid;
+  gap:8px;
+}
+.v88-travel-resume-grid label span{
+  color:#475467;
+  font-size:13px;
+  font-weight:800;
+}
+.v88-travel-resume-grid input,.v88-travel-resume-grid textarea{
+  width:100%;
+  min-height:46px;
+  border:1px solid #d9e1ec;
+  border-radius:14px;
+  background:#fff;
+  color:#172033;
+  padding:11px 13px;
+  outline:none;
+  transition:border-color .18s ease, box-shadow .18s ease;
+}
+.v88-travel-resume-grid textarea{resize:vertical;min-height:92px}
+.v88-travel-resume-grid input:focus,.v88-travel-resume-grid textarea:focus{
+  border-color:#93c5fd;
+  box-shadow:0 0 0 4px rgba(59,130,246,.10);
+}
+.v88-travel-resume-grid .full-field{grid-column:1/-1}
+#travelResumeModal .v88-travel-resume-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  padding:16px 24px 22px;
+  border-top:1px solid #edf2f7;
+  background:#fff;
+}
+#travelResumeModal .v88-travel-resume-actions .primary-btn,
+#travelResumeModal .v88-travel-resume-actions .secondary-btn{
+  min-height:44px;
+  border-radius:14px;
+  padding-inline:18px;
+}
+@media (max-width:640px){
+  .v88-travel-resume-head{grid-template-columns:1fr auto;padding:18px}
+  .v88-travel-resume-icon{display:none}
+  .v88-travel-resume-body{padding:14px}
+  .v88-travel-resume-grid{grid-template-columns:1fr}
+  .v88-travel-resume-section-title{align-items:flex-start;flex-direction:column}
+  #travelResumeModal .v88-travel-resume-actions{padding:14px;flex-direction:column-reverse}
+  #travelResumeModal .v88-travel-resume-actions button{width:100%}
+}
