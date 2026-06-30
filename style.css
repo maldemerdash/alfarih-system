@@ -13626,3 +13626,11 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .v103-commission-delete-actions .v102-commission-delete-all{margin-inline-start:0;margin-inline-end:auto}
 .v81-employee-history-card [data-v102-delete-commissions-all],
 .v80-employee-history-card [data-v102-delete-commissions-all]{display:none!important}
+
+/* v104 - place full commissions delete button beside the table title at far left */
+.v104-commission-title-actions{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:14px;width:100%;direction:rtl;margin:0 0 12px 0;padding-top:4px}
+.v104-commission-title-actions .v102-commission-delete-all{margin-inline-start:0!important;margin-inline-end:auto!important;align-self:flex-start;flex:0 0 auto}
+.v104-commission-title-actions .v104-commission-title-text{display:flex;flex-direction:column;gap:3px;text-align:right}
+.v104-commission-title-actions .v104-commission-title-text strong{font-weight:800;color:#0f172a}
+.v104-commission-title-actions .v104-commission-title-text small{color:#94a3b8;font-size:12px}
+@media (max-width:640px){.v104-commission-title-actions{flex-direction:column}.v104-commission-title-actions .v102-commission-delete-all{width:100%;justify-content:center}}
