@@ -880,3 +880,112 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   }, true);
   document.addEventListener('change',function(e){ var input=e.target; if(input&&(input.id==='travelTicketAttachmentInput'||input.id==='travelVisaAttachmentInput')){ var lab=q('[data-file-label="'+input.id+'"]'); if(lab) lab.textContent=(input.files&&input.files[0])?input.files[0].name:'لم يتم اختيار ملف'; } }, true);
 })();
+
+/* v80 employee profile leave/travel history
+   Adds a dedicated employee-scoped travel/leave record under salary details.
+   Does not change request approval, balance, attachment saving, or conflict logic. */
+(function(){
+  if(window.__v80EmployeeLeaveTravelHistory) return;
+  window.__v80EmployeeLeaveTravelHistory = true;
+  var TRAVEL_KEY='nawah-travel-requests';
+  var LEAVE_KEY='nawah-leaves';
+  function q(s,r){ return (r||document).querySelector(s); }
+  function qa(s,r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); }
+  function esc(v){ try{return typeof escapeHtml==='function'?escapeHtml(v==null?'':v):String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c;});}catch(_){return String(v==null?'':v);} }
+  function fmt(v){ if(!v) return '—'; try{return typeof formatDate==='function'?formatDate(v):String(v).slice(0,10);}catch(_){return String(v).slice(0,10)||'—';} }
+  function num(v){ try{return typeof arabicNumber==='function'?arabicNumber(Number(v||0)):String(v||0);}catch(_){return String(v||0);} }
+  function icon(name){ try{return typeof iconSvg==='function'?iconSvg(name):'';}catch(_){return '';} }
+  function readTravels(){ try{var a=JSON.parse(localStorage.getItem(TRAVEL_KEY)||'[]'); return Array.isArray(a)?a:[];}catch(_){return [];} }
+  function readLeaves(){ try{ if(typeof leaves!=='undefined' && Array.isArray(leaves)) return leaves; }catch(_){} try{var a=JSON.parse(localStorage.getItem(LEAVE_KEY)||'[]'); return Array.isArray(a)?a:[];}catch(_){return [];} }
+  function getEmp(id){ try{ if(typeof getEmployee==='function') return getEmployee(id); }catch(_){} try{ return (employees||[]).find(function(e){return String(e.id)===String(id);}); }catch(_){return null;} }
+  function parse(v){ if(!v) return null; var d=new Date(String(v).slice(0,10)+'T12:00:00'); return isNaN(d.getTime())?null:d; }
+  function days(a,b){ var x=parse(a), y=parse(b||a); return x&&y&&y>=x?Math.floor((y-x)/86400000)+1:0; }
+  function statusKeyTravel(r){ var s=String(r.status||'pending'); if(s==='rejected') return 'rejected'; if(r.workResumeDate||r.returnedAt||r.closedAt||s==='returned') return 'finished'; if(s==='approved'||s==='travel'||s==='مسافر') return 'active'; return 'pending'; }
+  function statusTextTravel(r){ var k=statusKeyTravel(r); return k==='pending'?'بانتظار الاعتماد':k==='active'?'مسافر':k==='finished'?'تمت المباشرة':'مرفوض'; }
+  function statusKeyLeave(r){ var s=String(r.status||'pending'); if(s==='rejected') return 'rejected'; if(r.returnDate||r.returnConfirmedAt||r.closedAt||s==='returned') return 'finished'; if(s==='approved'||s==='leave'||s==='إجازة') return 'active'; return 'pending'; }
+  function statusTextLeave(r){ var k=statusKeyLeave(r); return k==='pending'?'بانتظار الاعتماد':k==='active'?'معتمدة':k==='finished'?'منتهية':'مرفوضة'; }
+  function statusClass(k){ return k==='pending'?'status-pending':k==='active'?'status-approved':k==='finished'?'status-active':'status-rejected'; }
+  function commissionText(r){ if(r.commissionFrozenAt||r.commissionFrozen||r.commissionIssuedId) return 'مع احتساب العمولة'; if(r.approvedAt||r.approvalDate) return 'اعتماد فقط'; return '—'; }
+  function filterRows(rows, filter, keyFn){ if(!filter||filter==='all') return rows; return rows.filter(function(r){ return keyFn(r)===filter; }); }
+  function downloadButton(id,label){
+    if(!id) return '<span class="v80-muted-dash">—</span>';
+    return '<button type="button" class="v80-icon-action" data-v80-download="'+esc(id)+'" title="تحميل '+esc(label||'المرفق')+'">'+icon('download')+'</button>';
+  }
+  function printButton(kind,id){ return '<button type="button" class="v80-icon-action" data-v80-print="'+kind+'" data-v80-id="'+esc(id)+'" title="طباعة">'+icon('printer')+'</button>'; }
+  function travelRow(r){
+    var k=statusKeyTravel(r);
+    var d=days(r.travelDate,r.workResumeDate||r.returnDate||r.travelDate);
+    return '<tr data-status="'+k+'"><td class="latin-number">'+fmt(r.travelDate)+'</td><td class="latin-number">'+(r.returnDate?fmt(r.returnDate):'غير محدد')+'</td><td>'+num(d||0)+'</td><td><span class="status-badge '+statusClass(k)+'">'+statusTextTravel(r)+'</span></td><td class="latin-number">'+fmt(r.approvalDate||r.approvedAt)+'</td><td class="latin-number">'+fmt(r.workResumeDate||r.returnedAt)+'</td><td>'+esc(commissionText(r))+'</td><td><div class="v80-attachment-actions"><span>تذكرة</span>'+downloadButton(r.ticketAttachmentId,'التذكرة')+'<span>تأشيرة</span>'+downloadButton(r.visaAttachmentId,'التأشيرة')+'</div></td><td>'+printButton('travel',r.id)+'</td></tr>';
+  }
+  function leaveRow(r){
+    var k=statusKeyLeave(r);
+    var d=Number(r.days||0)||days(r.from,r.to||r.from);
+    return '<tr data-status="'+k+'"><td>'+esc(r.type||r.leaveType||'إجازة')+'</td><td class="latin-number">'+fmt(r.from)+'</td><td class="latin-number">'+fmt(r.to||r.from)+'</td><td>'+num(d||0)+'</td><td><span class="status-badge '+statusClass(k)+'">'+statusTextLeave(r)+'</span></td><td class="latin-number">'+fmt(r.approvalDate||r.approvedAt)+'</td><td class="latin-number">'+fmt(r.returnDate||r.returnConfirmedAt)+'</td><td>'+esc(commissionText(r))+'</td><td>'+printButton('leave',r.id)+'</td></tr>';
+  }
+  function emptyRow(col,text){ return '<tr><td colspan="'+col+'" class="v80-history-empty">'+esc(text)+'</td></tr>'; }
+  function tableHtml(kind,empId,filter){
+    if(kind==='travel'){
+      var rows=filterRows(readTravels().filter(function(r){return String(r.employeeId||'')===String(empId);}),filter,statusKeyTravel);
+      rows.sort(function(a,b){return String(b.travelDate||'').localeCompare(String(a.travelDate||''));});
+      return '<table class="v80-history-table v80-travel-history"><thead><tr><th>السفر</th><th>العودة</th><th>الأيام</th><th>الحالة</th><th>الاعتماد</th><th>المباشرة</th><th>العمولة</th><th>المرفقات</th><th>طباعة</th></tr></thead><tbody>'+(rows.length?rows.map(travelRow).join(''):emptyRow(9,'لا توجد سجلات سفر لهذا الموظف.'))+'</tbody></table>';
+    }
+    var lrows=filterRows(readLeaves().filter(function(r){return String(r.employeeId||'')===String(empId);}),filter,statusKeyLeave);
+    lrows.sort(function(a,b){return String(b.from||'').localeCompare(String(a.from||''));});
+    return '<table class="v80-history-table v80-leave-history"><thead><tr><th>النوع</th><th>البداية</th><th>النهاية</th><th>الأيام</th><th>الحالة</th><th>الاعتماد</th><th>المباشرة</th><th>العمولة</th><th>طباعة</th></tr></thead><tbody>'+(lrows.length?lrows.map(leaveRow).join(''):emptyRow(9,'لا توجد سجلات إجازات لهذا الموظف.'))+'</tbody></table>';
+  }
+  function renderCard(emp){
+    var empId=emp&&emp.id; if(!empId) return '';
+    return '<section class="employee-profile-card v80-employee-history-card" data-v80-emp-id="'+esc(empId)+'"><div class="v80-history-head"><div><h3>سجل الإجازات والسفر</h3><p>سجل خاص بهذا الموظف لتحميل المرفقات وطباعة مستندات الطلبات.</p></div></div><div class="v80-history-tabs"><button type="button" class="active" data-v80-history-tab="travel">السفر</button><button type="button" data-v80-history-tab="leave">الإجازات</button></div><div class="v80-history-filters" data-v80-history-filters><button class="active" type="button" data-v80-filter="all">الكل</button><button type="button" data-v80-filter="pending">بانتظار الاعتماد</button><button type="button" data-v80-filter="active">معتمد / مسافر</button><button type="button" data-v80-filter="finished">منتهي</button><button type="button" data-v80-filter="rejected">مرفوض</button></div><div class="v80-history-table-shell" data-v80-history-table>'+tableHtml('travel',empId,'all')+'</div></section>';
+  }
+  function refreshCard(card){
+    if(!card) return;
+    var empId=card.getAttribute('data-v80-emp-id')||'';
+    var activeTab=(card.querySelector('[data-v80-history-tab].active')||{}).getAttribute?card.querySelector('[data-v80-history-tab].active').getAttribute('data-v80-history-tab'):'travel';
+    var filter=(card.querySelector('[data-v80-filter].active')||{}).getAttribute?card.querySelector('[data-v80-filter].active').getAttribute('data-v80-filter'):'all';
+    var shell=card.querySelector('[data-v80-history-table]');
+    if(shell) shell.innerHTML=tableHtml(activeTab==='leave'?'leave':'travel',empId,filter||'all');
+  }
+  function installHistory(emp){
+    var content=q('#quickViewContent'); if(!content||!emp||!emp.id) return;
+    var old=content.querySelector('.v80-employee-history-card'); if(old) old.remove();
+    var salaryCard=qa('.employee-profile-card',content).find(function(card){ var h=card.querySelector('h3'); return h&&h.textContent.trim()==='تفاصيل الراتب'; });
+    var html=renderCard(emp);
+    if(salaryCard) salaryCard.insertAdjacentHTML('afterend',html); else { var stack=q('.employee-profile-stack:last-child',content)||q('.employee-profile-main',content)||content; stack.insertAdjacentHTML('beforeend',html); }
+    try{ if(typeof hydrateIcons==='function') hydrateIcons(content); }catch(_){}
+  }
+  function currentEmpFromQuickView(){
+    try{ var name=(q('#quickViewContent .employee-profile-side h3')||{}).textContent||''; return (employees||[]).find(function(e){return String(e.name||'').trim()===String(name).trim();}); }catch(_){return null;}
+  }
+  var originalOpen=null;
+  try{ originalOpen=openQuickView; }catch(_){}
+  if(typeof originalOpen==='function' && !originalOpen.__v80Wrapped){
+    var wrapped=async function(id){ var res=await originalOpen.apply(this,arguments); try{ installHistory(getEmp(id)||currentEmpFromQuickView()); }catch(e){ console.warn('v80 employee history render skipped',e); } return res; };
+    wrapped.__v80Wrapped=true;
+    try{ openQuickView=wrapped; }catch(_){}
+    window.openQuickView=wrapped;
+  }
+  document.addEventListener('click',async function(e){
+    var tab=e.target&&e.target.closest?e.target.closest('[data-v80-history-tab]'):null;
+    if(tab){ e.preventDefault(); var card=tab.closest('.v80-employee-history-card'); qa('[data-v80-history-tab]',card).forEach(function(b){b.classList.toggle('active',b===tab);}); qa('[data-v80-filter]',card).forEach(function(b,i){b.classList.toggle('active',i===0);}); refreshCard(card); return; }
+    var filt=e.target&&e.target.closest?e.target.closest('[data-v80-filter]'):null;
+    if(filt){ e.preventDefault(); var c=filt.closest('.v80-employee-history-card'); qa('[data-v80-filter]',c).forEach(function(b){b.classList.toggle('active',b===filt);}); refreshCard(c); return; }
+    var dl=e.target&&e.target.closest?e.target.closest('[data-v80-download]'):null;
+    if(dl){ e.preventDefault(); var id=dl.getAttribute('data-v80-download'); if(!id) return; try{ var url=typeof attachmentUrl==='function'?await attachmentUrl(id):''; if(url) window.open(url,'_blank'); else alert('تعذر فتح المرفق.'); }catch(err){ console.warn(err); alert('تعذر فتح المرفق.'); } return; }
+    var pr=e.target&&e.target.closest?e.target.closest('[data-v80-print]'):null;
+    if(pr){ e.preventDefault(); printRecord(pr.getAttribute('data-v80-print'),pr.getAttribute('data-v80-id')); return; }
+  },true);
+  function findRecord(kind,id){ if(kind==='travel') return readTravels().find(function(r){return String(r.id)===String(id);}); return readLeaves().find(function(r){return String(r.id)===String(id);}); }
+  function printRecord(kind,id){
+    var r=findRecord(kind,id); if(!r) return alert('تعذر العثور على السجل المطلوب طباعته.');
+    var e=getEmp(r.employeeId)||{}; var isTravel=kind==='travel';
+    var title=isTravel?'ورقة سفر موظف':'ورقة إجازة موظف';
+    var rows=isTravel?[
+      ['اسم الموظف',e.name||'—'],['رقم الموظف',e.employeeNumber||'—'],['المسمى الوظيفي',e.role||'—'],['الإدارة / القسم',[e.department,e.section].filter(Boolean).join(' / ')||'—'],['نوع الطلب','سفر'],['تاريخ السفر',fmt(r.travelDate)],['تاريخ العودة',r.returnDate?fmt(r.returnDate):'غير محدد'],['عدد الأيام',num(days(r.travelDate,r.returnDate||r.travelDate))],['الحالة',statusTextTravel(r)],['تاريخ الاعتماد',fmt(r.approvalDate||r.approvedAt)],['تاريخ المباشرة',fmt(r.workResumeDate||r.returnedAt)],['العمولة',commissionText(r)],['ملاحظات',r.note||r.notes||'—']
+    ]:[
+      ['اسم الموظف',e.name||'—'],['رقم الموظف',e.employeeNumber||'—'],['المسمى الوظيفي',e.role||'—'],['الإدارة / القسم',[e.department,e.section].filter(Boolean).join(' / ')||'—'],['نوع الطلب',r.type||r.leaveType||'إجازة'],['تاريخ البداية',fmt(r.from)],['تاريخ النهاية',fmt(r.to||r.from)],['عدد الأيام',num(Number(r.days||0)||days(r.from,r.to||r.from))],['الحالة',statusTextLeave(r)],['تاريخ الاعتماد',fmt(r.approvalDate||r.approvedAt)],['تاريخ المباشرة',fmt(r.returnDate||r.returnConfirmedAt)],['العمولة',commissionText(r)],['ملاحظات',r.note||r.notes||'—']
+    ];
+    var body=rows.map(function(x){return '<tr><th>'+esc(x[0])+'</th><td>'+esc(x[1])+'</td></tr>';}).join('');
+    var html='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:system-ui,-apple-system,Segoe UI,Tahoma,Arial,sans-serif;background:#f6f7fb;margin:0;padding:28px;color:#172033}.sheet{max-width:850px;margin:auto;background:white;border:1px solid #e6e9f2;border-radius:22px;padding:28px;box-shadow:0 16px 40px rgba(19,31,56,.08)}.head{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid #edf0f6;padding-bottom:18px;margin-bottom:22px}.head h1{margin:0;font-size:24px}.head p{margin:7px 0 0;color:#667085}.badge{background:linear-gradient(135deg,#eef7ff,#f6f2ff);border:1px solid #dbeafe;border-radius:999px;padding:8px 14px;font-weight:800}table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid #edf0f6;border-radius:16px}th,td{padding:13px 15px;border-bottom:1px solid #edf0f6;text-align:right}tr:last-child th,tr:last-child td{border-bottom:none}th{width:220px;background:#f8fafc;color:#475467}.sign{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:34px}.sign div{border:1px dashed #ccd3df;border-radius:14px;padding:18px;min-height:70px}.foot{margin-top:18px;color:#667085;font-size:12px}@media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border:0;border-radius:0}.no-print{display:none}}</style></head><body><main class="sheet"><div class="head"><div><h1>'+esc(title)+'</h1><p>تم إنشاء هذه الورقة من سجل الإجازات والسفر في ملف الموظف.</p></div><div class="badge">'+esc(isTravel?'سفر':'إجازة')+'</div></div><table>'+body+'</table><div class="sign"><div><strong>اعتماد الإدارة</strong><br><br>الاسم: ____________<br>التوقيع: ____________</div><div><strong>توقيع الموظف</strong><br><br>الاسم: ____________<br>التوقيع: ____________</div></div><p class="foot">تاريخ الطباعة: '+fmt(new Date().toISOString().slice(0,10))+'</p></main><script>window.print();</script></body></html>';
+    var w=window.open('','_blank'); if(!w) return alert('يرجى السماح بالنوافذ المنبثقة للطباعة.'); w.document.open(); w.document.write(html); w.document.close();
+  }
+})();
