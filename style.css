@@ -13116,3 +13116,144 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   #travelResumeModal .v88-travel-resume-actions{padding:14px;flex-direction:column-reverse}
   #travelResumeModal .v88-travel-resume-actions button{width:100%}
 }
+
+/* v89 - رصيد الإجازات: رسالة منبثقة بهوية الموقع */
+.balance-overage-modal-v89 {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  width: min(560px, calc(100vw - 28px));
+  max-width: 560px;
+  z-index: 9999;
+}
+.balance-overage-modal-v89::backdrop {
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(8px);
+}
+.balance-v89-shell {
+  overflow: hidden;
+  background: #fff;
+  border-radius: 26px;
+  border: 1px solid rgba(13, 148, 136, 0.20);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
+  color: #0f172a;
+}
+.balance-v89-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 22px;
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  color: #fff;
+}
+.balance-v89-head h2 {
+  margin: 0 0 5px;
+  font-size: 20px;
+  font-weight: 900;
+}
+.balance-v89-head p {
+  margin: 0;
+  color: rgba(255,255,255,0.82);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.balance-v89-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.24);
+  flex: 0 0 auto;
+}
+.balance-v89-icon svg,
+.balance-v89-note svg {
+  width: 22px;
+  height: 22px;
+}
+.balance-v89-close {
+  margin-inline-start: auto;
+  background: rgba(255,255,255,0.14) !important;
+  border-color: rgba(255,255,255,0.22) !important;
+  color: #fff !important;
+}
+.balance-v89-body {
+  padding: 22px;
+}
+.balance-v89-employee {
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-weight: 900;
+  color: #0f172a;
+}
+.balance-v89-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.balance-v89-grid > div {
+  min-height: 88px;
+  padding: 14px;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.balance-v89-grid span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.balance-v89-grid strong {
+  display: block;
+  color: #0f172a;
+  font-size: 19px;
+  font-weight: 950;
+}
+.balance-v89-grid .balance-v89-over {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+.balance-v89-grid .balance-v89-over strong {
+  color: #9a3412;
+}
+.balance-v89-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(13, 148, 136, 0.08);
+  border: 1px solid rgba(13, 148, 136, 0.18);
+  color: #115e59;
+}
+.balance-v89-note p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  font-weight: 700;
+}
+.balance-v89-actions {
+  padding: 0 22px 22px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+}
+.balance-v89-actions .primary-btn,
+.balance-v89-actions .secondary-btn {
+  min-height: 44px;
+  border-radius: 14px;
+  font-weight: 900;
+}
+@media (max-width: 640px) {
+  .balance-v89-grid { grid-template-columns: 1fr; }
+  .balance-v89-head { align-items: flex-start; }
+  .balance-v89-actions { flex-direction: column-reverse; }
+  .balance-v89-actions button { width: 100%; }
+}
