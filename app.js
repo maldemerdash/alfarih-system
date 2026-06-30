@@ -2258,55 +2258,34 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   }
   function employeeFromSection(section){var empId=formEmpId()||currentEmpId(section);return empId?getEmp(empId):null}
   function refreshCommissionSections(){setTimeout(function(){decorate()},60)}
-  function ensureCommissionHeaderDelete(section, emp){
-    if(!section||!emp||!emp.id)return null;
-    qa('[data-v102-delete-commissions-all]',section).forEach(function(oldBtn){
-      if(!oldBtn.closest('.v104-commission-title-actions')) oldBtn.remove();
-    });
-    var titleNode=null;
-    qa('h1,h2,h3,h4,strong,div,span',section).some(function(el){
-      var tx=String(el.textContent||'').trim();
-      if(tx==='سجل العمولات'||tx.indexOf('سجل العمولات')===0){titleNode=el;return true}
-      return false;
-    });
-    var holder=null;
-    if(titleNode){
-      holder=titleNode.closest('.section-header,.section-title,.card-header,.form-section-title,.employee-section-title,.v81-section-title,.v80-section-title')||titleNode.parentElement;
-    }
-    if(!holder){
-      var table=q('table',section);
-      holder=document.createElement('div');
-      holder.className='v104-commission-title-actions';
-      holder.innerHTML='<div class="v104-commission-title-text"><strong>سجل العمولات</strong><small>العمولات المصروفة لا يمكن حذفها</small></div>';
-      if(table&&table.parentNode)table.parentNode.insertBefore(holder,table);else section.appendChild(holder);
-    }
-    holder.classList.add('v104-commission-title-actions');
-    var btn=q('[data-v102-delete-commissions-all]',holder);
-    if(!btn){
-      btn=document.createElement('button');
-      btn.type='button';
-      btn.className='secondary-btn v102-delete-all v102-commission-delete-all';
-      btn.innerHTML='<span data-icon="trash"></span>حذف كامل سجل العمولات';
-      holder.insertBefore(btn,holder.firstChild);
-    }
-    btn.setAttribute('data-v102-delete-commissions-all',String(emp.id));
-    return btn;
-  }
   function decorateCommissions(){
     qa('[data-section-panel="commissions"]').forEach(function(section){
       var text=(section.textContent||''); if(text.indexOf('عمول')<0)return;
       var emp=employeeFromSection(section); if(!emp||!emp.id)return;
+      qa('[data-v102-delete-commissions-all]',section).forEach(function(oldBtn){
+        if(!oldBtn.closest('.v103-commission-delete-actions')) oldBtn.remove();
+      });
       var table=q('table',section);
-      ensureCommissionHeaderDelete(section,emp);
-      qa('.v103-commission-delete-actions',section).forEach(function(box){box.remove()});
+      var actions=q('.v103-commission-delete-actions',section);
+      if(!actions){
+        actions=document.createElement('div');
+        actions.className='v103-commission-delete-actions';
+        if(table&&table.parentNode){table.parentNode.insertBefore(actions,table.nextSibling)}
+        else section.appendChild(actions);
+      }
+      var btn=q('[data-v102-delete-commissions-all]',actions);
+      if(!btn){
+        btn=document.createElement('button');
+        btn.type='button';
+        btn.className='secondary-btn v102-delete-all v102-commission-delete-all';
+        btn.innerHTML='<span data-icon="trash"></span>حذف كامل سجل العمولات';
+        actions.appendChild(btn);
+      }
+      btn.setAttribute('data-v102-delete-commissions-all',String(emp.id));
       if(!table)return;
       var hrow=q('thead tr',table); if(hrow&&!q('.v102-delete-th',hrow)){var th=document.createElement('th');th.className='v102-delete-th';th.textContent='حذف';hrow.appendChild(th)}
       var arr=Array.isArray(emp.commissions)?emp.commissions:[];
-      qa('tbody tr',table).forEach(function(row,i){
-        if(row.querySelector('.v102-row-delete-cell'))return;
-        if(!arr[i]||/لا توجد|لا يوجد|لم يتم/.test(row.textContent||''))return;
-        addDeleteCell(row,'commission',String(i));
-      });
+      qa('tbody tr',table).forEach(function(row,i){if(row.querySelector('.v102-row-delete-cell')||/لا توجد|لا يوجد/.test(row.textContent||''))return;addDeleteCell(row,'commission',String(i));});
       try{if(typeof hydrateIcons==='function')hydrateIcons(section)}catch(_){}
     });
   }
