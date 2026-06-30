@@ -13877,3 +13877,52 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
     width:100%!important;
   }
 }
+
+/* v109 - base delete controls are visible with the tab shell immediately */
+.v109-history-delete-actions,
+.v106-commission-delete-actions,
+.v109-commission-delete-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-inline-start:auto;
+}
+.v81-history-head,
+.v80-history-head,
+.v106-commission-record-head,
+.v109-commission-record-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+.v109-base-delete-btn{
+  min-height:44px;
+  padding:0 18px;
+  border-radius:14px;
+  border-color:#fecaca !important;
+  color:#dc2626 !important;
+  background:#fffafa !important;
+  font-weight:800;
+  white-space:nowrap;
+}
+.v109-base-delete-btn svg{width:18px;height:18px;stroke-width:2.2px;}
+.v109-base-history-card .v81-empty-state{
+  border:1px dashed #d9e3ee;
+  border-radius:14px;
+  padding:18px;
+  color:#708198;
+  background:#fbfdff;
+  text-align:center;
+}
+@media (max-width:900px){
+  .v81-history-head,
+  .v80-history-head,
+  .v106-commission-record-head,
+  .v109-commission-record-head{align-items:stretch;flex-direction:column;}
+  .v109-history-delete-actions,
+  .v106-commission-delete-actions,
+  .v109-commission-delete-actions{margin-inline-start:0;justify-content:flex-start;}
+}
