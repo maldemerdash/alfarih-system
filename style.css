@@ -13531,3 +13531,54 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   margin:0!important;
   background:transparent!important;
 }
+
+/* v99 - stop header/topbar avatar flicker while the final image is being resolved */
+.topbar-user-mark.v99-avatar-pending{
+  visibility:hidden!important;
+}
+.topbar-user-mark.v99-avatar-ready,
+.topbar-user-mark.has-employee-photo{
+  visibility:visible!important;
+}
+.topbar-user-mark.has-employee-photo img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  border-radius:50%!important;
+  display:block!important;
+}
+
+
+/* v100 - header avatar is hidden until the final correct image is ready */
+.topbar-user-mark.v100-avatar-pending:not(.v100-avatar-ready){
+  opacity:0!important;
+  visibility:hidden!important;
+}
+.topbar-user-mark.v100-avatar-ready,
+.topbar-user-mark.has-employee-photo.v100-avatar-ready{
+  opacity:1!important;
+  visibility:visible!important;
+}
+.topbar-user-mark.v100-avatar-ready img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  border-radius:50%!important;
+  display:block!important;
+}
+
+/* v100 - startup performance: avoid painting hidden views and reduce off-screen work */
+.view:not(.active){
+  display:none!important;
+}
+.panel,
+.settings-card,
+.stat-card,
+.table-card,
+.employee-card,
+.finance-card{
+  content-visibility:auto;
+  contain-intrinsic-size:1px 260px;
+}

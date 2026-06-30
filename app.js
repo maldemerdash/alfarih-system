@@ -1583,7 +1583,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('change',e=>{if(e.target?.matches?.('#settingsForm select[name="region"],#settingsForm select[name="city"]'))setTimeout(fixHierarchicalSelects,0)},true);
   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{fixHierarchicalSelects();normalizeLoginLogo()},220);setTimeout(normalizeLoginLogo,700)});
   window.addEventListener('load',()=>setTimeout(()=>{fixHierarchicalSelects();normalizeLoginLogo()},300));
-  setInterval(normalizeLoginLogo,1200);
+  /* v100: removed repeating logo normalizer for performance; event based only */
 })();
 
 /* v96/v97 - login screen background image from company settings with client-side compression */
@@ -1673,7 +1673,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('submit',e=>{const form=e.target?.closest?.('#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"]');if(!form)return;setTimeout(()=>applyLoginBackground(),80)},true);
   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{renderBackgroundControl();applyLoginBackground()},250)});
   window.addEventListener('load',()=>setTimeout(()=>{renderBackgroundControl();applyLoginBackground()},350));
-  setInterval(applyLoginBackground,1600);
+  /* v100: removed repeating login background applier for performance; event based only */
 })();
 
 /* v98 - use login image in topbar when user is not linked to an employee */
@@ -1742,4 +1742,181 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{try{applyTopbarLoginImageFallbackV98();}catch(_){}},250));
   document.addEventListener('submit',e=>{if(e.target?.closest?.('#settingsForm'))setTimeout(()=>{try{applyTopbarLoginImageFallbackV98();}catch(_){}},250);},true);
   document.addEventListener('change',e=>{if(e.target?.matches?.('input[name="logoFile"]'))setTimeout(()=>{try{applyTopbarLoginImageFallbackV98();}catch(_){}},450);},true);
+})();
+
+/* v99 - prevent topbar/header avatar flicker on first entry */
+(function(){
+  if(window.__v99TopbarAvatarNoFlicker)return;
+  window.__v99TopbarAvatarNoFlicker=true;
+  const COMPANY_KEY='nawah-company-settings-v92';
+  let applySeq=0;
+  let lastStableSrc='';
+  function esc(value){
+    try{return typeof escapeHtml==='function'?escapeHtml(String(value||'')):String(value||'').replace(/[&<>'\"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[ch]||ch;});}
+    catch(_){return String(value||'');}
+  }
+  function mark(){return document.querySelector('.topbar-user-mark');}
+  function company(){try{return JSON.parse(localStorage.getItem(COMPANY_KEY)||'{}')||{};}catch(_){return {};}}
+  function linkedEmployee(){
+    try{const emp=window.employeePermissionMatrix&&typeof window.employeePermissionMatrix.linkedEmployee==='function'?window.employeePermissionMatrix.linkedEmployee():null;if(emp)return emp;}catch(_){}
+    try{
+      const id=authProfile&&(authProfile.employee_id||authProfile.employeeId);
+      if(id&&Array.isArray(employees)){const emp=employees.find(item=>String(item.id)===String(id));if(emp)return emp;}
+      const email=String((authUser&&authUser.email)||(authProfile&&authProfile.email)||'').trim().toLowerCase();
+      if(email&&Array.isArray(employees)){return employees.find(item=>String(item.email||'').trim().toLowerCase()===email)||null;}
+    }catch(_){}
+    return null;
+  }
+  async function employeePhoto(emp){
+    if(!emp)return '';
+    try{if(emp.photoAttachmentId&&typeof attachmentUrl==='function'){const url=await attachmentUrl(emp.photoAttachmentId);if(url)return url;}}catch(_){}
+    return emp.legacyPhoto||emp.photo||emp.photoDataUrl||'';
+  }
+  function preload(src){
+    return new Promise(resolve=>{
+      if(!src)return resolve(false);
+      const img=new Image();
+      img.onload=()=>resolve(true);
+      img.onerror=()=>resolve(false);
+      img.decoding='async';
+      img.src=src;
+    });
+  }
+  function showLetter(el,alt){
+    const fallback=String(alt||authProfile?.full_name||authUser?.email||'م').trim().charAt(0)||'م';
+    el.classList.remove('has-employee-photo','v98-topbar-login-image','v98-topbar-employee-image','v99-avatar-pending');
+    el.classList.add('v99-avatar-ready');
+    el.dataset.v99Src='';
+    el.textContent=fallback;
+    lastStableSrc='';
+  }
+  async function setStable(src,alt,isLoginFallback,seq){
+    const el=mark();
+    if(!el)return;
+    src=String(src||'');
+    if(!src){showLetter(el,alt);return;}
+    if(el.dataset.v99Src===src&&el.querySelector('img')){el.classList.remove('v99-avatar-pending');el.classList.add('v99-avatar-ready');return;}
+    if(!lastStableSrc){el.classList.add('v99-avatar-pending');}
+    await preload(src);
+    if(seq!==applySeq)return;
+    el.classList.remove('v98-topbar-login-image','v98-topbar-employee-image','v99-avatar-pending');
+    el.classList.add('has-employee-photo',isLoginFallback?'v98-topbar-login-image':'v98-topbar-employee-image','v99-avatar-ready');
+    el.dataset.v99Src=src;
+    el.innerHTML=`<img src="${esc(src)}" alt="${esc(alt||'')}" loading="eager" decoding="async">`;
+    lastStableSrc=src;
+  }
+  async function applyNoFlicker(){
+    const seq=++applySeq;
+    const emp=linkedEmployee();
+    if(emp){
+      const photo=await employeePhoto(emp);
+      return setStable(photo,emp.name||emp.email||'الموظف',false,seq);
+    }
+    const c=company();
+    return setStable(c.logoDataUrl||'',c.company||authProfile?.full_name||authUser?.email||'مستخدم',true,seq);
+  }
+  window.applyTopbarLoginImageFallbackV98=applyNoFlicker;
+  window.applyTopbarAvatarNoFlickerV99=applyNoFlicker;
+  const previousUpdate=typeof updateTopbarUser==='function'?updateTopbarUser:null;
+  if(previousUpdate&&!previousUpdate.__v99TopbarAvatarNoFlicker){
+    const wrapped=function(){
+      const el=mark();
+      if(el&&!el.dataset.v99Src)el.classList.add('v99-avatar-pending');
+      const result=previousUpdate.apply(this,arguments);
+      Promise.resolve().then(()=>applyNoFlicker());
+      return result;
+    };
+    wrapped.__v99TopbarAvatarNoFlicker=true;
+    try{updateTopbarUser=wrapped;}catch(_){}
+    window.updateTopbarUser=wrapped;
+  }
+  function schedule(){try{applyNoFlicker();}catch(_){}}
+  schedule();
+  document.addEventListener('DOMContentLoaded',()=>{schedule();setTimeout(schedule,80);setTimeout(schedule,300);});
+  window.addEventListener('load',()=>{setTimeout(schedule,80);setTimeout(schedule,500);});
+  document.addEventListener('change',e=>{if(e.target?.matches?.('input[name="logoFile"]'))setTimeout(schedule,350);},true);
+  document.addEventListener('submit',e=>{if(e.target?.closest?.('#settingsForm'))setTimeout(schedule,250);},true);
+})();
+
+
+/* v100 - professional header avatar no-flash + lighter startup */
+(function(){
+  if(window.__v100HeaderAvatarStableAndFast)return;
+  window.__v100HeaderAvatarStableAndFast=true;
+  let running=false;
+  let timer=null;
+  let observer=null;
+  let internal=false;
+  function avatar(){return document.querySelector('.topbar-user-mark');}
+  function hide(){
+    const el=avatar();
+    if(!el)return;
+    el.classList.remove('v100-avatar-ready');
+    el.classList.add('v100-avatar-pending');
+    el.setAttribute('aria-busy','true');
+  }
+  function show(){
+    const el=avatar();
+    if(!el)return;
+    el.classList.remove('v100-avatar-pending');
+    el.classList.add('v100-avatar-ready','v99-avatar-ready');
+    el.removeAttribute('aria-busy');
+  }
+  async function finalApply(){
+    try{
+      if(typeof window.applyTopbarAvatarNoFlickerV99==='function'){
+        await window.applyTopbarAvatarNoFlickerV99();
+      }else if(typeof window.applyTopbarLoginImageFallbackV98==='function'){
+        await window.applyTopbarLoginImageFallbackV98();
+      }else if(typeof updateTopbarUser==='function'){
+        updateTopbarUser();
+      }
+    }catch(_){ }
+  }
+  function schedule(delay){
+    clearTimeout(timer);
+    timer=setTimeout(async function(){
+      if(running)return;
+      running=true;
+      hide();
+      internal=true;
+      try{await finalApply();}
+      finally{
+        requestAnimationFrame(function(){
+          show();
+          internal=false;
+          running=false;
+        });
+      }
+    },Math.max(0,delay||0));
+  }
+  const previous=typeof updateTopbarUser==='function'?updateTopbarUser:null;
+  if(previous&&!previous.__v100HeaderAvatarStableAndFast){
+    const wrapped=function(){
+      hide();
+      const result=previous.apply(this,arguments);
+      Promise.resolve(result).finally(function(){schedule(0);});
+      return result;
+    };
+    wrapped.__v100HeaderAvatarStableAndFast=true;
+    try{updateTopbarUser=wrapped;}catch(_){ }
+    window.updateTopbarUser=wrapped;
+  }
+  function installObserver(){
+    const el=avatar();
+    if(!el||observer)return;
+    observer=new MutationObserver(function(){
+      if(internal||running)return;
+      schedule(0);
+    });
+    try{observer.observe(el,{childList:true,subtree:true,characterData:true});}catch(_){ }
+  }
+  hide();
+  schedule(0);
+  document.addEventListener('DOMContentLoaded',function(){installObserver();schedule(0);setTimeout(function(){schedule(0);},180);},{once:true});
+  window.addEventListener('load',function(){schedule(0);},{once:true});
+  document.addEventListener('change',function(e){
+    if(e.target&&e.target.matches&&e.target.matches('input[name="logoFile"], input[name="employeePhoto"], input[type="file"]')) schedule(120);
+  },true);
+  document.addEventListener('submit',function(e){if(e.target&&e.target.closest&&e.target.closest('#settingsForm,#employeeForm'))schedule(150);},true);
 })();
