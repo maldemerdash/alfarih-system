@@ -13926,3 +13926,44 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   .v106-commission-delete-actions,
   .v109-commission-delete-actions{margin-inline-start:0;justify-content:flex-start;}
 }
+
+/* v110 - أزرار حذف سجلات الموظف ثابتة داخل التصميم الأساسي */
+.v110-delete-title-row{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:16px !important;
+  flex-wrap:wrap !important;
+}
+.v110-delete-title-row > div:first-of-type{min-width:220px;}
+.v110-base-delete-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:10px !important;
+  margin-inline-start:auto !important;
+  flex-wrap:wrap !important;
+}
+.v110-visible-delete-btn{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:8px !important;
+  min-height:40px !important;
+  border-radius:12px !important;
+  white-space:nowrap !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  transform:none !important;
+}
+.v110-visible-delete-btn svg{width:17px;height:17px;stroke-width:2.2px;}
+.v110-commission-record-row{margin-top:18px;margin-bottom:10px;}
+[data-section-panel="leaveTravelHistory"] .v81-form-history-holder{margin-top:12px;}
+.v106-commission-record-head,.v109-commission-record-head{display:none !important;}
+.v81-history-head > [data-v102-delete-all],
+.v80-history-head > [data-v102-delete-all]{display:none !important;}
+@media (max-width: 720px){
+  .v110-delete-title-row{align-items:stretch !important;}
+  .v110-base-delete-actions{width:100% !important;justify-content:stretch !important;}
+  .v110-visible-delete-btn{flex:1 1 100% !important;width:100% !important;}
+}

@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=20260701-v108-base-actions" />
+    <link rel="stylesheet" href="style.css?v=20260701-v110-static-delete-buttons" />
   </head>
   <body>
     <div class="app-shell">
@@ -676,6 +676,7 @@
               <button type="button" data-employee-section="identity"><span data-icon="shield"></span>الهوية والجوازات</button>
               <button type="button" data-employee-section="employment"><span data-icon="building"></span>البيانات الوظيفية</button>
               <button type="button" data-employee-section="salary"><span data-icon="wallet"></span>تفاصيل الراتب</button>
+              <button type="button" data-employee-section="leaveTravelHistory"><span data-icon="calendar"></span>سجل الإجازات والسفر</button>
               <button type="button" data-employee-section="commissions"><span data-icon="trend-up"></span>العمولات</button>
               <button type="button" data-employee-section="banking"><span data-icon="wallet"></span>البيانات البنكية</button>
               <button type="button" data-employee-section="contact"><span data-icon="phone"></span>بيانات الاتصال</button>
@@ -751,6 +752,18 @@
               <p class="calculation-note" id="salaryCalculationNote"></p>
             </section>
 
+            <section class="employee-tab-panel" data-section-panel="leaveTravelHistory">
+              <div class="form-section-title section-title-with-action v110-delete-title-row">
+                <span data-icon="calendar"></span>
+                <div><h3>سجل الإجازات والسفر</h3><p>سجل الموظف الحالي من السفر والإجازات والمرفقات والطباعة.</p></div>
+                <div class="v110-base-delete-actions" aria-label="أزرار حذف سجلات الإجازات والسفر">
+                  <button type="button" class="secondary-btn v102-delete-all v110-visible-delete-btn" data-v102-delete-all="travel"><span data-icon="trash"></span>حذف كامل سجل السفر</button>
+                  <button type="button" class="secondary-btn v102-delete-all v110-visible-delete-btn" data-v102-delete-all="leave"><span data-icon="trash"></span>حذف كامل سجل الإجازات</button>
+                </div>
+              </div>
+              <div class="v81-form-history-holder"></div>
+            </section>
+
             <section class="employee-tab-panel" data-section-panel="commissions">
               <div class="form-section-title section-title-with-action"><span data-icon="trend-up"></span><div><h3>العمولات</h3><p>احتساب العمولة وصرفها وإصدار المخالصة</p></div><button type="button" class="commission-pay-btn" id="payCommissionBtn" aria-label="صرف العمولة" hidden><span data-icon="wallet"></span></button></div>
               <div class="form-grid form-grid-4">
@@ -760,7 +773,7 @@
                 <label class="span-2"><span>تفقيط قيمة العمولة</span><input name="commissionWords" type="text" class="calculated-field tafqeet-field" readonly /></label>
                 <label><span>تاريخ صرف العمولة</span><input name="commissionPaymentDate" class="calculated-field" readonly /></label>
               </div>
-              <div class="subsection-head"><div><h4>سجل العمولات</h4><p>العمولات المصروفة لا يمكن حذفها</p></div></div>
+              <div class="subsection-head section-title-with-action v110-delete-title-row v110-commission-record-row"><div><h4>سجل العمولات</h4><p>العمولات النقدية مستقلة ولا تدخل في مسير الرواتب</p></div><div class="v110-base-delete-actions"><button type="button" class="secondary-btn v102-delete-all v102-commission-delete-all v110-visible-delete-btn" data-v102-delete-commissions-all=""><span data-icon="trash"></span>حذف كامل سجل العمولات</button></div></div>
               <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>#</th><th>بداية الاستحقاق</th><th>عدد الأيام</th><th>القيمة</th><th>تاريخ الصرف</th><th>المخالصة</th></tr></thead><tbody id="commissionHistoryBody"></tbody></table></div>
             </section>
 
@@ -949,6 +962,6 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=20260701-v108-base-actions"></script>
+    <script src="app.js?v=20260701-v110-static-delete-buttons"></script>
   </body>
 </html>
