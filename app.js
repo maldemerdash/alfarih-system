@@ -1062,3 +1062,52 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('DOMContentLoaded', function(){ ensureTravelApprovalModal(); schedule(0); schedule(600); });
   setTimeout(function(){ ensureTravelApprovalModal(); schedule(0); }, 300);
 })();
+
+/* v77 hard enforcement: ensure the v76 leaves/travel layout is the final renderer.
+   This fixes the case where older v68/v69 render hooks repaint the old leaves page after navigation. */
+(function(){
+  if(window.__v77HardLeavesTravelLayoutEnforcer) return;
+  window.__v77HardLeavesTravelLayoutEnforcer = true;
+  function q(s,r){ return (r||document).querySelector(s); }
+  function useNewLayout(){
+    var view=q('#leavesView');
+    if(!view || !view.classList.contains('active')) return;
+    try{
+      if(typeof window.nawahRenderLeavesV76 === 'function'){
+        window.nawahRenderLeavesV76();
+      }
+    }catch(e){ console.warn('تعذر فرض هيكلة الإجازات والسفر v77', e); }
+  }
+  function schedule(){
+    [0,80,180,360,700].forEach(function(ms){ setTimeout(useNewLayout, ms); });
+  }
+  try{
+    if(typeof window.nawahRenderLeavesV76 === 'function'){
+      window.renderLeaves = window.nawahRenderLeavesV76;
+      try { renderLeaves = window.nawahRenderLeavesV76; } catch(_) {}
+    }
+  }catch(_){}
+  try{
+    var oldRenderAll = window.renderAll || (typeof renderAll==='function' ? renderAll : null);
+    if(oldRenderAll && !oldRenderAll.__v77HardLeavesTravelLayoutEnforcer){
+      var wrapped = function(){ var result = oldRenderAll.apply(this, arguments); schedule(); return result; };
+      wrapped.__v77HardLeavesTravelLayoutEnforcer = true;
+      window.renderAll = wrapped;
+      try { renderAll = wrapped; } catch(_) {}
+    }
+  }catch(_){}
+  document.addEventListener('click', function(e){
+    var target = e.target && e.target.closest ? e.target.closest('[data-page="leaves"], #leavesView, [data-v76-tab], [data-v76-filter], #newTravelBtn, #newLeaveBtn, [data-travel-approve], [data-travel-reject], [data-travel-resume], [data-leave-action], [data-leave-return]') : null;
+    if(target) schedule();
+  }, true);
+  document.addEventListener('DOMContentLoaded', schedule);
+  setTimeout(schedule, 200);
+  setTimeout(schedule, 1200);
+  var tries = 0;
+  var timer = setInterval(function(){
+    tries += 1;
+    var view=q('#leavesView');
+    if(view && view.classList.contains('active') && !q('#leavesView .v76-leave-page')) useNewLayout();
+    if(tries > 20 || (view && q('#leavesView .v76-leave-page'))) clearInterval(timer);
+  }, 500);
+})();
