@@ -2318,3 +2318,51 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   try{new MutationObserver(function(){clearTimeout(refreshTimer);refreshTimer=setTimeout(decorate,180)}).observe(document.body,{childList:true,subtree:true})}catch(_){}
   document.addEventListener('DOMContentLoaded',function(){setTimeout(decorate,250)}); setTimeout(decorate,500);
 })();
+
+/* v108 - keep employee bottom actions in the base modal shell immediately on open */
+(function(){
+  if(window.__v108EmployeeBaseActionBar)return;
+  window.__v108EmployeeBaseActionBar=true;
+  function q(s,r){return (r||document).querySelector(s)}
+  function ensure(){
+    var modal=q('#employeeModal'), form=q('#employeeForm');
+    if(!modal||!form)return;
+    var actions=q('.employee-form-actions',form)||q('#employeeModal .employee-form-actions');
+    if(!actions)return;
+    if(actions.parentNode!==form)form.appendChild(actions);
+    actions.hidden=false;
+    actions.removeAttribute('hidden');
+    actions.style.display='block';
+    actions.style.visibility='visible';
+    actions.style.opacity='1';
+    actions.style.transform='none';
+    var main=q('.employee-main-actions',actions);
+    if(main){
+      main.hidden=false;
+      main.removeAttribute('hidden');
+      main.style.display='flex';
+      main.style.visibility='visible';
+      main.style.opacity='1';
+      main.style.transform='none';
+    }
+    ['.employee-save-btn','.employee-cancel-btn','#endEmployeeServiceBtn'].forEach(function(sel){
+      var btn=q(sel,actions);
+      if(btn){btn.hidden=false;btn.removeAttribute('hidden');btn.style.visibility='visible';btn.style.opacity='1';btn.style.transform='none';}
+    });
+  }
+  document.addEventListener('DOMContentLoaded',ensure);
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-edit-employee],#addEmployeeBtn,.edit-employee-btn,[data-view-employee],.view-employee-btn')){
+      ensure();
+      setTimeout(ensure,0);
+      setTimeout(ensure,80);
+    }
+  },true);
+  try{
+    var modal=document.getElementById('employeeModal');
+    if(modal)new MutationObserver(ensure).observe(modal,{attributes:true,attributeFilter:['open','class']});
+    var form=document.getElementById('employeeForm');
+    if(form)new MutationObserver(ensure).observe(form,{childList:true,subtree:false});
+  }catch(_){ }
+  ensure();
+})();

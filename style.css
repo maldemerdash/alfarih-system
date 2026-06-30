@@ -13766,3 +13766,114 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
     width: 100% !important;
   }
 }
+
+/* v108: employee action bar is part of the base modal layout, not dependent on tab/content loading */
+#employeeModal.employee-profile-modal[open]{
+  overflow:hidden!important;
+}
+#employeeModal.employee-profile-modal #employeeForm{
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr) auto!important;
+  height:100%!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+#employeeModal.employee-profile-modal #employeeForm > .modal-head{
+  grid-row:1!important;
+  flex:0 0 auto!important;
+}
+#employeeModal.employee-profile-modal #employeeForm > .employee-workspace{
+  grid-row:2!important;
+  min-height:0!important;
+  overflow:hidden!important;
+}
+#employeeModal.employee-profile-modal #employeeForm > .employee-form-actions{
+  grid-row:3!important;
+  display:block!important;
+  position:relative!important;
+  bottom:auto!important;
+  z-index:90!important;
+  flex:0 0 auto!important;
+  min-height:82px!important;
+  opacity:1!important;
+  visibility:visible!important;
+  transform:none!important;
+  pointer-events:auto!important;
+  content-visibility:visible!important;
+  contain:layout style paint!important;
+  margin:0 28px 18px!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+#employeeModal.employee-profile-modal #employeeForm > .employee-form-actions[hidden]{
+  display:block!important;
+}
+#employeeModal.employee-profile-modal #employeeForm > .employee-form-actions .employee-main-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:14px!important;
+  min-height:70px!important;
+  width:100%!important;
+  padding:14px 20px!important;
+  border:1px solid var(--border)!important;
+  border-radius:18px!important;
+  background:#fff!important;
+  box-shadow:var(--shadow-soft)!important;
+  box-sizing:border-box!important;
+  opacity:1!important;
+  visibility:visible!important;
+  transform:none!important;
+  direction:ltr!important;
+}
+#employeeModal.employee-profile-modal #employeeForm > .employee-form-actions .employee-main-actions button{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:9px!important;
+  height:42px!important;
+  min-height:42px!important;
+  border-radius:10px!important;
+  padding:0 17px!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  opacity:1!important;
+  visibility:visible!important;
+  transform:none!important;
+  direction:rtl!important;
+}
+#employeeModal.employee-profile-modal #employeeForm > .employee-form-actions .employee-save-btn{
+  min-width:205px!important;
+}
+#employeeModal.employee-profile-modal #employeeForm > .employee-form-actions .employee-cancel-btn{
+  min-width:100px!important;
+  background:#e34d4d!important;
+  border-color:#e34d4d!important;
+  color:#fff!important;
+}
+#employeeModal.employee-profile-modal #employeeForm > .employee-form-actions .employee-end-service-btn{
+  min-width:205px!important;
+  margin:0!important;
+}
+@media (max-width:720px){
+  #employeeModal.employee-profile-modal #employeeForm{
+    display:flex!important;
+    flex-direction:column!important;
+  }
+  #employeeModal.employee-profile-modal #employeeForm > .employee-form-actions{
+    margin:0 12px 12px!important;
+    min-height:0!important;
+  }
+  #employeeModal.employee-profile-modal #employeeForm > .employee-form-actions .employee-main-actions{
+    flex-direction:column!important;
+    align-items:stretch!important;
+    min-height:0!important;
+  }
+  #employeeModal.employee-profile-modal #employeeForm > .employee-form-actions .employee-main-actions button{
+    width:100%!important;
+  }
+}
