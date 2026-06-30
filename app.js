@@ -2259,15 +2259,30 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   function employeeFromSection(section){var empId=formEmpId()||currentEmpId(section);return empId?getEmp(empId):null}
   function refreshCommissionSections(){setTimeout(function(){decorate()},60)}
   function decorateCommissions(){
-    qa('[data-section-panel="commissions"], .employee-profile-card').forEach(function(section){
+    qa('[data-section-panel="commissions"]').forEach(function(section){
       var text=(section.textContent||''); if(text.indexOf('عمول')<0)return;
       var emp=employeeFromSection(section); if(!emp||!emp.id)return;
-      var title=q('.form-section-title,.employee-profile-card h3',section);
-      var container=title&&title.classList&&title.classList.contains('form-section-title')?title:(title?title.parentElement:null);
-      if(container&&!q('[data-v102-delete-commissions-all]',container)){
-        var btn=document.createElement('button');btn.type='button';btn.className='secondary-btn v102-delete-all v102-commission-delete-all';btn.setAttribute('data-v102-delete-commissions-all',String(emp.id));btn.innerHTML='<span data-icon="trash"></span>حذف كامل سجل العمولات';container.appendChild(btn);
+      qa('[data-v102-delete-commissions-all]',section).forEach(function(oldBtn){
+        if(!oldBtn.closest('.v103-commission-delete-actions')) oldBtn.remove();
+      });
+      var table=q('table',section);
+      var actions=q('.v103-commission-delete-actions',section);
+      if(!actions){
+        actions=document.createElement('div');
+        actions.className='v103-commission-delete-actions';
+        if(table&&table.parentNode){table.parentNode.insertBefore(actions,table.nextSibling)}
+        else section.appendChild(actions);
       }
-      var table=q('table',section); if(!table)return;
+      var btn=q('[data-v102-delete-commissions-all]',actions);
+      if(!btn){
+        btn=document.createElement('button');
+        btn.type='button';
+        btn.className='secondary-btn v102-delete-all v102-commission-delete-all';
+        btn.innerHTML='<span data-icon="trash"></span>حذف كامل سجل العمولات';
+        actions.appendChild(btn);
+      }
+      btn.setAttribute('data-v102-delete-commissions-all',String(emp.id));
+      if(!table)return;
       var hrow=q('thead tr',table); if(hrow&&!q('.v102-delete-th',hrow)){var th=document.createElement('th');th.className='v102-delete-th';th.textContent='حذف';hrow.appendChild(th)}
       var arr=Array.isArray(emp.commissions)?emp.commissions:[];
       qa('tbody tr',table).forEach(function(row,i){if(row.querySelector('.v102-row-delete-cell')||/لا توجد|لا يوجد/.test(row.textContent||''))return;addDeleteCell(row,'commission',String(i));});

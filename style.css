@@ -13620,3 +13620,9 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .v102-danger-btn:hover,.danger-btn:hover{background:#b42318!important;border-color:#b42318!important}
 .v81-history-head,.v80-history-head{align-items:center;gap:12px;flex-wrap:wrap}
 @media (max-width:640px){.v102-choice-grid{grid-template-columns:1fr}.v102-delete-head{padding:18px}.v102-delete-body{padding:16px 18px}.v102-delete-actions{padding:14px 18px 18px}.v102-delete-all{width:100%;justify-content:center}}
+
+/* v103 commission delete button placement */
+.v103-commission-delete-actions{display:flex;justify-content:flex-end;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid #e4edf5;direction:rtl}
+.v103-commission-delete-actions .v102-commission-delete-all{margin-inline-start:0;margin-inline-end:auto}
+.v81-employee-history-card [data-v102-delete-commissions-all],
+.v80-employee-history-card [data-v102-delete-commissions-all]{display:none!important}
