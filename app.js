@@ -1340,10 +1340,17 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   }}
   function applyCompanyBranding(data=getCompany()){
     const name=(data.company||DEFAULT_COMPANY.company).trim();
-    document.title=`${name} | إدارة الموظفين`;
-    document.querySelectorAll('.auth-logo').forEach(el=>{if(data.logoDataUrl){el.classList.add('has-company-logo');el.innerHTML=`<img src="${escape(data.logoDataUrl)}" alt="${escape(name)}">`}else{el.classList.remove('has-company-logo');el.textContent=(name||'ن').trim().charAt(0)||'ن'}});
+    const title=`${name} | إدارة الموظفين`;
+    if(document.title!==title)document.title=title;
+    const brandKey=`${name}|${data.logoDataUrl||''}`;
+    document.querySelectorAll('.auth-logo').forEach(el=>{
+      if(el.dataset.v93BrandKey===brandKey)return;
+      el.dataset.v93BrandKey=brandKey;
+      if(data.logoDataUrl){el.classList.add('has-company-logo');el.innerHTML=`<img src="${escape(data.logoDataUrl)}" alt="${escape(name)}" loading="eager" decoding="async">`}
+      else{el.classList.remove('has-company-logo');el.textContent=(name||'ن').trim().charAt(0)||'ن'}
+    });
     const authTitle=document.querySelector('.auth-card h2');
-    if(authTitle&&!authTitle.dataset.v92Static)authTitle.textContent='تسجيل الدخول';
+    if(authTitle&&!authTitle.dataset.v92Static&&authTitle.textContent!=='تسجيل الدخول')authTitle.textContent='تسجيل الدخول';
   }
   document.addEventListener('submit',e=>{const form=e.target?.closest?.('#settingsForm[data-v92-company="1"]');if(!form)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation?.();const next=saveCompany(collectCompanyForm(form));renderCompanySettingsForm();try{typeof showToast==='function'?showToast('تم حفظ بيانات المنشأة وتحديث هوية تسجيل الدخول.'):alert('تم حفظ بيانات المنشأة.')}catch(_){alert('تم حفظ بيانات المنشأة.')}},true);
   const previousRenderSettings=typeof renderSettings==='function'?renderSettings:null;
@@ -1361,9 +1368,36 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     const wrapped=function(state){const result=previousApplyCloudState.apply(this,arguments);try{if(state?.companySettingsV92)localStorage.setItem(STORAGE_KEY,JSON.stringify({...DEFAULT_COMPANY,...state.companySettingsV92}))}catch(_){}setTimeout(()=>{renderCompanySettingsForm();applyCompanyBranding()},0);return result};
     wrapped.__v92CompanySettings=true;try{applyCloudState=wrapped}catch(_){}window.applyCloudState=wrapped;
   }
-  const obs=new MutationObserver(()=>applyCompanyBranding());
-  try{obs.observe(document.documentElement,{childList:true,subtree:true})}catch(_){}
+  let v93BrandingTimer=null;
+  function scheduleCompanyBranding(){
+    if(v93BrandingTimer)return;
+    v93BrandingTimer=setTimeout(()=>{v93BrandingTimer=null;applyCompanyBranding()},220);
+  }
+  try{
+    const authRoot=document.querySelector('.auth-card')||document.querySelector('#loginView')||document.querySelector('#authView');
+    if(authRoot)new MutationObserver(scheduleCompanyBranding).observe(authRoot,{childList:true,subtree:true});
+  }catch(_){}
   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{renderCompanySettingsForm();applyCompanyBranding()},80)});
   window.addEventListener('load',()=>setTimeout(()=>{renderCompanySettingsForm();applyCompanyBranding()},160));
   setTimeout(()=>{renderCompanySettingsForm();applyCompanyBranding()},400);
+})();
+
+/* v93 - speed pass: reduce repeated renders and heavy global observers */
+(function(){
+  if(window.__v93SpeedPass)return;window.__v93SpeedPass=true;
+  try{document.documentElement.classList.add('v93-speed-pass')}catch(_){}
+  const oldQS=Element.prototype.querySelectorAll;
+  const pageCache={key:'',time:0,value:null};
+  function activeView(){try{return document.querySelector('.view.active')||document}catch(_){return document}}
+  const oldRenderAll=window.renderAll||('function'==typeof renderAll?renderAll:null);
+  if(oldRenderAll&&!oldRenderAll.__v93SpeedPass){
+    let queued=false,lastArgs=null;
+    const wrapped=function(){lastArgs=arguments;if(queued)return;queued=true;const run=()=>{queued=false;try{return oldRenderAll.apply(this,lastArgs||[])}finally{lastArgs=null}};(window.requestAnimationFrame||function(cb){return setTimeout(cb,16)})(run)};
+    wrapped.__v93SpeedPass=true;try{renderAll=wrapped}catch(_){}window.renderAll=wrapped;
+  }
+  const oldHydrate=window.hydrateIcons||('function'==typeof hydrateIcons?hydrateIcons:null);
+  if(oldHydrate&&!oldHydrate.__v93SpeedPass){
+    const wrapped=function(root){root=root||activeView();try{root.querySelectorAll('[data-icon]').forEach(el=>{const name=el.getAttribute('data-icon')||'';if(el.dataset.v93Icon===name&&el.firstElementChild)return;el.dataset.v93Icon=name;el.innerHTML=typeof iconSvg==='function'?iconSvg(name):''});}catch(e){return oldHydrate.apply(this,arguments)}};
+    wrapped.__v93SpeedPass=true;try{hydrateIcons=wrapped}catch(_){}window.hydrateIcons=wrapped;
+  }
 })();
