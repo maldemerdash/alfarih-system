@@ -1401,3 +1401,123 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     wrapped.__v93SpeedPass=true;try{hydrateIcons=wrapped}catch(_){}window.hydrateIcons=wrapped;
   }
 })();
+
+/* v94 - company logo, national address attachment download, full Saudi address guide loader */
+(function(){
+  if(window.__v94CompanyAddressPolish)return;window.__v94CompanyAddressPolish=true;
+  const STORAGE_KEY='nawah-company-settings-v92';
+  const DEFAULT_COMPANY={company:'شركة نواة للحلول الرقمية',unifiedNumber:'7012345678',email:'info@nawah.sa',phone:'0112345678',shortAddress:'',poBox:'',region:'',city:'',district:'',street:'',additionalNumber:'',postalCode:'',logoDataUrl:'',nationalAddressFileName:'',nationalAddressFileDataUrl:''};
+  const RAW={
+    regions:'https://raw.githubusercontent.com/homaily/Saudi-Arabia-Regions-Cities-and-Districts/master/json/regions.json',
+    cities:'https://raw.githubusercontent.com/homaily/Saudi-Arabia-Regions-Cities-and-Districts/master/json/cities.json',
+    districts:'https://raw.githubusercontent.com/homaily/Saudi-Arabia-Regions-Cities-and-Districts/master/json/districts.json'
+  };
+  const FALLBACK_GUIDE={
+    'منطقة الرياض':{'الرياض':['الملقا','العقيق','الياسمين','النرجس','حطين','الصحافة','قرطبة','الروضة','العليا','السليمانية','النسيم','اليرموك','المرسلات','الورود','النزهة','الربوة','الريان','النهضة','الحمراء','السويدي'],'الدرعية':['البجيري','الطريف','الخالدية','ظهرة العودة'],'الخرج':['الخزامى','الريان','السلام','اليمامة','الواحة'],'المجمعة':['الملك فهد','الفيحاء','اليرموك'],'الدوادمي':['السلام','الروضة','النهضة'],'وادي الدواسر':['الخماسين','النويعمة'],'الزلفي':['العزيزية','السيح'],'شقراء':['الروضة','الربوة'],'القويعية':['النزهة','الروضة'],'الأفلاج':['ليلى','الخالدية'],'حوطة بني تميم':['السلام','الريان'],'رماح':['النهضة','الروضة']},
+    'منطقة مكة المكرمة':{'مكة المكرمة':['العوالي','الشوقية','النوارية','الشرائع','العزيزية','بطحاء قريش','الزاهر','الهجرة','النسيم','الراشدية'],'جدة':['الشاطئ','السلامة','الروضة','الصفا','النسيم','الفيصلية','الحمراء','النهضة','السامر','البوادي','الزهراء','المحمدية','الربوة','أبحر الشمالية','المرجان'],'الطائف':['شهار','الحوية','النسيم','الفيصلية','الوسام','الروضة'],'رابغ':['الصمد','النهضة'],'القنفذة':['الخالدية','الشاطئ'],'الليث':['السلام','الشاطئ'],'خليص':['الغربي','الشرقي'],'الجموم':['العزيزية','النسيم'],'الكامل':['المركز'],'أضم':['المركز'],'ميسان':['المركز'],'تربة':['الخالدية'],'رنية':['الفيصلية'],'الخرمة':['الروضة']},
+    'المنطقة الشرقية':{'الدمام':['الشاطئ','الفيصلية','النور','الروضة','المزروعية','طيبة','الجامعيين','بدر','الندى','الشعلة'],'الخبر':['العقربية','الثقبة','الراكة','الحزام الذهبي','الكورنيش','اليرموك','الجسر','الحمراء'],'الظهران':['الدوحة','القشلة','حي الجامعة','الدانة','هجر'],'الأحساء':['الهفوف','المبرز','الصالحية','الخالدية','الفيصلية'],'الجبيل':['الفناتير','البلد','الحويلات','الدفي'],'القطيف':['البحاري','الناصرة','المجيدية'],'حفر الباطن':['البلدية','المحمدية','الخالدية'],'رأس تنورة':['الدانة','الزهور'],'بقيق':['الروضة','الأندلس'],'الخفجي':['العزيزية','الملك فهد'],'النعيرية':['الروضة','الزهور'],'قرية العليا':['المركز']},
+    'منطقة المدينة المنورة':{'المدينة المنورة':['العزيزية','قباء','الهجرة','الخالدية','العوالي','الفيصلية','العاقول','شوران','الدفاع','السلام'],'ينبع':['السميري','البندر','النواة','الصناعية','العيون'],'العلا':['الجديدة','الصخيرات'],'بدر':['الشهداء','الروضة'],'خيبر':['المركز'],'الحناكية':['الخالدية'],'مهد الذهب':['الصفا'],'العيص':['المركز']},
+    'منطقة القصيم':{'بريدة':['الريان','الإسكان','الصفراء','الخالدية','النهضة','المنتزه','الفايزية'],'عنيزة':['الأشرفية','الفاخرية','الملك خالد','الصالحية'],'الرس':['الزهرة','الخليج','الروضة'],'المذنب':['الخالدية','الفيصلية'],'البكيرية':['الهلالية','الخليج'],'البدائع':['الوسطى','المنار'],'رياض الخبراء':['الروضة'],'الأسياح':['المركز'],'النبهانية':['المركز'],'عيون الجواء':['المركز']},
+    'منطقة عسير':{'أبها':['المنسك','المروج','الخالدية','النميص','الربوة','الوردتين'],'خميس مشيط':['الواحة','النسيم','الرصراص','الراقي','عتود'],'بيشة':['الخالدية','المطار','النقيع'],'محايل':['الضرس','الحيلة'],'النماص':['السلام','الفيصلية'],'أحد رفيدة':['الروضة','الخالدية'],'ظهران الجنوب':['المركز'],'سراة عبيدة':['المركز'],'بلقرن':['سبت العلايا'],'تنومة':['المركز'],'بارق':['المركز'],'المجاردة':['المركز'],'رجال ألمع':['المركز']},
+    'منطقة جازان':{'جازان':['الروضة','الشاطئ','السويس','المطار','الصفا','النسيم'],'صبيا':['الملك فهد','النهضة','الروضة'],'أبو عريش':['الصفا','النهضة'],'صامطة':['الروضة','الخالدية'],'بيش':['الريان','النهضة'],'الدرب':['الشاطئ','الخليج'],'العارضة':['المركز'],'أحد المسارحة':['المركز'],'فرسان':['المركز'],'الطوال':['المركز'],'الدائر':['المركز'],'فيفاء':['المركز'],'هروب':['المركز']},
+    'منطقة تبوك':{'تبوك':['المروج','الورود','العليا','السليمانية','النهضة','المصيف'],'الوجه':['البلد','النهضة'],'ضباء':['المينا','البلد'],'تيماء':['الروضة','الخالدية'],'أملج':['الشاطئ','البلد'],'حقل':['الظهرة','البلد'],'البدع':['المركز']},
+    'منطقة حائل':{'حائل':['النقرة','المنتزه','الزبارة','الخزامى','الملك عبدالله','صلاح الدين'],'بقعاء':['الروضة','المركز'],'الغزالة':['المركز'],'الشنان':['المركز'],'موقق':['المركز'],'الحائط':['المركز'],'السليمي':['المركز'],'سميراء':['المركز']},
+    'منطقة نجران':{'نجران':['الفهد','الفيصلية','أبا السعود','العريسة','الضباط','الأمير مشعل'],'شرورة':['العزيزية','الخالدية'],'حبونا':['المركز'],'يدمة':['المركز'],'بدر الجنوب':['المركز'],'ثار':['المركز'],'خباش':['المركز']},
+    'منطقة الباحة':{'الباحة':['الظفير','شهبة','الزرقاء','الرهوة'],'بلجرشي':['الخالدية','الفيصلية'],'المخواة':['الروضة','النسيم'],'المندق':['المركز'],'العقيق':['المركز'],'قلوة':['المركز'],'القرى':['المركز'],'غامد الزناد':['المركز']},
+    'منطقة الحدود الشمالية':{'عرعر':['المساعدية','الفيصلية','الروضة','الربوة','الخالدية'],'رفحاء':['المدينة','اليرموك','العزيزية'],'طريف':['الخالدية','الفيصلية'],'العويقيلة':['المركز']},
+    'منطقة الجوف':{'سكاكا':['الرحمانية','الشلهوب','المحمدية','الفيصلية','اللقائط'],'القريات':['الفيصلية','النسيم','الخالدية'],'دومة الجندل':['التحكيم','الخالدية'],'طبرجل':['المركز']}
+  };
+  let loadedGuide=null,loadingGuide=null;
+  function safeParse(v,f){try{return v?JSON.parse(v):f}catch(_){return f}}
+  function getCompany(){return {...DEFAULT_COMPANY,...safeParse(localStorage.getItem(STORAGE_KEY),{})}}
+  function saveCompany(data){const current=getCompany(),next={...current,...data};localStorage.setItem(STORAGE_KEY,JSON.stringify(next));try{if(typeof saveCloudStateNow==='function')saveCloudStateNow({force:true});else if(typeof queueCloudStateSave==='function')queueCloudStateSave()}catch(_){}return next}
+  function escape(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+  function arr(x){return Array.isArray(x)?x:Array.isArray(x?.data)?x.data:Array.isArray(x?.regions)?x.regions:Array.isArray(x?.cities)?x.cities:Array.isArray(x?.districts)?x.districts:[]}
+  function getId(o){return String(o?.id??o?.region_id??o?.city_id??o?.district_id??o?.RegionID??o?.CityID??o?.DistrictID??'')}
+  function getName(o){return String(o?.name_ar??o?.nameAr??o?.arabic_name??o?.name??o?.NameAr??o?.name_en??'').trim()}
+  function regionOfCity(o){return String(o?.region_id??o?.regionId??o?.RegionID??o?.region?.id??'')}
+  function cityOfDistrict(o){return String(o?.city_id??o?.cityId??o?.CityID??o?.city?.id??'')}
+  function timeoutFetch(url){const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),5500);return fetch(url,{cache:'force-cache',signal:ctrl.signal}).then(r=>r.ok?r.json():Promise.reject(new Error('bad response'))).finally(()=>clearTimeout(timer))}
+  async function loadSaudiGuide(){
+    if(loadedGuide)return loadedGuide;if(loadingGuide)return loadingGuide;
+    loadingGuide=Promise.all([timeoutFetch(RAW.regions),timeoutFetch(RAW.cities),timeoutFetch(RAW.districts)]).then(([regionsJson,citiesJson,districtsJson])=>{
+      const regions=arr(regionsJson),cities=arr(citiesJson),districts=arr(districtsJson);
+      const regionMap=new Map(),cityMap=new Map(),guide={};
+      regions.forEach(r=>{const id=getId(r),name=getName(r);if(id&&name){regionMap.set(id,name);guide[name]={}}});
+      cities.forEach(c=>{const id=getId(c),name=getName(c),regionName=regionMap.get(regionOfCity(c));if(id&&name&&regionName){cityMap.set(id,{name,region:regionName});guide[regionName][name]=guide[regionName][name]||[]}});
+      districts.forEach(d=>{const city=cityMap.get(cityOfDistrict(d)),name=getName(d);if(city&&name){const list=guide[city.region][city.name]||(guide[city.region][city.name]=[]);if(!list.includes(name))list.push(name)}});
+      Object.keys(guide).forEach(r=>Object.keys(guide[r]).forEach(c=>guide[r][c].sort((a,b)=>a.localeCompare(b,'ar'))));
+      loadedGuide=Object.keys(guide).length?guide:FALLBACK_GUIDE;return loadedGuide;
+    }).catch(()=>{loadedGuide=FALLBACK_GUIDE;return loadedGuide});
+    return loadingGuide;
+  }
+  function guideNow(){return loadedGuide||FALLBACK_GUIDE}
+  function options(items,value,placeholder='اختر'){return [`<option value="">${escape(placeholder)}</option>`].concat((items||[]).map(x=>`<option value="${escape(x)}" ${String(x)===String(value||'')?'selected':''}>${escape(x)}</option>`)).join('')}
+  function fileToDataUrl(file,maxSize){return new Promise((resolve,reject)=>{if(!file)return resolve('');if(file.size>maxSize)return reject(new Error('حجم الملف أكبر من الحد المسموح.'));const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('تعذر قراءة الملف.'));reader.readAsDataURL(file)})}
+  function downloadDataUrl(dataUrl,filename){if(!dataUrl)return;const a=document.createElement('a');a.href=dataUrl;a.download=filename||'national-address';document.body.appendChild(a);a.click();a.remove()}
+  function applyLogoPreview(data){const box=document.querySelector('#companyLogoPreview');if(box)box.innerHTML=data?.logoDataUrl?`<img src="${escape(data.logoDataUrl)}" alt="شعار المنشأة">`:'<span>شعار</span>';document.querySelectorAll('.auth-logo.has-company-logo img,.auth-logo img').forEach(img=>{img.style.objectFit='contain';img.style.borderRadius='16px'});}
+  function applyCompanyBrandingV94(data=getCompany()){
+    const name=(data.company||DEFAULT_COMPANY.company).trim(),title=`${name} | إدارة الموظفين`;if(document.title!==title)document.title=title;
+    document.querySelectorAll('.auth-logo').forEach(el=>{if(data.logoDataUrl){el.classList.add('has-company-logo','v94-brand-logo');el.innerHTML=`<img src="${escape(data.logoDataUrl)}" alt="${escape(name)}" loading="eager" decoding="async">`}else{el.classList.remove('has-company-logo','v94-brand-logo');el.textContent=(name||'ن').charAt(0)}});
+    applyLogoPreview(data);
+  }
+  function updateCityDistrictOptions(form,data=getCompany()){
+    const guide=guideNow(),region=form.elements.region?.value||data.region||'',city=form.elements.city?.value||data.city||'';
+    const cities=Object.keys(guide[region]||{}).sort((a,b)=>a.localeCompare(b,'ar'));
+    const cityValue=cities.includes(city)?city:'';form.elements.city.innerHTML=options(cities,cityValue,'اختر المدينة');
+    const districts=(guide[region]?.[cityValue]||[]).slice().sort((a,b)=>a.localeCompare(b,'ar'));
+    const districtValue=districts.includes(data.district)?data.district:'';
+    form.elements.district.innerHTML=options(districts,districtValue,districts.length?'اختر الحي':'لا توجد أحياء مرتبطة بهذه المدينة');
+    form.elements.district.disabled=!districts.length;
+  }
+  function renderCompanySettingsV94(){
+    const section=document.querySelector('[data-settings-panel="company"]');if(!section)return;
+    const data=getCompany(),guide=guideNow();
+    section.innerHTML=`
+      <div class="panel-head"><div><h3>بيانات المنشأة</h3><p>بيانات فعلية محفوظة وتظهر في هوية النظام وتسجيل الدخول.</p></div></div>
+      <form id="settingsForm" class="settings-form company-settings-real-form v94-company-form" data-v92-company="1" data-v94-company="1">
+        <div class="company-logo-upload company-logo-upload-real v94-logo-upload">
+          <div class="company-logo-preview" id="companyLogoPreview"></div>
+          <div class="company-logo-copy"><strong>شعار المنشأة الفعلي</strong><span>يظهر بحجم أوضح داخل بطاقة تسجيل الدخول بدون قص دائري، ويفضل PNG أو JPG.</span></div>
+          <label class="secondary-btn company-logo-btn">تغيير الشعار<input type="file" name="logoFile" accept="image/png,image/jpeg,image/webp" hidden></label>
+        </div>
+        <div class="form-grid company-real-grid">
+          <label><span>اسم المنشأة</span><input name="company" value="${escape(data.company)}" autocomplete="organization" /></label>
+          <label><span>الرقم الموحد</span><input name="unifiedNumber" value="${escape(data.unifiedNumber)}" inputmode="numeric" /></label>
+          <label><span>البريد الإلكتروني</span><input type="email" name="email" value="${escape(data.email)}" /></label>
+          <label><span>رقم التواصل</span><input name="phone" value="${escape(data.phone)}" inputmode="tel" /></label>
+        </div>
+        <div class="national-address-card v94-national-address-card">
+          <div class="national-address-head"><h4>العنوان الوطني السعودي</h4><p>المنطقة والمدينة والحي قوائم مترابطة، ويتم تحميل الدليل الكامل عند فتح بيانات المنشأة مع نسخة احتياطية محلية.</p></div>
+          <div class="form-grid company-address-grid">
+            <label><span>العنوان المختصر</span><input name="shortAddress" value="${escape(data.shortAddress)}" placeholder="مثال: RDBA1234" /></label>
+            <label><span>صندوق البريد</span><input name="poBox" value="${escape(data.poBox)}" inputmode="numeric" /></label>
+            <label><span>المنطقة</span><select name="region">${options(Object.keys(guide).sort((a,b)=>a.localeCompare(b,'ar')),data.region,'اختر المنطقة')}</select></label>
+            <label><span>المدينة</span><select name="city"></select></label>
+            <label><span>الحي</span><select name="district"></select></label>
+            <label><span>اسم الشارع</span><input name="street" value="${escape(data.street)}" placeholder="اكتب اسم الشارع" /></label>
+            <label><span>الرقم الإضافي</span><input name="additionalNumber" value="${escape(data.additionalNumber)}" inputmode="numeric" maxlength="4" /></label>
+            <label><span>الرمز البريدي</span><input name="postalCode" value="${escape(data.postalCode)}" inputmode="numeric" maxlength="5" /></label>
+            <label class="full-field national-address-attachment"><span>إرفاق العنوان الوطني</span><div class="attachment-line v94-attachment-line"><strong id="nationalAddressFileName">${escape(data.nationalAddressFileName||'لم يتم إرفاق ملف')}</strong><div class="attachment-actions"><label class="secondary-btn">اختيار ملف<input type="file" name="nationalAddressFile" accept="application/pdf,image/png,image/jpeg,image/webp" hidden></label>${data.nationalAddressFileDataUrl?`<button type="button" class="secondary-btn v94-download-address" data-download-national-address="1"><span data-icon="download"></span> تنزيل</button>`:''}</div></div></label>
+          </div>
+        </div>
+        <div class="form-actions"><button type="button" class="secondary-btn" id="resetCompanySettingsBtn">إلغاء التغييرات</button><button type="submit" class="primary-btn">حفظ بيانات المنشأة</button></div>
+      </form>`;
+    const form=section.querySelector('form');applyLogoPreview(data);updateCityDistrictOptions(form,data);
+    form.elements.region?.addEventListener('change',()=>{form.elements.city.value='';form.elements.district.value='';updateCityDistrictOptions(form,{...data,city:'',district:''})});
+    form.elements.city?.addEventListener('change',()=>{const current=getCompany();updateCityDistrictOptions(form,{...current,district:''})});
+    form.elements.company?.addEventListener('input',()=>applyCompanyBrandingV94({...getCompany(),company:form.elements.company.value}));
+    form.elements.logoFile?.addEventListener('change',async e=>{try{const logoDataUrl=await fileToDataUrl(e.target.files?.[0],2*1024*1024);if(logoDataUrl){saveCompany({logoDataUrl});applyCompanyBrandingV94(getCompany());renderCompanySettingsV94();}}catch(err){alert(err.message||'تعذر رفع الشعار')}});
+    form.elements.nationalAddressFile?.addEventListener('change',async e=>{try{const file=e.target.files?.[0];const nationalAddressFileDataUrl=await fileToDataUrl(file,5*1024*1024);if(nationalAddressFileDataUrl){saveCompany({nationalAddressFileDataUrl,nationalAddressFileName:file.name});renderCompanySettingsV94();}}catch(err){alert(err.message||'تعذر رفع ملف العنوان الوطني')}});
+    section.querySelector('[data-download-national-address]')?.addEventListener('click',()=>{const d=getCompany();downloadDataUrl(d.nationalAddressFileDataUrl,d.nationalAddressFileName)});
+    section.querySelector('#resetCompanySettingsBtn')?.addEventListener('click',()=>renderCompanySettingsV94());
+    try{if(typeof hydrateIcons==='function')hydrateIcons(section)}catch(_){}
+    loadSaudiGuide().then(full=>{if(section.isConnected&&document.querySelector('[data-settings-panel="company"] form[data-v94-company="1"]')){const active=getCompany();const f=section.querySelector('form');if(f){f.elements.region.innerHTML=options(Object.keys(full).sort((a,b)=>a.localeCompare(b,'ar')),active.region,'اختر المنطقة');updateCityDistrictOptions(f,active);}}});
+  }
+  document.addEventListener('submit',function(e){const form=e.target?.closest?.('#settingsForm[data-v94-company="1"]');if(!form)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation?.();saveCompany({company:form.elements.company?.value?.trim()||DEFAULT_COMPANY.company,unifiedNumber:form.elements.unifiedNumber?.value?.trim()||'',email:form.elements.email?.value?.trim()||'',phone:form.elements.phone?.value?.trim()||'',shortAddress:form.elements.shortAddress?.value?.trim()||'',poBox:form.elements.poBox?.value?.trim()||'',region:form.elements.region?.value||'',city:form.elements.city?.value||'',district:form.elements.district?.value||'',street:form.elements.street?.value?.trim()||'',additionalNumber:form.elements.additionalNumber?.value?.trim()||'',postalCode:form.elements.postalCode?.value?.trim()||''});applyCompanyBrandingV94();renderCompanySettingsV94();try{typeof showToast==='function'?showToast('تم حفظ بيانات المنشأة وتحديث العنوان الوطني.'):alert('تم حفظ بيانات المنشأة.')}catch(_){alert('تم حفظ بيانات المنشأة.')}},true);
+  const oldRenderSettings=window.renderSettings||('function'==typeof renderSettings?renderSettings:null);
+  if(oldRenderSettings&&!oldRenderSettings.__v94CompanyAddressPolish){const wrapped=function(){const r=oldRenderSettings.apply(this,arguments);setTimeout(renderCompanySettingsV94,30);setTimeout(applyCompanyBrandingV94,40);return r};wrapped.__v94CompanyAddressPolish=true;try{renderSettings=wrapped}catch(_){}window.renderSettings=wrapped;}
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{renderCompanySettingsV94();applyCompanyBrandingV94()},120)});
+  window.addEventListener('load',()=>setTimeout(()=>{renderCompanySettingsV94();applyCompanyBrandingV94()},260));
+  setTimeout(()=>{renderCompanySettingsV94();applyCompanyBrandingV94()},500);
+})();
