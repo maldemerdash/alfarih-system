@@ -2262,18 +2262,35 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     qa('[data-section-panel="commissions"]').forEach(function(section){
       var text=(section.textContent||''); if(text.indexOf('عمول')<0)return;
       var emp=employeeFromSection(section); if(!emp||!emp.id)return;
-      qa('[data-v102-delete-commissions-all]',section).forEach(function(oldBtn){
-        if(!oldBtn.closest('.v103-commission-delete-actions')) oldBtn.remove();
-      });
       var table=q('table',section);
-      var actions=q('.v103-commission-delete-actions',section);
-      if(!actions){
-        actions=document.createElement('div');
-        actions.className='v103-commission-delete-actions';
-        if(table&&table.parentNode){table.parentNode.insertBefore(actions,table.nextSibling)}
-        else section.appendChild(actions);
+      qa('[data-v102-delete-commissions-all]',section).forEach(function(oldBtn){
+        if(!oldBtn.closest('.v106-commission-record-head')) oldBtn.remove();
+      });
+      var head=q('.v106-commission-record-head',section);
+      if(!head){
+        head=document.createElement('div');
+        head.className='v106-commission-record-head';
+        head.innerHTML='<div class="v106-commission-record-title"><strong>سجل العمولات</strong><small>العمولات المصروفة لا يمكن حذفها</small></div><div class="v106-commission-delete-actions"></div>';
+        if(table&&table.parentNode){table.parentNode.insertBefore(head,table)}
+        else section.appendChild(head);
       }
-      var btn=q('[data-v102-delete-commissions-all]',actions);
+      // Hide the old small title only; the new row above the table is the single visual header for the record table.
+      if(!section.dataset.v106CommissionTitleCleaned){
+        var nodes=Array.prototype.slice.call(section.querySelectorAll('h1,h2,h3,h4,h5,h6,strong,b,p,div,span'));
+        nodes.some(function(node){
+          if(head.contains(node)||node.closest('table')||node.closest('button'))return false;
+          var raw=(node.textContent||'').replace(/\s+/g,' ').trim();
+          if(raw==='سجل العمولات'||raw.indexOf('العمولات المصروفة لا يمكن حذفها')>=0){
+            var holder=node.parentElement&&node.parentElement!==section&&node.parentElement.textContent.length<140?node.parentElement:node;
+            holder.classList.add('v106-hidden-commission-title');
+            return true;
+          }
+          return false;
+        });
+        section.dataset.v106CommissionTitleCleaned='1';
+      }
+      var actions=q('.v106-commission-delete-actions',head);
+      var btn=q('[data-v102-delete-commissions-all]',head);
       if(!btn){
         btn=document.createElement('button');
         btn.type='button';
@@ -2284,8 +2301,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
       btn.setAttribute('data-v102-delete-commissions-all',String(emp.id));
       if(!table)return;
       var hrow=q('thead tr',table); if(hrow&&!q('.v102-delete-th',hrow)){var th=document.createElement('th');th.className='v102-delete-th';th.textContent='حذف';hrow.appendChild(th)}
-      var arr=Array.isArray(emp.commissions)?emp.commissions:[];
-      qa('tbody tr',table).forEach(function(row,i){if(row.querySelector('.v102-row-delete-cell')||/لا توجد|لا يوجد/.test(row.textContent||''))return;addDeleteCell(row,'commission',String(i));});
+      qa('tbody tr',table).forEach(function(row,i){if(row.querySelector('.v102-row-delete-cell')||/لا توجد|لا يوجد|لم يتم صرف/.test(row.textContent||''))return;addDeleteCell(row,'commission',String(i));});
       try{if(typeof hydrateIcons==='function')hydrateIcons(section)}catch(_){}
     });
   }

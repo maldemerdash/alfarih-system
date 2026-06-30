@@ -13626,3 +13626,56 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .v103-commission-delete-actions .v102-commission-delete-all{margin-inline-start:0;margin-inline-end:auto}
 .v81-employee-history-card [data-v102-delete-commissions-all],
 .v80-employee-history-card [data-v102-delete-commissions-all]{display:none!important}
+
+/* v106 - professional commission record header: title on the right, delete all on the far left */
+.v106-commission-record-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  direction:rtl;
+  margin:18px 0 10px;
+  padding-top:14px;
+  border-top:1px solid #e4edf5;
+}
+.v106-commission-record-title{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:3px;
+  text-align:right;
+  min-width:0;
+}
+.v106-commission-record-title strong{
+  color:#172033;
+  font-size:15px;
+  font-weight:900;
+  line-height:1.3;
+}
+.v106-commission-record-title small{
+  color:#98a2b3;
+  font-size:11px;
+  font-weight:700;
+  line-height:1.3;
+}
+.v106-commission-delete-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  margin-inline-start:auto;
+  flex:0 0 auto;
+}
+.v106-commission-delete-actions .v102-commission-delete-all{
+  margin:0!important;
+}
+.v106-hidden-commission-title{
+  display:none!important;
+}
+.v103-commission-delete-actions{
+  display:none!important;
+}
+@media (max-width:760px){
+  .v106-commission-record-head{align-items:stretch;flex-direction:column;gap:10px}
+  .v106-commission-delete-actions{margin-inline-start:0;justify-content:stretch}
+  .v106-commission-delete-actions .v102-commission-delete-all{width:100%;justify-content:center}
+}
