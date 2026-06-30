@@ -13967,3 +13967,29 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   .v110-base-delete-actions{width:100% !important;justify-content:stretch !important;}
   .v110-visible-delete-btn{flex:1 1 100% !important;width:100% !important;}
 }
+
+/* v111 - إرجاع أزرار حذف السجلات إلى مكانها القديم داخل بطاقة السجل */
+[data-section-panel="leaveTravelHistory"] > .form-section-title .v110-base-delete-actions{
+  display:none !important;
+}
+.v111-history-delete-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:10px !important;
+  margin-inline-start:auto !important;
+  flex-wrap:wrap !important;
+}
+.v81-history-head > .v111-history-delete-actions,
+.v80-history-head > .v111-history-delete-actions{
+  display:flex !important;
+}
+.v81-history-head .v111-old-place-delete-btn,
+.v80-history-head .v111-old-place-delete-btn{
+  display:inline-flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+}
+@media (max-width:900px){
+  .v111-history-delete-actions{margin-inline-start:0 !important;width:100% !important;justify-content:flex-start !important;}
+}

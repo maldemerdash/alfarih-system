@@ -2384,3 +2384,49 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   window.v110EnsureStaticEmployeeDeleteControls=update;
   update();
 })();
+
+/* v111 - move visible delete buttons back to their original in-card positions */
+(function(){
+  if(window.__v111DeleteButtonsOldPositions) return;
+  window.__v111DeleteButtonsOldPositions = true;
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function formEmpId(){var f=q('#employeeForm');try{return f&&f.elements&&f.elements.employeeId?String(f.elements.employeeId.value||'').trim():''}catch(_){return ''}}
+  function buildBtn(kind,label){
+    var b=document.createElement('button');
+    b.type='button';
+    b.className='secondary-btn v102-delete-all v110-visible-delete-btn v111-old-place-delete-btn';
+    b.setAttribute('data-v102-delete-all',kind);
+    b.innerHTML='<span data-icon="trash"></span><span class="v102-delete-all-text">'+label+'</span>';
+    return b;
+  }
+  function ensure(){
+    var form=q('#employeeForm'); if(!form)return;
+    var panel=q('[data-section-panel="leaveTravelHistory"]',form);
+    if(panel){
+      qa(':scope > .form-section-title .v110-base-delete-actions',panel).forEach(function(el){try{el.remove()}catch(_){}});
+      var head=q('.v81-history-head,.v80-history-head',panel);
+      if(head){
+        qa(':scope > [data-v102-delete-all], :scope > .v111-history-delete-actions',head).forEach(function(el){try{el.remove()}catch(_){}});
+        var box=document.createElement('div');
+        box.className='v111-history-delete-actions';
+        box.appendChild(buildBtn('travel','حذف كامل سجل السفر'));
+        box.appendChild(buildBtn('leave','حذف كامل سجل الإجازات'));
+        head.appendChild(box);
+      }
+    }
+    var id=formEmpId();
+    qa('[data-v102-delete-commissions-all]',form).forEach(function(b){b.setAttribute('data-v102-delete-commissions-all',id||'')});
+    try{if(typeof hydrateIcons==='function')hydrateIcons(form)}catch(_){ }
+  }
+  document.addEventListener('DOMContentLoaded',function(){ensure();setTimeout(ensure,60);setTimeout(ensure,250);setTimeout(ensure,700)});
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-edit-employee],.edit-employee-btn,#addEmployeeBtn,[data-view-employee],.view-employee-btn,[data-employee-section],[data-v81-history-tab],[data-v80-history-tab]')){
+      setTimeout(ensure,0);setTimeout(ensure,80);setTimeout(ensure,220);
+    }
+  },true);
+  document.addEventListener('input',function(e){if(e.target&&e.target.closest&&e.target.closest('#employeeForm'))setTimeout(ensure,0)},true);
+  try{var f=document.getElementById('employeeForm');if(f)new MutationObserver(function(){setTimeout(ensure,0)}).observe(f,{childList:true,subtree:true})}catch(_){ }
+  window.v111EnsureDeleteButtonsOldPositions=ensure;
+  ensure();
+})();
