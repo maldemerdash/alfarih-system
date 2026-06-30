@@ -804,3 +804,79 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('DOMContentLoaded', function(){ ensureTravelApprovalModal(); schedule(0); schedule(600); });
   setTimeout(function(){ ensureTravelApprovalModal(); schedule(0); schedule(500); }, 250);
 })();
+
+/* v79 fix: make travel approval button work inside the new v78 single travel table.
+   This direct handler does not depend on removed legacy render handlers. */
+(function(){
+  if(window.__v79TravelApprovalButtonFix) return;
+  window.__v79TravelApprovalButtonFix = true;
+  var TRAVEL_KEY='nawah-travel-requests';
+  var currentTravelApprovalId='';
+  var DAY=86400000;
+  function q(s,r){ return (r||document).querySelector(s); }
+  function esc(v){ try{return typeof escapeHtml==='function'?escapeHtml(v==null?'':v):String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]||c;});}catch(_){return String(v==null?'':v);} }
+  function fmt(v){ try{return typeof formatDate==='function'?formatDate(v):(v||'—');}catch(_){return v||'—';} }
+  function num(v){ try{return typeof arabicNumber==='function'?arabicNumber(v||0):String(v||0);}catch(_){return String(v||0);} }
+  function today(){ try{return typeof formatInputDate==='function'?formatInputDate(typeof todayAtNoon==='function'?todayAtNoon():new Date()):new Date().toISOString().slice(0,10);}catch(_){return new Date().toISOString().slice(0,10);} }
+  function parse(v){ if(!v) return null; var d=new Date(String(v).slice(0,10)+'T12:00:00'); return isNaN(d.getTime())?null:d; }
+  function end(v){ return v?parse(v):new Date('9999-12-31T12:00:00'); }
+  function overlaps(a1,a2,b1,b2){ var x=parse(a1), y=end(a2||a1), p=parse(b1), z=end(b2||b1); return !!(x&&y&&p&&z&&x<=z&&p<=y); }
+  function days(a,b){ var x=parse(a), y=parse(b||a); return x&&y&&y>=x?Math.floor((y-x)/DAY)+1:0; }
+  function readTravels(){ try{var a=JSON.parse(localStorage.getItem(TRAVEL_KEY)||'[]'); return Array.isArray(a)?a:[];}catch(_){return [];} }
+  function saveTravels(a){ try{localStorage.setItem(TRAVEL_KEY,JSON.stringify(Array.isArray(a)?a:[]));}catch(_){} try{if(typeof queueCloudStateSave==='function') queueCloudStateSave();}catch(_){} }
+  function readLeavesSafe(){ try{ if(typeof leaves!=='undefined'&&Array.isArray(leaves)) return leaves; }catch(_){} try{var a=JSON.parse(localStorage.getItem('nawah-leaves')||'[]'); return Array.isArray(a)?a:[];}catch(_){return [];} }
+  function emp(id){ try{if(typeof getEmployee==='function') return getEmployee(id);}catch(_){} try{if(Array.isArray(employees)) return employees.find(function(e){return String(e.id)===String(id);});}catch(_){} return null; }
+  function empName(id){ var e=emp(id); return e&&e.name?e.name:'الموظف'; }
+  function openTravel(r){ if(!r) return false; var st=r.status||'pending'; if(st==='rejected'||st==='returned'||st==='cancelled'||st==='canceled') return false; if(r.workResumeDate||r.returnedAt||r.closedAt) return false; return st==='pending'||st==='approved'||st==='travel'||st==='مسافر'; }
+  function openLeave(r){ if(!r) return false; var st=r.status||'pending'; if(st==='rejected'||st==='returned'||st==='cancelled'||st==='canceled') return false; if(r.returnDate||r.returnConfirmedAt||r.closedAt) return false; return st==='pending'||st==='approved'||st==='leave'||st==='إجازة'; }
+  function conflictForTravel(req){
+    if(!req) return null;
+    var eid=String(req.employeeId||'');
+    var travels=readTravels();
+    for(var i=0;i<travels.length;i++){ var t=travels[i]; if(!t||String(t.id)===String(req.id)||String(t.employeeId||'')!==eid||!openTravel(t)) continue; if(overlaps(req.travelDate,req.returnDate||'',t.travelDate,t.returnDate||'')) return {kind:'travel',request:t}; }
+    var leaveList=readLeavesSafe();
+    for(var j=0;j<leaveList.length;j++){ var l=leaveList[j]; if(!l||String(l.employeeId||'')!==eid||!openLeave(l)) continue; if(overlaps(req.travelDate,req.returnDate||'',l.from,l.to||l.from)) return {kind:'leave',request:l}; }
+    return null;
+  }
+  function showBlock(msg){ try{ if(typeof showNotification==='function') return showNotification(msg,'error'); }catch(_){} try{ alert(msg); }catch(_){} }
+  function conflictMessage(req,c){ var old=c.kind==='travel'?'طلب سفر':'طلب إجازة'; var date=c.kind==='travel'?(c.request.travelDate||''):(c.request.from||''); return 'لا يمكن اعتماد طلب السفر للموظف '+empName(req.employeeId)+' بسبب وجود '+old+' قائم أو متداخل بتاريخ '+date+'. يجب رفض/إغلاق الطلب السابق أو تسجيل المباشرة أولًا.'; }
+  function requestDays(req){ return days(req.travelDate,req.returnDate||req.travelDate); }
+  function confirmBalance(req,e){ try{ if(typeof window.nawahConfirmBalanceOverageV66==='function') return window.nawahConfirmBalanceOverageV66('travel',req,e,requestDays(req)); }catch(_){} return true; }
+  function currentAccrual(e){ try{ if(typeof commissionAccrualStart==='function') return commissionAccrualStart(e); }catch(_){} return e&&(e.commissionAccrualStartDate||e.joinDate||today()); }
+  function commissionRecord(e,start,end,req){ try{ if(typeof buildCommissionRecord==='function') return buildCommissionRecord(e,start,end,'travel',{id:req.id,type:'سفر',from:req.travelDate,to:req.returnDate||req.travelDate}); }catch(_){} return null; }
+  async function persistEmp(e){ try{ employees=employees.map(function(x){return String(x.id)===String(e.id)?e:x;}); }catch(_){} try{ if(typeof dbSaveEmployee==='function') await dbSaveEmployee(e); }catch(_){} try{ if(typeof queueCloudStateSave==='function') queueCloudStateSave(); }catch(_){} }
+  async function saveFiles(){ var out={}; var ticket=q('#travelTicketAttachmentInput'); var visa=q('#travelVisaAttachmentInput'); try{ if(ticket&&ticket.files&&ticket.files[0]&&typeof saveAttachment==='function') out.ticketAttachmentId=await saveAttachment(ticket.files[0],'travel-ticket'); }catch(e){console.warn(e);} try{ if(visa&&visa.files&&visa.files[0]&&typeof saveAttachment==='function') out.visaAttachmentId=await saveAttachment(visa.files[0],'travel-visa'); }catch(e){console.warn(e);} return out; }
+  function fileBox(id,label,hint){ return '<label class="v78-upload-box" for="'+id+'"><input id="'+id+'" type="file" accept="image/*,.pdf" /><span class="v78-upload-icon" data-icon="file"></span><span class="v78-upload-text"><strong>'+esc(label)+'</strong><small>'+esc(hint||'PDF أو صورة واضحة')+'</small><em data-file-label="'+id+'">لم يتم اختيار ملف</em></span></label>'; }
+  function ensureModal(){
+    var dlg=q('#travelApprovalModal');
+    if(!dlg){ dlg=document.createElement('dialog'); dlg.className='modal v78-travel-approval-modal'; dlg.id='travelApprovalModal'; document.body.appendChild(dlg); }
+    dlg.dataset.v79Modal='true';
+    if(!dlg.querySelector('#approveTravelOnlyBtn') || !dlg.querySelector('#v78TravelApprovalSummary')){
+      dlg.innerHTML='<div class="v78-modal-shell"><div class="modal-head v78-approval-head"><div><h2>اعتماد طلب السفر</h2><p>أرفق مستندات السفر ثم اختر طريقة الاعتماد.</p></div><button type="button" class="icon-btn" data-close-modal="travelApprovalModal"><span data-icon="x"></span></button></div><div class="modal-body v78-approval-body"><div id="v78TravelApprovalSummary" class="v78-approval-summary"></div><div class="v78-attachment-grid">'+fileBox('travelTicketAttachmentInput','إرفاق التذكرة','ترتبط التذكرة بطلب السفر الحالي فقط')+fileBox('travelVisaAttachmentInput','إرفاق التأشيرة / الخروج والعودة','ترتبط التأشيرة بطلب السفر الحالي فقط')+'</div><div class="v78-approval-note"><span data-icon="info"></span><p>يتم حفظ المرفقات بنفس منطق مرفقات الهوية والجواز، وبربط مستقل على طلب السفر المحدد.</p></div></div><div class="modal-actions v78-approval-actions"><button type="button" class="secondary-btn cancel-action-btn" data-close-modal="travelApprovalModal">إلغاء</button><button type="button" class="secondary-btn" id="approveTravelOnlyBtn">اعتماد فقط</button><button type="button" class="primary-btn" id="approveTravelWithCommissionBtn">اعتماد مع احتساب العمولة</button></div></div>';
+    }
+    try{ if(typeof hydrateIcons==='function') hydrateIcons(dlg); }catch(_){}
+    return dlg;
+  }
+  function fillSummary(id){ var req=readTravels().find(function(x){return String(x.id)===String(id);}); var box=q('#v78TravelApprovalSummary'); if(!box) return; if(!req){ box.innerHTML='<strong>تعذر العثور على طلب السفر.</strong>'; return; } var e=emp(req.employeeId)||{}; box.innerHTML='<div><span>الموظف</span><strong>'+esc(e.name||'—')+'</strong></div><div><span>تاريخ السفر</span><strong>'+fmt(req.travelDate)+'</strong></div><div><span>تاريخ العودة</span><strong>'+(req.returnDate?fmt(req.returnDate):'غير محدد')+'</strong></div><div><span>المدة</span><strong>'+num(days(req.travelDate,req.returnDate||req.travelDate))+' يوم</strong></div><div><span>الحالة</span><strong>بانتظار الاعتماد</strong></div>'; }
+  function openModal(id){ currentTravelApprovalId=id; var dlg=ensureModal(); fillSummary(id); ['travelTicketAttachmentInput','travelVisaAttachmentInput'].forEach(function(fid){ var inp=q('#'+fid); if(inp) inp.value=''; var lab=q('[data-file-label="'+fid+'"]'); if(lab) lab.textContent='لم يتم اختيار ملف'; }); try{dlg.showModal();}catch(_){dlg.setAttribute('open','open');} }
+  async function approveCurrent(freeze){
+    var id=currentTravelApprovalId; if(!id) return showBlock('لم يتم تحديد طلب السفر المطلوب اعتماده.');
+    var list=readTravels(); var req=list.find(function(x){return String(x.id)===String(id);}); if(!req) return showBlock('تعذر العثور على طلب السفر.');
+    var e=emp(req.employeeId); if(!e) return showBlock('تعذر العثور على الموظف.');
+    var c=conflictForTravel(req); if(c) return showBlock(conflictMessage(req,c));
+    if(!confirmBalance(req,e)) return;
+    var approvalDate=today(); var files=await saveFiles(); var rec=freeze?commissionRecord(e,currentAccrual(e),approvalDate,req):null; var commissions=rec&&rec.days&&rec.amount?[].concat(e.commissions||[],[rec]):(e.commissions||[]);
+    await persistEmp(Object.assign({},e,{status:'travel',attendance:null,travelStatus:{travelId:req.id,travelDate:req.travelDate,returnDate:req.returnDate||'',workResumeDate:'',commissionFrozen:!!freeze,updatedAt:new Date().toISOString()},commissions:commissions,commissionAccrualStartDate:approvalDate,commissionPaused:!!freeze||!!e.commissionPaused,commissionPauseReason:freeze?('متوقف بسبب السفر من '+(req.travelDate||'')):(e.commissionPauseReason||''),commissionPausedByLeaveId:freeze?req.id:(e.commissionPausedByLeaveId||''),commissionPausedAt:freeze?new Date().toISOString():(e.commissionPausedAt||'')}));
+    list=list.map(function(x){return String(x.id)===String(req.id)?Object.assign({},x,files,{status:'approved',approvedAt:new Date().toISOString(),approvalDate:approvalDate,commissionAccrualStartDate:approvalDate,commissionFrozenAt:freeze?new Date().toISOString():'',commissionIssuedId:rec&&rec.days&&rec.amount?rec.id:''}):x;}); saveTravels(list);
+    try{ q('#travelApprovalModal').close(); }catch(_){ try{q('#travelApprovalModal').removeAttribute('open');}catch(__){} }
+    currentTravelApprovalId=''; try{ if(typeof renderAll==='function') renderAll(); }catch(_){} try{ if(window.nawahRenderLeavesV78) window.nawahRenderLeavesV78(); }catch(_){} try{ if(typeof showToast==='function') showToast(freeze?'تم اعتماد السفر مع احتساب العمولة':'تم اعتماد السفر فقط'); }catch(_){}
+  }
+  document.addEventListener('click',function(e){
+    var target=e.target&&e.target.closest?e.target.closest('[data-travel-approve], #approveTravelOnlyBtn, #approveTravelWithCommissionBtn, [data-close-modal="travelApprovalModal"]'):null; if(!target) return;
+    if(target.hasAttribute('data-travel-approve')){ e.preventDefault(); e.stopImmediatePropagation(); openModal(target.getAttribute('data-travel-approve')); return; }
+    if(target.id==='approveTravelOnlyBtn'){ e.preventDefault(); e.stopImmediatePropagation(); approveCurrent(false); return; }
+    if(target.id==='approveTravelWithCommissionBtn'){ e.preventDefault(); e.stopImmediatePropagation(); approveCurrent(true); return; }
+    if(target.getAttribute('data-close-modal')==='travelApprovalModal'){ e.preventDefault(); e.stopImmediatePropagation(); try{q('#travelApprovalModal').close();}catch(_){q('#travelApprovalModal')&&q('#travelApprovalModal').removeAttribute('open');} return; }
+  }, true);
+  document.addEventListener('change',function(e){ var input=e.target; if(input&&(input.id==='travelTicketAttachmentInput'||input.id==='travelVisaAttachmentInput')){ var lab=q('[data-file-label="'+input.id+'"]'); if(lab) lab.textContent=(input.files&&input.files[0])?input.files[0].name:'لم يتم اختيار ملف'; } }, true);
+})();
