@@ -12793,3 +12793,61 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .v81-form-history-card .v81-history-table-shell{max-height:min(52vh,460px)}
 .v81-print-frame{position:fixed;left:-9999px;top:0;width:0;height:0;border:0;opacity:0;pointer-events:none}
 @media(max-width:900px){.v81-history-table{font-size:10.5px}.v81-history-table thead th,.v81-history-table tbody td{padding:8px 5px}.v81-history-filters button{font-size:10px;padding:6px 8px}.v81-history-table-shell{max-height:320px}}
+
+/* v82 - professional employee form tabs: icons, no top X, closer to header */
+#employeeModal [data-close-modal="employeeModal"].icon-btn,
+#employeeModal .modal-head > button.icon-btn[data-close-modal="employeeModal"]{
+  display:none !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
+}
+@media (min-width:721px){
+  #employeeModal.employee-profile-modal .modal-head{
+    display:none !important;
+    min-height:0 !important;
+    height:0 !important;
+    padding:0 !important;
+    margin:0 !important;
+    border:0 !important;
+  }
+  #employeeModal.employee-profile-modal .employee-workspace{
+    padding-top:10px !important;
+    padding-bottom:14px !important;
+  }
+  #employeeModal.employee-profile-modal .employee-form-sidebar{
+    padding-top:10px !important;
+  }
+  #employeeModal.employee-profile-modal .employee-section-content{
+    padding-top:0 !important;
+  }
+}
+#employeeModal.employee-profile-modal .employee-section-nav button{
+  position:relative;
+  gap:8px !important;
+  min-height:38px !important;
+  overflow:hidden;
+}
+#employeeModal.employee-profile-modal .employee-section-nav button svg{
+  width:14px !important;
+  height:14px !important;
+  min-width:14px !important;
+  flex:0 0 14px !important;
+  opacity:.9;
+}
+#employeeModal.employee-profile-modal .employee-section-nav button.active svg{
+  opacity:1;
+}
+#employeeModal.employee-profile-modal .employee-section-nav button span[data-icon]{
+  width:14px !important;
+  height:14px !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  flex:0 0 14px !important;
+}
+#employeeModal.employee-profile-modal .employee-section-nav button:not(.active) span[data-icon]{
+  color:#6b7b84;
+}
+#employeeModal.employee-profile-modal .employee-section-nav button.active span[data-icon]{
+  color:var(--primary);
+}

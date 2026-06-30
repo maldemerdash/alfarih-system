@@ -1052,3 +1052,93 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   var obs=new MutationObserver(function(){ensureFormHistory(); var modal=q('#quickViewModal[open]'); if(modal){var emp=currentEmpFromQuickView(); var card=q('#quickViewContent .v81-employee-history-card'); if(emp&&(!card||card.getAttribute('data-v81-emp-id')!==String(emp.id)))installQuick(emp)}}); try{obs.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open']})}catch(_){ }
   document.addEventListener('DOMContentLoaded',ensureFormHistory); setTimeout(ensureFormHistory,0);
 })();
+
+/* v82 - employee form menu polish + safe direct history attachment downloads */
+(function(){
+  if(window.__v82EmployeeFormPolishAndDirectDownloads)return;
+  window.__v82EmployeeFormPolishAndDirectDownloads=true;
+  var sectionIcons={
+    personal:'user',identity:'shield',employment:'building',salary:'wallet',commissions:'trend-up',
+    leaveTravelHistory:'calendar',banking:'wallet',contact:'phone',notes:'notes',documents:'file',documentation:'check-circle'
+  };
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function ensureEmployeeMenuIcons(){
+    var nav=q('#employeeForm .employee-section-nav');
+    if(!nav)return;
+    qa('button[data-employee-section]',nav).forEach(function(btn){
+      var key=btn.getAttribute('data-employee-section')||'';
+      var icon=sectionIcons[key]||'file';
+      var first=btn.firstElementChild;
+      if(!first || first.getAttribute('data-icon')!==icon){
+        if(first && first.hasAttribute('data-icon')) first.remove();
+        var sp=document.createElement('span');
+        sp.setAttribute('data-icon',icon);
+        btn.insertBefore(sp,btn.firstChild);
+      }
+    });
+    try{ if(typeof hydrateIcons==='function') hydrateIcons(nav); }catch(_){ }
+  }
+  function removeEmployeeTopClose(){
+    qa('#employeeModal .modal-head > button.icon-btn[data-close-modal="employeeModal"], #employeeModal [data-close-modal="employeeModal"].icon-btn').forEach(function(b){
+      try{b.remove()}catch(_){b.style.display='none'}
+    });
+  }
+  function tidyEmployeeModal(){removeEmployeeTopClose();ensureEmployeeMenuIcons()}
+  function safeFileName(name,id){
+    var n=String(name||'attachment').replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,' ').trim();
+    if(!n)n='attachment';
+    if(!/\.[a-z0-9]{2,6}$/i.test(n))n=n+'-'+String(id||Date.now()).slice(-6);
+    return n;
+  }
+  async function forceBlobDownload(attachmentId,label){
+    if(!attachmentId)return alert('لا يوجد مرفق للتحميل.');
+    try{
+      var url=typeof attachmentUrl==='function'?await attachmentUrl(attachmentId):'';
+      if(!url)return alert('تعذر تحميل المرفق.');
+      var filename=safeFileName(label||'المرفق',attachmentId);
+      try{
+        var res=await fetch(url,{credentials:'omit',cache:'no-store'});
+        if(!res.ok)throw new Error('download failed '+res.status);
+        var blob=await res.blob();
+        var objectUrl=URL.createObjectURL(blob);
+        var a=document.createElement('a');
+        a.href=objectUrl;
+        a.download=filename;
+        a.style.display='none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function(){try{URL.revokeObjectURL(objectUrl);a.remove()}catch(_){}},1500);
+      }catch(fetchErr){
+        console.warn('تعذر التحميل كملف مباشر، سيتم استخدام رابط تحميل مباشر بدون مغادرة الصفحة.',fetchErr);
+        var a2=document.createElement('a');
+        a2.href=url;
+        a2.download=filename;
+        a2.target='_self';
+        a2.rel='noopener';
+        a2.style.display='none';
+        document.body.appendChild(a2);
+        a2.click();
+        setTimeout(function(){try{a2.remove()}catch(_){ }},0);
+      }
+    }catch(err){console.warn(err);alert('تعذر تحميل المرفق.');}
+  }
+  document.addEventListener('click',function(e){
+    var btn=e.target&&e.target.closest?e.target.closest('[data-v81-download], [data-v80-download]'):null;
+    if(!btn)return;
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    var id=btn.getAttribute('data-v81-download')||btn.getAttribute('data-v80-download')||'';
+    var label=btn.getAttribute('data-v81-label')||btn.getAttribute('data-v80-label')||btn.getAttribute('title')||'المرفق';
+    forceBlobDownload(id,label);
+  },true);
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(tidyEmployeeModal,0);setTimeout(tidyEmployeeModal,250)});
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-employee-section], [data-edit-employee], #addEmployeeBtn, .edit-employee-btn')) setTimeout(tidyEmployeeModal,60);
+  });
+  try{
+    new MutationObserver(function(){tidyEmployeeModal()}).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open','class']});
+  }catch(_){ }
+  window.v82ForceEmployeeHistoryDownload=forceBlobDownload;
+})();
