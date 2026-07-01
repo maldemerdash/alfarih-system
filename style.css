@@ -14031,3 +14031,27 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
     justify-content:flex-start !important;
   }
 }
+
+/* v113 - منع وميض سجل الإجازات والسفر وتثبيت زر الحذف داخل التصميم الأساسي */
+[data-section-panel="leaveTravelHistory"] .v81-form-history-holder{
+  min-height: 260px;
+}
+.v81-employee-history-card .v81-history-head{
+  min-height: 74px;
+}
+.v81-history-head > .v112-history-delete-actions,
+.v80-history-head > .v112-history-delete-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:10px !important;
+  margin-inline-start:auto !important;
+  flex:0 0 auto !important;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+.v81-history-head .v112-history-delete-btn,
+.v80-history-head .v112-history-delete-btn{
+  transform:none !important;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease !important;
+}
