@@ -3290,3 +3290,281 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   }
   window.recalculateUnapprovedPayrollRunV132=refreshUnapprovedRun;
 })();
+
+/* v134 - canonical employee-linked permissions and security screen */
+(function(){
+  if (window.__v134CanonicalEmployeePermissionsReady) return;
+  window.__v134CanonicalEmployeePermissionsReady = true;
+
+  function esc(value){
+    try { if (typeof escapeHtml === 'function') return escapeHtml(value == null ? '' : value); } catch(_) {}
+    return String(value == null ? '' : value).replace(/[&<>\"]/g, function(ch){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch] || ch); });
+  }
+  function val(value){ return String(value == null ? '' : value).trim(); }
+  function low(value){ return val(value).toLowerCase(); }
+  function toast(message){ try { if (typeof showToast === 'function') showToast(message); } catch(_) {} }
+  function getEmployees(){ return (Array.isArray(window.employees) ? window.employees : (typeof employees !== 'undefined' && Array.isArray(employees) ? employees : [])).filter(function(emp){ return emp && emp.id && emp.status !== 'terminated'; }); }
+  function empName(emp){ return val(emp && (emp.name || emp.full_name || emp.fullName || emp.employeeName)) || 'موظف'; }
+  function empNumber(emp){ return val(emp && (emp.employeeNumber || emp.employee_number || emp.empNo || emp.number)); }
+  function empEmail(emp){ return low(emp && (emp.email || emp.workEmail || emp.personalEmail)); }
+  function empPhone(emp){ return val(emp && (emp.phone || emp.mobile || emp.mobileNumber || emp.phoneNumber)).replace(/\D/g,''); }
+  function profileEmployeeId(profile){ return val(profile && (profile.employee_id || profile.employeeId || profile.linked_employee_id || (profile.employee && (profile.employee.id || profile.employee.employee_id)))); }
+  function profileEmail(profile){ return low(profile && profile.email); }
+  function profilePhone(profile){ return val(profile && (profile.phone || profile.mobile || profile.mobileNumber || profile.phoneNumber)).replace(/\D/g,''); }
+  function isAdminProfile(profile){ return String(profile && profile.role || 'employee').trim() === 'admin'; }
+
+  function matrix(){ return window.employeePermissionMatrix || {}; }
+  function permissionGroups(){
+    var m = matrix();
+    var groups = Array.isArray(m.groups) ? m.groups : [];
+    if (groups.length) return groups;
+    if (typeof PERMISSION_GROUPS !== 'undefined' && Array.isArray(PERMISSION_GROUPS)) return PERMISSION_GROUPS;
+    if (typeof CLEAN_PERMISSION_GROUPS !== 'undefined' && Array.isArray(CLEAN_PERMISSION_GROUPS)) return CLEAN_PERMISSION_GROUPS;
+    return [
+      {id:'sidebar', title:'القوائم اليمنى', items:[['nav.dashboard','إظهار الصفحة الرئيسية'],['nav.employees','إظهار الموظفين'],['nav.attendance','إظهار الحضور والانصراف'],['nav.leaves','إظهار الإجازات والسفر'],['nav.finance','إظهار المالية'],['nav.payroll','إظهار الرواتب والسلفيات'],['nav.establishmentDocuments','إظهار وثائق المنشأة'],['nav.departments','إظهار الأقسام والإدارات'],['nav.settings','إظهار الإعدادات']]},
+      {id:'employees', title:'الموظفون', items:[['employees.viewSelf','عرض ملفه فقط'],['employees.viewAll','عرض جميع الموظفين'],['employees.create','إضافة موظف'],['employees.edit','تعديل الموظفين'],['employees.delete','حذف الموظفين'],['employees.attachments','عرض ورفع المرفقات']]},
+      {id:'finance', title:'المالية', items:[['finance.view','عرض شاشة المالية'],['finance.manage','إدارة المالية']]},
+      {id:'payroll', title:'الرواتب والسلفيات', items:[['payroll.view','عرض الرواتب'],['payroll.edit','تعديل الرواتب'],['payroll.commissions','عرض العمولات'],['payroll.printClearance','طباعة المخالصة']]},
+      {id:'documents', title:'وثائق المنشأة', items:[['documents.view','عرض وثائق المنشأة'],['documents.create','إضافة وثيقة'],['documents.edit','تعديل وثيقة'],['documents.delete','حذف وثيقة'],['documents.upload','رفع مرفقات الوثائق']]},
+      {id:'settings', title:'الإعدادات والأمان', items:[['settings.view','عرض الإعدادات العامة'],['settings.permissions','إدارة الصلاحيات'],['users.manage','إدارة المستخدمين']]}
+    ];
+  }
+  function allPermissionKeys(){
+    var keys = [];
+    permissionGroups().forEach(function(group){ (group.items || []).forEach(function(item){ if (item && item[0]) keys.push(item[0]); }); });
+    return Array.from(new Set(keys));
+  }
+  var childToNav = {
+    'dashboard.':'nav.dashboard',
+    'employees.':'nav.employees',
+    'attendance.':'nav.attendance',
+    'leaves.':'nav.leaves',
+    'finance.':'nav.finance',
+    'payroll.':'nav.payroll',
+    'documents.':'nav.establishmentDocuments',
+    'departments.':'nav.departments',
+    'settings.':'nav.settings',
+    'users.':'nav.settings'
+  };
+  function normalizePermissions(permissions, role){
+    var m = matrix();
+    var normalized = null;
+    if (typeof m.normalizePermissions === 'function') {
+      try { normalized = m.normalizePermissions(permissions || {}, role || 'employee'); } catch(_) { normalized = null; }
+    }
+    if (!normalized || typeof normalized !== 'object') {
+      normalized = {};
+      allPermissionKeys().forEach(function(key){ normalized[key] = Boolean(permissions && permissions[key]); });
+      if (role === 'admin') allPermissionKeys().forEach(function(key){ normalized[key] = true; });
+    }
+    Object.keys(childToNav).forEach(function(prefix){
+      var navKey = childToNav[prefix];
+      var hasChild = Object.keys(normalized).some(function(key){ return key.indexOf(prefix) === 0 && key !== navKey && normalized[key]; });
+      if (hasChild) normalized[navKey] = true;
+    });
+    if (normalized['documents.view'] || normalized['documents.create'] || normalized['documents.edit'] || normalized['documents.delete'] || normalized['documents.upload']) normalized['nav.establishmentDocuments'] = true;
+    if (role === 'admin') allPermissionKeys().forEach(function(key){ normalized[key] = true; });
+    return normalized;
+  }
+
+  function profileMatchesEmployee(profile, emp){
+    if (!profile || !emp) return false;
+    if (profileEmployeeId(profile) && profileEmployeeId(profile) === val(emp.id)) return true;
+    if (profileEmployeeId(profile) && empNumber(emp) && profileEmployeeId(profile) === empNumber(emp)) return true;
+    if (profileEmail(profile) && empEmail(emp) && profileEmail(profile) === empEmail(emp)) return true;
+    if (profilePhone(profile) && empPhone(emp) && profilePhone(profile) === empPhone(emp)) return true;
+    return false;
+  }
+  function linkedProfile(emp){
+    var cache = Array.isArray(window.appUserProfilesCache) ? window.appUserProfilesCache : (typeof appUserProfilesCache !== 'undefined' && Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []);
+    return cache.find(function(profile){ return !isAdminProfile(profile) && profileMatchesEmployee(profile, emp); }) || null;
+  }
+  async function loadProfiles(){
+    var collected = [];
+    var existing = Array.isArray(window.appUserProfilesCache) ? window.appUserProfilesCache : (typeof appUserProfilesCache !== 'undefined' && Array.isArray(appUserProfilesCache) ? appUserProfilesCache : []);
+    collected = collected.concat(existing || []);
+    try {
+      if (typeof loadAppUserProfiles === 'function') {
+        var fromLoader = await loadAppUserProfiles();
+        if (Array.isArray(fromLoader)) collected = collected.concat(fromLoader);
+      }
+    } catch(err){ console.warn('v134 loadAppUserProfiles failed', err); }
+    try {
+      if (window.supabaseClient && supabaseClient.from) {
+        var response = await supabaseClient.from('app_user_profiles').select('id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at');
+        if (!response.error && Array.isArray(response.data)) collected = collected.concat(response.data);
+      }
+    } catch(err){ console.warn('v134 direct profiles load failed', err); }
+    var byKey = new Map();
+    collected.forEach(function(profile){
+      if (!profile || typeof profile !== 'object') return;
+      var keys = [profile.id, profile.user_id, profileEmail(profile)].map(val).filter(Boolean);
+      var found = keys.find(function(key){ return byKey.has(key); });
+      var merged = Object.assign({}, found ? byKey.get(found) : {}, profile);
+      var eid = profileEmployeeId(merged);
+      if (eid) { merged.employee_id = eid; merged.employeeId = eid; }
+      keys.forEach(function(key){ byKey.set(key, merged); });
+    });
+    var result = Array.from(new Set(Array.from(byKey.values()))).map(function(profile){
+      var role = isAdminProfile(profile) ? 'admin' : 'employee';
+      return Object.assign({}, profile, { role: role, permissions: normalizePermissions(profile.permissions || {}, role) });
+    });
+    try { window.appUserProfilesCache = result; } catch(_) {}
+    try { appUserProfilesCache = result; } catch(_) {}
+    return result;
+  }
+
+  function ensureStyle(){
+    if (document.getElementById('v134-permission-style')) return;
+    var style = document.createElement('style');
+    style.id = 'v134-permission-style';
+    style.textContent = '.v134-permission-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:12px 0}.v134-permission-status>div{border:1px solid rgba(15,23,42,.08);background:#fff;border-radius:14px;padding:10px 12px}.v134-permission-status strong{display:block;margin-bottom:4px}.v134-permission-muted{color:#64748b;font-size:13px}.v134-linked-ok{color:#047857}.v134-linked-missing{color:#b45309}.v134-security-note{border:1px solid rgba(15,23,42,.08);border-radius:16px;padding:12px 14px;background:#f8fafc;margin:10px 0}.v134-hidden-old-permissions{display:none!important}';
+    document.head.appendChild(style);
+  }
+
+  async function fillEmployeeSelect(selectedId){
+    var select = document.getElementById('v134SecurityEmployeeSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">جاري تحميل الموظفين...</option>';
+    await loadProfiles();
+    var emps = getEmployees();
+    select.innerHTML = '<option value="">اختر موظفًا...</option>' + emps.map(function(emp){
+      var profile = linkedProfile(emp);
+      var suffix = profile ? ' - ' + (profile.email || profile.full_name || 'حساب مستخدم') : ' - غير مربوط بحساب';
+      var number = empNumber(emp) ? ' - ' + empNumber(emp) : '';
+      return '<option value="' + esc(emp.id) + '" ' + (val(emp.id) === val(selectedId) ? 'selected' : '') + '>' + esc(empName(emp) + number + suffix) + '</option>';
+    }).join('');
+    if (!emps.length) select.innerHTML = '<option value="">لا يوجد موظفون</option>';
+    if (selectedId) select.value = selectedId;
+  }
+
+  function renderEditor(){
+    var selectedId = val(document.getElementById('v134SecurityEmployeeSelect') && document.getElementById('v134SecurityEmployeeSelect').value);
+    var editor = document.getElementById('v134EmployeeSecurityPermissionsEditor');
+    if (!editor) return;
+    var emp = getEmployees().find(function(item){ return val(item.id) === selectedId; });
+    if (!selectedId || !emp) {
+      editor.className = 'security-editor-empty';
+      editor.innerHTML = '<strong>اختر موظفًا من القائمة</strong><p>بعد اختيار الموظف ستظهر الصلاحيات إذا كان مربوطًا بحساب مستخدم.</p>';
+      return;
+    }
+    var profile = linkedProfile(emp);
+    if (!profile) {
+      editor.className = 'security-editor-empty';
+      editor.innerHTML = '<strong>' + esc(empName(emp)) + ' غير مربوط بحساب مستخدم</strong><p>اربط الموظف أولًا من شاشة إدارة المستخدمين، ثم ارجع لتحديد الصلاحيات.</p>';
+      return;
+    }
+    var role = isAdminProfile(profile) ? 'admin' : 'employee';
+    var perms = normalizePermissions(profile.permissions || {}, role);
+    var adminNote = role === 'admin' ? '<p class="security-linked-employee-note"><strong>تنبيه:</strong> هذا الحساب مدير نظام ويملك كامل الصلاحيات فعليًا.</p>' : '';
+    editor.className = '';
+    editor.innerHTML = adminNote + '<div class="security-linked-employee-note"><strong>الموظف:</strong> ' + esc(empName(emp)) + (empNumber(emp) ? ' — رقم الموظف: ' + esc(empNumber(emp)) : '') + '<br><strong>الحساب المرتبط:</strong> ' + esc(profile.full_name || profile.email || '') + ' — <span dir="ltr">' + esc(profile.email || '') + '</span></div><div class="security-permissions-grid">' + permissionGroups().map(function(group){
+      return '<section class="security-permission-card" data-v134-group-card="' + esc(group.id) + '"><div class="security-permission-head"><strong>' + esc(group.title) + '</strong><button type="button" class="text-btn" data-v134-security-group="' + esc(group.id) + '">تحديد الكل</button></div><div class="security-permission-list">' + (group.items || []).map(function(item){
+        var key = item[0], label = item[1];
+        return '<label class="security-permission-row"><span>' + esc(label) + '</span><input type="checkbox" data-v134-security-permission="' + esc(key) + '" ' + (perms[key] ? 'checked' : '') + '></label>';
+      }).join('') + '</div></section>';
+    }).join('') + '</div>';
+  }
+
+  async function saveSelectedPermissions(){
+    var selectedId = val(document.getElementById('v134SecurityEmployeeSelect') && document.getElementById('v134SecurityEmployeeSelect').value);
+    var emp = getEmployees().find(function(item){ return val(item.id) === selectedId; });
+    if (!emp) return toast('اختر موظفًا أولًا');
+    var profile = linkedProfile(emp);
+    if (!profile) return toast('الموظف غير مربوط بحساب مستخدم');
+    var raw = {};
+    allPermissionKeys().forEach(function(key){ raw[key] = false; });
+    document.querySelectorAll('[data-v134-security-permission]').forEach(function(input){ raw[input.dataset.v134SecurityPermission] = Boolean(input.checked); });
+    var permissions = normalizePermissions(raw, profile.role || 'employee');
+    try {
+      var payload = { permissions: permissions, employee_id: emp.id, updated_at: (new Date()).toISOString() };
+      if (window.supabaseClient && supabaseClient.functions && supabaseClient.functions.invoke) {
+        try {
+          var body = { action:'update-user', id:profile.id, email:profile.email, fullName:profile.full_name, role:profile.role || 'employee', isActive:profile.is_active, employeeId:emp.id, employee_id:emp.id, permissions:permissions };
+          var functionResponse = await supabaseClient.functions.invoke('admin-create-user', { body: body });
+          if (functionResponse.error || (functionResponse.data && functionResponse.data.error)) throw functionResponse.error || new Error(functionResponse.data.error);
+        } catch(functionErr) {
+          if (!supabaseClient.from) throw functionErr;
+          var updateResponse = await supabaseClient.from('app_user_profiles').update(payload).eq('id', profile.id).select('id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at').maybeSingle();
+          if (updateResponse.error) throw updateResponse.error;
+          if (updateResponse.data) Object.assign(profile, updateResponse.data);
+        }
+      } else if (window.supabaseClient && supabaseClient.from) {
+        var directResponse = await supabaseClient.from('app_user_profiles').update(payload).eq('id', profile.id).select('id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at').maybeSingle();
+        if (directResponse.error) throw directResponse.error;
+        if (directResponse.data) Object.assign(profile, directResponse.data);
+      } else {
+        profile.permissions = permissions;
+        profile.employee_id = emp.id;
+      }
+      profile.permissions = permissions;
+      profile.employee_id = emp.id;
+      profile.employeeId = emp.id;
+      if (window.authProfile && val(window.authProfile.id) === val(profile.id)) window.authProfile.permissions = permissions;
+      try { if (typeof authProfile !== 'undefined' && authProfile && val(authProfile.id) === val(profile.id)) authProfile.permissions = permissions; } catch(_) {}
+      await fillEmployeeSelect(emp.id);
+      renderEditor();
+      try { if (typeof applyRolePermissions === 'function') applyRolePermissions(); } catch(_) {}
+      toast('تم حفظ صلاحيات الموظف وربط القوائم تلقائيًا');
+    } catch(err) {
+      console.error('v134 save permissions failed', err);
+      toast(String(err && err.message || 'تعذر حفظ الصلاحيات').slice(0,160));
+    }
+  }
+
+  async function renderCanonicalPanel(selectedId){
+    ensureStyle();
+    var panel = document.querySelector('[data-settings-panel="permissions"]');
+    if (!panel) return;
+    panel.querySelectorAll('#securityEmployeeSelect,#resolvedSecurityEmployeeSelect,#fixedSecurityEmployeeSelect,#absoluteV2SecurityUserSelect,#employeeSecurityPermissionsEditor,#resolvedEmployeeSecurityPermissionsEditor,#fixedEmployeeSecurityPermissionsEditor,#absoluteV2SecurityEditor,#permissionsPreviewGrid').forEach(function(node){ node.classList.add('v134-hidden-old-permissions'); });
+    if (panel.dataset.v134CanonicalPanel !== 'true') {
+      panel.dataset.v134CanonicalPanel = 'true';
+      panel.innerHTML = '<div class="panel-head"><div><h3>الصلاحيات والأمان</h3><p>الشاشة النهائية تعتمد على اختيار الموظف، ثم تحفظ الصلاحيات على حساب المستخدم المرتبط به. أي صلاحية فرعية تفعل القائمة اليمنى تلقائيًا.</p></div></div><div class="security-layout permissions-employee-picker-layout"><article class="settings-placeholder-card security-user-picker"><span data-icon="shield"></span><div><strong>تحديد الموظف أولًا</strong><p>قد تبدو الشاشة فارغة قبل الاختيار. بعد اختيار الموظف تظهر قائمة الصلاحيات إذا كان الموظف مربوطًا بحساب مستخدم.</p></div></article><div class="security-controls"><select id="v134SecurityEmployeeSelect"><option value="">اختر موظفًا...</option></select><button type="button" class="secondary-btn" id="v134ReloadSecurityEmployees"><span data-icon="refresh"></span>تحديث الموظفين</button><button type="button" class="primary-btn" id="v134SaveEmployeePermissions"><span data-icon="check"></span>حفظ الصلاحيات</button></div><div class="v134-permission-status"><div><strong>مصدر الصلاحيات</strong><span class="v134-permission-muted">app_user_profiles.permissions</span></div><div><strong>طريقة العرض</strong><span class="v134-permission-muted">اختيار موظف ← حساب مرتبط ← صلاحيات</span></div><div><strong>القوائم اليمنى</strong><span class="v134-linked-ok">تتفعّل تلقائيًا من الصلاحيات الفرعية</span></div></div><div class="v134-security-note"><strong>تنبيه تشغيلي:</strong> إذا ظهر بجانب الموظف “غير مربوط بحساب”، يتم ربطه من إدارة المستخدمين أولًا، ثم تعود لهذه الشاشة.</div><div id="v134EmployeeSecurityPermissionsEditor" class="security-editor-empty"><strong>اختر موظفًا من القائمة</strong><p>بعد الاختيار ستظهر الصلاحيات التفصيلية.</p></div></div>';
+      try { if (typeof hydrateIcons === 'function') hydrateIcons(panel); } catch(_) {}
+    }
+    await fillEmployeeSelect(selectedId || (document.getElementById('v134SecurityEmployeeSelect') && document.getElementById('v134SecurityEmployeeSelect').value) || '');
+    renderEditor();
+  }
+
+  document.addEventListener('change', function(event){
+    var target = event.target;
+    if (target && target.id === 'v134SecurityEmployeeSelect') renderEditor();
+  }, true);
+  document.addEventListener('click', function(event){
+    var reload = event.target && event.target.closest && event.target.closest('#v134ReloadSecurityEmployees');
+    if (reload) { event.preventDefault(); renderCanonicalPanel(document.getElementById('v134SecurityEmployeeSelect') && document.getElementById('v134SecurityEmployeeSelect').value); return; }
+    var save = event.target && event.target.closest && event.target.closest('#v134SaveEmployeePermissions');
+    if (save) { event.preventDefault(); saveSelectedPermissions(); return; }
+    var groupButton = event.target && event.target.closest && event.target.closest('[data-v134-security-group]');
+    if (groupButton) {
+      event.preventDefault();
+      var card = groupButton.closest('[data-v134-group-card]');
+      if (!card) return;
+      var boxes = Array.from(card.querySelectorAll('[data-v134-security-permission]'));
+      var next = boxes.some(function(box){ return !box.checked; });
+      boxes.forEach(function(box){ box.checked = next; });
+    }
+    var tab = event.target && event.target.closest && event.target.closest('[data-settings-section="permissions"]');
+    if (tab) setTimeout(function(){ renderCanonicalPanel(); }, 50);
+  }, true);
+
+  var oldRenderSettings = typeof renderSettings === 'function' ? renderSettings : null;
+  if (oldRenderSettings && !oldRenderSettings.__v134CanonicalPermissionsWrapped) {
+    var wrappedRenderSettings = function(){
+      var result = oldRenderSettings.apply(this, arguments);
+      setTimeout(function(){
+        var activePermissions = document.querySelector('[data-settings-panel="permissions"].active');
+        if (activePermissions) renderCanonicalPanel();
+      }, 60);
+      return result;
+    };
+    wrappedRenderSettings.__v134CanonicalPermissionsWrapped = true;
+    try { renderSettings = wrappedRenderSettings; window.renderSettings = wrappedRenderSettings; } catch(_) {}
+  }
+
+  window.v134RenderCanonicalEmployeePermissions = renderCanonicalPanel;
+  setTimeout(function(){
+    var activePermissions = document.querySelector('[data-settings-panel="permissions"].active');
+    if (activePermissions) renderCanonicalPanel();
+  }, 500);
+})();
