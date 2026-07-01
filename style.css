@@ -14108,3 +14108,13 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
     justify-content:flex-start !important;
   }
 }
+
+/* v116 - contract attachment field in employment data */
+.contract-attachment-field .compact-file-control {
+  width: 100%;
+  min-height: 42px;
+}
+.contract-attachment-field .attachment-view-btn,
+.contract-attachment-field .attachment-download-btn {
+  margin-top: 8px;
+}

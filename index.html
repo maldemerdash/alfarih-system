@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=115" />
+    <link rel="stylesheet" href="style.css?v=116" />
   </head>
   <body>
     <div class="app-shell">
@@ -733,6 +733,7 @@
                 <label><span>تاريخ انتهاء العقد</span><input name="contractEndDate" class="calculated-field" readonly /></label>
                 <label><span>تجديد العقد</span><select name="renewalOption" disabled><option value="none">عدم التجديد</option><option value="same">تجديد لمدة مماثلة</option></select></label>
                 <label><span>تاريخ الانتهاء الجديد</span><input name="renewedContractEndDate" class="calculated-field" readonly /></label>
+                <label class="contract-attachment-field"><span>مرفق صورة العقد</span><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق</span><input type="file" data-single-attachment="contract" accept="image/*,.pdf" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="contract" hidden>تحميل</button></label>
                 <label class="span-all"><span>المدة المتبقية لانتهاء العقد</span><input name="contractRemaining" class="calculated-field expiry-state" readonly /></label>
               </div>
             </section>
@@ -962,6 +963,6 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=115"></script>
+    <script src="app.js?v=116"></script>
   </body>
 </html>
