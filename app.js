@@ -2782,23 +2782,51 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     return daysBetween(x&&(x.startDate||x.travelStartDate||x.fromDate||x.from||x.travelDate), x&&(x.endDate||x.travelEndDate||x.toDate||x.to||x.returnDate||x.workResumeDate));
   }
   function remainingAfterRecord(x, emp, used){
-    var direct=x&&(x.remainingBalanceAfter||x.leaveBalanceAfter||x.generalLeaveBalanceAfter||x.balanceAfter||x.remainingLeaveBalance);
+    var direct=x&&(x.remainingBalanceAfter||x.leaveBalanceAfter||x.generalLeaveBalanceAfter||x.balanceAfter||x.remainingLeaveBalance||x.remainingBalance||x.balanceRemaining);
     if(direct!==undefined&&direct!==null&&String(direct)!=='')return Number(direct)||0;
-    var before=x&&(x.generalLeaveBalanceBefore||x.leaveBalanceBefore||x.balanceBefore);
+    var before=x&&(x.generalLeaveBalanceBefore||x.leaveBalanceBefore||x.balanceBefore||x.availableBalanceBefore);
     if(before!==undefined&&before!==null&&String(before)!=='')return Math.round((Number(before||0)-Number(used||0))*100)/100;
-    try{if(window.leaveBalanceV49&&typeof window.leaveBalanceV49.leaveBalance==='function'){var at=x&&(x.startDate||x.travelStartDate||x.fromDate||x.from||x.travelDate); var b=window.leaveBalanceV49.leaveBalance(emp,at||new Date().toISOString().slice(0,10),{}); if(b&&b.remaining!==undefined)return Number(b.remaining)||0;}}catch(_){}
     return '';
+  }
+  function currentLeaveBalanceForReport(emp){
+    try{if(window.leaveBalanceV49&&typeof window.leaveBalanceV49.leaveBalance==='function'){var b=window.leaveBalanceV49.leaveBalance(emp,new Date().toISOString().slice(0,10),{}); if(b&&b.remaining!==undefined&&b.remaining!==null&&String(b.remaining)!=='')return Number(b.remaining)||0;}}catch(_){}
+    var direct=emp&&(emp.remainingLeaveBalance||emp.leaveRemainingBalance||emp.generalLeaveBalance||emp.leaveBalance||emp.balance);
+    if(direct!==undefined&&direct!==null&&String(direct)!=='')return Number(direct)||0;
+    return null;
+  }
+  function sortDateValue(v){var d=new Date(String(v||'').slice(0,10)+'T00:00:00'); return isNaN(d)?0:d.getTime();}
+  function makeLeaveTravelRow(x,type,start,end,emp){
+    var used=requestDays(x);
+    var rem=remainingAfterRecord(x,emp,used);
+    return {employee:emp,type:type,period:dateRangeText(start,end),used:daysText(used),usedValue:Number(used||0)||0,remainingNumber:(rem!==''?Number(rem):null),remaining:(rem!==''?daysText(rem):''),startSort:sortDateValue(start),raw:x};
   }
   function leaveTravelRecords(){
     var out=[];
-    try{(Array.isArray(leaves)?leaves:parse(localStorage.getItem('nawah-leaves'),[])).forEach(function(x){var emp=empByRecord(x); var start=x.startDate||x.fromDate||x.from; var end=x.endDate||x.toDate||x.to; var used=requestDays(x); out.push({employee:emp,type:'إجازة',period:dateRangeText(start,end),used:daysText(used),remaining:remainingAfterRecord(x,emp,used)!==''?daysText(remainingAfterRecord(x,emp,used)):'',raw:x});});}catch(_){}
-    try{parse(localStorage.getItem('nawah-travel-requests'),[]).forEach(function(x){var emp=empByRecord(x); var start=x.travelDate||x.startDate||x.travelStartDate||x.fromDate||x.from; var end=x.returnDate||x.workResumeDate||x.endDate||x.travelEndDate||x.toDate||x.to; var used=requestDays(x); out.push({employee:emp,type:'سفر',period:dateRangeText(start,end),used:daysText(used),remaining:remainingAfterRecord(x,emp,used)!==''?daysText(remainingAfterRecord(x,emp,used)):'',raw:x});});}catch(_){}
+    try{(Array.isArray(leaves)?leaves:parse(localStorage.getItem('nawah-leaves'),[])).forEach(function(x){var emp=empByRecord(x); var start=x.startDate||x.fromDate||x.from; var end=x.endDate||x.toDate||x.to; out.push(makeLeaveTravelRow(x,'إجازة',start,end,emp));});}catch(_){}
+    try{parse(localStorage.getItem('nawah-travel-requests'),[]).forEach(function(x){var emp=empByRecord(x); var start=x.travelDate||x.startDate||x.travelStartDate||x.fromDate||x.from; var end=x.returnDate||x.workResumeDate||x.endDate||x.travelEndDate||x.toDate||x.to; out.push(makeLeaveTravelRow(x,'سفر',start,end,emp));});}catch(_){}
     return out.filter(function(r){return r.employee&&r.employee.name||r.period||r.type;});
+  }
+  function normalizeLeaveTravelRemaining(group){
+    var recs=(group.records||[]).slice().sort(function(a,b){return (a.startSort||0)-(b.startSort||0);});
+    var current=currentLeaveBalanceForReport(group.employee);
+    if(current!==null){
+      var total=recs.reduce(function(sum,r){return sum+Number(r.usedValue||0);},0);
+      var running=Math.round((Number(current||0)+total)*100)/100;
+      recs.forEach(function(r){
+        running=Math.round((running-Number(r.usedValue||0))*100)/100;
+        if(r.remainingNumber===null||r.remainingNumber===undefined||String(r.remainingNumber)===''){
+          r.remainingNumber=running;
+          r.remaining=daysText(running);
+        }
+      });
+    }
+    group.records=recs;
+    return group;
   }
   function leaveTravelGroups(){
     var map={};
     leaveTravelRecords().forEach(function(r){var key=String(empNo(r.employee)||r.employee.id||r.employee.name||''); if(!map[key])map[key]={employee:r.employee,records:[]}; map[key].records.push(r);});
-    return Object.keys(map).map(function(k){return map[k];});
+    return Object.keys(map).map(function(k){return normalizeLeaveTravelRemaining(map[k]);});
   }
   function statusLabel(v){var s=String(v||'').toLowerCase(); if(s==='approved')return 'معتمد'; if(s==='pending')return 'بانتظار الموافقة'; if(s==='rejected')return 'مرفوض'; if(s==='paid')return 'مصروف'; if(s==='active')return 'نشط'; if(s==='closed')return 'مغلق'; return v||''; }
   function daysBetween(a,b){var x=new Date(a), y=new Date(b); if(isNaN(x)||isNaN(y))return ''; return Math.max(0,Math.ceil((y-x)/86400000));}
