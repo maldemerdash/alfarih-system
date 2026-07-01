@@ -3106,3 +3106,115 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('DOMContentLoaded',function(){setTimeout(renderReports,120);});
   window.renderReports=renderReports;
 })();
+
+/* v132 - Live payroll recalculation for unapproved runs after absence/advance changes */
+(function(){
+  if(window.__v132LiveUnapprovedPayrollRuns)return;
+  window.__v132LiveUnapprovedPayrollRuns=true;
+  var RUNS_KEY='nawah-payroll-runs';
+  var ADVANCES_KEY='nawah-payroll-advances';
+  var SELECTED_MONTH_KEY='nawah-selected-payroll-month';
+  var ABSENCE_KEYS={
+    'nawah-attendance-exceptions':true,
+    'nawah-leaves':true
+  };
+  function parseJson(value,fallback){try{var x=value?JSON.parse(value):fallback;return Array.isArray(x)?x:fallback}catch(_){return fallback}}
+  function currentMonthKey(){
+    try{var m=localStorage.getItem(SELECTED_MONTH_KEY);if(/^\d{4}-\d{2}$/.test(String(m||'')))return m;}catch(_){}
+    var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  }
+  function monthDate(monthKey){
+    var p=String(monthKey||currentMonthKey()).split('-').map(Number);
+    return new Date(p[0]||new Date().getFullYear(),(p[1]||1)-1,27,12);
+  }
+  function isFinalRun(run){
+    if(!run)return false;
+    var st=String(run.status||run.state||run.statusLabel||'').trim().toLowerCase();
+    return !!(run.approvedAt||run.paidAt||run.lockedAt||run.finalizedAt||st==='paid'||st==='approved'||st==='مصروف'||st==='معتمد'||st==='approved_paid');
+  }
+  function employeeList(){try{return Array.isArray(employees)?employees:[]}catch(_){return[]}}
+  function employeeGross(emp){
+    try{if(typeof employeeGrossSalary==='function')return Number(employeeGrossSalary(emp)||0)}catch(_){}
+    return Number(emp&& (emp.totalSalary||emp.salary||emp.baseSalary) ||0)||0;
+  }
+  function allowance(emp){return Number(emp&&emp.housingAllowance||0)+Number(emp&&emp.transportAllowance||0)+Number(emp&&emp.otherAllowances||0)}
+  function employeeLite(emp){
+    var name=emp&&emp.name||'موظف';
+    return {id:emp&&emp.id||'',name:name,phone:emp&& (emp.phone||emp.mobile)||'',initials:emp&&emp.initials||String(name||'م').slice(0,1),baseSalary:Number(emp&&emp.baseSalary||0),totalSalary:Number(employeeGross(emp)||0)};
+  }
+  function approvedAdvanceSum(empId,monthKey){
+    var list=parseJson(localStorage.getItem(ADVANCES_KEY),[]);
+    return list.filter(function(a){return a&&String(a.employeeId)===String(empId)&&String(a.monthKey||String(a.date||'').slice(0,7))===String(monthKey)&&String(a.status||'approved')==='approved'}).reduce(function(sum,a){return sum+Number(a.amount||0)},0);
+  }
+  function absenceDeduction(empId,monthKey){
+    try{if(typeof absenceDeductionForEmployeeInMonth==='function')return Number(absenceDeductionForEmployeeInMonth(empId,monthDate(monthKey))||0)}catch(_){}
+    return 0;
+  }
+  function buildLine(emp,monthKey){
+    var gross=employeeGross(emp);
+    var base=Number((emp&&(emp.baseSalary||emp.salary))||gross||0)||0;
+    var ins=emp&&emp.insuranceEnabled ? .0995*gross : 0;
+    var abs=absenceDeduction(emp&&emp.id,monthKey);
+    var adv=approvedAdvanceSum(emp&&emp.id,monthKey);
+    var net=gross-ins-abs-adv;
+    var half=gross/2;
+    return {baseSalary:base,allowance:allowance(emp),gross:gross,insuranceDeduction:ins,absenceDeduction:abs,advanceDeduction:adv,net:net,halfSalary:half,transfer:net<half?half:net,required:net<half?half-net:0,cardWithdraw:adv>half};
+  }
+  function totals(items){
+    return (Array.isArray(items)?items:[]).reduce(function(acc,item){
+      var line=item.line||item||{};
+      acc.base+=Number(line.baseSalary||0);
+      acc.allowance+=Number(line.allowance||0);
+      acc.advances+=Number(line.advanceDeduction||0);
+      acc.deductions+=Number(line.insuranceDeduction||0)+Number(line.absenceDeduction||0)+Number(line.advanceDeduction||0);
+      acc.net+=Number(line.net||0);
+      return acc;
+    },{base:0,allowance:0,advances:0,deductions:0,net:0});
+  }
+  function recalcRun(run){
+    if(!run||!run.monthKey||isFinalRun(run))return run;
+    var monthKey=run.monthKey;
+    var items=employeeList().filter(function(emp){return emp&&emp.id&&emp.status!=='terminated'}).map(function(emp){return {employeeId:emp.id,employee:employeeLite(emp),line:buildLine(emp,monthKey)}});
+    return Object.assign({},run,{items:items,totals:totals(items),updatedAt:(new Date()).toISOString(),liveRecalculated:true,liveRecalculatedReason:'absence-or-advance-change'});
+  }
+  function refreshUnapprovedRun(monthKey){
+    var runs=parseJson(localStorage.getItem(RUNS_KEY),[]);
+    if(!runs.length)return false;
+    var changed=false;
+    var next=runs.map(function(run){
+      if(!run||String(run.monthKey)!==String(monthKey||run.monthKey))return run;
+      if(isFinalRun(run))return run;
+      changed=true;return recalcRun(run);
+    });
+    if(changed){try{localStorage.setItem(RUNS_KEY,JSON.stringify(next))}catch(_){} try{typeof queueCloudStateSave==='function'&&queueCloudStateSave()}catch(_){}}
+    return changed;
+  }
+  function refreshCurrentPayrollQuiet(){
+    var month=currentMonthKey();
+    var changed=refreshUnapprovedRun(month);
+    if(changed){try{typeof renderPayroll==='function'&&renderPayroll()}catch(_){}}
+  }
+  var oldRender=typeof renderPayroll==='function'?renderPayroll:null;
+  if(oldRender&&!oldRender.__v132LiveUnapprovedPayroll){
+    var wrappedRender=function(){try{refreshUnapprovedRun(currentMonthKey())}catch(_){} return oldRender.apply(this,arguments)};
+    wrappedRender.__v132LiveUnapprovedPayroll=true;
+    try{renderPayroll=wrappedRender}catch(_){}
+    window.renderPayroll=wrappedRender;
+  }
+  var oldSetItem=Storage.prototype.setItem;
+  if(!oldSetItem.__v132LiveUnapprovedPayroll){
+    var wrappedSetItem=function(key,value){
+      var result=oldSetItem.apply(this,arguments);
+      try{
+        if(this===window.localStorage){
+          var k=String(key||'');
+          if(k===ADVANCES_KEY||ABSENCE_KEYS[k])setTimeout(refreshCurrentPayrollQuiet,40);
+        }
+      }catch(_){}
+      return result;
+    };
+    wrappedSetItem.__v132LiveUnapprovedPayroll=true;
+    Storage.prototype.setItem=wrappedSetItem;
+  }
+  window.recalculateUnapprovedPayrollRunV132=refreshUnapprovedRun;
+})();
