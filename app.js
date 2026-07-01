@@ -2738,3 +2738,63 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   document.addEventListener('v56-dashboard-ready',function(){setTimeout(enhanceContractRows,0);setTimeout(enhanceContractRows,200)});
   setTimeout(syncNoticeField,300);setTimeout(enhanceContractRows,500);
 })();
+
+/* v118 reports page */
+(function(){
+  if(window.__v118ReportsPage) return;
+  window.__v118ReportsPage = true;
+  try{ if(typeof pageMeta === 'object') pageMeta.reports = ['التقارير','تقارير الموظفين والإجازات والسفر والبيانات الوظيفية']; }catch(_){ }
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.from((r||document).querySelectorAll(s))}
+  function parse(v,f){try{return v?JSON.parse(v):f}catch(_){return f}}
+  function esc(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function fmt(v){try{ if(typeof formatDate==='function') return formatDate(v)||''; }catch(_){ } return v||''; }
+  function money(v){var n=Number(v||0); try{ if(typeof formatMoney==='function') return formatMoney(n); }catch(_){ } return n?String(n):'0'; }
+  function empList(){try{return Array.isArray(employees)?employees:[]}catch(_){return []}}
+  function empName(id, fallback){var sid=String(id||''); var emp=empList().find(function(e){return String(e.id||e.employeeId||'')===sid || String(e.employeeNumber||'')===sid}); return (emp&&emp.name)||fallback||sid||'';}
+  function statusLabel(v){var s=String(v||'').toLowerCase(); if(s==='approved')return 'معتمد'; if(s==='pending')return 'بانتظار الموافقة'; if(s==='rejected')return 'مرفوض'; if(s==='paid')return 'مصروف'; if(s==='active')return 'نشط'; if(s==='closed')return 'مغلق'; return v||''; }
+  function daysBetween(a,b){var x=new Date(a), y=new Date(b); if(isNaN(x)||isNaN(y))return ''; return Math.max(0,Math.ceil((y-x)/86400000));}
+  function lastContractEnd(emp){
+    var base=emp && (emp.contractEndDate||emp.contractEnd||emp.expiryDate||emp.endDate||'');
+    var arr=Array.isArray(emp&&emp.contractExtensions)?emp.contractExtensions:[];
+    var dates=arr.map(function(x){return x&&(x.newEndDate||x.endDate||x.contractEndDate||x.expiryDate)}).filter(Boolean).sort();
+    return dates.length?dates[dates.length-1]:base;
+  }
+  function rowsFor(tab){
+    var emps=empList();
+    if(tab==='leaveTravel'){
+      var leaveRows=[]; try{leaveRows=(Array.isArray(leaves)?leaves:parse(localStorage.getItem('nawah-leaves'),[])).map(function(x){return ['إجازة', empName(x.employeeId||x.empId,x.employeeName||x.name), fmt(x.startDate||x.fromDate||x.from), fmt(x.endDate||x.toDate||x.to), x.days||x.duration||daysBetween(x.startDate||x.fromDate,x.endDate||x.toDate), statusLabel(x.status)];});}catch(_){ }
+      var travelRows=parse(localStorage.getItem('nawah-travel-requests'),[]).map(function(x){return ['سفر', empName(x.employeeId||x.empId,x.employeeName||x.name), fmt(x.startDate||x.travelStartDate||x.fromDate||x.from), fmt(x.endDate||x.travelEndDate||x.toDate||x.to), x.days||x.duration||daysBetween(x.startDate||x.fromDate,x.endDate||x.toDate), statusLabel(x.status)];});
+      return leaveRows.concat(travelRows);
+    }
+    if(tab==='banking'){
+      var out=[]; emps.forEach(function(e){var accounts=Array.isArray(e.bankAccounts)?e.bankAccounts:[]; if(accounts.length){accounts.forEach(function(b){out.push([e.name||'', b.bankName||b.bank||e.bankName||'', b.accountNumber||b.account||'', b.iban||b.IBAN||e.iban||'', statusLabel(b.status||'')]);});}else if(e.bankName||e.iban||e.accountNumber){out.push([e.name||'', e.bankName||'', e.accountNumber||'', e.iban||'', '']);}}); return out;
+    }
+    if(tab==='absences'){
+      var now=new Date(), ym=now.toISOString().slice(0,7); var out=[];
+      parse(localStorage.getItem('nawah-attendance-exceptions'),[]).forEach(function(x){var d=String(x.date||x.day||x.absenceDate||''); if(d.slice(0,7)===ym || !d){out.push([empName(x.employeeId||x.empId,x.employeeName||x.name), fmt(d), x.typeLabel||x.type||'غياب', x.note||x.reason||'']);}});
+      emps.forEach(function(e){(Array.isArray(e.minutes)?e.minutes:[]).forEach(function(m){var d=String(m.absenceDate||m.date||m.createdAt||''); var n=String(m.name||m.type||''); if((d.slice(0,7)===ym||!d) && (n.indexOf('غياب')>-1 || String(m.templateId||'').indexOf('absence')>-1))out.push([e.name||'', fmt(d), n||'غياب', m.absenceReason||m.details||m.note||'']);});});
+      return out;
+    }
+    if(tab==='advances'){
+      return parse(localStorage.getItem('nawah-payroll-advances'),[]).map(function(x){return [empName(x.employeeId||x.empId,x.employeeName||x.name), money(x.amount||x.value||x.total), x.month||x.period||x.payrollMonth||'', statusLabel(x.status||''), x.note||x.reason||''];});
+    }
+    if(tab==='contracts'){
+      return emps.map(function(e){var end=lastContractEnd(e), arr=Array.isArray(e.contractExtensions)?e.contractExtensions:[], last=''; if(arr.length){var dates=arr.map(function(x){return x&&(x.newEndDate||x.endDate||x.contractEndDate||'')}).filter(Boolean).sort(); last=dates[dates.length-1]||'';} var remain=end?daysBetween(new Date().toISOString().slice(0,10),end):''; var state=end?(remain<=0?'منتهي':'متبقٍ '+remain+' يوم'):''; return [e.name||'', e.contractType||'', fmt(e.contractStartDate||e.startDate), fmt(e.contractEndDate||e.contractEnd||''), fmt(last), e.contractNoticeDays||e.contractNoticePeriodDays||'', state];});
+    }
+    return [];
+  }
+  var tabCols={leaveTravel:6,banking:5,absences:4,advances:5,contracts:7};
+  var bodies={leaveTravel:'reportLeaveTravelBody',banking:'reportBankingBody',absences:'reportAbsencesBody',advances:'reportAdvancesBody',contracts:'reportContractsBody'};
+  var titles={leaveTravel:'الإجازات والسفر',banking:'البيانات البنكية',absences:'غياب هذا الشهر',advances:'السلفيات',contracts:'بيانات العقود الوظيفية'};
+  function renderReport(tab){var body=q('#'+bodies[tab]); if(!body)return; var rows=rowsFor(tab); if(!rows.length){body.innerHTML='<tr><td colspan="'+tabCols[tab]+'">لا توجد بيانات للعرض</td></tr>';return;} body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');}
+  function renderReports(){ if(!q('#reportsView'))return; ['leaveTravel','banking','absences','advances','contracts'].forEach(renderReport); try{typeof hydrateIcons==='function'&&hydrateIcons(q('#reportsView'));}catch(_){ }}
+  function setTab(tab){qa('[data-report-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.reportTab===tab)}); qa('[data-report-panel]').forEach(function(p){p.classList.toggle('active',p.dataset.reportPanel===tab)}); renderReport(tab);}
+  function csv(tab){var rows=rowsFor(tab); var panel=q('[data-report-panel="'+tab+'"]'); var heads=qa('thead th',panel).map(function(th){return th.textContent.trim()}); var lines=[heads].concat(rows).map(function(r){return r.map(function(c){return '"'+String(c==null?'':c).replace(/"/g,'""')+'"'}).join(',')}).join('\n'); var blob=new Blob(['\ufeff'+lines],{type:'text/csv;charset=utf-8'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(titles[tab]||'report')+'.csv'; document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);}
+  function printReport(tab){var panel=q('[data-report-panel="'+tab+'"]'); if(!panel)return; var table=panel.querySelector('table'); var w=window.open('','_blank'); if(!w){window.print();return;} w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(titles[tab])+'</title><style>body{font-family:Arial,sans-serif;direction:rtl;padding:24px;color:#111827}h1{font-size:22px;margin:0 0 16px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d1d5db;padding:8px;text-align:right}th{background:#f3f4f6}</style></head><body><h1>'+esc(titles[tab])+'</h1>'+table.outerHTML+'</body></html>'); w.document.close(); w.focus(); setTimeout(function(){w.print();},250);}
+  document.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('[data-report-tab]'); if(t){setTab(t.dataset.reportTab);return;} var ex=e.target&&e.target.closest&&e.target.closest('[data-report-export]'); if(ex){csv(ex.dataset.reportExport);return;} var pr=e.target&&e.target.closest&&e.target.closest('[data-report-print]'); if(pr){printReport(pr.dataset.reportPrint);return;} var nv=e.target&&e.target.closest&&e.target.closest('[data-view="reports"],[data-go-view="reports"]'); if(nv){setTimeout(renderReports,0);setTimeout(renderReports,160);} },true);
+  var oldSwitch=null; try{oldSwitch=switchView}catch(_){oldSwitch=null}
+  if(typeof oldSwitch==='function'&&!oldSwitch.__v118Reports){var wrapped=function(viewName){var res=oldSwitch.apply(this,arguments); if(viewName==='reports')setTimeout(renderReports,0); return res;}; wrapped.__v118Reports=true; try{switchView=wrapped}catch(_){} window.switchView=wrapped;}
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(renderReports,120);});
+  window.renderReports=renderReports;
+})();

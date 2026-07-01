@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=117" />
+    <link rel="stylesheet" href="style.css?v=118" />
   </head>
   <body>
     <div class="app-shell">
@@ -44,6 +44,10 @@
           <button class="nav-item" data-view="payroll">
             <span class="nav-icon" data-icon="wallet"></span>
             <span>الرواتب</span>
+          </button>
+          <button class="nav-item" data-view="reports">
+            <span class="nav-icon" data-icon="notes"></span>
+            <span>التقارير</span>
           </button>
 
           <p class="nav-label">الإدارة والتحكم</p>
@@ -494,6 +498,81 @@
                   <tbody id="payrollTableBody"></tbody>
                 </table>
               </div>
+            </article>
+          </section>
+
+
+          <section class="view reports-view" id="reportsView">
+            <div class="section-toolbar reports-toolbar">
+              <div>
+                <h2 class="section-title">التقارير</h2>
+                <p class="section-description">تقارير الموظفين والإجازات والسفر والبيانات المالية والوظيفية</p>
+              </div>
+            </div>
+
+            <article class="panel reports-panel">
+              <div class="reports-tabs" role="tablist" aria-label="تبويبات التقارير">
+                <button type="button" class="active" data-report-tab="leaveTravel">الإجازات والسفر</button>
+                <button type="button" data-report-tab="banking">البيانات البنكية</button>
+                <button type="button" data-report-tab="absences">غياب هذا الشهر</button>
+                <button type="button" data-report-tab="advances">السلفيات</button>
+                <button type="button" data-report-tab="contracts">بيانات العقود الوظيفية</button>
+              </div>
+
+              <section class="report-tab-panel active" data-report-panel="leaveTravel">
+                <div class="report-head">
+                  <div><h3>الإجازات والسفر</h3><p>تقرير موحد لطلبات الإجازات والسفر المسجلة في النظام</p></div>
+                  <div class="report-actions">
+                    <button type="button" class="secondary-btn" data-report-export="leaveTravel"><span data-icon="download"></span>تصدير</button>
+                    <button type="button" class="secondary-btn" data-report-print="leaveTravel"><span data-icon="printer"></span>طباعة PDF</button>
+                  </div>
+                </div>
+                <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>النوع</th><th>الموظف</th><th>من تاريخ</th><th>إلى تاريخ</th><th>المدة</th><th>الحالة</th></tr></thead><tbody id="reportLeaveTravelBody"><tr><td colspan="6">لا توجد بيانات للعرض</td></tr></tbody></table></div>
+              </section>
+
+              <section class="report-tab-panel" data-report-panel="banking">
+                <div class="report-head">
+                  <div><h3>البيانات البنكية</h3><p>بيانات الحسابات البنكية المسجلة للموظفين</p></div>
+                  <div class="report-actions">
+                    <button type="button" class="secondary-btn" data-report-export="banking"><span data-icon="download"></span>تصدير</button>
+                    <button type="button" class="secondary-btn" data-report-print="banking"><span data-icon="printer"></span>طباعة PDF</button>
+                  </div>
+                </div>
+                <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>الموظف</th><th>البنك</th><th>رقم الحساب</th><th>الآيبان</th><th>الحالة</th></tr></thead><tbody id="reportBankingBody"><tr><td colspan="5">لا توجد بيانات للعرض</td></tr></tbody></table></div>
+              </section>
+
+              <section class="report-tab-panel" data-report-panel="absences">
+                <div class="report-head">
+                  <div><h3>غياب هذا الشهر</h3><p>سجل الغياب والاستثناءات المرتبطة بالشهر الحالي</p></div>
+                  <div class="report-actions">
+                    <button type="button" class="secondary-btn" data-report-export="absences"><span data-icon="download"></span>تصدير</button>
+                    <button type="button" class="secondary-btn" data-report-print="absences"><span data-icon="printer"></span>طباعة PDF</button>
+                  </div>
+                </div>
+                <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>الموظف</th><th>التاريخ</th><th>نوع الغياب</th><th>الملاحظة</th></tr></thead><tbody id="reportAbsencesBody"><tr><td colspan="4">لا توجد بيانات للعرض</td></tr></tbody></table></div>
+              </section>
+
+              <section class="report-tab-panel" data-report-panel="advances">
+                <div class="report-head">
+                  <div><h3>السلفيات</h3><p>السلفيات المسجلة للموظفين حسب بيانات الرواتب</p></div>
+                  <div class="report-actions">
+                    <button type="button" class="secondary-btn" data-report-export="advances"><span data-icon="download"></span>تصدير</button>
+                    <button type="button" class="secondary-btn" data-report-print="advances"><span data-icon="printer"></span>طباعة PDF</button>
+                  </div>
+                </div>
+                <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>الموظف</th><th>المبلغ</th><th>الشهر</th><th>الحالة</th><th>ملاحظة</th></tr></thead><tbody id="reportAdvancesBody"><tr><td colspan="5">لا توجد بيانات للعرض</td></tr></tbody></table></div>
+              </section>
+
+              <section class="report-tab-panel" data-report-panel="contracts">
+                <div class="report-head">
+                  <div><h3>بيانات العقود الوظيفية</h3><p>تواريخ العقود وفترة الإشعار وحالة العقد لكل موظف</p></div>
+                  <div class="report-actions">
+                    <button type="button" class="secondary-btn" data-report-export="contracts"><span data-icon="download"></span>تصدير</button>
+                    <button type="button" class="secondary-btn" data-report-print="contracts"><span data-icon="printer"></span>طباعة PDF</button>
+                  </div>
+                </div>
+                <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>الموظف</th><th>نوع العقد</th><th>تاريخ البداية</th><th>تاريخ الانتهاء</th><th>آخر تمديد</th><th>فترة الإشعار</th><th>الحالة</th></tr></thead><tbody id="reportContractsBody"><tr><td colspan="7">لا توجد بيانات للعرض</td></tr></tbody></table></div>
+              </section>
             </article>
           </section>
 
@@ -964,6 +1043,6 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=117"></script>
+    <script src="app.js?v=118"></script>
   </body>
 </html>
