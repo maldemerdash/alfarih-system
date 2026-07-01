@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=128" />
+    <link rel="stylesheet" href="style.css?v=133" />
   </head>
   <body>
     <div class="app-shell">
@@ -549,6 +549,13 @@
                     <button type="button" class="secondary-btn" data-report-print="absences"><span data-icon="printer"></span>طباعة PDF</button>
                   </div>
                 </div>
+                <div class="report-month-filter" data-report-month-filter="absences" aria-label="فلتر شهر الغياب">
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="absences:-1">الشهر السابق</button>
+                  <strong data-report-month-label="absences">الشهر الحالي</strong>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="absences:1">الشهر التالي</button>
+                  <label>الشهر<select data-report-month-select="absences"></select></label>
+                  <label>السنة<input type="number" min="2000" max="2100" step="1" data-report-year-input="absences"></label>
+                </div>
                 <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>أيام الغياب</th></tr></thead><tbody id="reportAbsencesBody"><tr><td colspan="5">لا توجد بيانات للعرض</td></tr></tbody></table></div>
               </section>
 
@@ -559,6 +566,13 @@
                     <button type="button" class="secondary-btn" data-report-export="advances"><span data-icon="download"></span>تصدير PDF</button>
                     <button type="button" class="secondary-btn" data-report-print="advances"><span data-icon="printer"></span>طباعة PDF</button>
                   </div>
+                </div>
+                <div class="report-month-filter" data-report-month-filter="advances" aria-label="فلتر شهر السلفيات">
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="advances:-1">الشهر السابق</button>
+                  <strong data-report-month-label="advances">الشهر الحالي</strong>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="advances:1">الشهر التالي</button>
+                  <label>الشهر<select data-report-month-select="advances"></select></label>
+                  <label>السنة<input type="number" min="2000" max="2100" step="1" data-report-year-input="advances"></label>
                 </div>
                 <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>العدد</th></tr></thead><tbody id="reportAdvancesBody"><tr><td colspan="5">لا توجد بيانات للعرض</td></tr></tbody></table></div>
               </section>
@@ -1043,6 +1057,6 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=128"></script>
+    <script src="app.js?v=133"></script>
   </body>
 </html>

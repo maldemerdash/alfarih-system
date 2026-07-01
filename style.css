@@ -14256,3 +14256,13 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .report-tab-panel[data-report-panel="banking"] .report-nested-table tbody tr td,
 .report-tab-panel[data-report-panel="absences"] .report-nested-table tbody tr td,
 .report-tab-panel[data-report-panel="advances"] .report-nested-table tbody tr td{border-bottom:0!important;}
+
+
+/* v133 - month filters for absence and advances reports */
+.report-month-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 2px 14px;padding:10px 12px;border:1px solid rgba(148,163,184,.22);border-radius:16px;background:#f8fbfc}
+.report-month-filter strong{min-width:130px;text-align:center;color:#0f5968;font-weight:900}
+.report-month-filter label{display:flex;align-items:center;gap:6px;color:#475569;font-size:13px;font-weight:800}
+.report-month-filter select,.report-month-filter input{height:34px;border:1px solid rgba(148,163,184,.45);border-radius:10px;background:#fff;padding:0 10px;color:#172033;font:inherit;min-width:88px}
+.report-month-filter input{width:92px;text-align:center}
+.report-month-btn{height:34px;padding:0 12px!important}
+@media(max-width:760px){.report-month-filter{align-items:stretch}.report-month-filter strong{width:100%;text-align:right}.report-month-filter label{width:calc(50% - 5px)}.report-month-filter select,.report-month-filter input{width:100%;min-width:0}}
