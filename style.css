@@ -13993,3 +13993,41 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 @media (max-width:900px){
   .v111-history-delete-actions{margin-inline-start:0 !important;width:100% !important;justify-content:flex-start !important;}
 }
+
+/* v112 - الأزرار في مكانها الصحيح داخل رأس بطاقة سجل الإجازات والسفر */
+[data-section-panel="leaveTravelHistory"] > .form-section-title .v110-base-delete-actions,
+[data-section-panel="leaveTravelHistory"] > .form-section-title [data-v102-delete-all],
+.v111-history-delete-actions,
+.v109-history-delete-actions{
+  display:none !important;
+}
+.v81-history-head > .v112-history-delete-actions,
+.v80-history-head > .v112-history-delete-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:10px !important;
+  margin-inline-start:auto !important;
+  flex:0 0 auto !important;
+}
+.v81-history-head .v112-history-delete-btn,
+.v80-history-head .v112-history-delete-btn{
+  display:inline-flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:8px !important;
+  min-height:40px !important;
+  padding-inline:16px !important;
+  border-radius:12px !important;
+  white-space:nowrap !important;
+}
+@media (max-width:900px){
+  .v81-history-head > .v112-history-delete-actions,
+  .v80-history-head > .v112-history-delete-actions{
+    width:100% !important;
+    margin-inline-start:0 !important;
+    justify-content:flex-start !important;
+  }
+}

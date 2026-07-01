@@ -2430,3 +2430,71 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   window.v111EnsureDeleteButtonsOldPositions=ensure;
   ensure();
 })();
+
+/* v112 - exact in-card delete button placement for travel/leaves
+   The travel/leave full-delete control is now a normal visible site button
+   inside the actual history card header. It follows the active tab:
+   travel tab => delete travel, leave tab => delete leaves. */
+(function(){
+  if(window.__v112PreciseHistoryDeletePlacement) return;
+  window.__v112PreciseHistoryDeletePlacement = true;
+  function q(s,r){return (r||document).querySelector(s)}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+  function activeKind(card){
+    var active=q('[data-v81-history-tab].active,[data-v80-history-tab].active',card);
+    var kind=active&&(active.getAttribute('data-v81-history-tab')||active.getAttribute('data-v80-history-tab'));
+    return kind==='leave'?'leave':'travel';
+  }
+  function labelFor(kind){return kind==='leave'?'حذف كامل سجل الإجازات':'حذف كامل سجل السفر'}
+  function makeBtn(kind){
+    var b=document.createElement('button');
+    b.type='button';
+    b.className='secondary-btn v102-delete-all v110-visible-delete-btn v112-history-delete-btn';
+    b.setAttribute('data-v102-delete-all',kind);
+    b.setAttribute('data-v112-history-delete','true');
+    b.innerHTML='<span data-icon="trash"></span><span class="v102-delete-all-text">'+labelFor(kind)+'</span>';
+    return b;
+  }
+  function cleanWrongPlaces(scope){
+    scope=scope||document;
+    qa('[data-section-panel="leaveTravelHistory"] > .form-section-title [data-v102-delete-all]',scope).forEach(function(el){try{el.remove()}catch(_){}});
+    qa('[data-section-panel="leaveTravelHistory"] > .form-section-title .v110-base-delete-actions',scope).forEach(function(el){try{el.remove()}catch(_){}});
+    qa('.v111-history-delete-actions,.v109-history-delete-actions',scope).forEach(function(el){try{el.remove()}catch(_){}});
+    qa('.v81-history-head > [data-v102-delete-all]:not([data-v112-history-delete]),.v80-history-head > [data-v102-delete-all]:not([data-v112-history-delete])',scope).forEach(function(el){try{el.remove()}catch(_){}});
+  }
+  function place(card){
+    if(!card) return;
+    cleanWrongPlaces(card.closest('[data-section-panel="leaveTravelHistory"]')||card);
+    var head=q('.v81-history-head,.v80-history-head',card);
+    if(!head) return;
+    var kind=activeKind(card);
+    var box=q(':scope > .v112-history-delete-actions',head);
+    if(!box){
+      box=document.createElement('div');
+      box.className='v112-history-delete-actions';
+      head.appendChild(box);
+    }
+    var existing=q('[data-v112-history-delete]',box);
+    if(!existing || existing.getAttribute('data-v102-delete-all')!==kind){
+      box.innerHTML='';
+      box.appendChild(makeBtn(kind));
+    }
+  }
+  function ensure(){
+    cleanWrongPlaces(document);
+    qa('.v81-employee-history-card,.v80-employee-history-card').forEach(place);
+    try{if(typeof hydrateIcons==='function')hydrateIcons(document.getElementById('employeeForm')||document)}catch(_){ }
+  }
+  document.addEventListener('DOMContentLoaded',function(){ensure();setTimeout(ensure,80);setTimeout(ensure,350);setTimeout(ensure,900)});
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('[data-edit-employee],.edit-employee-btn,#addEmployeeBtn,[data-view-employee],.view-employee-btn,[data-employee-section],[data-v81-history-tab],[data-v80-history-tab],[data-v81-filter],[data-v80-filter]')){
+      setTimeout(ensure,0);setTimeout(ensure,90);setTimeout(ensure,260);
+    }
+  },true);
+  try{
+    var form=document.getElementById('employeeForm');
+    if(form)new MutationObserver(function(){setTimeout(ensure,0)}).observe(form,{childList:true,subtree:true});
+  }catch(_){ }
+  window.v112EnsurePreciseHistoryDeletePlacement=ensure;
+  ensure();
+})();
