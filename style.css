@@ -14202,3 +14202,15 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .reports-table th,.reports-table td{border-left:0!important;border-right:0!important;}
 .report-nested-table th,.report-nested-table td{border-left:0!important;border-right:0!important;}
 .report-nested-table th{border-top:1px solid rgba(148,163,184,.18);}
+
+/* v130 advances report: grouped rows with separator only between employee names */
+.report-tab-panel[data-report-panel="advances"] .reports-table-wrap{overflow:visible;}
+.report-tab-panel[data-report-panel="advances"] .reports-table{min-width:0;width:100%;table-layout:fixed;}
+.report-tab-panel[data-report-panel="advances"] .reports-table th,
+.report-tab-panel[data-report-panel="advances"] .reports-table td{border-left:0!important;border-right:0!important;}
+.report-tab-panel[data-report-panel="advances"] .report-employee-row td{border-bottom:1px solid rgba(148,163,184,.22)!important;}
+.report-tab-panel[data-report-panel="advances"] .report-details-row td{border-bottom:0!important;padding-top:0;}
+.report-tab-panel[data-report-panel="advances"] .report-nested-wrap{border:0;background:transparent;border-radius:0;}
+.report-tab-panel[data-report-panel="advances"] .report-nested-table th,
+.report-tab-panel[data-report-panel="advances"] .report-nested-table td{border-left:0!important;border-right:0!important;}
+.report-tab-panel[data-report-panel="advances"] .report-nested-table tbody tr td{border-bottom:0!important;}
