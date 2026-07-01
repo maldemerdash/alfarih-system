@@ -2823,7 +2823,45 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   function renderReports(){ if(!q('#reportsView'))return; ['leaveTravel','banking','absences','advances','contracts'].forEach(renderReport); try{typeof hydrateIcons==='function'&&hydrateIcons(q('#reportsView'));}catch(_){ }}
   function setTab(tab){qa('[data-report-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.reportTab===tab)}); qa('[data-report-panel]').forEach(function(p){p.classList.toggle('active',p.dataset.reportPanel===tab)}); renderReport(tab);}
   function csv(tab){var rows=rowsFor(tab); var panel=q('[data-report-panel="'+tab+'"]'); var heads=qa('thead th',panel).map(function(th){return th.textContent.trim()}); var lines=[heads].concat(rows).map(function(r){return r.map(function(c){return '"'+String(c==null?'':c).replace(/"/g,'""')+'"'}).join(',')}).join('\n'); var blob=new Blob(['\ufeff'+lines],{type:'text/csv;charset=utf-8'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(titles[tab]||'report')+'.csv'; document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);}
-  function printReport(tab){var panel=q('[data-report-panel="'+tab+'"]'); if(!panel)return; var table=panel.querySelector('table'); var w=window.open('','_blank'); if(!w){window.print();return;} w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(titles[tab])+'</title><style>@page{size:A4 landscape;margin:10mm}html,body{width:297mm;min-height:210mm}body{font-family:Arial,sans-serif;direction:rtl;padding:8mm;color:#111827;box-sizing:border-box}h1{font-size:18px;margin:0 0 10px}table{width:100%;border-collapse:collapse;font-size:10.5px;table-layout:fixed}th,td{border:1px solid #d1d5db;padding:7px;text-align:right;white-space:normal;overflow-wrap:anywhere;word-break:break-word}th{background:#f3f4f6}.contract-state-green{color:#15803d;font-weight:800}.contract-state-yellow{color:#b45309;font-weight:800}.contract-state-red{color:#dc2626;font-weight:800}</style></head><body><h1>'+esc(titles[tab])+'</h1>'+table.outerHTML+'</body></html>'); w.document.close(); w.focus(); setTimeout(function(){w.print();},250);}
+  function reportHeads(tab){
+    var panel=q('[data-report-panel="'+tab+'"]');
+    var heads=panel?qa('thead th',panel).map(function(th){return th.textContent.trim();}):[];
+    if(heads.length)return heads;
+    if(tab==='contracts')return ['رقم الموظف','اسم الموظف','تاريخ البداية','تاريخ الانتهاء الأساسي','آخر تمديد','فترة الإشعار','الحالة'];
+    if(tab==='banking')return ['رقم الموظف','اسم الموظف','الجنسية','رقم الهوية','اسم الفرع','رقم الحساب'];
+    if(tab==='leaveTravel')return ['رقم الموظف','اسم الموظف','الجنسية','رقم الهوية','النوع','الفترة','المستنفد','المتبقي'];
+    if(tab==='absences')return ['رقم الموظف','اسم الموظف','الجنسية','رقم الهوية','تاريخ الغياب','اليوم','الملاحظة'];
+    if(tab==='advances')return ['رقم الموظف','اسم الموظف','الجنسية','رقم الهوية','تاريخ السلفة','المبلغ','المتبقي','الحالة'];
+    return [];
+  }
+  function reportTableHtml(tab){
+    var heads=reportHeads(tab), rows=rowsFor(tab);
+    var headHtml='<thead><tr>'+heads.map(function(h){return '<th>'+esc(h)+'</th>';}).join('')+'</tr></thead>';
+    var bodyHtml='';
+    if(!rows.length){bodyHtml='<tr><td colspan="'+Math.max(1,heads.length)+'">لا توجد بيانات للعرض</td></tr>';}
+    else if(tab==='contracts'){
+      bodyHtml=rows.map(function(r){return '<tr>'+r.map(function(c,i){var cls=i===6?contractStateClass(c):'';return '<td'+(cls?' class="'+cls+'"':'')+'>'+esc(c)+'</td>';}).join('')+'</tr>';}).join('');
+    }else{
+      bodyHtml=rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+esc(c)+'</td>';}).join('')+'</tr>';}).join('');
+    }
+    return '<table class="print-report-table">'+headHtml+'<tbody>'+bodyHtml+'</tbody></table>';
+  }
+  function printReport(tab){
+    var title=titles[tab]||'تقرير';
+    var html='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111827;font-family:Arial,Tahoma,sans-serif;direction:rtl}.print-sheet{width:100%;padding:0}.print-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #dbe3ef;padding-bottom:8px;margin-bottom:12px}.print-brand{display:flex;align-items:center;gap:8px}.print-logo{width:30px;height:30px;border-radius:50%;object-fit:cover}.print-title{text-align:right}.print-title h1{margin:0;color:#08758a;font-size:18px;font-weight:900}.print-title p{margin:2px 0 0;color:#64748b;font-size:10px}.print-meta{text-align:left;color:#64748b;font-size:10px}.report-caption{margin:0 0 8px;text-align:right}.report-caption h2{margin:0;color:#172033;font-size:15px;font-weight:900}.report-caption p{margin:3px 0 0;color:#667085;font-size:10px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px}.print-report-table th,.print-report-table td{border:1px solid #d1d5db;padding:5px 6px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}.print-report-table th{background:#f1f5f9;color:#0f5968;font-weight:900}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}@media print{html,body{width:297mm;min-height:210mm}.print-sheet{page-break-inside:auto}}</style></head><body><main class="print-sheet"><header class="print-head"><div class="print-brand"><img class="print-logo" src="sar-symbol.png" alt=""><div class="print-title"><h1>نظام إدارة الموظفين</h1><p>التقارير</p></div></div><div class="print-meta">تاريخ الطباعة: '+esc(fmt(new Date().toISOString().slice(0,10)))+'</div></header><section class="report-caption"><h2>'+esc(title)+'</h2><p>تقرير مستقل مخصص للطباعة، وليس تصويرًا لشاشة النظام.</p></section>'+reportTableHtml(tab)+'</main></body></html>';
+    var frame=document.createElement('iframe');
+    frame.className='report-print-frame';
+    frame.setAttribute('aria-hidden','true');
+    frame.style.position='fixed'; frame.style.left='0'; frame.style.bottom='0'; frame.style.width='0'; frame.style.height='0'; frame.style.border='0'; frame.style.opacity='0';
+    document.body.appendChild(frame);
+    var doc=frame.contentWindow&&frame.contentWindow.document;
+    if(!doc){try{frame.remove()}catch(_){}; if(typeof showToast==='function')showToast('تعذر تجهيز ملف الطباعة.'); return;}
+    doc.open(); doc.write(html); doc.close();
+    var done=false;
+    function doPrint(){ if(done)return; done=true; try{frame.contentWindow.focus(); frame.contentWindow.print();}catch(err){console.warn(err); if(typeof showToast==='function')showToast('تعذر تنفيذ الطباعة.');} setTimeout(function(){try{frame.remove()}catch(_){}},2500); }
+    frame.onload=function(){setTimeout(doPrint,180);};
+    setTimeout(doPrint,500);
+  }
   document.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('[data-report-tab]'); if(t){setTab(t.dataset.reportTab);return;} var ex=e.target&&e.target.closest&&e.target.closest('[data-report-export]'); if(ex){csv(ex.dataset.reportExport);return;} var pr=e.target&&e.target.closest&&e.target.closest('[data-report-print]'); if(pr){printReport(pr.dataset.reportPrint);return;} var nv=e.target&&e.target.closest&&e.target.closest('[data-view="reports"],[data-go-view="reports"]'); if(nv){setTimeout(renderReports,0);setTimeout(renderReports,160);} },true);
   var oldSwitch=null; try{oldSwitch=switchView}catch(_){oldSwitch=null}
   if(typeof oldSwitch==='function'&&!oldSwitch.__v118Reports){var wrapped=function(viewName){var res=oldSwitch.apply(this,arguments); if(viewName==='reports')setTimeout(renderReports,0); return res;}; wrapped.__v118Reports=true; try{switchView=wrapped}catch(_){} window.switchView=wrapped;}
