@@ -14118,28 +14118,3 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .contract-attachment-field .attachment-download-btn {
   margin-top: 8px;
 }
-
-/* v117 - contract notice field beside contract attachment */
-.contract-notice-field input{
-  width:100%;
-  min-height:42px;
-}
-.dashboard-contract-actions{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-  margin-inline-start:auto;
-}
-.contract-end-dashboard-btn{
-  white-space:nowrap;
-  border-color:rgba(220,38,38,.22) !important;
-  color:#b91c1c !important;
-  background:#fff7f7 !important;
-}
-.contract-end-dashboard-btn:hover{
-  background:#fef2f2 !important;
-}
-@media (max-width:700px){
-  .dashboard-contract-actions{width:100%;justify-content:flex-start;margin-inline-start:0;}
-}
