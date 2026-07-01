@@ -2822,7 +2822,9 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   function renderReport(tab){var body=q('#'+bodies[tab]); if(!body)return; var rows=rowsFor(tab); if(!rows.length){body.innerHTML='<tr><td colspan="'+tabCols[tab]+'">لا توجد بيانات للعرض</td></tr>';return;} if(tab==='contracts'){body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c,i){var cls=i===6?contractStateClass(c):'';return '<td'+(cls?' class="'+cls+'"':'')+'>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');return;} body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');}
   function renderReports(){ if(!q('#reportsView'))return; ['leaveTravel','banking','absences','advances','contracts'].forEach(renderReport); try{typeof hydrateIcons==='function'&&hydrateIcons(q('#reportsView'));}catch(_){ }}
   function setTab(tab){qa('[data-report-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.reportTab===tab)}); qa('[data-report-panel]').forEach(function(p){p.classList.toggle('active',p.dataset.reportPanel===tab)}); renderReport(tab);}
-  function csv(tab){var rows=rowsFor(tab); var panel=q('[data-report-panel="'+tab+'"]'); var heads=qa('thead th',panel).map(function(th){return th.textContent.trim()}); var lines=[heads].concat(rows).map(function(r){return r.map(function(c){return '"'+String(c==null?'':c).replace(/"/g,'""')+'"'}).join(',')}).join('\n'); var blob=new Blob(['\ufeff'+lines],{type:'text/csv;charset=utf-8'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(titles[tab]||'report')+'.csv'; document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);}
+  function csv(tab){
+    return printReport(tab,'export');
+  }
   function reportHeads(tab){
     var panel=q('[data-report-panel="'+tab+'"]');
     var heads=panel?qa('thead th',panel).map(function(th){return th.textContent.trim();}):[];
@@ -2846,21 +2848,56 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     }
     return '<table class="print-report-table">'+headHtml+'<tbody>'+bodyHtml+'</tbody></table>';
   }
-  function printReport(tab){
+  function reportCompanyData(){
+    var d={};
+    try{d=parse(localStorage.getItem('nawah-company-settings-v92'),{});}catch(_){d={};}
+    var name=d.company||d.companyName||d.name||'اسم المنشأة';
+    var parts=[];
+    if(d.unifiedNumber)parts.push('الرقم الموحد: '+d.unifiedNumber);
+    if(d.email)parts.push('البريد الإلكتروني: '+d.email);
+    if(d.phone)parts.push('رقم التواصل: '+d.phone);
+    var addr=[d.shortAddress,d.region,d.city,d.district,d.street,d.postalCode].filter(Boolean).join(' - ');
+    if(addr)parts.push('العنوان الوطني: '+addr);
+    return {name:name, meta:parts, logo:d.logoDataUrl||'', logoAttachmentId:d.logoAttachmentId||''};
+  }
+  async function reportLogoUrl(company){
+    var url=company.logo||'';
+    if(!url && company.logoAttachmentId){
+      try{ if(typeof attachmentUrl==='function') url=await attachmentUrl(company.logoAttachmentId)||''; }catch(_){ url=''; }
+    }
+    return url||'sar-symbol.png';
+  }
+  function reportDateTime(){
+    var d=new Date();
+    try{return d.toLocaleDateString('ar-SA',{year:'numeric',month:'2-digit',day:'2-digit'})+' - '+d.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});}catch(_){return d.toISOString().slice(0,16).replace('T',' ');}
+  }
+  function reportSubtitle(tab){
+    if(tab==='contracts')return 'تقرير بيانات العقود الوظيفية وحالة الانتهاء وفترة الإشعار';
+    if(tab==='banking')return 'تقرير البيانات البنكية للموظفين';
+    if(tab==='leaveTravel')return 'تقرير الإجازات والسفر للموظفين';
+    if(tab==='absences')return 'تقرير غياب هذا الشهر';
+    if(tab==='advances')return 'تقرير السلفيات';
+    return 'تقرير إداري';
+  }
+  async function printReport(tab,mode){
     var title=titles[tab]||'تقرير';
-    var html='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111827;font-family:Arial,Tahoma,sans-serif;direction:rtl}.print-sheet{width:100%;padding:0}.print-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #dbe3ef;padding-bottom:8px;margin-bottom:12px}.print-brand{display:flex;align-items:center;gap:8px}.print-logo{width:30px;height:30px;border-radius:50%;object-fit:cover}.print-title{text-align:right}.print-title h1{margin:0;color:#08758a;font-size:18px;font-weight:900}.print-title p{margin:2px 0 0;color:#64748b;font-size:10px}.print-meta{text-align:left;color:#64748b;font-size:10px}.report-caption{margin:0 0 8px;text-align:right}.report-caption h2{margin:0;color:#172033;font-size:15px;font-weight:900}.report-caption p{margin:3px 0 0;color:#667085;font-size:10px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px}.print-report-table th,.print-report-table td{border:1px solid #d1d5db;padding:5px 6px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}.print-report-table th{background:#f1f5f9;color:#0f5968;font-weight:900}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}@media print{html,body{width:297mm;min-height:210mm}.print-sheet{page-break-inside:auto}}</style></head><body><main class="print-sheet"><header class="print-head"><div class="print-brand"><img class="print-logo" src="sar-symbol.png" alt=""><div class="print-title"><h1>نظام إدارة الموظفين</h1><p>التقارير</p></div></div><div class="print-meta">تاريخ الطباعة: '+esc(fmt(new Date().toISOString().slice(0,10)))+'</div></header><section class="report-caption"><h2>'+esc(title)+'</h2><p>تقرير مستقل مخصص للطباعة، وليس تصويرًا لشاشة النظام.</p></section>'+reportTableHtml(tab)+'</main></body></html>';
+    var company=reportCompanyData();
+    var logo=await reportLogoUrl(company);
+    var printedAt=reportDateTime();
+    var companyMeta=company.meta.length?company.meta.map(function(x){return '<span>'+esc(x)+'</span>';}).join(''): '<span>بيانات المنشأة غير مكتملة</span>';
+    var html='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10.5px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px;margin-top:8px}.print-report-table th,.print-report-table td{border:1px solid #cfd8e3;padding:6px 7px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة " counter(page) " من " counter(pages)}@media print{body{overflow:visible}.report-page{page-break-inside:auto}.print-report-table{page-break-inside:auto}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="'+esc(logo)+'" alt="شعار المنشأة"><div class="company-title"><h1>'+esc(company.name)+'</h1><div class="meta">'+companyMeta+'</div></div></header><section class="report-name"><div><h2>'+esc(title)+'</h2><p>'+esc(reportSubtitle(tab))+'</p></div><div class="date">تاريخ الطباعة: '+esc(printedAt)+'</div></section>'+reportTableHtml(tab)+'</main><footer class="report-footer"><span>تمت طباعة هذا التقرير من نظام إدارة الموظفين</span><span class="pages"></span><span>'+esc(printedAt)+'</span></footer></body></html>';
     var frame=document.createElement('iframe');
     frame.className='report-print-frame';
     frame.setAttribute('aria-hidden','true');
     frame.style.position='fixed'; frame.style.left='0'; frame.style.bottom='0'; frame.style.width='0'; frame.style.height='0'; frame.style.border='0'; frame.style.opacity='0';
     document.body.appendChild(frame);
     var doc=frame.contentWindow&&frame.contentWindow.document;
-    if(!doc){try{frame.remove()}catch(_){}; if(typeof showToast==='function')showToast('تعذر تجهيز ملف الطباعة.'); return;}
+    if(!doc){try{frame.remove()}catch(_){}; if(typeof showToast==='function')showToast('تعذر تجهيز ملف PDF.'); return;}
     doc.open(); doc.write(html); doc.close();
     var done=false;
-    function doPrint(){ if(done)return; done=true; try{frame.contentWindow.focus(); frame.contentWindow.print();}catch(err){console.warn(err); if(typeof showToast==='function')showToast('تعذر تنفيذ الطباعة.');} setTimeout(function(){try{frame.remove()}catch(_){}},2500); }
-    frame.onload=function(){setTimeout(doPrint,180);};
-    setTimeout(doPrint,500);
+    function doPrint(){ if(done)return; done=true; try{frame.contentWindow.focus(); frame.contentWindow.print();}catch(err){console.warn(err); if(typeof showToast==='function')showToast('تعذر تنفيذ تصدير PDF.');} setTimeout(function(){try{frame.remove()}catch(_){}},2500); }
+    frame.onload=function(){setTimeout(doPrint,220);};
+    setTimeout(doPrint,650);
   }
   document.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('[data-report-tab]'); if(t){setTab(t.dataset.reportTab);return;} var ex=e.target&&e.target.closest&&e.target.closest('[data-report-export]'); if(ex){csv(ex.dataset.reportExport);return;} var pr=e.target&&e.target.closest&&e.target.closest('[data-report-print]'); if(pr){printReport(pr.dataset.reportPrint);return;} var nv=e.target&&e.target.closest&&e.target.closest('[data-view="reports"],[data-go-view="reports"]'); if(nv){setTimeout(renderReports,0);setTimeout(renderReports,160);} },true);
   var oldSwitch=null; try{oldSwitch=switchView}catch(_){oldSwitch=null}
