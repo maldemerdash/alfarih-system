@@ -14055,3 +14055,56 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
   transform:none !important;
   transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease !important;
 }
+
+/* v114 - تثبيت أزرار حذف سجل الإجازات والسفر بدون وميض */
+.v81-history-head > .v114-history-delete-actions,
+.v80-history-head > .v114-history-delete-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:10px !important;
+  margin-inline-start:auto !important;
+  flex:0 0 auto !important;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+.v81-history-head .v114-history-delete-btn,
+.v80-history-head .v114-history-delete-btn{
+  display:inline-flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:8px !important;
+  min-height:40px !important;
+  padding-inline:16px !important;
+  border-radius:12px !important;
+  white-space:nowrap !important;
+  transform:none !important;
+  transition:background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease !important;
+}
+.v114-commission-record-row{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:16px !important;
+  flex-wrap:wrap !important;
+  margin-top:18px !important;
+  margin-bottom:10px !important;
+}
+.v114-commission-delete-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:10px !important;
+  margin-inline-start:auto !important;
+}
+@media (max-width:900px){
+  .v81-history-head > .v114-history-delete-actions,
+  .v80-history-head > .v114-history-delete-actions,
+  .v114-commission-delete-actions{
+    width:100% !important;
+    margin-inline-start:0 !important;
+    justify-content:flex-start !important;
+  }
+}
