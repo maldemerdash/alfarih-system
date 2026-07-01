@@ -2754,6 +2754,26 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   function empName(id, fallback){var sid=String(id||''); var emp=empList().find(function(e){return String(e.id||e.employeeId||'')===sid || String(e.employeeNumber||'')===sid}); return (emp&&emp.name)||fallback||sid||'';}
   function statusLabel(v){var s=String(v||'').toLowerCase(); if(s==='approved')return 'معتمد'; if(s==='pending')return 'بانتظار الموافقة'; if(s==='rejected')return 'مرفوض'; if(s==='paid')return 'مصروف'; if(s==='active')return 'نشط'; if(s==='closed')return 'مغلق'; return v||''; }
   function daysBetween(a,b){var x=new Date(a), y=new Date(b); if(isNaN(x)||isNaN(y))return ''; return Math.max(0,Math.ceil((y-x)/86400000));}
+  function dayDiffSigned(a,b){
+    var x=new Date(String(a||'').slice(0,10)+'T00:00:00'), y=new Date(String(b||'').slice(0,10)+'T00:00:00');
+    if(isNaN(x)||isNaN(y))return null;
+    return Math.ceil((y-x)/86400000);
+  }
+  function contractStateText(endDate, noticeDays){
+    if(!endDate)return '';
+    var diff=dayDiffSigned(new Date().toISOString().slice(0,10), endDate);
+    if(diff===null)return '';
+    if(diff<0)return 'منتهي منذ '+Math.abs(diff)+' يوم';
+    if(Number(noticeDays||0)>0 && diff<=Number(noticeDays||0))return 'داخل فترة الإشعار - متبقي '+diff+' يوم';
+    return 'متبقي '+diff+' يوم';
+  }
+  function contractStateClass(text){
+    text=String(text||'');
+    if(text.indexOf('منتهي')>-1)return 'contract-state-red';
+    if(text.indexOf('فترة الإشعار')>-1)return 'contract-state-yellow';
+    if(text.indexOf('متبقي')>-1)return 'contract-state-green';
+    return '';
+  }
   function lastContractEnd(emp){
     var base=emp && (emp.contractEndDate||emp.contractEnd||emp.expiryDate||emp.endDate||'');
     var arr=Array.isArray(emp&&emp.contractExtensions)?emp.contractExtensions:[];
@@ -2780,18 +2800,30 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
       return parse(localStorage.getItem('nawah-payroll-advances'),[]).map(function(x){return [empName(x.employeeId||x.empId,x.employeeName||x.name), money(x.amount||x.value||x.total), x.month||x.period||x.payrollMonth||'', statusLabel(x.status||''), x.note||x.reason||''];});
     }
     if(tab==='contracts'){
-      return emps.map(function(e){var end=lastContractEnd(e), arr=Array.isArray(e.contractExtensions)?e.contractExtensions:[], last=''; if(arr.length){var dates=arr.map(function(x){return x&&(x.newEndDate||x.endDate||x.contractEndDate||'')}).filter(Boolean).sort(); last=dates[dates.length-1]||'';} var remain=end?daysBetween(new Date().toISOString().slice(0,10),end):''; var state=end?(remain<=0?'منتهي':'متبقٍ '+remain+' يوم'):''; return [e.name||'', e.contractType||'', fmt(e.contractStartDate||e.startDate), fmt(e.contractEndDate||e.contractEnd||''), fmt(last), e.contractNoticeDays||e.contractNoticePeriodDays||'', state];});
+      return emps.map(function(e){
+        var end=lastContractEnd(e);
+        var arr=Array.isArray(e.contractExtensions)?e.contractExtensions:[];
+        var last='';
+        if(arr.length){
+          var dates=arr.map(function(x){return x&&(x.newEndDate||x.endDate||x.contractEndDate||x.expiryDate||'')}).filter(Boolean).sort();
+          last=dates[dates.length-1]||'';
+        }
+        var baseEnd=e.contractEndDate||e.contractEnd||e.expiryDate||e.endDate||'';
+        var notice=Number(e.contractNoticeDays||e.contractNoticePeriodDays||e.noticePeriodDays||0)||0;
+        var state=contractStateText(end,notice);
+        return [e.employeeNumber||e.id||'', e.name||'', fmt(e.contractStartDate||e.startDate), fmt(baseEnd), fmt(last), notice?notice+' يوم':'', state];
+      });
     }
     return [];
   }
   var tabCols={leaveTravel:6,banking:5,absences:4,advances:5,contracts:7};
   var bodies={leaveTravel:'reportLeaveTravelBody',banking:'reportBankingBody',absences:'reportAbsencesBody',advances:'reportAdvancesBody',contracts:'reportContractsBody'};
   var titles={leaveTravel:'الإجازات والسفر',banking:'البيانات البنكية',absences:'غياب هذا الشهر',advances:'السلفيات',contracts:'بيانات العقود الوظيفية'};
-  function renderReport(tab){var body=q('#'+bodies[tab]); if(!body)return; var rows=rowsFor(tab); if(!rows.length){body.innerHTML='<tr><td colspan="'+tabCols[tab]+'">لا توجد بيانات للعرض</td></tr>';return;} body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');}
+  function renderReport(tab){var body=q('#'+bodies[tab]); if(!body)return; var rows=rowsFor(tab); if(!rows.length){body.innerHTML='<tr><td colspan="'+tabCols[tab]+'">لا توجد بيانات للعرض</td></tr>';return;} if(tab==='contracts'){body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c,i){var cls=i===6?contractStateClass(c):'';return '<td'+(cls?' class="'+cls+'"':'')+'>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');return;} body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');}
   function renderReports(){ if(!q('#reportsView'))return; ['leaveTravel','banking','absences','advances','contracts'].forEach(renderReport); try{typeof hydrateIcons==='function'&&hydrateIcons(q('#reportsView'));}catch(_){ }}
   function setTab(tab){qa('[data-report-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.reportTab===tab)}); qa('[data-report-panel]').forEach(function(p){p.classList.toggle('active',p.dataset.reportPanel===tab)}); renderReport(tab);}
   function csv(tab){var rows=rowsFor(tab); var panel=q('[data-report-panel="'+tab+'"]'); var heads=qa('thead th',panel).map(function(th){return th.textContent.trim()}); var lines=[heads].concat(rows).map(function(r){return r.map(function(c){return '"'+String(c==null?'':c).replace(/"/g,'""')+'"'}).join(',')}).join('\n'); var blob=new Blob(['\ufeff'+lines],{type:'text/csv;charset=utf-8'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(titles[tab]||'report')+'.csv'; document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);}
-  function printReport(tab){var panel=q('[data-report-panel="'+tab+'"]'); if(!panel)return; var table=panel.querySelector('table'); var w=window.open('','_blank'); if(!w){window.print();return;} w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(titles[tab])+'</title><style>body{font-family:Arial,sans-serif;direction:rtl;padding:24px;color:#111827}h1{font-size:22px;margin:0 0 16px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d1d5db;padding:8px;text-align:right}th{background:#f3f4f6}</style></head><body><h1>'+esc(titles[tab])+'</h1>'+table.outerHTML+'</body></html>'); w.document.close(); w.focus(); setTimeout(function(){w.print();},250);}
+  function printReport(tab){var panel=q('[data-report-panel="'+tab+'"]'); if(!panel)return; var table=panel.querySelector('table'); var w=window.open('','_blank'); if(!w){window.print();return;} w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(titles[tab])+'</title><style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;direction:rtl;padding:10px;color:#111827}h1{font-size:20px;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}th,td{border:1px solid #d1d5db;padding:7px;text-align:right;white-space:normal;overflow-wrap:anywhere;word-break:break-word}th{background:#f3f4f6}.contract-state-green{color:#15803d;font-weight:800}.contract-state-yellow{color:#b45309;font-weight:800}.contract-state-red{color:#dc2626;font-weight:800}</style></head><body><h1>'+esc(titles[tab])+'</h1>'+table.outerHTML+'</body></html>'); w.document.close(); w.focus(); setTimeout(function(){w.print();},250);}
   document.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('[data-report-tab]'); if(t){setTab(t.dataset.reportTab);return;} var ex=e.target&&e.target.closest&&e.target.closest('[data-report-export]'); if(ex){csv(ex.dataset.reportExport);return;} var pr=e.target&&e.target.closest&&e.target.closest('[data-report-print]'); if(pr){printReport(pr.dataset.reportPrint);return;} var nv=e.target&&e.target.closest&&e.target.closest('[data-view="reports"],[data-go-view="reports"]'); if(nv){setTimeout(renderReports,0);setTimeout(renderReports,160);} },true);
   var oldSwitch=null; try{oldSwitch=switchView}catch(_){oldSwitch=null}
   if(typeof oldSwitch==='function'&&!oldSwitch.__v118Reports){var wrapped=function(viewName){var res=oldSwitch.apply(this,arguments); if(viewName==='reports')setTimeout(renderReports,0); return res;}; wrapped.__v118Reports=true; try{switchView=wrapped}catch(_){} window.switchView=wrapped;}

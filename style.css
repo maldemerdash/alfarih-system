@@ -14161,3 +14161,12 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .reports-table th{white-space:nowrap}
 @media(max-width:760px){.report-head{align-items:flex-start;flex-direction:column}.report-actions{width:100%;justify-content:flex-start}.reports-tabs{overflow:auto;flex-wrap:nowrap}.reports-tabs button{white-space:nowrap}}
 @media print{body.printing-report .app-shell>*:not(.main-area){display:none!important}}
+
+/* v119 contracts report: no horizontal scroll + text-only colored status */
+.report-tab-panel[data-report-panel="contracts"] .reports-table-wrap{overflow:visible;}
+.report-tab-panel[data-report-panel="contracts"] .reports-table{min-width:0;width:100%;table-layout:fixed;}
+.report-tab-panel[data-report-panel="contracts"] .reports-table th,
+.report-tab-panel[data-report-panel="contracts"] .reports-table td{white-space:normal;overflow-wrap:anywhere;word-break:break-word;vertical-align:middle;}
+.report-tab-panel[data-report-panel="contracts"] .reports-table .contract-state-green{color:#15803d;font-weight:800;background:transparent;border:0;}
+.report-tab-panel[data-report-panel="contracts"] .reports-table .contract-state-yellow{color:#b45309;font-weight:800;background:transparent;border:0;}
+.report-tab-panel[data-report-panel="contracts"] .reports-table .contract-state-red{color:#dc2626;font-weight:800;background:transparent;border:0;}
