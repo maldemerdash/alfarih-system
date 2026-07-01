@@ -14194,3 +14194,8 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .report-tab-panel[data-report-panel="banking"] .reports-table td:nth-child(4){width:22%;}
 .report-tab-panel[data-report-panel="banking"] .reports-table th:nth-child(5),
 .report-tab-panel[data-report-panel="banking"] .reports-table td:nth-child(5){width:20%;}
+
+.report-period-cell{display:flex;flex-direction:column;gap:3px;line-height:1.35;}
+.report-period-cell div{display:flex;justify-content:center;align-items:center;gap:6px;white-space:nowrap;}
+.report-period-cell span{color:#64748b;font-weight:800;font-size:.92em;}
+.report-period-cell strong{color:#172033;font-weight:900;}
