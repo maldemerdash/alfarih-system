@@ -14170,3 +14170,27 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .report-tab-panel[data-report-panel="contracts"] .reports-table .contract-state-green{color:#15803d;font-weight:800;background:transparent;border:0;}
 .report-tab-panel[data-report-panel="contracts"] .reports-table .contract-state-yellow{color:#b45309;font-weight:800;background:transparent;border:0;}
 .report-tab-panel[data-report-panel="contracts"] .reports-table .contract-state-red{color:#dc2626;font-weight:800;background:transparent;border:0;}
+
+/* v123 banking report: grouped display without horizontal scroll */
+.reports-table-wrap{overflow:visible;}
+.reports-table{min-width:0;width:100%;table-layout:fixed;}
+.reports-table th,.reports-table td{white-space:normal;overflow-wrap:anywhere;word-break:break-word;vertical-align:middle;}
+.report-toggle{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;color:#0f172a;font-family:inherit;font-weight:900;cursor:pointer;padding:0;text-align:right;}
+.report-toggle-arrow{display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:50%;background:#e8fbff;color:#0f7f90;font-size:13px;line-height:1;transition:transform .18s ease;}
+.report-toggle.is-open .report-toggle-arrow{transform:rotate(180deg);}
+.report-details-row td{background:#fbfdff!important;padding:10px 14px!important;}
+.report-nested-wrap{border:1px solid rgba(19,163,183,.18);border-radius:14px;background:#fff;overflow:hidden;}
+.report-nested-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;}
+.report-nested-table th,.report-nested-table td{border-bottom:1px solid rgba(148,163,184,.18);padding:10px 12px;text-align:right;white-space:normal;overflow-wrap:anywhere;}
+.report-nested-table th{background:#eff8fb;color:#0f5968;font-weight:900;}
+.report-nested-table tr:last-child td{border-bottom:0;}
+.report-tab-panel[data-report-panel="banking"] .reports-table th:nth-child(1),
+.report-tab-panel[data-report-panel="banking"] .reports-table td:nth-child(1){width:14%;}
+.report-tab-panel[data-report-panel="banking"] .reports-table th:nth-child(2),
+.report-tab-panel[data-report-panel="banking"] .reports-table td:nth-child(2){width:28%;}
+.report-tab-panel[data-report-panel="banking"] .reports-table th:nth-child(3),
+.report-tab-panel[data-report-panel="banking"] .reports-table td:nth-child(3){width:16%;}
+.report-tab-panel[data-report-panel="banking"] .reports-table th:nth-child(4),
+.report-tab-panel[data-report-panel="banking"] .reports-table td:nth-child(4){width:22%;}
+.report-tab-panel[data-report-panel="banking"] .reports-table th:nth-child(5),
+.report-tab-panel[data-report-panel="banking"] .reports-table td:nth-child(5){width:20%;}

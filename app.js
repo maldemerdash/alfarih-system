@@ -2752,6 +2752,19 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   function money(v){var n=Number(v||0); try{ if(typeof formatMoney==='function') return formatMoney(n); }catch(_){ } return n?String(n):'0'; }
   function empList(){try{return Array.isArray(employees)?employees:[]}catch(_){return []}}
   function empName(id, fallback){var sid=String(id||''); var emp=empList().find(function(e){return String(e.id||e.employeeId||'')===sid || String(e.employeeNumber||'')===sid}); return (emp&&emp.name)||fallback||sid||'';}
+  function empNo(e){return (e&&(e.employeeNumber||e.employeeNo||e.number||e.id))||'';}
+  function empNationality(e){return (e&&(e.nationality||e.nationalityName||e.country||''))||'';}
+  function empIdentity(e){return (e&&(e.identityNumber||e.nationalId||e.iqamaNumber||e.idNumber||''))||'';}
+  function bankAccountsOf(e){
+    var accounts=Array.isArray(e&&e.bankAccounts)?e.bankAccounts.slice():[];
+    if(!accounts.length && e && (e.bankName||e.bank||e.branchName||e.bankBranch||e.accountNumber||e.account||e.iban||e.IBAN)){accounts.push(e);}
+    return accounts.map(function(b){
+      return {branch:(b.branchName||b.bankBranch||b.branch||b.bankName||b.bank||e.bankName||e.bank||''), account:(b.accountNumber||b.account||b.iban||b.IBAN||e.accountNumber||e.account||e.iban||e.IBAN||'')};
+    }).filter(function(b){return b.branch||b.account;});
+  }
+  function bankReportGroups(){
+    return empList().map(function(e){return {employee:e, accounts:bankAccountsOf(e)};}).filter(function(g){return g.accounts.length;});
+  }
   function statusLabel(v){var s=String(v||'').toLowerCase(); if(s==='approved')return 'معتمد'; if(s==='pending')return 'بانتظار الموافقة'; if(s==='rejected')return 'مرفوض'; if(s==='paid')return 'مصروف'; if(s==='active')return 'نشط'; if(s==='closed')return 'مغلق'; return v||''; }
   function daysBetween(a,b){var x=new Date(a), y=new Date(b); if(isNaN(x)||isNaN(y))return ''; return Math.max(0,Math.ceil((y-x)/86400000));}
   function dayDiffSigned(a,b){
@@ -2788,7 +2801,13 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
       return leaveRows.concat(travelRows);
     }
     if(tab==='banking'){
-      var out=[]; emps.forEach(function(e){var accounts=Array.isArray(e.bankAccounts)?e.bankAccounts:[]; if(accounts.length){accounts.forEach(function(b){out.push([e.name||'', b.bankName||b.bank||e.bankName||'', b.accountNumber||b.account||'', b.iban||b.IBAN||e.iban||'', statusLabel(b.status||'')]);});}else if(e.bankName||e.iban||e.accountNumber){out.push([e.name||'', e.bankName||'', e.accountNumber||'', e.iban||'', '']);}}); return out;
+      var out=[];
+      bankReportGroups().forEach(function(g){
+        g.accounts.forEach(function(b,idx){
+          out.push([idx===0?(empNo(g.employee)||''):'', idx===0?(g.employee.name||''):'', idx===0?empNationality(g.employee):'', idx===0?empIdentity(g.employee):'', b.branch||'', b.account||'']);
+        });
+      });
+      return out;
     }
     if(tab==='absences'){
       var now=new Date(), ym=now.toISOString().slice(0,7); var out=[];
@@ -2819,7 +2838,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   var tabCols={leaveTravel:6,banking:5,absences:4,advances:5,contracts:7};
   var bodies={leaveTravel:'reportLeaveTravelBody',banking:'reportBankingBody',absences:'reportAbsencesBody',advances:'reportAdvancesBody',contracts:'reportContractsBody'};
   var titles={leaveTravel:'الإجازات والسفر',banking:'البيانات البنكية',absences:'غياب هذا الشهر',advances:'السلفيات',contracts:'بيانات العقود الوظيفية'};
-  function renderReport(tab){var body=q('#'+bodies[tab]); if(!body)return; var rows=rowsFor(tab); if(!rows.length){body.innerHTML='<tr><td colspan="'+tabCols[tab]+'">لا توجد بيانات للعرض</td></tr>';return;} if(tab==='contracts'){body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c,i){var cls=i===6?contractStateClass(c):'';return '<td'+(cls?' class="'+cls+'"':'')+'>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');return;} body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');}
+  function renderReport(tab){var body=q('#'+bodies[tab]); if(!body)return; var rows=rowsFor(tab); if(tab==='banking'){var groups=bankReportGroups(); if(!groups.length){body.innerHTML='<tr><td colspan="5">لا توجد بيانات للعرض</td></tr>';return;} body.innerHTML=groups.map(function(g,i){var id='bank-report-details-'+i; var accounts=g.accounts||[]; var details='<div class="report-nested-wrap"><table class="report-nested-table"><thead><tr><th>اسم الفرع</th><th>رقم الحساب</th></tr></thead><tbody>'+accounts.map(function(b){return '<tr><td>'+esc(b.branch)+'</td><td>'+esc(b.account)+'</td></tr>';}).join('')+'</tbody></table></div>'; return '<tr class="report-employee-row"><td>'+esc(empNo(g.employee))+'</td><td><button type="button" class="report-toggle" data-report-toggle="'+id+'" aria-expanded="false"><span class="report-toggle-arrow">▾</span><span>'+esc(g.employee.name||'')+'</span></button></td><td>'+esc(empNationality(g.employee))+'</td><td>'+esc(empIdentity(g.employee))+'</td><td>'+esc(accounts.length)+' حساب</td></tr><tr class="report-details-row" id="'+id+'" hidden><td colspan="5">'+details+'</td></tr>';}).join(''); try{typeof hydrateIcons==='function'&&hydrateIcons(body);}catch(_){} return;} if(!rows.length){body.innerHTML='<tr><td colspan="'+tabCols[tab]+'">لا توجد بيانات للعرض</td></tr>';return;} if(tab==='contracts'){body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c,i){var cls=i===6?contractStateClass(c):'';return '<td'+(cls?' class="'+cls+'"':'')+'>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');return;} body.innerHTML=rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+esc(c)+'</td>'}).join('')+'</tr>';}).join('');}
   function renderReports(){ if(!q('#reportsView'))return; ['leaveTravel','banking','absences','advances','contracts'].forEach(renderReport); try{typeof hydrateIcons==='function'&&hydrateIcons(q('#reportsView'));}catch(_){ }}
   function setTab(tab){qa('[data-report-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.reportTab===tab)}); qa('[data-report-panel]').forEach(function(p){p.classList.toggle('active',p.dataset.reportPanel===tab)}); renderReport(tab);}
   function csv(tab){
@@ -2840,6 +2859,12 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     var heads=reportHeads(tab), rows=rowsFor(tab);
     var headHtml='<thead><tr>'+heads.map(function(h){return '<th>'+esc(h)+'</th>';}).join('')+'</tr></thead>';
     var bodyHtml='';
+    if(tab==='banking'){
+      var groups=bankReportGroups();
+      if(!groups.length){bodyHtml='<tr><td colspan="'+Math.max(1,heads.length)+'">لا توجد بيانات للعرض</td></tr>';}
+      else {bodyHtml=groups.map(function(g){return g.accounts.map(function(b,idx){return '<tr>'+[idx===0?(empNo(g.employee)||''):'', idx===0?(g.employee.name||''):'', idx===0?empNationality(g.employee):'', idx===0?empIdentity(g.employee):'', b.branch||'', b.account||''].map(function(c){return '<td>'+esc(c)+'</td>';}).join('')+'</tr>';}).join('');}).join('');}
+      return '<table class="print-report-table">'+headHtml+'<tbody>'+bodyHtml+'</tbody></table>';
+    }
     if(!rows.length){bodyHtml='<tr><td colspan="'+Math.max(1,heads.length)+'">لا توجد بيانات للعرض</td></tr>';}
     else if(tab==='contracts'){
       bodyHtml=rows.map(function(r){return '<tr>'+r.map(function(c,i){var cls=i===6?contractStateClass(c):'';return '<td'+(cls?' class="'+cls+'"':'')+'>'+esc(c)+'</td>';}).join('')+'</tr>';}).join('');
@@ -2899,7 +2924,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     frame.onload=function(){setTimeout(doPrint,220);};
     setTimeout(doPrint,650);
   }
-  document.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('[data-report-tab]'); if(t){setTab(t.dataset.reportTab);return;} var ex=e.target&&e.target.closest&&e.target.closest('[data-report-export]'); if(ex){csv(ex.dataset.reportExport);return;} var pr=e.target&&e.target.closest&&e.target.closest('[data-report-print]'); if(pr){printReport(pr.dataset.reportPrint);return;} var nv=e.target&&e.target.closest&&e.target.closest('[data-view="reports"],[data-go-view="reports"]'); if(nv){setTimeout(renderReports,0);setTimeout(renderReports,160);} },true);
+  document.addEventListener('click',function(e){var tg=e.target&&e.target.closest&&e.target.closest('[data-report-toggle]'); if(tg){var row=document.getElementById(tg.dataset.reportToggle||''); if(row){var isHidden=row.hasAttribute('hidden'); row.toggleAttribute('hidden',!isHidden); tg.setAttribute('aria-expanded',isHidden?'true':'false'); tg.classList.toggle('is-open',isHidden);} return;} var t=e.target&&e.target.closest&&e.target.closest('[data-report-tab]'); if(t){setTab(t.dataset.reportTab);return;} var ex=e.target&&e.target.closest&&e.target.closest('[data-report-export]'); if(ex){csv(ex.dataset.reportExport);return;} var pr=e.target&&e.target.closest&&e.target.closest('[data-report-print]'); if(pr){printReport(pr.dataset.reportPrint);return;} var nv=e.target&&e.target.closest&&e.target.closest('[data-view="reports"],[data-go-view="reports"]'); if(nv){setTimeout(renderReports,0);setTimeout(renderReports,160);} },true);
   var oldSwitch=null; try{oldSwitch=switchView}catch(_){oldSwitch=null}
   if(typeof oldSwitch==='function'&&!oldSwitch.__v118Reports){var wrapped=function(viewName){var res=oldSwitch.apply(this,arguments); if(viewName==='reports')setTimeout(renderReports,0); return res;}; wrapped.__v118Reports=true; try{switchView=wrapped}catch(_){} window.switchView=wrapped;}
   document.addEventListener('DOMContentLoaded',function(){setTimeout(renderReports,120);});
