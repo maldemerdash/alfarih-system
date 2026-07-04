@@ -5522,3 +5522,35 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     }).observe(document.getElementById('settingsView') || document.body, {childList:true, subtree:true});
   }catch(_){ }
 })();
+
+/* v161 - cleanup hardening: disables obsolete one-time v32 reset and makes cloud employees overwrite stale browser snapshots after cloud load. */
+(function(){
+  if (window.__v161CleanSourceOfTruthGuard) return;
+  window.__v161CleanSourceOfTruthGuard = true;
+  try { localStorage.setItem('nawah-v32-clean-state-applied', 'v32-clean-employees-leaves-travel-20260629'); } catch(_) {}
+  function normalizeList(list){
+    try { return Array.isArray(list) ? list.map(function(e){ return typeof normalizeEmployee === 'function' ? normalizeEmployee(e) : e; }).filter(Boolean) : []; }
+    catch(_) { return Array.isArray(list) ? list.filter(Boolean) : []; }
+  }
+  function persistSnapshot(list){
+    try { localStorage.setItem('nawah-employees', JSON.stringify(Array.isArray(list) ? list : [])); } catch(_) {}
+    try { if (typeof saveLocalMeta === 'function') saveLocalMeta(); } catch(_) {}
+  }
+  var originalApplyCloudState = typeof applyCloudState === 'function' ? applyCloudState : null;
+  if (originalApplyCloudState && !originalApplyCloudState.__v161CleanSourceOfTruthGuard) {
+    var guardedApplyCloudState = function(state){
+      var ok = originalApplyCloudState.apply(this, arguments);
+      if (ok && state && Array.isArray(state.employees)) {
+        try {
+          employees = normalizeList(state.employees);
+          window.employees = employees;
+          persistSnapshot(employees);
+        } catch(_) {}
+      }
+      return ok;
+    };
+    guardedApplyCloudState.__v161CleanSourceOfTruthGuard = true;
+    try { applyCloudState = guardedApplyCloudState; } catch(_) {}
+    window.applyCloudState = guardedApplyCloudState;
+  }
+})();
