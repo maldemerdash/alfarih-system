@@ -4733,6 +4733,8 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
 
   function hasEmployees(list){ return Array.isArray(list) && list.length > 0; }
   function stateEmployeeCount(state){ try { return Array.isArray(state && state.employees) ? state.employees.length : 0; } catch(_) { return 0; } }
+  function emptyEmployeesConfirmed(){ try { return localStorage.getItem('nawah-employees-empty-confirmed') === '1'; } catch(_) { return false; } }
+  function markEmployeesEmptyConfirmed(value){ try { if (value) localStorage.setItem('nawah-employees-empty-confirmed','1'); else localStorage.removeItem('nawah-employees-empty-confirmed'); } catch(_) {} }
   function safeToast(msg){ try { if (typeof showToast === 'function') showToast(msg); } catch(_) {} }
   function safeRender(){
     try { if (typeof populateFormOptions === 'function') populateFormOptions(); } catch(_) {}
@@ -4746,7 +4748,18 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     return (typeof supabaseClient !== 'undefined' && supabaseClient) ? supabaseClient : null;
   }
   function applyState(state){
-    if (!state || typeof state !== 'object' || !hasEmployees(state.employees)) return false;
+    if (!state || typeof state !== 'object' || !Array.isArray(state.employees)) return false;
+    if (!hasEmployees(state.employees)) {
+      employees = [];
+      window.employees = employees;
+      markEmployeesEmptyConfirmed(true);
+      try { localStorage.setItem('nawah-employees', '[]'); } catch(_) {}
+      try { window.__nawahEmployeesReady = true; } catch(_) {}
+      try { cloudLoadAttempted = true; cloudSaveAllowed = true; window.__nawahCloudSourceReady = true; } catch(_) {}
+      safeRender();
+      return true;
+    }
+    markEmployeesEmptyConfirmed(false);
     var before = hasEmployees(employees) ? employees.length : 0;
     try {
       if (typeof applyCloudState === 'function') {
@@ -4772,7 +4785,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     return true;
   }
   async function fetchCloudState(){
-    if (lastGoodState && stateEmployeeCount(lastGoodState) > 0) return lastGoodState;
+    if (!emptyEmployeesConfirmed() && lastGoodState && stateEmployeeCount(lastGoodState) > 0) return lastGoodState;
     var client = ensureSupabase();
     if (!client || !client.from) throw new Error('supabase-not-ready');
     var response = await client.from('app_settings').select('setting_value,updated_at').eq('setting_key', CLOUD_KEY).maybeSingle();
@@ -4789,7 +4802,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
         try { if (!db && typeof openDatabase === 'function') db = await openDatabase(); } catch(_) {}
         var state = await fetchCloudState();
         if (applyState(state)) return true;
-        if (!hasEmployees(employees)) {
+        if (!hasEmployees(employees) && !emptyEmployeesConfirmed()) {
           try {
             var localList = typeof dbGetAllEmployees === 'function' ? await dbGetAllEmployees() : [];
             if (hasEmployees(localList)) {
@@ -4812,7 +4825,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   if (originalSave && !originalSave.__v151ProtectEmptyEmployees) {
     var protectedSave = async function(options){
       try {
-        if (!hasEmployees(employees) && lastGoodState && stateEmployeeCount(lastGoodState) > 0 && !(options && options.allowEmptyOverwrite)) {
+        if (!hasEmployees(employees) && !emptyEmployeesConfirmed() && lastGoodState && stateEmployeeCount(lastGoodState) > 0 && !(options && options.allowEmptyOverwrite)) {
           console.warn('v151: منع حفظ حالة بلا موظفين فوق حالة سحابية تحتوي موظفين.');
           return;
         }
@@ -4827,7 +4840,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   var originalRenderEmployees = (typeof renderEmployees === 'function') ? renderEmployees : null;
   if (originalRenderEmployees && !originalRenderEmployees.__v151EnsureEmployeesBeforeRender) {
     var renderEmployeesFast = function(){
-      if (!hasEmployees(employees)) loadEmployeesFromCloud(false);
+      if (!hasEmployees(employees) && !emptyEmployeesConfirmed()) loadEmployeesFromCloud(false);
       return originalRenderEmployees.apply(this, arguments);
     };
     renderEmployeesFast.__v151EnsureEmployeesBeforeRender = true;
@@ -4841,7 +4854,7 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   schedule(80);
   schedule(500);
   window.addEventListener('load', function(){ schedule(120); }, { once:true });
-  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible' && !hasEmployees(employees)) loadEmployeesFromCloud(false); });
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible' && !hasEmployees(employees) && !emptyEmployeesConfirmed()) loadEmployeesFromCloud(false); });
 })();
 
 
@@ -5539,11 +5552,21 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   var originalApplyCloudState = typeof applyCloudState === 'function' ? applyCloudState : null;
   if (originalApplyCloudState && !originalApplyCloudState.__v161CleanSourceOfTruthGuard) {
     var guardedApplyCloudState = function(state){
+      if (state && Array.isArray(state.employees) && state.employees.length === 0) {
+        try {
+          employees = [];
+          window.employees = employees;
+          persistSnapshot(employees);
+          localStorage.setItem('nawah-employees-empty-confirmed','1');
+        } catch(_) {}
+        return true;
+      }
       var ok = originalApplyCloudState.apply(this, arguments);
       if (ok && state && Array.isArray(state.employees)) {
         try {
           employees = normalizeList(state.employees);
           window.employees = employees;
+          if (employees.length) localStorage.removeItem('nawah-employees-empty-confirmed');
           persistSnapshot(employees);
         } catch(_) {}
       }
@@ -5610,13 +5633,14 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
       if (Array.isArray(employees)) employees = employees.filter(function(emp){ return String(emp.id) !== String(id); });
       window.employees = employees;
       persistEmployeesSnapshot();
+      try { if (employees.length === 0) localStorage.setItem('nawah-employees-empty-confirmed','1'); else localStorage.removeItem('nawah-employees-empty-confirmed'); } catch(_) {}
     } catch(e) { console.warn('v162: تعذر تحديث قائمة الموظفين محليًا.', e); }
     try { if (Array.isArray(leaves)) leaves = leaves.filter(function(item){ return String(item.employeeId) !== String(id); }); } catch(_) {}
     try { if (Array.isArray(attendanceExceptions)) attendanceExceptions = attendanceExceptions.filter(function(item){ return String(item.employeeId) !== String(id); }); } catch(_) {}
     try { if (typeof window.cleanupEmployeePayrollAdvances === 'function') await window.cleanupEmployeePayrollAdvances(id); } catch(e) { console.warn('v162: تعذر تنظيف سلفيات الموظف المحذوف.', e); }
     try { if (typeof saveLocalMeta === 'function') saveLocalMeta(); } catch(_) {}
     try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch(_) {}
-    try { if (typeof saveCloudStateNow === 'function') await saveCloudStateNow({force:true}); } catch(e) { console.warn('v162: تعذر الحفظ السحابي الفوري بعد حذف الموظف.', e); }
+    try { if (typeof saveCloudStateNow === 'function') await saveCloudStateNow({force:true, allowEmptyOverwrite:true}); } catch(e) { console.warn('v162: تعذر الحفظ السحابي الفوري بعد حذف الموظف.', e); }
     closeConfirm();
     pendingDeleteEmployeeId = '';
     try { if (typeof renderAll === 'function') renderAll(); } catch(_) {}
@@ -5649,4 +5673,64 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
   }, true);
   document.addEventListener('DOMContentLoaded', function(){ prepareDeleteButtons(document); });
   try { new MutationObserver(function(mutations){ mutations.forEach(function(m){ prepareDeleteButtons(m.target); }); }).observe(document.body || document.documentElement, {childList:true, subtree:true}); } catch(_) {}
+})();
+
+
+/* v163 - final empty-employees deletion guard: zero employees is a valid saved state, not a failed load. */
+(function(){
+  if (window.__v163EmptyEmployeesDeletionGuard) return;
+  window.__v163EmptyEmployeesDeletionGuard = true;
+  function emptyConfirmed(){ try { return localStorage.getItem('nawah-employees-empty-confirmed') === '1'; } catch(_) { return false; } }
+  function setEmptyConfirmed(value){ try { if (value) localStorage.setItem('nawah-employees-empty-confirmed','1'); else localStorage.removeItem('nawah-employees-empty-confirmed'); } catch(_) {} }
+  function syncEmptyMarker(){
+    try {
+      var list = Array.isArray(window.employees) ? window.employees : (typeof employees !== 'undefined' && Array.isArray(employees) ? employees : []);
+      if (Array.isArray(list) && list.length === 0) setEmptyConfirmed(true);
+      if (Array.isArray(list) && list.length > 0) setEmptyConfirmed(false);
+    } catch(_) {}
+  }
+  var originalBuildCloudState = typeof buildCloudState === 'function' ? buildCloudState : null;
+  if (originalBuildCloudState && !originalBuildCloudState.__v163EmptyEmployeesDeletionGuard) {
+    var guardedBuildCloudState = function(){
+      var state = originalBuildCloudState.apply(this, arguments) || {};
+      try {
+        if (emptyConfirmed()) {
+          state.employees = [];
+          state.employeesEmptyConfirmed = true;
+          state.lastEmployeeDeletionSavedAt = (new Date()).toISOString();
+        } else if (Array.isArray(state.employees) && state.employees.length > 0) {
+          delete state.employeesEmptyConfirmed;
+          delete state.lastEmployeeDeletionSavedAt;
+        }
+      } catch(_) {}
+      return state;
+    };
+    guardedBuildCloudState.__v163EmptyEmployeesDeletionGuard = true;
+    try { buildCloudState = guardedBuildCloudState; } catch(_) {}
+    window.buildCloudState = guardedBuildCloudState;
+  }
+  var originalApplyCloudState = typeof applyCloudState === 'function' ? applyCloudState : null;
+  if (originalApplyCloudState && !originalApplyCloudState.__v163EmptyEmployeesDeletionGuard) {
+    var guardedApplyCloudState = function(state){
+      try {
+        if (state && Array.isArray(state.employees) && state.employees.length === 0 && (state.employeesEmptyConfirmed || emptyConfirmed())) {
+          employees = [];
+          window.employees = employees;
+          setEmptyConfirmed(true);
+          try { localStorage.setItem('nawah-employees','[]'); } catch(_) {}
+          return true;
+        }
+      } catch(_) {}
+      var ok = originalApplyCloudState.apply(this, arguments);
+      try { syncEmptyMarker(); } catch(_) {}
+      return ok;
+    };
+    guardedApplyCloudState.__v163EmptyEmployeesDeletionGuard = true;
+    try { applyCloudState = guardedApplyCloudState; } catch(_) {}
+    window.applyCloudState = guardedApplyCloudState;
+  }
+  document.addEventListener('click', function(e){
+    var confirmBtn = e.target && e.target.closest && e.target.closest('#confirmDeleteBtn');
+    if (confirmBtn) setTimeout(syncEmptyMarker, 50);
+  }, true);
 })();
