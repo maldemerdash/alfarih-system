@@ -5554,3 +5554,99 @@ const ICONS={grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y
     window.applyCloudState = guardedApplyCloudState;
   }
 })();
+
+/* v162 - robust employee delete action: fixes delete button after cleanup without changing UI. */
+(function(){
+  if (window.__v162RobustEmployeeDeleteFix) return;
+  window.__v162RobustEmployeeDeleteFix = true;
+  var pendingDeleteEmployeeId = '';
+  function escText(value){ return String(value == null ? '' : value); }
+  function byId(id){ return document.getElementById(id); }
+  function toast(msg){ try { if (typeof showToast === 'function') showToast(msg); } catch(_) {} }
+  function closeConfirm(){
+    var modal = byId('confirmModal');
+    try { if (modal && modal.open && typeof modal.close === 'function') modal.close(); } catch(_) {}
+    try { if (modal) modal.removeAttribute('open'); } catch(_) {}
+  }
+  function openConfirm(id){
+    pendingDeleteEmployeeId = escText(id).trim();
+    if (!pendingDeleteEmployeeId) return;
+    var modal = byId('confirmModal');
+    if (!modal) { return; }
+    try { if (!modal.open && typeof modal.showModal === 'function') modal.showModal(); }
+    catch(_) { try { modal.setAttribute('open',''); } catch(__) {} }
+  }
+  function employeeBlockedForDelete(id){
+    try {
+      var hasPendingLeave = (Array.isArray(leaves) ? leaves : []).some(function(item){
+        return String(item.employeeId) === String(id) && item.status === 'pending';
+      });
+      var hasActiveLeave = (Array.isArray(leaves) ? leaves : []).some(function(item){
+        return String(item.employeeId) === String(id) && item.status === 'approved' && !item.returnDate;
+      });
+      var travelGuard = (typeof window.employeeTravelDeleteGuard === 'function') ? window.employeeTravelDeleteGuard(id) : {pending:false, active:false};
+      if (hasPendingLeave || (travelGuard && travelGuard.pending)) return {blocked:true, reason:'لا يمكن حذف الموظف لوجود طلبات إجازة أو سفر بانتظار الموافقة'};
+      if (hasActiveLeave || (travelGuard && travelGuard.active)) return {blocked:true, reason:'لا يمكن حذف الموظف لأنه حاليًا في إجازة أو مسافر ولم تتم مباشرة العمل'};
+    } catch(_) {}
+    return {blocked:false, reason:''};
+  }
+  function persistEmployeesSnapshot(){
+    try { localStorage.setItem('nawah-employees', JSON.stringify(Array.isArray(employees) ? employees : [])); } catch(_) {}
+  }
+  async function deleteEmployeeRobust(id){
+    id = escText(id).trim();
+    if (!id) return;
+    var block = employeeBlockedForDelete(id);
+    if (block.blocked) {
+      closeConfirm();
+      pendingDeleteEmployeeId = '';
+      toast(block.reason);
+      return;
+    }
+    try {
+      if (typeof dbDeleteEmployee === 'function') await dbDeleteEmployee(id);
+    } catch(e) { console.warn('v162: تعذر حذف الموظف من IndexedDB.', e); }
+    try {
+      if (Array.isArray(employees)) employees = employees.filter(function(emp){ return String(emp.id) !== String(id); });
+      window.employees = employees;
+      persistEmployeesSnapshot();
+    } catch(e) { console.warn('v162: تعذر تحديث قائمة الموظفين محليًا.', e); }
+    try { if (Array.isArray(leaves)) leaves = leaves.filter(function(item){ return String(item.employeeId) !== String(id); }); } catch(_) {}
+    try { if (Array.isArray(attendanceExceptions)) attendanceExceptions = attendanceExceptions.filter(function(item){ return String(item.employeeId) !== String(id); }); } catch(_) {}
+    try { if (typeof window.cleanupEmployeePayrollAdvances === 'function') await window.cleanupEmployeePayrollAdvances(id); } catch(e) { console.warn('v162: تعذر تنظيف سلفيات الموظف المحذوف.', e); }
+    try { if (typeof saveLocalMeta === 'function') saveLocalMeta(); } catch(_) {}
+    try { if (typeof queueCloudStateSave === 'function') queueCloudStateSave(); } catch(_) {}
+    try { if (typeof saveCloudStateNow === 'function') await saveCloudStateNow({force:true}); } catch(e) { console.warn('v162: تعذر الحفظ السحابي الفوري بعد حذف الموظف.', e); }
+    closeConfirm();
+    pendingDeleteEmployeeId = '';
+    try { if (typeof renderAll === 'function') renderAll(); } catch(_) {}
+    toast('تم حذف الموظف');
+  }
+  function prepareDeleteButtons(root){
+    try { (root || document).querySelectorAll('[data-delete-employee]').forEach(function(btn){ btn.type = 'button'; }); } catch(_) {}
+  }
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest && e.target.closest('[data-delete-employee]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    openConfirm(btn.getAttribute('data-delete-employee') || (btn.dataset && btn.dataset.deleteEmployee) || '');
+  }, true);
+  document.addEventListener('click', function(e){
+    var confirmBtn = e.target && e.target.closest && e.target.closest('#confirmDeleteBtn');
+    if (!confirmBtn || !pendingDeleteEmployeeId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    deleteEmployeeRobust(pendingDeleteEmployeeId);
+  }, true);
+  document.addEventListener('click', function(e){
+    var cancelBtn = e.target && e.target.closest && e.target.closest('#cancelDeleteBtn');
+    if (!cancelBtn) return;
+    pendingDeleteEmployeeId = '';
+    closeConfirm();
+  }, true);
+  document.addEventListener('DOMContentLoaded', function(){ prepareDeleteButtons(document); });
+  try { new MutationObserver(function(mutations){ mutations.forEach(function(m){ prepareDeleteButtons(m.target); }); }).observe(document.body || document.documentElement, {childList:true, subtree:true}); } catch(_) {}
+})();
