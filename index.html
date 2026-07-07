@@ -38,7 +38,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=185" />
+    <link rel="stylesheet" href="style.css?v=186" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -625,13 +625,13 @@
 
               <section class="report-tab-panel" data-report-panel="leaveBalance">
                 <div class="report-head">
-                  <div><h3>رصيد الإجازات</h3><p>رصيد الإجازات لكل موظف حسب تاريخ اليوم وتاريخ الطباعة</p></div>
+                  <div><h3>رصيد الإجازات</h3><p>رصيد الإجازات الأصلي والرصيد المتبقي لكل موظف حسب تاريخ الطباعة</p></div>
                   <div class="report-actions">
                     <button type="button" class="secondary-btn" data-report-export="leaveBalance"><span data-icon="download"></span>تصدير PDF</button>
                     <button type="button" class="secondary-btn" data-report-print="leaveBalance"><span data-icon="printer"></span>طباعة PDF</button>
                   </div>
                 </div>
-                <div class="table-wrap reports-table-wrap leave-balance-report-wrap"><table class="reports-table leave-balance-report-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>المهنة</th><th>بداية العقد</th><th>تاريخ المباشرة</th><th>نهاية العقد الأخير</th><th>رصيد اليوم</th><th>رصيد تاريخ الطباعة</th></tr></thead><tbody id="reportLeaveBalanceBody"><tr><td colspan="10">لا توجد بيانات للعرض</td></tr></tbody></table></div>
+                <div class="table-wrap reports-table-wrap leave-balance-report-wrap"><table class="reports-table leave-balance-report-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>المهنة</th><th>بداية العقد</th><th>تاريخ المباشرة</th><th>نهاية العقد الأخير</th><th>رصيد الإجازات</th><th>الرصيد المتبقي</th></tr></thead><tbody id="reportLeaveBalanceBody"><tr><td colspan="10">لا توجد بيانات للعرض</td></tr></tbody></table></div>
               </section>
             </article>
           </section>
@@ -866,7 +866,7 @@
                 <div class="field-with-action v150-field-section"><label><span>القسم *</span><select name="section" id="employeeSectionSelect" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="section"><span data-icon="plus"></span>إضافة قسم</button></div>
                 <div class="field-with-action v150-field-role"><label><span>المهنة *</span><select name="role" id="jobTitleSelect" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="profession"><span data-icon="plus"></span>إضافة مهنة</button></div>
                 <label class="v150-field-manager span-all"><span>المدير المباشر</span><input name="directManager" class="calculated-field" readonly /></label>
-                <fieldset class="choice-field"><legend>نوع العقد</legend><div class="choice-cards"><label><input type="radio" name="contractType" value="fixed" /><span>محدد المدة</span></label><label><input type="radio" name="contractType" value="unlimited" checked /><span>غير محدد</span></label></div></fieldset>
+                <label class="v186-contract-type-field"><span>نوع العقد</span><select name="contractType"><option value="fixed">محدد المدة</option><option value="unlimited" selected>غير محدد المدة</option></select></label>
                 <label><span>تاريخ بداية العقد</span><input name="contractStartDate" type="date" /></label>
                 <label><span>تاريخ المباشرة</span><input name="workStartDate" type="date" /></label>
                 <label><span>مدة العقد بالأشهر</span><input name="contractMonths" type="number" min="1" step="1" disabled /></label>
@@ -1132,6 +1132,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=185"></script>
+    <script src="app.js?v=186"></script>
   </body>
 </html>

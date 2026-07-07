@@ -15943,6 +15943,24 @@ dialog[open][data-employee-org-dialog]::backdrop,
   backface-visibility: hidden !important;
 }
 
+/* v186 - contract type as a stable select field */
+#employeeModal.employee-profile-modal .v186-contract-type-field {
+  display: grid !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+}
+
+#employeeModal.employee-profile-modal .v186-contract-type-field select {
+  width: 100% !important;
+  min-height: 47px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 11px !important;
+  background: #fff !important;
+  color: var(--text) !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+
 /* v185 - leave balance report */
 .report-tab-panel[data-report-panel="leaveBalance"] .reports-table-wrap {
   overflow: auto !important;

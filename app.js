@@ -3623,7 +3623,9 @@ function setRadioValue(e, t, n = "") {
   return (
     o.forEach((e) => {
       if (!e) return;
-      e.checked = String(e.value) === a;
+      if ("radio" === e.type) e.checked = String(e.value) === a;
+      else if ("checkbox" === e.type) e.checked = Boolean(n);
+      else e.value = a;
       emitFormValueEvents(e);
     }),
     !0
@@ -39450,7 +39452,7 @@ async function init() {
     var html =
       '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
       esc(title) +
-      '</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10.5px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:6px 7px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-banking-table{table-layout:fixed}.print-report-banking-table th:nth-child(1),.print-report-banking-table td:nth-child(1){width:10%}.print-report-banking-table th:nth-child(2),.print-report-banking-table td:nth-child(2){width:20%}.print-report-banking-table th:nth-child(3),.print-report-banking-table td:nth-child(3){width:12%}.print-report-banking-table th:nth-child(4),.print-report-banking-table td:nth-child(4){width:16%}.print-report-banking-table th:nth-child(5),.print-report-banking-table td:nth-child(5){width:20%}.print-report-banking-table th:nth-child(6),.print-report-banking-table td:nth-child(6){width:22%}.report-period-cell{display:flex;flex-direction:column;gap:2px;line-height:1.45;text-align:center;font-weight:800;color:#172033}.report-period-cell div{display:block;white-space:nowrap}.bank-account-print{white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;direction:ltr;text-align:left!important;font-size:9px;letter-spacing:-.2px}.grouped-report-table tbody td{border-bottom:0!important}.grouped-report-table tbody tr.employee-group-start td{border-top:1px solid #cfd8e3}.grouped-report-table tbody tr.employee-group-start:first-child td{border-top:0}.print-report-table.grouped-report-table tbody tr.employee-group-detail td{border-top:0!important;border-bottom:0!important}.print-report-table.grouped-report-table tbody tr.employee-group-start td{border-bottom:0!important}.print-report-advances-table th:nth-child(1),.print-report-advances-table td:nth-child(1){width:9%}.print-report-advances-table th:nth-child(2),.print-report-advances-table td:nth-child(2){width:17%}.print-report-advances-table th:nth-child(3),.print-report-advances-table td:nth-child(3){width:9%}.print-report-advances-table th:nth-child(4),.print-report-advances-table td:nth-child(4){width:12%}.print-report-advances-table th:nth-child(5),.print-report-advances-table td:nth-child(5){width:11%}.print-report-advances-table th:nth-child(6),.print-report-advances-table td:nth-child(6){width:11%}.print-report-advances-table th:nth-child(7),.print-report-advances-table td:nth-child(7){width:10%}.print-report-advances-table th:nth-child(8),.print-report-advances-table td:nth-child(8){width:11%}.print-report-advances-table th:nth-child(9),.print-report-advances-table td:nth-child(9){width:10%}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة " counter(page) " من " counter(pages)}@media print{body{overflow:visible}.report-page{page-break-inside:auto}.print-report-table{page-break-inside:auto}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
+      '</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10.5px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:6px 7px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-banking-table{table-layout:fixed}.print-report-banking-table th:nth-child(1),.print-report-banking-table td:nth-child(1){width:10%}.print-report-banking-table th:nth-child(2),.print-report-banking-table td:nth-child(2){width:20%}.print-report-banking-table th:nth-child(3),.print-report-banking-table td:nth-child(3){width:12%}.print-report-banking-table th:nth-child(4),.print-report-banking-table td:nth-child(4){width:16%}.print-report-banking-table th:nth-child(5),.print-report-banking-table td:nth-child(5){width:20%}.print-report-banking-table th:nth-child(6),.print-report-banking-table td:nth-child(6){width:22%}.report-period-cell{display:flex;flex-direction:column;gap:2px;line-height:1.45;text-align:center;font-weight:800;color:#172033}.report-period-cell div{display:block;white-space:nowrap}.bank-account-print{white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;direction:ltr;text-align:left!important;font-size:9px;letter-spacing:-.2px}.grouped-report-table tbody td{border-bottom:0!important}.grouped-report-table tbody tr.employee-group-start td{border-top:1px solid #cfd8e3}.grouped-report-table tbody tr.employee-group-start:first-child td{border-top:0}.print-report-table.grouped-report-table tbody tr.employee-group-detail td{border-top:0!important;border-bottom:0!important}.print-report-table.grouped-report-table tbody tr.employee-group-start td{border-bottom:0!important}.print-report-advances-table th:nth-child(1),.print-report-advances-table td:nth-child(1){width:9%}.print-report-advances-table th:nth-child(2),.print-report-advances-table td:nth-child(2){width:17%}.print-report-advances-table th:nth-child(3),.print-report-advances-table td:nth-child(3){width:9%}.print-report-advances-table th:nth-child(4),.print-report-advances-table td:nth-child(4){width:12%}.print-report-advances-table th:nth-child(5),.print-report-advances-table td:nth-child(5){width:11%}.print-report-advances-table th:nth-child(6),.print-report-advances-table td:nth-child(6){width:11%}.print-report-advances-table th:nth-child(7),.print-report-advances-table td:nth-child(7){width:10%}.print-report-advances-table th:nth-child(8),.print-report-advances-table td:nth-child(8){width:11%}.print-report-advances-table th:nth-child(9),.print-report-advances-table td:nth-child(9){width:10%}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.report-page{page-break-inside:auto}.print-report-table{page-break-inside:auto}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
       esc(logo) +
       '" alt="شعار المنشأة"><div class="company-title"><h1>' +
       esc(company.name) +
@@ -56562,8 +56564,10 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
   }
 
   function formatDate(value) {
-    const raw = clean(value).slice(0, 10);
-    if (!raw) return "";
+    const text = clean(value);
+    if (!text) return "";
+    if (!/^\d{4}-\d{2}-\d{2}/.test(text)) return text;
+    const raw = text.slice(0, 10);
     try {
       if (typeof formatDateEn === "function") return formatDateEn(raw);
       if (typeof window.formatDate === "function") return window.formatDate(raw);
@@ -56624,6 +56628,11 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
     return clean(employee?.identityNumber || employee?.nationalId || employee?.idNumber);
   }
 
+  function isUnlimitedContract(employee) {
+    const type = clean(employee?.contractType || employee?.contract_type).toLowerCase();
+    return type === "unlimited" || type === "غير محدد" || type === "غير محدد المدة";
+  }
+
   function baseContractEnd(employee) {
     const direct = clean(
       employee?.contractEndDate ||
@@ -56635,11 +56644,12 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
     if (direct) return direct;
     const start = dateObj(employee?.contractStartDate || employee?.joinDate);
     const months = Number(employee?.contractMonths || employee?.contractDurationMonths || 0);
-    if (!start || !months || employee?.contractType === "unlimited") return "";
+    if (!start || !months || isUnlimitedContract(employee)) return "";
     return dateInput(addDays(addMonths(start, months), -1));
   }
 
   function latestContractEnd(employee) {
+    if (isUnlimitedContract(employee)) return "عقد غير محدد المدة";
     const extensionDates = (Array.isArray(employee?.contractExtensions)
       ? employee.contractExtensions
       : [])
@@ -56704,15 +56714,23 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
     return Math.round(total * 100) / 100;
   }
 
-  function leaveBalance(employee, dateValue) {
+  function leaveBalanceDetails(employee, dateValue) {
     try {
       if (
         window.leaveBalanceV49 &&
         typeof window.leaveBalanceV49.leaveBalance === "function"
       ) {
         const value = window.leaveBalanceV49.leaveBalance(employee, dateValue, {});
-        if (value && value.remaining !== undefined && value.remaining !== null) {
-          return Math.round(Number(value.remaining || 0) * 100) / 100;
+        if (value) {
+          const original =
+            Number(value.original ?? value.total ?? value.balance ?? NaN);
+          const accrued = Number(value.accrued || 0);
+          const opening = Number(value.opening || 0);
+          const remaining = Math.round(Number(value.remaining || 0) * 100) / 100;
+          return {
+            original: Math.round((Number.isFinite(original) ? original : accrued + opening) * 100) / 100,
+            remaining,
+          };
         }
       }
     } catch (_) {}
@@ -56723,18 +56741,26 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
           employee?.leaveBalanceOpening ??
           0,
       ) || 0;
-    return Math.round((opening + fallbackAccrued(employee, dateValue) - fallbackUsed(employee)) * 100) / 100;
+    const original = Math.round((opening + fallbackAccrued(employee, dateValue)) * 100) / 100;
+    return {
+      original,
+      remaining: Math.round((original - fallbackUsed(employee)) * 100) / 100,
+    };
+  }
+
+  function leaveBalance(employee, dateValue) {
+    return leaveBalanceDetails(employee, dateValue).remaining;
   }
 
   function leaveBalanceRows(todayDate, printDate) {
-    const today = clean(todayDate || dateInputNow());
-    const printed = clean(printDate || dateInputNow());
+    const printed = clean(printDate || todayDate || dateInputNow());
     return employeesList()
       .slice()
       .sort(function (a, b) {
         return employeeName(a).localeCompare(employeeName(b), "ar");
       })
       .map(function (employee) {
+        const balance = leaveBalanceDetails(employee, printed);
         return {
           employeeNumber: employeeNumber(employee),
           name: employeeName(employee),
@@ -56744,8 +56770,8 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
           contractStart: clean(employee?.contractStartDate || employee?.joinDate),
           workStart: clean(employee?.workStartDate || employee?.contractStartDate || employee?.joinDate),
           lastContractEnd: latestContractEnd(employee),
-          todayBalance: leaveBalance(employee, today),
-          printBalance: leaveBalance(employee, printed),
+          leaveBalance: balance.original,
+          remainingBalance: balance.remaining,
         };
       });
   }
@@ -56763,7 +56789,7 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
     if (panelHost && !panelHost.querySelector('[data-report-panel="' + TAB + '"]')) {
       panelHost.insertAdjacentHTML(
         "beforeend",
-        '<section class="report-tab-panel" data-report-panel="leaveBalance"><div class="report-head"><div><h3>رصيد الإجازات</h3><p>رصيد الإجازات لكل موظف حسب تاريخ اليوم وتاريخ الطباعة</p></div><div class="report-actions"><button type="button" class="secondary-btn" data-report-export="leaveBalance"><span data-icon="download"></span>تصدير PDF</button><button type="button" class="secondary-btn" data-report-print="leaveBalance"><span data-icon="printer"></span>طباعة PDF</button></div></div><div class="table-wrap reports-table-wrap leave-balance-report-wrap"><table class="reports-table leave-balance-report-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>المهنة</th><th>بداية العقد</th><th>تاريخ المباشرة</th><th>نهاية العقد الأخير</th><th>رصيد اليوم</th><th>رصيد تاريخ الطباعة</th></tr></thead><tbody id="reportLeaveBalanceBody"><tr><td colspan="10">لا توجد بيانات للعرض</td></tr></tbody></table></div></section>',
+        '<section class="report-tab-panel" data-report-panel="leaveBalance"><div class="report-head"><div><h3>رصيد الإجازات</h3><p>رصيد الإجازات الأصلي والرصيد المتبقي لكل موظف حسب تاريخ الطباعة</p></div><div class="report-actions"><button type="button" class="secondary-btn" data-report-export="leaveBalance"><span data-icon="download"></span>تصدير PDF</button><button type="button" class="secondary-btn" data-report-print="leaveBalance"><span data-icon="printer"></span>طباعة PDF</button></div></div><div class="table-wrap reports-table-wrap leave-balance-report-wrap"><table class="reports-table leave-balance-report-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>المهنة</th><th>بداية العقد</th><th>تاريخ المباشرة</th><th>نهاية العقد الأخير</th><th>رصيد الإجازات</th><th>الرصيد المتبقي</th></tr></thead><tbody id="reportLeaveBalanceBody"><tr><td colspan="10">لا توجد بيانات للعرض</td></tr></tbody></table></div></section>',
       );
     }
   }
@@ -56787,8 +56813,8 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
                 formatDate(row.contractStart),
                 formatDate(row.workStart),
                 formatDate(row.lastContractEnd),
-                daysText(row.todayBalance),
-                daysText(row.printBalance),
+                daysText(row.leaveBalance),
+                daysText(row.remainingBalance),
               ]
                 .map(function (cell, index) {
                   const cls = index >= 8 && Number(String(cell).replace(/[^\d.-]/g, "")) < 0
@@ -56858,8 +56884,8 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
       "بداية العقد",
       "تاريخ المباشرة",
       "نهاية العقد الأخير",
-      "رصيد اليوم",
-      "رصيد تاريخ الطباعة",
+      "رصيد الإجازات",
+      "الرصيد المتبقي",
     ];
     return (
       '<table class="print-report-table print-leave-balance-table"><thead><tr>' +
@@ -56881,8 +56907,8 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
                   formatDate(row.contractStart),
                   formatDate(row.workStart),
                   formatDate(row.lastContractEnd),
-                  daysText(row.todayBalance),
-                  daysText(row.printBalance),
+                  daysText(row.leaveBalance),
+                  daysText(row.remainingBalance),
                 ]
                   .map(function (cell, index) {
                     const negative =
@@ -56918,13 +56944,13 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
           .join("")
       : "<span>بيانات المنشأة غير مكتملة</span>";
     const html =
-      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير رصيد الإجازات</title><style>@page{size:A4 landscape;margin:10mm 8mm 14mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.8px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:5px 5px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-leave-balance-table th:nth-child(1),.print-leave-balance-table td:nth-child(1){width:8%}.print-leave-balance-table th:nth-child(2),.print-leave-balance-table td:nth-child(2){width:16%}.print-leave-balance-table th:nth-child(3),.print-leave-balance-table td:nth-child(3){width:8%}.print-leave-balance-table th:nth-child(4),.print-leave-balance-table td:nth-child(4){width:11%}.print-leave-balance-table th:nth-child(5),.print-leave-balance-table td:nth-child(5){width:12%}.print-leave-balance-table th:nth-child(6),.print-leave-balance-table td:nth-child(6),.print-leave-balance-table th:nth-child(7),.print-leave-balance-table td:nth-child(7),.print-leave-balance-table th:nth-child(8),.print-leave-balance-table td:nth-child(8){width:10%}.print-leave-balance-table th:nth-child(9),.print-leave-balance-table td:nth-child(9),.print-leave-balance-table th:nth-child(10),.print-leave-balance-table td:nth-child(10){width:7.5%;font-weight:900;color:#08758a}.leave-balance-negative{color:#dc2626!important;font-weight:900}.report-footer{position:fixed;left:8mm;right:8mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة " counter(page) " من " counter(pages)}@media print{body{overflow:visible}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
+      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير رصيد الإجازات</title><style>@page{size:A4 landscape;margin:10mm 8mm 14mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.8px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:5px 5px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-leave-balance-table th:nth-child(1),.print-leave-balance-table td:nth-child(1){width:8%}.print-leave-balance-table th:nth-child(2),.print-leave-balance-table td:nth-child(2){width:16%}.print-leave-balance-table th:nth-child(3),.print-leave-balance-table td:nth-child(3){width:8%}.print-leave-balance-table th:nth-child(4),.print-leave-balance-table td:nth-child(4){width:11%}.print-leave-balance-table th:nth-child(5),.print-leave-balance-table td:nth-child(5){width:12%}.print-leave-balance-table th:nth-child(6),.print-leave-balance-table td:nth-child(6),.print-leave-balance-table th:nth-child(7),.print-leave-balance-table td:nth-child(7),.print-leave-balance-table th:nth-child(8),.print-leave-balance-table td:nth-child(8){width:10%}.print-leave-balance-table th:nth-child(9),.print-leave-balance-table td:nth-child(9),.print-leave-balance-table th:nth-child(10),.print-leave-balance-table td:nth-child(10){width:7.5%;font-weight:900;color:#08758a}.leave-balance-negative{color:#dc2626!important;font-weight:900}.report-footer{position:fixed;left:8mm;right:8mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
       esc(logo) +
       '" alt="شعار المنشأة"><div class="company-title"><h1>' +
       esc(company.name) +
       '</h1><div class="meta">' +
       meta +
-      '</div></div></header><section class="report-name"><div><h2>تقرير رصيد الإجازات</h2><p>رصيد الإجازات حسب تاريخ اليوم وتاريخ الطباعة: ' +
+      '</div></div></header><section class="report-name"><div><h2>تقرير رصيد الإجازات</h2><p>رصيد الإجازات الأصلي والرصيد المتبقي حسب تاريخ الطباعة: ' +
       esc(formatDate(printDate)) +
       '</p></div><div class="date">تاريخ الطباعة: ' +
       esc(printedAt) +
