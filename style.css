@@ -15878,6 +15878,144 @@ dialog[open][data-employee-org-dialog]::backdrop,
   box-shadow: none !important;
 }
 
+/* v184 - employee photos are stable across profile, lists, quick view and topbar */
+.avatar-photo[data-v184-employee-photo],
+.employee-cell .avatar-photo[data-v184-employee-photo] {
+  display: grid !important;
+  place-items: center !important;
+  overflow: hidden !important;
+  background: linear-gradient(145deg, rgba(18, 148, 184, .16), rgba(32, 200, 110, .12)) !important;
+  color: var(--primary) !important;
+  isolation: isolate !important;
+}
+
+.avatar-photo[data-v184-employee-photo] .avatar-fallback,
+#employeePhotoPreview .v184-side-photo-fallback {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
+  display: grid !important;
+  place-items: center !important;
+  color: var(--primary) !important;
+  font-weight: 950 !important;
+  pointer-events: none !important;
+}
+
+.avatar-photo[data-v184-employee-photo] img,
+#employeePhotoPreview.v184-photo-ready img,
+#employeePhotoPreview.has-employee-photo img,
+.quick-profile-photo img,
+.topbar-user-mark.v184-topbar-stable img {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 2 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: inherit !important;
+  opacity: 1 !important;
+}
+
+#employeePhotoPreview {
+  position: relative !important;
+  overflow: hidden !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+#employeePhotoPreview .v184-side-photo-fallback {
+  font-size: 25px !important;
+}
+
+.topbar-user-mark.v184-topbar-stable,
+.topbar-user-mark.v184-topbar-stable.v99-avatar-pending,
+.topbar-user-mark.v184-topbar-stable.v100-avatar-pending {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.topbar-user-mark.v184-topbar-stable {
+  overflow: hidden !important;
+  border-radius: 50% !important;
+  transform: translateZ(0) !important;
+  backface-visibility: hidden !important;
+}
+
+/* v185 - leave balance report */
+.report-tab-panel[data-report-panel="leaveBalance"] .reports-table-wrap {
+  overflow: auto !important;
+}
+
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table {
+  min-width: 1180px !important;
+  table-layout: fixed !important;
+}
+
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th,
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td {
+  border-left: 0 !important;
+  border-right: 0 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  vertical-align: middle !important;
+}
+
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(1),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(1) {
+  width: 8%;
+}
+
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(2),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(2) {
+  width: 16%;
+}
+
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(3),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(3) {
+  width: 8%;
+}
+
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(4),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(4) {
+  width: 11%;
+}
+
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(5),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(5) {
+  width: 13%;
+}
+
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(6),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(6),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(7),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(7),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(8),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(8) {
+  width: 10%;
+}
+
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(9),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(9),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table th:nth-child(10),
+.report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table td:nth-child(10) {
+  width: 7%;
+  color: var(--primary);
+  font-weight: 900;
+}
+
+.leave-balance-negative {
+  color: var(--red) !important;
+  font-weight: 900 !important;
+}
+
+@media (max-width: 860px) {
+  .report-tab-panel[data-report-panel="leaveBalance"] .leave-balance-report-table {
+    min-width: 1050px !important;
+  }
+}
+
 /* v173 final override - boot stays white, login background is image-only */
 html.app-booting body {
   background: #ffffff !important;

@@ -55781,6 +55781,1262 @@ window.nawahV179EmployeePersistence = {
     scheduleEnsure(80);
   });
 
-  window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
+window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
   scheduleEnsure(0);
+})();
+
+/* v184 - unified employee photo recovery, site-wide avatars, and no-flicker topbar image */
+(function v184UnifiedEmployeePhotos() {
+  if (window.__v184UnifiedEmployeePhotos) return;
+  window.__v184UnifiedEmployeePhotos = true;
+
+  const URL_TTL = 48 * 60 * 1000;
+  const CACHE_KEY = "nawah-employee-photo-cache-v184";
+  const urlCache = new Map();
+  const pending = new Map();
+  let topbarObserverLock = false;
+  let lastTopbarHtml = "";
+  let lastTopbarKey = "";
+  let refreshTimer = 0;
+
+  function clean(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function esc(value) {
+    try {
+      return typeof escapeHtml === "function"
+        ? escapeHtml(value)
+        : clean(value).replace(/[&<>"']/g, function (char) {
+            return {
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            }[char];
+          });
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function listEmployees() {
+    try {
+      if (Array.isArray(employees)) return employees;
+    } catch (_) {}
+    return Array.isArray(window.employees) ? window.employees : [];
+  }
+
+  function employeeName(employee) {
+    return clean(
+      employee?.name ||
+        [employee?.firstName, employee?.fatherName, employee?.grandName, employee?.familyName]
+          .map(clean)
+          .filter(Boolean)
+          .join(" "),
+    );
+  }
+
+  function initials(employee) {
+    const name = employeeName(employee) || clean(employee?.email) || "م";
+    const parts = name.split(/\s+/).filter(Boolean);
+    return (
+      parts
+        .slice(0, 2)
+        .map(function (part) {
+          return part.charAt(0);
+        })
+        .join("") || "م"
+    );
+  }
+
+  function color(employee) {
+    return clean(employee?.color) || "teal";
+  }
+
+  function employeeNumber(employee) {
+    return clean(employee?.employeeNumber || employee?.number || employee?.id);
+  }
+
+  function cacheKeyForEmployee(employee) {
+    return [
+      clean(employee?.id || employee?.employeeId || employeeNumber(employee)),
+      clean(employee?.photoAttachmentId),
+      clean(employee?.legacyPhoto || employee?.photo || employee?.photoDataUrl).slice(0, 24),
+    ].join("|");
+  }
+
+  function readPersistentCache() {
+    try {
+      const value = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}");
+      return value && typeof value === "object" ? value : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function writePersistentCache(key, url) {
+    if (!key || !url || !/^data:|^blob:|^https?:/i.test(url)) return;
+    try {
+      const state = readPersistentCache();
+      state[key] = { url, time: Date.now() };
+      const entries = Object.entries(state).slice(-90);
+      localStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
+    } catch (_) {}
+  }
+
+  function cachedUrl(key) {
+    const memory = urlCache.get(key);
+    if (memory && memory.url && Date.now() - memory.time < URL_TTL) return memory.url;
+    const persistent = readPersistentCache()[key];
+    if (persistent && persistent.url && Date.now() - Number(persistent.time || 0) < URL_TTL) {
+      urlCache.set(key, persistent);
+      return persistent.url;
+    }
+    return "";
+  }
+
+  function putUrl(key, url) {
+    if (!key || !url) return;
+    const item = { url, time: Date.now() };
+    urlCache.set(key, item);
+    writePersistentCache(key, url);
+  }
+
+  function findEmployeeById(id) {
+    const value = clean(id);
+    if (!value) return null;
+    try {
+      if (typeof getEmployee === "function") {
+        const employee = getEmployee(value);
+        if (employee) return employee;
+      }
+    } catch (_) {}
+    return (
+      listEmployees().find(function (employee) {
+        return [
+          employee?.id,
+          employee?.employeeId,
+          employee?.employee_id,
+          employee?.employeeNumber,
+          employee?.identityNumber,
+        ].some(function (candidate) {
+          return clean(candidate) === value;
+        });
+      }) || null
+    );
+  }
+
+  function findEmployeeByName(name) {
+    const value = clean(name).toLowerCase();
+    if (!value) return null;
+    return (
+      listEmployees().find(function (employee) {
+        return employeeName(employee).toLowerCase() === value;
+      }) ||
+      listEmployees().find(function (employee) {
+        return value && employeeName(employee).toLowerCase().includes(value);
+      }) ||
+      null
+    );
+  }
+
+  function detectEmployeeFromNode(node) {
+    if (!node || !node.querySelector) return null;
+    const byId = node.querySelector(
+      "[data-edit-employee], [data-quick-view], [data-employee-name-edit], [data-employee-id]",
+    );
+    const id =
+      byId?.dataset?.editEmployee ||
+      byId?.dataset?.quickView ||
+      byId?.dataset?.employeeNameEdit ||
+      byId?.dataset?.employeeId ||
+      node.dataset?.employeeId ||
+      "";
+    const employeeById = findEmployeeById(id);
+    if (employeeById) return employeeById;
+    const nameEl = node.querySelector(".employee-name-link, .employee-name, h4, strong");
+    return findEmployeeByName(nameEl?.textContent || "");
+  }
+
+  async function attachmentUrlById(id) {
+    const value = clean(id);
+    if (!value) return "";
+    const cacheKey = "attachment:" + value;
+    const cached = cachedUrl(cacheKey);
+    if (cached) return cached;
+    if (pending.has(cacheKey)) return pending.get(cacheKey);
+    const job = (async function () {
+      let url = "";
+      try {
+        if (typeof attachmentUrl === "function") url = clean(await attachmentUrl(value));
+      } catch (_) {
+        url = "";
+      }
+      if (!url) {
+        try {
+          const record = typeof getAttachment === "function" ? await getAttachment(value) : null;
+          url = clean(record?.fileUrl || record?.file_url || record?.url);
+          const path = clean(record?.storagePath || record?.storage_path);
+          if (!url && path && typeof supabaseClient !== "undefined" && supabaseClient) {
+            const parts = path.split("/");
+            const bucket = parts.shift();
+            const key = parts.join("/");
+            if (bucket && key) {
+              const signed = await supabaseClient.storage.from(bucket).createSignedUrl(key, 3600);
+              url = clean(signed?.data?.signedUrl);
+            }
+          }
+        } catch (_) {}
+      }
+      if (url) putUrl(cacheKey, url);
+      return url;
+    })();
+    pending.set(cacheKey, job);
+    try {
+      return await job;
+    } finally {
+      pending.delete(cacheKey);
+    }
+  }
+
+  async function recoverPhotoAttachment(employee) {
+    const number = employeeNumber(employee);
+    if (!number || typeof supabaseClient === "undefined" || !supabaseClient?.from) return "";
+    const cacheKey = "recover:" + number;
+    const cached = cachedUrl(cacheKey);
+    if (cached) return cached;
+    try {
+      let result = await supabaseClient
+        .from("attachments")
+        .select("id, related_table, storage_path, file_url, created_at")
+        .eq("related_table", "employees:" + number + ":employee-photo")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!result?.data?.id) {
+        result = await supabaseClient
+          .from("attachments")
+          .select("id, related_table, storage_path, file_url, created_at")
+          .like("storage_path", "%/employees/" + number + "/employee-photo/%")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+      }
+      const id = clean(result?.data?.id);
+      if (!id) return "";
+      const url = clean(result?.data?.file_url) || (await attachmentUrlById(id));
+      if (url) {
+        putUrl(cacheKey, url);
+        try {
+          employee.photoAttachmentId = employee.photoAttachmentId || id;
+          employee.legacyPhoto = "";
+          if (
+            employeeFormState &&
+            (clean(employeeFormState.employeeId) === clean(employee.id) ||
+              clean(document.querySelector("#employeeForm")?.elements?.employeeId?.value) ===
+                clean(employee.id))
+          ) {
+            employeeFormState.photoAttachmentId = employeeFormState.photoAttachmentId || id;
+            employeeFormState.legacyPhoto = "";
+          }
+          if (typeof dbSaveEmployee === "function")
+            Promise.resolve(dbSaveEmployee(employee)).catch(function () {});
+          if (typeof queueCloudStateSave === "function") queueCloudStateSave();
+        } catch (_) {}
+      }
+      return url;
+    } catch (_) {
+      return "";
+    }
+  }
+
+  async function resolveEmployeePhoto(employee) {
+    if (!employee) return "";
+    const key = "employee:" + cacheKeyForEmployee(employee);
+    const cached = cachedUrl(key);
+    if (cached) return cached;
+    const legacy = clean(employee.legacyPhoto || employee.photo || employee.photoDataUrl);
+    let url = "";
+    const attachmentId = clean(employee.photoAttachmentId);
+    if (attachmentId) url = await attachmentUrlById(attachmentId);
+    if (!url && legacy) url = legacy;
+    if (!url) url = await recoverPhotoAttachment(employee);
+    if (url) putUrl(key, url);
+    return url;
+  }
+
+  function avatarHtml(employee, extraClass) {
+    const fallback = esc(initials(employee));
+    const cached = cachedUrl("employee:" + cacheKeyForEmployee(employee));
+    const classes = [
+      "avatar",
+      "avatar-photo",
+      "avatar-" + esc(color(employee)),
+      cached ? "is-photo-ready" : "",
+      extraClass || "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return (
+      '<div class="' +
+      classes +
+      '" data-v184-employee-photo="' +
+      esc(clean(employee?.id || employeeNumber(employee))) +
+      '" aria-hidden="true"><span class="avatar-fallback">' +
+      fallback +
+      '</span><img ' +
+      (cached ? 'src="' + esc(cached) + '"' : "hidden") +
+      ' alt="" loading="lazy" decoding="async" draggable="false"></div>'
+    );
+  }
+
+  function setImage(img, url) {
+    if (!img || !url) return;
+    if (img.getAttribute("src") !== url) img.setAttribute("src", url);
+    img.hidden = false;
+    img.removeAttribute("hidden");
+    img.closest(".avatar-photo, .quick-profile-photo, .employee-side-photo")?.classList?.add(
+      "is-photo-ready",
+      "has-employee-photo",
+      "v184-photo-ready",
+    );
+  }
+
+  async function hydrateEmployeePhotoElement(box) {
+    const employee = findEmployeeById(box?.dataset?.v184EmployeePhoto || "") || detectEmployeeFromNode(box?.closest?.(".employee-cell, .employee-card-top, tr, article") || box);
+    if (!employee) return;
+    const img = box.querySelector("img") || box;
+    const url = await resolveEmployeePhoto(employee);
+    if (url && img.isConnected) setImage(img, url);
+  }
+
+  function processEmployeeCells(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    const cells = new Set();
+    [
+      ".employee-cell",
+      ".employee-card-top",
+      ".advance-employee-compact",
+      ".payroll-employee-cell",
+      ".payroll-name-only-cell",
+      ".department-members li",
+    ].forEach(function (selector) {
+      try {
+        scope.querySelectorAll(selector).forEach(function (node) {
+          cells.add(node);
+        });
+      } catch (_) {}
+    });
+    cells.forEach(function (cell) {
+      const employee = detectEmployeeFromNode(cell);
+      if (!employee) return;
+      const id = clean(employee.id || employeeNumber(employee));
+      const avatar = cell.querySelector(".avatar, .employee-avatar, .avatar-photo");
+      if (!avatar) return;
+      if (avatar.dataset?.v184EmployeePhoto === id) return;
+      try {
+        avatar.outerHTML = avatarHtml(employee);
+      } catch (_) {}
+    });
+  }
+
+  function hydrateEmployeePhotos(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    processEmployeeCells(scope);
+    scope.querySelectorAll("[data-v184-employee-photo]").forEach(function (box) {
+      hydrateEmployeePhotoElement(box).catch(function () {});
+    });
+    scope.querySelectorAll("img[data-attachment-image]").forEach(function (img) {
+      const id = clean(img.dataset.attachmentImage);
+      if (!id) return;
+      attachmentUrlById(id).then(function (url) {
+        if (url && img.isConnected) setImage(img, url);
+      });
+    });
+  }
+
+  const previousEmployeeAvatar =
+    typeof employeeAvatar === "function" ? employeeAvatar : window.employeeAvatar;
+  const stableEmployeeAvatar = function stableEmployeeAvatar(employee) {
+    return avatarHtml(employee);
+  };
+  stableEmployeeAvatar.__v184UnifiedEmployeePhotos = true;
+  try {
+    employeeAvatar = stableEmployeeAvatar;
+  } catch (_) {}
+  window.employeeAvatar = stableEmployeeAvatar;
+
+  const previousHydrate =
+    typeof hydrateAttachmentImages === "function" ? hydrateAttachmentImages : window.hydrateAttachmentImages;
+  const stableHydrate = function stableHydrate(root) {
+    let result;
+    try {
+      result = previousHydrate ? previousHydrate.apply(this, arguments) : undefined;
+    } catch (_) {
+      result = undefined;
+    }
+    hydrateEmployeePhotos(root || document);
+    return result && typeof result.then === "function" ? result : Promise.resolve(result);
+  };
+  stableHydrate.__v184UnifiedEmployeePhotos = true;
+  try {
+    hydrateAttachmentImages = stableHydrate;
+  } catch (_) {}
+  window.hydrateAttachmentImages = stableHydrate;
+
+  const previousRenderEmployeePhoto =
+    typeof renderEmployeePhoto === "function" ? renderEmployeePhoto : window.renderEmployeePhoto;
+  const stableRenderEmployeePhoto = async function stableRenderEmployeePhoto() {
+    const box = document.querySelector("#employeePhotoPreview");
+    if (!box) return previousRenderEmployeePhoto?.apply?.(this, arguments);
+    const formEmployeeId = clean(document.querySelector("#employeeForm")?.elements?.employeeId?.value);
+    const employee = findEmployeeById(formEmployeeId) || {};
+    const stateEmployee = {
+      ...employee,
+      id: employee.id || formEmployeeId,
+      name:
+        employeeName(employee) ||
+        [
+          document.querySelector("#employeeForm")?.elements?.firstName?.value,
+          document.querySelector("#employeeForm")?.elements?.fatherName?.value,
+          document.querySelector("#employeeForm")?.elements?.grandName?.value,
+          document.querySelector("#employeeForm")?.elements?.familyName?.value,
+        ]
+          .map(clean)
+          .filter(Boolean)
+          .join(" "),
+      photoAttachmentId: clean(employeeFormState?.photoAttachmentId || employee.photoAttachmentId),
+      legacyPhoto: clean(employeeFormState?.legacyPhoto || employee.legacyPhoto || employee.photo),
+    };
+    const key = cacheKeyForEmployee(stateEmployee) || "empty";
+    const oldImg = box.querySelector("img");
+    if (!stateEmployee.photoAttachmentId && !stateEmployee.legacyPhoto) {
+      box.dataset.v184PhotoKey = "empty";
+      box.classList.remove("has-employee-photo", "is-photo-ready", "v184-photo-ready");
+      box.innerHTML =
+        '<span class="avatar-fallback v184-side-photo-fallback">' +
+        esc(initials(stateEmployee)) +
+        "</span>";
+      return;
+    }
+    const cached = cachedUrl("employee:" + key);
+    if (cached) {
+      box.dataset.v184PhotoKey = key;
+      box.classList.add("has-employee-photo", "is-photo-ready", "v184-photo-ready");
+      box.innerHTML =
+        '<img src="' +
+        esc(cached) +
+        '" alt="صورة الموظف" loading="eager" decoding="async" draggable="false">';
+    } else if (!oldImg) {
+      box.innerHTML =
+        '<span class="avatar-fallback v184-side-photo-fallback">' +
+        esc(initials(stateEmployee)) +
+        "</span>";
+    }
+    const url = await resolveEmployeePhoto(stateEmployee);
+    if (url && box.isConnected) {
+      box.dataset.v184PhotoKey = key;
+      box.classList.add("has-employee-photo", "is-photo-ready", "v184-photo-ready");
+      box.innerHTML =
+        '<img src="' +
+        esc(url) +
+        '" alt="صورة الموظف" loading="eager" decoding="async" draggable="false">';
+    }
+  };
+  stableRenderEmployeePhoto.__v184UnifiedEmployeePhotos = true;
+  try {
+    renderEmployeePhoto = stableRenderEmployeePhoto;
+  } catch (_) {}
+  window.renderEmployeePhoto = stableRenderEmployeePhoto;
+
+  function linkedEmployee() {
+    try {
+      if (
+        window.employeePermissionMatrix &&
+        typeof window.employeePermissionMatrix.linkedEmployee === "function"
+      ) {
+        const employee = window.employeePermissionMatrix.linkedEmployee();
+        if (employee) return employee;
+      }
+    } catch (_) {}
+    let profile = {};
+    let user = {};
+    try {
+      profile = typeof authProfile !== "undefined" && authProfile ? authProfile : {};
+    } catch (_) {}
+    try {
+      user = typeof authUser !== "undefined" && authUser ? authUser : {};
+    } catch (_) {}
+    const id = clean(
+      profile.employee_id ||
+        profile.employeeId ||
+        profile.linked_employee_id ||
+        profile.linkedEmployeeId,
+    );
+    const byId = findEmployeeById(id);
+    if (byId) return byId;
+    const email = clean(profile.email || user.email).toLowerCase();
+    if (!email) return null;
+    return (
+      listEmployees().find(function (employee) {
+        return clean(employee.email).toLowerCase() === email;
+      }) || null
+    );
+  }
+
+  function topbarMark() {
+    return document.querySelector(".topbar-user-mark");
+  }
+
+  function preload(url) {
+    if (!url || /^data:|^blob:/i.test(url)) return Promise.resolve(true);
+    return new Promise(function (resolve) {
+      const img = new Image();
+      let done = false;
+      function finish(ok) {
+        if (done) return;
+        done = true;
+        resolve(ok);
+      }
+      img.onload = function () {
+        finish(true);
+      };
+      img.onerror = function () {
+        finish(false);
+      };
+      img.decoding = "async";
+      img.src = url;
+      if (img.complete && img.naturalWidth) finish(true);
+      setTimeout(function () {
+        finish(false);
+      }, 1800);
+    });
+  }
+
+  async function applyTopbarPhoto(force) {
+    const mark = topbarMark();
+    if (!mark) return;
+    const employee = linkedEmployee();
+    if (!employee) return;
+    const key = "topbar:" + cacheKeyForEmployee(employee);
+    const cached = cachedUrl("employee:" + cacheKeyForEmployee(employee));
+    if (cached && mark.dataset.v184TopbarKey !== key) {
+      renderTopbar(mark, employee, cached, key);
+    }
+    const url = await resolveEmployeePhoto(employee);
+    if (!url) {
+      if (!mark.querySelector("img")) renderTopbar(mark, employee, "", key);
+      return;
+    }
+    if (!force && mark.dataset.v184TopbarKey === key && mark.dataset.v184TopbarUrl === url) return;
+    await preload(url);
+    if (topbarMark() === mark) renderTopbar(mark, employee, url, key);
+  }
+
+  function renderTopbar(mark, employee, url, key) {
+    topbarObserverLock = true;
+    try {
+      const fallback = initials(employee);
+      mark.dataset.v184TopbarKey = key;
+      mark.dataset.v184TopbarUrl = url || "";
+      mark.classList.add("v184-topbar-stable", "v178-topbar-avatar-stable", "v100-avatar-ready", "v99-avatar-ready");
+      mark.classList.remove("v100-avatar-pending", "v99-avatar-pending");
+      if (url) {
+        mark.classList.add("has-employee-photo", "v101-topbar-avatar", "v178-has-image");
+        mark.innerHTML =
+          '<img src="' +
+          esc(url) +
+          '" alt="' +
+          esc(employeeName(employee) || "المستخدم") +
+          '" loading="eager" decoding="async" fetchpriority="high" draggable="false">';
+      } else {
+        mark.classList.remove("has-employee-photo", "v101-topbar-avatar", "v178-has-image");
+        mark.textContent = fallback;
+      }
+      lastTopbarHtml = mark.innerHTML;
+      lastTopbarKey = key;
+    } finally {
+      topbarObserverLock = false;
+    }
+  }
+
+  function restoreTopbarIfNeeded() {
+    const mark = topbarMark();
+    if (!mark || !lastTopbarKey || topbarObserverLock) return;
+    if (mark.dataset.v184TopbarKey !== lastTopbarKey || (lastTopbarHtml.includes("<img") && !mark.querySelector("img"))) {
+      topbarObserverLock = true;
+      try {
+        mark.dataset.v184TopbarKey = lastTopbarKey;
+        mark.innerHTML = lastTopbarHtml;
+        mark.classList.add("v184-topbar-stable", "v100-avatar-ready", "v99-avatar-ready");
+        mark.classList.remove("v100-avatar-pending", "v99-avatar-pending");
+      } finally {
+        topbarObserverLock = false;
+      }
+    }
+  }
+
+  function scheduleRefresh(delay) {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(function () {
+      try {
+        hydrateEmployeePhotos(document);
+      } catch (_) {}
+      applyTopbarPhoto(false).catch(function () {});
+    }, Math.max(0, delay || 0));
+  }
+
+  const renderNames = ["renderAll", "renderEmployees", "renderPayroll", "renderFinance", "renderAttendance", "renderLeaves"];
+  renderNames.forEach(function (name) {
+    const original = window[name] || (typeof globalThis !== "undefined" ? globalThis[name] : null);
+    if (typeof original !== "function" || original.__v184UnifiedEmployeePhotos) return;
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+      scheduleRefresh(60);
+      return result;
+    };
+    wrapped.__v184UnifiedEmployeePhotos = true;
+    try {
+      window[name] = wrapped;
+    } catch (_) {}
+    try {
+      globalThis[name] = wrapped;
+    } catch (_) {}
+    try {
+      eval(name + " = wrapped");
+    } catch (_) {}
+  });
+
+  const previousTopbarUser = typeof updateTopbarUser === "function" ? updateTopbarUser : window.updateTopbarUser;
+  if (typeof previousTopbarUser === "function" && !previousTopbarUser.__v184UnifiedEmployeePhotos) {
+    const wrappedTopbar = function () {
+      const before = lastTopbarHtml;
+      const result = previousTopbarUser.apply(this, arguments);
+      if (before) restoreTopbarIfNeeded();
+      applyTopbarPhoto(true).catch(function () {});
+      return result;
+    };
+    wrappedTopbar.__v184UnifiedEmployeePhotos = true;
+    try {
+      updateTopbarUser = wrappedTopbar;
+    } catch (_) {}
+    window.updateTopbarUser = wrappedTopbar;
+  }
+
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (event.target?.matches?.("#employeePhotoInput")) {
+        setTimeout(function () {
+          urlCache.clear();
+          stableRenderEmployeePhoto().catch(function () {});
+          scheduleRefresh(80);
+          applyTopbarPhoto(true).catch(function () {});
+        }, 350);
+      }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (event.target?.closest?.("[data-quick-view], [data-edit-employee], [data-employee-section]")) {
+        scheduleRefresh(120);
+      }
+    },
+    true,
+  );
+
+  try {
+    const topbar = document.querySelector(".topbar-user");
+    if (topbar && typeof MutationObserver === "function") {
+      new MutationObserver(function () {
+        restoreTopbarIfNeeded();
+        scheduleRefresh(160);
+      }).observe(topbar, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class", "src", "style"],
+      });
+    }
+  } catch (_) {}
+
+  document.addEventListener("DOMContentLoaded", function () {
+    scheduleRefresh(0);
+    scheduleRefresh(220);
+  });
+  window.addEventListener("load", function () {
+    scheduleRefresh(120);
+    scheduleRefresh(900);
+  });
+  setTimeout(function () {
+    scheduleRefresh(0);
+  }, 0);
+
+  window.nawahEmployeePhotosV184 = {
+    resolve: resolveEmployeePhoto,
+    hydrate: hydrateEmployeePhotos,
+    refresh: function () {
+      urlCache.clear();
+      scheduleRefresh(0);
+      return applyTopbarPhoto(true);
+    },
+  };
+})();
+
+/* v185 - leave balance report tab with print/PDF export */
+(function v185LeaveBalanceReport() {
+  if (window.__v185LeaveBalanceReport) return;
+  window.__v185LeaveBalanceReport = true;
+
+  const TAB = "leaveBalance";
+  const BODY_ID = "reportLeaveBalanceBody";
+
+  function clean(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function esc(value) {
+    try {
+      return typeof escapeHtml === "function"
+        ? escapeHtml(value)
+        : clean(value).replace(/[&<>"']/g, function (char) {
+            return {
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            }[char];
+          });
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function employeesList() {
+    try {
+      if (Array.isArray(employees)) return employees;
+    } catch (_) {}
+    return Array.isArray(window.employees) ? window.employees : [];
+  }
+
+  function dateInputNow() {
+    const date = new Date();
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 10);
+  }
+
+  function dateObj(value) {
+    const text = clean(value).slice(0, 10);
+    if (!text) return null;
+    const date = new Date(text + "T12:00:00");
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function dateInput(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+    const copy = new Date(date.getTime());
+    copy.setMinutes(copy.getMinutes() - copy.getTimezoneOffset());
+    return copy.toISOString().slice(0, 10);
+  }
+
+  function addMonths(date, months) {
+    const copy = new Date(date.getTime());
+    const day = copy.getDate();
+    copy.setDate(1);
+    copy.setMonth(copy.getMonth() + Number(months || 0));
+    const max = new Date(copy.getFullYear(), copy.getMonth() + 1, 0).getDate();
+    copy.setDate(Math.min(day, max));
+    return copy;
+  }
+
+  function addDays(date, days) {
+    const copy = new Date(date.getTime());
+    copy.setDate(copy.getDate() + Number(days || 0));
+    return copy;
+  }
+
+  function formatDate(value) {
+    const raw = clean(value).slice(0, 10);
+    if (!raw) return "";
+    try {
+      if (typeof formatDateEn === "function") return formatDateEn(raw);
+      if (typeof window.formatDate === "function") return window.formatDate(raw);
+    } catch (_) {}
+    return raw;
+  }
+
+  function formatDateTime() {
+    const date = new Date();
+    try {
+      return (
+        date.toLocaleDateString("ar-SA", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }) +
+        " - " +
+        date.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })
+      );
+    } catch (_) {
+      return date.toISOString().slice(0, 16).replace("T", " ");
+    }
+  }
+
+  function numberText(value) {
+    const number = Math.round(Number(value || 0) * 100) / 100;
+    try {
+      if (typeof arabicNumber === "function") return arabicNumber(number);
+    } catch (_) {}
+    try {
+      return new Intl.NumberFormat("ar-SA", {
+        maximumFractionDigits: 2,
+      }).format(number);
+    } catch (_) {
+      return String(number);
+    }
+  }
+
+  function daysText(value) {
+    return numberText(value) + " يوم";
+  }
+
+  function employeeName(employee) {
+    return (
+      clean(employee?.name) ||
+      [employee?.firstName, employee?.fatherName, employee?.grandName, employee?.familyName]
+        .map(clean)
+        .filter(Boolean)
+        .join(" ")
+    );
+  }
+
+  function employeeNumber(employee) {
+    return clean(employee?.employeeNumber || employee?.employeeNo || employee?.id);
+  }
+
+  function employeeIdentity(employee) {
+    return clean(employee?.identityNumber || employee?.nationalId || employee?.idNumber);
+  }
+
+  function baseContractEnd(employee) {
+    const direct = clean(
+      employee?.contractEndDate ||
+        employee?.contractEnd ||
+        employee?.expiryDate ||
+        employee?.endDate ||
+        "",
+    );
+    if (direct) return direct;
+    const start = dateObj(employee?.contractStartDate || employee?.joinDate);
+    const months = Number(employee?.contractMonths || employee?.contractDurationMonths || 0);
+    if (!start || !months || employee?.contractType === "unlimited") return "";
+    return dateInput(addDays(addMonths(start, months), -1));
+  }
+
+  function latestContractEnd(employee) {
+    const extensionDates = (Array.isArray(employee?.contractExtensions)
+      ? employee.contractExtensions
+      : [])
+      .map(function (item) {
+        return clean(
+          item?.newEndDate ||
+            item?.endDate ||
+            item?.contractEndDate ||
+            item?.expiryDate ||
+            "",
+        );
+      })
+      .filter(Boolean)
+      .sort();
+    if (extensionDates.length) return extensionDates[extensionDates.length - 1];
+    return clean(employee?.renewedContractEndDate) || baseContractEnd(employee);
+  }
+
+  function fallbackAccrued(employee, until) {
+    const start = dateObj(
+      employee?.workStartDate ||
+        employee?.contractStartDate ||
+        employee?.joinDate ||
+        employee?.employmentDate,
+    );
+    const end = dateObj(until);
+    if (!start || !end || end < start) return 0;
+    const fiveYears = new Date(start.getTime());
+    fiveYears.setFullYear(fiveYears.getFullYear() + 5);
+    const dayMs = 86400000;
+    let accrued = 0;
+    if (end < fiveYears) {
+      accrued = (Math.floor((end - start) / dayMs) + 1) * (21 / 365);
+    } else {
+      const firstEnd = addDays(fiveYears, -1);
+      accrued += (Math.floor((firstEnd - start) / dayMs) + 1) * (21 / 365);
+      accrued += (Math.floor((end - fiveYears) / dayMs) + 1) * (30 / 365);
+    }
+    return Math.round(accrued * 100) / 100;
+  }
+
+  function fallbackUsed(employee) {
+    const id = clean(employee?.id);
+    let total = 0;
+    try {
+      const list = Array.isArray(leaves) ? leaves : [];
+      list.forEach(function (leave) {
+        if (!leave || clean(leave.employeeId) !== id) return;
+        if (clean(leave.status) !== "approved") return;
+        const type = clean(leave.type || leave.leaveType).toLowerCase();
+        if (!["إجازة سنوية", "سنوية", "annual", "annual_leave"].some(function (x) {
+          return type === String(x).toLowerCase();
+        })) return;
+        const days =
+          Number(leave.days || leave.leaveDays || 0) ||
+          (dateObj(leave.from) && dateObj(leave.to)
+            ? Math.floor((dateObj(leave.to) - dateObj(leave.from)) / 86400000) + 1
+            : 0);
+        total += Math.max(0, Number(days || 0));
+      });
+    } catch (_) {}
+    return Math.round(total * 100) / 100;
+  }
+
+  function leaveBalance(employee, dateValue) {
+    try {
+      if (
+        window.leaveBalanceV49 &&
+        typeof window.leaveBalanceV49.leaveBalance === "function"
+      ) {
+        const value = window.leaveBalanceV49.leaveBalance(employee, dateValue, {});
+        if (value && value.remaining !== undefined && value.remaining !== null) {
+          return Math.round(Number(value.remaining || 0) * 100) / 100;
+        }
+      }
+    } catch (_) {}
+    const opening =
+      Number(
+        employee?.leaveOpeningBalance ??
+          employee?.openingLeaveBalance ??
+          employee?.leaveBalanceOpening ??
+          0,
+      ) || 0;
+    return Math.round((opening + fallbackAccrued(employee, dateValue) - fallbackUsed(employee)) * 100) / 100;
+  }
+
+  function leaveBalanceRows(todayDate, printDate) {
+    const today = clean(todayDate || dateInputNow());
+    const printed = clean(printDate || dateInputNow());
+    return employeesList()
+      .slice()
+      .sort(function (a, b) {
+        return employeeName(a).localeCompare(employeeName(b), "ar");
+      })
+      .map(function (employee) {
+        return {
+          employeeNumber: employeeNumber(employee),
+          name: employeeName(employee),
+          nationality: clean(employee?.nationality || "سعودي"),
+          identity: employeeIdentity(employee),
+          role: clean(employee?.role || employee?.jobTitle || employee?.profession),
+          contractStart: clean(employee?.contractStartDate || employee?.joinDate),
+          workStart: clean(employee?.workStartDate || employee?.contractStartDate || employee?.joinDate),
+          lastContractEnd: latestContractEnd(employee),
+          todayBalance: leaveBalance(employee, today),
+          printBalance: leaveBalance(employee, printed),
+        };
+      });
+  }
+
+  function ensurePanel() {
+    const tabs = document.querySelector(".reports-tabs");
+    if (tabs && !tabs.querySelector('[data-report-tab="' + TAB + '"]')) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.reportTab = TAB;
+      button.textContent = "رصيد الإجازات";
+      tabs.appendChild(button);
+    }
+    const panelHost = document.querySelector(".reports-panel");
+    if (panelHost && !panelHost.querySelector('[data-report-panel="' + TAB + '"]')) {
+      panelHost.insertAdjacentHTML(
+        "beforeend",
+        '<section class="report-tab-panel" data-report-panel="leaveBalance"><div class="report-head"><div><h3>رصيد الإجازات</h3><p>رصيد الإجازات لكل موظف حسب تاريخ اليوم وتاريخ الطباعة</p></div><div class="report-actions"><button type="button" class="secondary-btn" data-report-export="leaveBalance"><span data-icon="download"></span>تصدير PDF</button><button type="button" class="secondary-btn" data-report-print="leaveBalance"><span data-icon="printer"></span>طباعة PDF</button></div></div><div class="table-wrap reports-table-wrap leave-balance-report-wrap"><table class="reports-table leave-balance-report-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>المهنة</th><th>بداية العقد</th><th>تاريخ المباشرة</th><th>نهاية العقد الأخير</th><th>رصيد اليوم</th><th>رصيد تاريخ الطباعة</th></tr></thead><tbody id="reportLeaveBalanceBody"><tr><td colspan="10">لا توجد بيانات للعرض</td></tr></tbody></table></div></section>',
+      );
+    }
+  }
+
+  function renderLeaveBalanceReport() {
+    ensurePanel();
+    const body = document.getElementById(BODY_ID);
+    if (!body) return;
+    const rows = leaveBalanceRows(dateInputNow(), dateInputNow());
+    body.innerHTML = rows.length
+      ? rows
+          .map(function (row) {
+            return (
+              "<tr>" +
+              [
+                row.employeeNumber,
+                row.name,
+                row.nationality,
+                row.identity,
+                row.role,
+                formatDate(row.contractStart),
+                formatDate(row.workStart),
+                formatDate(row.lastContractEnd),
+                daysText(row.todayBalance),
+                daysText(row.printBalance),
+              ]
+                .map(function (cell, index) {
+                  const cls = index >= 8 && Number(String(cell).replace(/[^\d.-]/g, "")) < 0
+                    ? ' class="leave-balance-negative"'
+                    : "";
+                  return "<td" + cls + ">" + esc(cell || "—") + "</td>";
+                })
+                .join("") +
+              "</tr>"
+            );
+          })
+          .join("")
+      : '<tr><td colspan="10">لا توجد بيانات للعرض</td></tr>';
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(document.querySelector('[data-report-panel="' + TAB + '"]'));
+    } catch (_) {}
+  }
+
+  function companyData() {
+    let data = {};
+    try {
+      data = JSON.parse(localStorage.getItem("nawah-company-settings-v92") || "{}") || {};
+    } catch (_) {
+      data = {};
+    }
+    const address = [
+      data.shortAddress,
+      data.region,
+      data.city,
+      data.district,
+      data.street,
+      data.postalCode,
+    ]
+      .filter(Boolean)
+      .join(" - ");
+    const meta = [];
+    if (data.unifiedNumber) meta.push("الرقم الموحد: " + data.unifiedNumber);
+    if (data.email) meta.push("البريد الإلكتروني: " + data.email);
+    if (data.phone) meta.push("رقم التواصل: " + data.phone);
+    if (address) meta.push("العنوان الوطني: " + address);
+    return {
+      name: data.company || data.companyName || data.name || "اسم المنشأة",
+      meta,
+      logo: data.logoDataUrl || "",
+      logoAttachmentId: data.logoAttachmentId || "",
+    };
+  }
+
+  async function logoUrl(company) {
+    let url = company.logo || "";
+    if (!url && company.logoAttachmentId) {
+      try {
+        if (typeof attachmentUrl === "function") url = clean(await attachmentUrl(company.logoAttachmentId));
+      } catch (_) {}
+    }
+    return url || "sar-symbol.png";
+  }
+
+  function printTableHtml(printDate) {
+    const rows = leaveBalanceRows(dateInputNow(), printDate);
+    const heads = [
+      "رقم الموظف",
+      "اسم الموظف",
+      "الجنسية",
+      "رقم الهوية",
+      "المهنة",
+      "بداية العقد",
+      "تاريخ المباشرة",
+      "نهاية العقد الأخير",
+      "رصيد اليوم",
+      "رصيد تاريخ الطباعة",
+    ];
+    return (
+      '<table class="print-report-table print-leave-balance-table"><thead><tr>' +
+      heads.map(function (head) {
+        return "<th>" + esc(head) + "</th>";
+      }).join("") +
+      "</tr></thead><tbody>" +
+      (rows.length
+        ? rows
+            .map(function (row) {
+              return (
+                "<tr>" +
+                [
+                  row.employeeNumber,
+                  row.name,
+                  row.nationality,
+                  row.identity,
+                  row.role,
+                  formatDate(row.contractStart),
+                  formatDate(row.workStart),
+                  formatDate(row.lastContractEnd),
+                  daysText(row.todayBalance),
+                  daysText(row.printBalance),
+                ]
+                  .map(function (cell, index) {
+                    const negative =
+                      index >= 8 && Number(String(cell).replace(/[^\d.-]/g, "")) < 0;
+                    return (
+                      "<td" +
+                      (negative ? ' class="leave-balance-negative"' : "") +
+                      ">" +
+                      esc(cell || "—") +
+                      "</td>"
+                    );
+                  })
+                  .join("") +
+                "</tr>"
+              );
+            })
+            .join("")
+        : '<tr><td colspan="10">لا توجد بيانات للعرض</td></tr>') +
+      "</tbody></table>"
+    );
+  }
+
+  async function printLeaveBalanceReport() {
+    const company = companyData();
+    const logo = await logoUrl(company);
+    const printedAt = formatDateTime();
+    const printDate = dateInputNow();
+    const meta = company.meta.length
+      ? company.meta
+          .map(function (item) {
+            return "<span>" + esc(item) + "</span>";
+          })
+          .join("")
+      : "<span>بيانات المنشأة غير مكتملة</span>";
+    const html =
+      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير رصيد الإجازات</title><style>@page{size:A4 landscape;margin:10mm 8mm 14mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.8px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:5px 5px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-leave-balance-table th:nth-child(1),.print-leave-balance-table td:nth-child(1){width:8%}.print-leave-balance-table th:nth-child(2),.print-leave-balance-table td:nth-child(2){width:16%}.print-leave-balance-table th:nth-child(3),.print-leave-balance-table td:nth-child(3){width:8%}.print-leave-balance-table th:nth-child(4),.print-leave-balance-table td:nth-child(4){width:11%}.print-leave-balance-table th:nth-child(5),.print-leave-balance-table td:nth-child(5){width:12%}.print-leave-balance-table th:nth-child(6),.print-leave-balance-table td:nth-child(6),.print-leave-balance-table th:nth-child(7),.print-leave-balance-table td:nth-child(7),.print-leave-balance-table th:nth-child(8),.print-leave-balance-table td:nth-child(8){width:10%}.print-leave-balance-table th:nth-child(9),.print-leave-balance-table td:nth-child(9),.print-leave-balance-table th:nth-child(10),.print-leave-balance-table td:nth-child(10){width:7.5%;font-weight:900;color:#08758a}.leave-balance-negative{color:#dc2626!important;font-weight:900}.report-footer{position:fixed;left:8mm;right:8mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة " counter(page) " من " counter(pages)}@media print{body{overflow:visible}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
+      esc(logo) +
+      '" alt="شعار المنشأة"><div class="company-title"><h1>' +
+      esc(company.name) +
+      '</h1><div class="meta">' +
+      meta +
+      '</div></div></header><section class="report-name"><div><h2>تقرير رصيد الإجازات</h2><p>رصيد الإجازات حسب تاريخ اليوم وتاريخ الطباعة: ' +
+      esc(formatDate(printDate)) +
+      '</p></div><div class="date">تاريخ الطباعة: ' +
+      esc(printedAt) +
+      "</div></section>" +
+      printTableHtml(printDate) +
+      '</main><footer class="report-footer"><span>تمت طباعة هذا التقرير من نظام إدارة الموظفين</span><span class="pages"></span><span>' +
+      esc(printedAt) +
+      "</span></footer></body></html>";
+    const frame = document.createElement("iframe");
+    frame.className = "report-print-frame";
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.position = "fixed";
+    frame.style.left = "0";
+    frame.style.bottom = "0";
+    frame.style.width = "0";
+    frame.style.height = "0";
+    frame.style.border = "0";
+    frame.style.opacity = "0";
+    document.body.appendChild(frame);
+    const doc = frame.contentWindow && frame.contentWindow.document;
+    if (!doc) {
+      try {
+        frame.remove();
+      } catch (_) {}
+      try {
+        if (typeof showToast === "function") showToast("تعذر تجهيز ملف PDF.");
+      } catch (_) {}
+      return;
+    }
+    doc.open();
+    doc.write(html);
+    doc.close();
+    let done = false;
+    function doPrint() {
+      if (done) return;
+      done = true;
+      try {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } catch (error) {
+        console.warn(error);
+        try {
+          if (typeof showToast === "function") showToast("تعذر تنفيذ تصدير PDF.");
+        } catch (_) {}
+      }
+      setTimeout(function () {
+        try {
+          frame.remove();
+        } catch (_) {}
+      }, 2500);
+    }
+    frame.onload = function () {
+      setTimeout(doPrint, 220);
+    };
+    setTimeout(doPrint, 650);
+  }
+
+  const previousRenderReports =
+    typeof renderReports === "function" ? renderReports : window.renderReports;
+  if (typeof previousRenderReports === "function" && !previousRenderReports.__v185LeaveBalanceReport) {
+    const wrapped = function () {
+      const result = previousRenderReports.apply(this, arguments);
+      renderLeaveBalanceReport();
+      return result;
+    };
+    wrapped.__v185LeaveBalanceReport = true;
+    try {
+      renderReports = wrapped;
+    } catch (_) {}
+    window.renderReports = wrapped;
+  }
+
+  const previousSwitchView = typeof switchView === "function" ? switchView : window.switchView;
+  if (typeof previousSwitchView === "function" && !previousSwitchView.__v185LeaveBalanceReport) {
+    const wrappedSwitch = function (viewName) {
+      const result = previousSwitchView.apply(this, arguments);
+      if (viewName === "reports") setTimeout(renderLeaveBalanceReport, 30);
+      return result;
+    };
+    wrappedSwitch.__v185LeaveBalanceReport = true;
+    try {
+      switchView = wrappedSwitch;
+    } catch (_) {}
+    window.switchView = wrappedSwitch;
+  }
+
+  window.addEventListener(
+    "click",
+    function (event) {
+      const tabButton = event.target?.closest?.('[data-report-tab="' + TAB + '"]');
+      if (tabButton) setTimeout(renderLeaveBalanceReport, 0);
+      const action = event.target?.closest?.(
+        '[data-report-export="' + TAB + '"], [data-report-print="' + TAB + '"]',
+      );
+      if (!action) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      renderLeaveBalanceReport();
+      printLeaveBalanceReport();
+    },
+    true,
+  );
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(renderLeaveBalanceReport, 180);
+  });
+  setTimeout(renderLeaveBalanceReport, 250);
+
+  window.nawahLeaveBalanceReportV185 = {
+    render: renderLeaveBalanceReport,
+    print: printLeaveBalanceReport,
+    rows: leaveBalanceRows,
+  };
 })();
