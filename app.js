@@ -57060,9 +57060,428 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
   });
   setTimeout(renderLeaveBalanceReport, 250);
 
-  window.nawahLeaveBalanceReportV185 = {
+window.nawahLeaveBalanceReportV185 = {
     render: renderLeaveBalanceReport,
     print: printLeaveBalanceReport,
     rows: leaveBalanceRows,
   };
+})();
+
+/* v187 - contract attachment sync, spaced employee number and stable quick profile */
+(function () {
+  if (window.__v187EmployeeProfileAttachmentStability) return;
+  window.__v187EmployeeProfileAttachmentStability = true;
+
+  function q(selector, root) {
+    return (root || document).querySelector(selector);
+  }
+
+  function qa(selector, root) {
+    return Array.from((root || document).querySelectorAll(selector));
+  }
+
+  function cleanText(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function escapeValue(value) {
+    try {
+      return typeof escapeHtml === "function" ? escapeHtml(value) : cleanText(value);
+    } catch (_) {
+      return cleanText(value);
+    }
+  }
+
+  function spacedEmployeeNumber(value) {
+    const raw = cleanText(value).replace(/\s+/g, "");
+    return raw ? raw.split("").join("  ") : "—";
+  }
+
+  function employeesList() {
+    try {
+      if (Array.isArray(employees)) return employees;
+    } catch (_) {}
+    try {
+      if (Array.isArray(window.employees)) return window.employees;
+    } catch (_) {}
+    return [];
+  }
+
+  function employeeById(id) {
+    const cleanId = cleanText(id);
+    if (!cleanId) return null;
+    try {
+      if (typeof getEmployee === "function") return getEmployee(cleanId);
+    } catch (_) {}
+    return (
+      employeesList().find(function (employee) {
+        return cleanText(employee && employee.id) === cleanId;
+      }) || null
+    );
+  }
+
+  function employeeByName(name) {
+    const cleanName = cleanText(name);
+    if (!cleanName) return null;
+    return (
+      employeesList().find(function (employee) {
+        return cleanText(employee && employee.name) === cleanName;
+      }) || null
+    );
+  }
+
+  function activeFormEmployeeId() {
+    try {
+      return cleanText(q("#employeeForm")?.elements?.employeeId?.value);
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function activeFormEmployee() {
+    return employeeById(activeFormEmployeeId());
+  }
+
+  function currentContractAttachmentId() {
+    let id = "";
+    try {
+      if (employeeFormState && employeeFormState.contractAttachmentId) {
+        id = employeeFormState.contractAttachmentId;
+      }
+    } catch (_) {}
+    if (!id) {
+      const employee = activeFormEmployee();
+      id = employee && employee.contractAttachmentId ? employee.contractAttachmentId : "";
+    }
+    try {
+      if (id && employeeFormState && !employeeFormState.contractAttachmentId) {
+        employeeFormState.contractAttachmentId = id;
+      }
+    } catch (_) {}
+    return cleanText(id);
+  }
+
+  function syncContractAttachmentControl(id) {
+    const attachmentId = cleanText(id || currentContractAttachmentId());
+    try {
+      if (typeof updateSingleAttachmentControl === "function") {
+        updateSingleAttachmentControl("contract", attachmentId);
+      }
+    } catch (_) {}
+
+    const input = q('[data-single-attachment="contract"]');
+    const control = input && input.closest(".compact-file-control");
+    if (control) {
+      control.classList.toggle("has-file", Boolean(attachmentId));
+      control.classList.remove("is-uploading");
+      const label = control.querySelector(":scope > span:last-of-type");
+      const labelText = attachmentId ? "تم الإرفاق" : "إرفاق";
+      if (label && label.textContent !== labelText) label.textContent = labelText;
+    }
+
+    const button = q('[data-view-single-attachment="contract"]');
+    if (button) {
+      if (button.dataset.attachmentId !== attachmentId) {
+        button.dataset.attachmentId = attachmentId;
+      }
+      const shouldHide = !attachmentId;
+      if (button.hidden !== shouldHide) button.hidden = shouldHide;
+      if (button.hasAttribute("hidden") !== shouldHide) {
+        button.toggleAttribute("hidden", shouldHide);
+      }
+      button.classList.add("attachment-view-btn", "attachment-preview-btn");
+      button.classList.remove("attachment-download-btn");
+      button.setAttribute("title", "عرض مرفق العقد");
+      button.setAttribute("aria-label", "عرض مرفق العقد");
+      if (attachmentId) {
+        if (
+          button.dataset.v187ContractAttachmentId !== attachmentId ||
+          button.dataset.v187ContractIconReady !== "1"
+        ) {
+          try {
+            button.innerHTML =
+              (typeof iconSvg === "function" ? iconSvg("eye") : "") +
+              "<span>عرض</span>";
+          } catch (_) {
+            button.textContent = "عرض";
+          }
+          button.dataset.v187ContractAttachmentId = attachmentId;
+          button.dataset.v187ContractIconReady = "1";
+        }
+      } else {
+        if (button.textContent.trim() !== "عرض") button.textContent = "عرض";
+        button.dataset.v187ContractAttachmentId = "";
+        button.dataset.v187ContractIconReady = "";
+      }
+    }
+
+    try {
+      if (typeof hydrateIcons === "function") {
+        hydrateIcons(q("#employeeForm") || document);
+      }
+    } catch (_) {}
+  }
+
+  function syncEmployeeSideNumber() {
+    const node = q("#employeeSideNumber");
+    if (!node) return;
+    let number = "";
+    const employee = activeFormEmployee();
+    if (employee && employee.employeeNumber) number = employee.employeeNumber;
+    if (!number) {
+      try {
+        number = node.dataset.v187RawNumber || node.textContent || "";
+      } catch (_) {}
+    }
+    const compact = cleanText(number).replace(/\s+/g, "");
+    if (!compact) return;
+    node.dataset.v187RawNumber = compact;
+    node.textContent = spacedEmployeeNumber(compact);
+  }
+
+  function findEmployeeNumberRow(side) {
+    return qa(".employee-profile-side-number", side).find(function (row) {
+      return cleanText(row.querySelector("span")?.textContent).includes("رقم الموظف");
+    });
+  }
+
+  function findQuickEmployee(fallbackId) {
+    let employee = employeeById(fallbackId);
+    if (employee) return employee;
+    const editId = q("#quickViewModal [data-edit-employee]")?.dataset?.editEmployee;
+    employee = employeeById(editId);
+    if (employee) return employee;
+    return employeeByName(q("#quickViewContent .employee-profile-side h3")?.textContent);
+  }
+
+  function leaveBalanceValue(employee) {
+    try {
+      if (
+        window.leaveBalanceV49 &&
+        typeof window.leaveBalanceV49.leaveBalance === "function"
+      ) {
+        const dateValue =
+          typeof dateInputNow === "function" ? dateInputNow() : undefined;
+        return Number(window.leaveBalanceV49.leaveBalance(employee, dateValue));
+      }
+    } catch (_) {}
+    try {
+      return Number(
+        employee?.remainingLeaveBalance ||
+          employee?.leaveBalanceAfter ||
+          employee?.leaveBalance ||
+          employee?.leaveBalanceOpening ||
+          0,
+      );
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  function ensureQuickLeaveBalance(side, employee) {
+    if (!side || !employee) return;
+    let card = q("#quickViewContent .leave-balance-profile-card");
+    const statusNode = q(".employee-profile-side-status", side);
+    if (card) {
+      if (statusNode && card.parentElement !== side) {
+        statusNode.insertAdjacentElement("afterend", card);
+      }
+      return;
+    }
+    const balance = leaveBalanceValue(employee);
+    const stateClass = balance < 0 ? "is-negative" : balance <= 3 ? "is-warning" : "is-good";
+    const balanceText =
+      typeof arabicNumber === "function" ? arabicNumber(Math.round(balance * 100) / 100) : balance;
+    const html =
+      '<div class="leave-balance-profile-card ' +
+      stateClass +
+      '"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>الرصيد المتبقي</span></div><div class="leave-balance-card-main"><strong>' +
+      escapeValue(balanceText) +
+      '</strong><span>يوم متبقي</span></div></div>';
+    if (statusNode) statusNode.insertAdjacentHTML("afterend", html);
+    else side.insertAdjacentHTML("beforeend", html);
+  }
+
+  function normalizeQuickProfile(employeeId) {
+    const content = q("#quickViewContent");
+    const side = q(".employee-profile-side", content);
+    if (!content || !side) return;
+    const employee = findQuickEmployee(employeeId);
+
+    side.classList.add("v187-quick-profile-side");
+    q(".quick-profile-photo", side)?.classList.add("v187-quick-profile-photo");
+
+    const photo = q(".quick-profile-photo", side);
+    if (employee && photo && !q("h3", side)) {
+      photo.insertAdjacentHTML(
+        "afterend",
+        "<h3>" +
+          escapeValue(employee.name || "—") +
+          "</h3><p>" +
+          escapeValue(employee.role || "—") +
+          "</p>",
+      );
+    }
+
+    let numberRow = findEmployeeNumberRow(side);
+    if (!numberRow && employee) {
+      const serviceRow = qa(".employee-profile-side-number", side).find(function (row) {
+        return cleanText(row.querySelector("span")?.textContent).includes("مدة الخدمة");
+      });
+      const html =
+        '<div class="employee-profile-side-number"><span>رقم الموظف</span><strong class="latin-number" data-v187-employee-number="1">' +
+        escapeValue(spacedEmployeeNumber(employee.employeeNumber || "—")) +
+        "</strong></div>";
+      if (serviceRow) serviceRow.insertAdjacentHTML("beforebegin", html);
+      else q(".employee-profile-side-status", side)?.insertAdjacentHTML("beforebegin", html);
+      numberRow = findEmployeeNumberRow(side);
+    }
+    const numberNode = numberRow && numberRow.querySelector("strong");
+    if (numberNode) {
+      numberNode.dataset.v187EmployeeNumber = "1";
+      const raw =
+        (employee && employee.employeeNumber) ||
+        numberNode.dataset.v187RawNumber ||
+        numberNode.textContent ||
+        "";
+      const compact = cleanText(raw).replace(/\s+/g, "");
+      numberNode.dataset.v187RawNumber = compact;
+      numberNode.textContent = spacedEmployeeNumber(compact);
+    }
+
+    ensureQuickLeaveBalance(side, employee);
+
+    try {
+      if (typeof hydrateAttachmentImages === "function") hydrateAttachmentImages(content);
+    } catch (_) {}
+  }
+
+  function scheduleEmployeeFormSync() {
+    setTimeout(function () {
+      syncEmployeeSideNumber();
+      syncContractAttachmentControl();
+    }, 0);
+    setTimeout(function () {
+      syncEmployeeSideNumber();
+      syncContractAttachmentControl();
+    }, 160);
+  }
+
+  function scheduleQuickProfileSync(employeeId) {
+    setTimeout(function () {
+      normalizeQuickProfile(employeeId);
+    }, 0);
+    setTimeout(function () {
+      normalizeQuickProfile(employeeId);
+    }, 180);
+  }
+
+  try {
+    const previousUpdatePersonal =
+      typeof updatePersonalCalculations === "function"
+        ? updatePersonalCalculations
+        : window.updatePersonalCalculations;
+    if (
+      typeof previousUpdatePersonal === "function" &&
+      !previousUpdatePersonal.__v187EmployeeNumberSpacing
+    ) {
+      const wrappedUpdatePersonal = function () {
+        const result = previousUpdatePersonal.apply(this, arguments);
+        syncEmployeeSideNumber();
+        return result;
+      };
+      wrappedUpdatePersonal.__v187EmployeeNumberSpacing = true;
+      updatePersonalCalculations = wrappedUpdatePersonal;
+      window.updatePersonalCalculations = wrappedUpdatePersonal;
+    }
+  } catch (_) {}
+
+  try {
+    const previousOpenEmployee =
+      typeof openEmployeeModal === "function" ? openEmployeeModal : window.openEmployeeModal;
+    if (
+      typeof previousOpenEmployee === "function" &&
+      !previousOpenEmployee.__v187ContractAttachmentSync
+    ) {
+      const wrappedOpenEmployee = async function () {
+        const result = await previousOpenEmployee.apply(this, arguments);
+        scheduleEmployeeFormSync();
+        return result;
+      };
+      wrappedOpenEmployee.__v187ContractAttachmentSync = true;
+      openEmployeeModal = wrappedOpenEmployee;
+      window.openEmployeeModal = wrappedOpenEmployee;
+    }
+  } catch (_) {}
+
+  try {
+    const previousOpenQuickView =
+      typeof openQuickView === "function" ? openQuickView : window.openQuickView;
+    if (
+      typeof previousOpenQuickView === "function" &&
+      !previousOpenQuickView.__v187QuickProfileStable
+    ) {
+      const wrappedOpenQuickView = async function (employeeId) {
+        const result = await previousOpenQuickView.apply(this, arguments);
+        scheduleQuickProfileSync(employeeId);
+        return result;
+      };
+      wrappedOpenQuickView.__v187QuickProfileStable = true;
+      openQuickView = wrappedOpenQuickView;
+      window.openQuickView = wrappedOpenQuickView;
+    }
+  } catch (_) {}
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (event.target?.closest?.('[data-edit-employee], #addEmployeeBtn, [data-employee-section]')) {
+        scheduleEmployeeFormSync();
+      }
+      const quickButton = event.target?.closest?.("[data-view-employee]");
+      if (quickButton) scheduleQuickProfileSync(quickButton.dataset.viewEmployee);
+      if (event.target?.closest?.('[data-view-single-attachment="contract"]')) {
+        syncContractAttachmentControl();
+      }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "change",
+    function (event) {
+      const input = event.target?.matches?.('[data-single-attachment="contract"]')
+        ? event.target
+        : null;
+      if (!input) return;
+      const control = input.closest(".compact-file-control");
+      if (control && input.files && input.files[0]) {
+        control.classList.add("is-uploading");
+        const label = control.querySelector(":scope > span:last-of-type");
+        if (label) label.textContent = "جاري الرفع";
+      }
+      setTimeout(syncContractAttachmentControl, 400);
+      setTimeout(syncContractAttachmentControl, 1200);
+    },
+    false,
+  );
+
+  const observer = new MutationObserver(function () {
+    if (q("#employeeModal[open]")) scheduleEmployeeFormSync();
+    if (q("#quickViewModal[open]")) scheduleQuickProfileSync();
+  });
+  try {
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["hidden", "class", "data-attachment-id"],
+    });
+  } catch (_) {}
+
+  document.addEventListener("DOMContentLoaded", function () {
+    scheduleEmployeeFormSync();
+    scheduleQuickProfileSync();
+  });
+  scheduleEmployeeFormSync();
 })();

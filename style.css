@@ -16077,3 +16077,83 @@ html.has-initial-login-bg .auth-gate,
   display: none !important;
   background-image: none !important;
 }
+
+/* v187 final tail override - keep the employee profile repair last */
+#employeeModal.employee-profile-modal .employee-side-identity-card .employee-side-number,
+#employeeSideNumber,
+#quickViewModal .employee-profile-side-number strong[data-v187-employee-number="1"] {
+  white-space: pre !important;
+  letter-spacing: 0 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-identity-card .employee-side-number {
+  font-size: 24px !important;
+  line-height: 1.05 !important;
+}
+
+#quickViewModal .employee-profile-view {
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) !important;
+  align-items: start !important;
+}
+
+#quickViewModal .employee-profile-side {
+  width: 100% !important;
+  max-width: 260px !important;
+  min-width: 0 !important;
+  align-self: start !important;
+  justify-items: center !important;
+  align-content: start !important;
+  gap: 12px !important;
+  overflow: visible !important;
+}
+
+#quickViewModal .employee-profile-side .quick-profile-photo {
+  position: relative !important;
+  width: 132px !important;
+  height: 132px !important;
+  min-width: 132px !important;
+  min-height: 132px !important;
+  max-width: 132px !important;
+  max-height: 132px !important;
+  aspect-ratio: 1 / 1 !important;
+  flex: 0 0 132px !important;
+  display: grid !important;
+  place-items: center !important;
+  overflow: hidden !important;
+  border-radius: 28px !important;
+  margin: 0 auto !important;
+}
+
+#quickViewModal .employee-profile-side .quick-profile-photo img {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: inherit !important;
+}
+
+#quickViewModal .employee-profile-side h3,
+#quickViewModal .employee-profile-side p,
+#quickViewModal .employee-profile-side-number,
+#quickViewModal .employee-profile-side-status,
+#quickViewModal .employee-profile-side .leave-balance-profile-card {
+  position: relative !important;
+  z-index: 3 !important;
+  text-align: center !important;
+}
+
+@media (max-width: 760px) {
+  #quickViewModal .employee-profile-view {
+    grid-template-columns: 1fr !important;
+  }
+
+  #quickViewModal .employee-profile-side {
+    max-width: none !important;
+    position: relative !important;
+  }
+}

@@ -38,7 +38,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=186" />
+    <link rel="stylesheet" href="style.css?v=187" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -874,7 +874,7 @@
                 <label><span>تاريخ انتهاء العقد</span><input name="contractEndDate" class="calculated-field" readonly /></label>
                 <label><span>تجديد العقد</span><select name="renewalOption" disabled><option value="none">عدم التجديد</option><option value="same">تجديد لمدة مماثلة</option></select></label>
                 <label><span>تاريخ الانتهاء الجديد</span><input name="renewedContractEndDate" class="calculated-field" readonly /></label>
-                <label class="contract-attachment-field"><span>مرفق صورة العقد</span><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق</span><input type="file" data-single-attachment="contract" accept="image/*,.pdf" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="contract" hidden>تحميل</button></label>
+                <label class="contract-attachment-field"><span>مرفق صورة العقد</span><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق</span><input type="file" data-single-attachment="contract" accept="image/*,.pdf" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="contract" hidden>عرض</button></label>
                 <label class="contract-notice-field"><span>فترة الإشعار</span><input name="contractNoticeDays" type="number" min="1" step="1" inputmode="numeric" placeholder="مثال: 60" /></label>
                 <label class="span-all"><span>المدة المتبقية لانتهاء العقد</span><input name="contractRemaining" class="calculated-field expiry-state" readonly /></label>
               </div>
@@ -1132,6 +1132,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=186"></script>
+    <script src="app.js?v=187"></script>
   </body>
 </html>
