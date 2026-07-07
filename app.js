@@ -3884,7 +3884,9 @@ async function handleEmployeeSubmit(e) {
     ? employees.map((e) => (e.id === y.id ? y : e))
     : [y, ...employees]),
     await dbSaveEmployee(y),
-    await saveCloudStateNow(),
+    "function" == typeof window.persistEmployeeStateV179
+      ? await window.persistEmployeeStateV179("employee-save")
+      : await saveCloudStateNow({ force: !0, allowEmptyOverwrite: !0 }),
     document.querySelector("#employeeModal").close(),
     renderAll(),
     showToast(
@@ -5734,7 +5736,6 @@ function setupEvents() {
             showToast(e.reason),
             void (deleteTargetId = null)
           );
-        await dbDeleteEmployee(deleteTargetId);
         const t = deleteTargetId;
         ((employees = employees.filter((e) => e.id !== t)),
           (leaves = leaves.filter((e) => e.employeeId !== t)),
@@ -5747,8 +5748,11 @@ function setupEvents() {
         } catch (e) {
           console.warn("تعذر تنظيف سلفيات الموظف المحذوف", e);
         }
-        (queueCloudStateSave(),
-          saveLocalMeta(),
+        (await dbDeleteEmployee(t),
+          "function" == typeof window.persistEmployeeStateV179
+            ? await window.persistEmployeeStateV179("employee-delete")
+            : (saveLocalMeta(),
+              await saveCloudStateNow({ force: !0, allowEmptyOverwrite: !0 })),
           document.querySelector("#confirmModal").close(),
           (deleteTargetId = null),
           renderAll(),
@@ -55412,5 +55416,132 @@ window.nawahV177LoginBackground = {
       urlCache.clear();
       return applyAvatar(true);
     },
+  };
+})();
+
+/* v179 - true employee add/delete persistence across local, IndexedDB, and cloud */
+(function v179TrueEmployeePersistence() {
+  if (window.__v179TrueEmployeePersistence) return;
+  window.__v179TrueEmployeePersistence = true;
+
+  function listEmployees() {
+    try {
+      return Array.isArray(employees) ? employees : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function normalizeList(list) {
+    return (Array.isArray(list) ? list : []).map(function (employee, index) {
+      try {
+        return typeof normalizeEmployee === "function"
+          ? normalizeEmployee(employee, index)
+          : employee;
+      } catch (_) {
+        return employee;
+      }
+    });
+  }
+
+  function setGlobalEmployees(list) {
+    try {
+      employees = list;
+    } catch (_) {}
+    try {
+      window.employees = list;
+    } catch (_) {}
+  }
+
+  function writeLocalEmployees(list) {
+    try {
+      localStorage.setItem("nawah-employees", JSON.stringify(list));
+    } catch (error) {
+      console.warn("v179: تعذر حفظ الموظفين في localStorage.", error);
+    }
+  }
+
+  async function syncIndexedDbEmployees(list) {
+    try {
+      if (
+        typeof dbGetAllEmployees !== "function" ||
+        typeof dbStore !== "function" ||
+        typeof requestResult !== "function"
+      )
+        return;
+      const nextIds = new Set(
+        list.map(function (employee) {
+          return String(employee && employee.id);
+        }),
+      );
+      const current = await dbGetAllEmployees();
+      const stale = (Array.isArray(current) ? current : []).filter(function (employee) {
+        return !nextIds.has(String(employee && employee.id));
+      });
+      await Promise.all(
+        stale.map(function (employee) {
+          return requestResult(dbStore("employees", "readwrite").delete(employee.id));
+        }),
+      );
+      await Promise.all(
+        list.map(function (employee) {
+          return requestResult(dbStore("employees", "readwrite").put(employee));
+        }),
+      );
+    } catch (error) {
+      console.warn("v179: تعذر مزامنة IndexedDB للموظفين.", error);
+    }
+  }
+
+  async function forceCloudSave(reason) {
+    try {
+      cloudSaveAllowed = true;
+      cloudLoadAttempted = true;
+    } catch (_) {}
+    try {
+      if (typeof saveCloudStateNow === "function") {
+        await saveCloudStateNow({
+          force: true,
+          allowEmptyOverwrite: true,
+          reason: reason || "employee-persist-v179",
+        });
+      } else if (typeof queueCloudStateSave === "function") {
+        queueCloudStateSave();
+      }
+    } catch (error) {
+      console.warn("v179: تعذر حفظ حالة الموظفين في Supabase.", error);
+    }
+  }
+
+  window.persistEmployeeStateV179 = async function persistEmployeeStateV179(reason) {
+    const list = normalizeList(listEmployees());
+    setGlobalEmployees(list);
+    writeLocalEmployees(list);
+    await syncIndexedDbEmployees(list);
+    try {
+      if (typeof saveLocalMeta === "function") saveLocalMeta();
+    } catch (_) {}
+    await forceCloudSave(reason);
+    return true;
+  };
+
+  const previousSaveEmployeeRecord =
+    typeof saveEmployeeRecord === "function" ? saveEmployeeRecord : null;
+  if (previousSaveEmployeeRecord && !previousSaveEmployeeRecord.__v179TrueEmployeePersistence) {
+    const wrappedSaveEmployeeRecord = async function wrappedSaveEmployeeRecord() {
+      const result = await previousSaveEmployeeRecord.apply(this, arguments);
+      await window.persistEmployeeStateV179("employee-record-save");
+      return result;
+    };
+    wrappedSaveEmployeeRecord.__v179TrueEmployeePersistence = true;
+    try {
+      saveEmployeeRecord = wrappedSaveEmployeeRecord;
+    } catch (_) {}
+    window.saveEmployeeRecord = wrappedSaveEmployeeRecord;
+  }
+
+  window.nawahV179EmployeePersistence = {
+    truePersistence: true,
+    persist: window.persistEmployeeStateV179,
   };
 })();
