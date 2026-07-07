@@ -113,6 +113,51 @@ html.has-initial-login-bg .auth-gate,
   background-image: none !important;
 }
 
+/* v180 - employee edit sidebar identity: centered name and larger employee number */
+#employeeModal.employee-profile-modal .employee-side-identity {
+  width: 100% !important;
+  margin: 8px 0 1px !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal #employeeSideName {
+  display: block !important;
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  color: #1c2434 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1.35 !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-stat {
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-label,
+#employeeModal.employee-profile-modal .employee-side-number,
+#employeeModal.employee-profile-modal .employee-side-service {
+  width: 100% !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-number {
+  margin-top: 7px !important;
+  font-size: 37px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 700px) {
+  #employeeModal.employee-profile-modal .employee-side-number {
+    font-size: 31px !important;
+  }
+}
+
 /* v178 - stable topbar account avatar, no pending hide or repaint flicker */
 .topbar-user-mark.v178-topbar-avatar-stable,
 .topbar-user-mark.v178-topbar-avatar-stable.v100-avatar-pending:not(.v100-avatar-ready),
@@ -15658,6 +15703,51 @@ dialog[open][data-employee-org-dialog]::backdrop,
 
   .v174-travel-attachments {
     grid-template-columns: minmax(36px, 1fr) 30px;
+  }
+}
+
+/* v180 final override - employee edit sidebar identity */
+#employeeModal.employee-profile-modal .employee-side-identity {
+  width: 100% !important;
+  margin: 8px 0 1px !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal #employeeSideName {
+  display: block !important;
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  color: #1c2434 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1.35 !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-stat {
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-label,
+#employeeModal.employee-profile-modal .employee-side-number,
+#employeeModal.employee-profile-modal .employee-side-service {
+  width: 100% !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-number {
+  margin-top: 7px !important;
+  font-size: 37px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 700px) {
+  #employeeModal.employee-profile-modal .employee-side-number {
+    font-size: 31px !important;
   }
 }
 

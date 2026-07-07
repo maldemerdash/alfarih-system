@@ -3563,7 +3563,18 @@ function updatePersonalCalculations() {
       ? getEmployee(e.elements.employeeId.value)
       : null,
     o = buildEmployeeNumber(t, n, a?.sequence || nextEmployeeSequence());
+  const name = [
+      e.elements.firstName?.value,
+      e.elements.fatherName?.value,
+      e.elements.grandName?.value,
+      e.elements.familyName?.value,
+    ]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .join(" "),
+    sideName = document.querySelector("#employeeSideName");
   document.querySelector("#employeeSideNumber").textContent = o;
+  sideName && (sideName.textContent = name || "اسم الموظف");
   const r = parseDate(e.elements.birthDate.value);
   ((e.elements.age.value = r ? `${durationParts(r)?.years || 0} سنة` : ""),
     toggleNationalityField());
@@ -5196,9 +5207,16 @@ function setupEvents() {
       ),
     document.querySelector("#employeeForm").addEventListener("input", (e) => {
       const t = e.target.name;
-      (["identityNumber", "phone", "birthDate", "nationalityType"].includes(
-        t,
-      ) && updatePersonalCalculations(),
+      ([
+        "firstName",
+        "fatherName",
+        "grandName",
+        "familyName",
+        "identityNumber",
+        "phone",
+        "birthDate",
+        "nationalityType",
+      ].includes(t) && updatePersonalCalculations(),
         "identityExpiryGregorian" === t && syncIdentityFromGregorian(),
         "identityExpiryHijri" === t && syncIdentityFromHijri(),
         [
