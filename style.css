@@ -15806,6 +15806,57 @@ dialog[open][data-employee-org-dialog]::backdrop,
   }
 }
 
+/* v182 - employee modal: sidebar spans the content and action rows */
+@media (min-width: 721px) {
+  #employeeModal.employee-profile-modal {
+    --employee-editor-side-width: 310px;
+    --employee-editor-gap: 17px;
+    --employee-editor-x: 28px;
+    --employee-editor-action-span: 100px;
+  }
+
+  #employeeModal.employee-profile-modal #employeeForm > .employee-workspace {
+    grid-template-columns: var(--employee-editor-side-width) minmax(0, 1fr) !important;
+    gap: var(--employee-editor-gap) !important;
+    overflow: visible !important;
+  }
+
+  #employeeModal.employee-profile-modal #employeeForm > .employee-workspace .employee-section-content {
+    overflow-y: auto !important;
+  }
+
+  #employeeModal.employee-profile-modal #employeeForm > .employee-workspace .employee-form-sidebar {
+    align-self: stretch !important;
+    height: calc(100% + var(--employee-editor-action-span)) !important;
+    min-height: calc(100% + var(--employee-editor-action-span)) !important;
+    margin-bottom: calc(-1 * var(--employee-editor-action-span)) !important;
+    overflow: hidden !important;
+    z-index: 95 !important;
+  }
+
+  #employeeModal.employee-profile-modal #employeeForm > .employee-form-actions {
+    width: auto !important;
+    margin-top: 0 !important;
+    margin-right: calc(var(--employee-editor-x) + var(--employee-editor-side-width) + var(--employee-editor-gap)) !important;
+    margin-bottom: 18px !important;
+    margin-left: var(--employee-editor-x) !important;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1180px) {
+  #employeeModal.employee-profile-modal {
+    --employee-editor-side-width: 245px;
+  }
+}
+
+@media (max-width: 720px) {
+  #employeeModal.employee-profile-modal #employeeForm > .employee-workspace .employee-form-sidebar {
+    height: auto !important;
+    min-height: 0 !important;
+    margin-bottom: 0 !important;
+  }
+}
+
 /* v173 final override - boot stays white, login background is image-only */
 html.app-booting body {
   background: #ffffff !important;
