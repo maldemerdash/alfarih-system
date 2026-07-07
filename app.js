@@ -55558,8 +55558,229 @@ window.nawahV177LoginBackground = {
     window.saveEmployeeRecord = wrappedSaveEmployeeRecord;
   }
 
-  window.nawahV179EmployeePersistence = {
+window.nawahV179EmployeePersistence = {
     truePersistence: true,
     persist: window.persistEmployeeStateV179,
   };
+})();
+
+/* v183 - keep commission automatic/manual field stable and independent from documentation attachments */
+(function v183StableCommissionModeField() {
+  if (window.__v183StableCommissionModeField) return;
+  window.__v183StableCommissionModeField = true;
+
+  function form() {
+    return document.getElementById("employeeForm");
+  }
+
+  function text(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function readMode(currentSelect) {
+    const domValue = text(currentSelect && currentSelect.value);
+    if (domValue) return domValue === "manual" ? "manual" : "auto";
+    try {
+      return employeeFormState && employeeFormState.commissionStartMode === "manual"
+        ? "manual"
+        : "auto";
+    } catch (_) {
+      return "auto";
+    }
+  }
+
+  function syncState(mode) {
+    try {
+      if (employeeFormState) employeeFormState.commissionStartMode = mode === "manual" ? "manual" : "auto";
+    } catch (_) {}
+  }
+
+  function commissionGrid(scope) {
+    return (
+      (scope || document).querySelector(
+        '[data-section-panel="commissions"] .form-grid',
+      ) || null
+    );
+  }
+
+  function startDateLabel(currentForm) {
+    const input = currentForm && currentForm.elements && currentForm.elements.commissionStartDate;
+    return input ? input.closest("label") : null;
+  }
+
+  function bindSelect(select) {
+    if (!select || select.__v183StableCommissionModeBound) return;
+    select.__v183StableCommissionModeBound = true;
+    select.addEventListener("change", function () {
+      const mode = readMode(select);
+      syncState(mode);
+      try {
+        if (typeof applyCommissionStartModeUi === "function") applyCommissionStartModeUi();
+      } catch (_) {}
+      try {
+        if (typeof updateCommissionCalculations === "function") updateCommissionCalculations();
+      } catch (_) {}
+    });
+  }
+
+  function ensureCommissionModeField() {
+    const currentForm = form();
+    if (!currentForm) return null;
+    const grid = commissionGrid(currentForm);
+    const anchor = startDateLabel(currentForm);
+    if (!grid || !anchor) return null;
+
+    const previousSelect = currentForm.querySelector('[name="commissionStartMode"]');
+    const mode = readMode(previousSelect);
+    let field = previousSelect ? previousSelect.closest("label") : null;
+
+    if (!field) {
+      field = document.createElement("label");
+      field.innerHTML =
+        '<span>طريقة حساب العمولة</span><select name="commissionStartMode"><option value="auto">آلية</option><option value="manual">يدوية</option></select>';
+    }
+
+    field.classList.add("commission-start-mode-field", "v183-commission-mode-fixed");
+    field.hidden = false;
+    field.removeAttribute("hidden");
+    field.removeAttribute("aria-hidden");
+    field.style.removeProperty("display");
+    field.style.removeProperty("visibility");
+    field.style.removeProperty("opacity");
+
+    const label = field.querySelector(":scope > span");
+    if (label) label.textContent = "طريقة حساب العمولة";
+
+    const select = field.querySelector('select[name="commissionStartMode"]');
+    if (!select) return null;
+    select.innerHTML =
+      '<option value="auto">آلية</option><option value="manual">يدوية</option>';
+    select.value = mode;
+    syncState(mode);
+    bindSelect(select);
+
+    if (field.parentElement !== grid) grid.insertBefore(field, anchor);
+    else if (field.nextElementSibling !== anchor) grid.insertBefore(field, anchor);
+
+    const manualPayoutField = currentForm
+      .querySelector('[name="commissionManualPaymentDate"]')
+      ?.closest("label");
+    if (manualPayoutField && manualPayoutField.parentElement === grid) {
+      field.insertAdjacentElement("afterend", manualPayoutField);
+    }
+
+    try {
+      if (typeof applyCommissionStartModeUi === "function") applyCommissionStartModeUi();
+    } catch (_) {}
+
+    return select;
+  }
+
+  function scheduleEnsure(delay) {
+    window.setTimeout(function () {
+      const select = ensureCommissionModeField();
+      if (select) {
+        try {
+          if (typeof hydrateIcons === "function") hydrateIcons(select.closest("label"));
+        } catch (_) {}
+      }
+    }, Number(delay || 0));
+  }
+
+  const functionNames = [
+    "installEmployeeFormFields",
+    "renderDocumentation",
+    "updateSingleAttachmentControl",
+    "setSingleAttachment",
+    "updateCommissionCalculations",
+    "openEmployeeModal",
+    "openNewEmployeeModalSafely",
+  ];
+
+  functionNames.forEach(function (name) {
+    const original = window[name] || (typeof globalThis !== "undefined" ? globalThis[name] : null);
+    if (typeof original !== "function" || original.__v183StableCommissionModeField) return;
+    const wrapped = function () {
+      const preserveCurrentMode =
+        name !== "openEmployeeModal" && name !== "openNewEmployeeModalSafely";
+      const before = ensureCommissionModeField();
+      const beforeMode = preserveCurrentMode ? readMode(before) : "";
+      const after = function () {
+        try {
+          if (preserveCurrentMode) syncState(beforeMode);
+          const select = ensureCommissionModeField();
+          if (select && preserveCurrentMode) select.value = beforeMode;
+          try {
+            if (name !== "updateCommissionCalculations" && typeof updateCommissionCalculations === "function")
+              updateCommissionCalculations();
+          } catch (_) {}
+        } catch (_) {}
+      };
+      let result;
+      try {
+        result = original.apply(this, arguments);
+      } catch (error) {
+        after();
+        throw error;
+      }
+      if (result && typeof result.then === "function") {
+        return result.finally(after);
+      }
+      after();
+      return result;
+    };
+    wrapped.__v183StableCommissionModeField = true;
+    try {
+      window[name] = wrapped;
+    } catch (_) {}
+    try {
+      globalThis[name] = wrapped;
+    } catch (_) {}
+    try {
+      eval(name + " = wrapped");
+    } catch (_) {}
+  });
+
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (
+        event.target &&
+        event.target.matches &&
+        event.target.matches(
+          '[name="commissionStartMode"], [data-single-attachment], #consentAttachmentInput',
+        )
+      ) {
+        scheduleEnsure(0);
+        scheduleEnsure(80);
+        scheduleEnsure(250);
+      }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (
+        event.target &&
+        event.target.closest &&
+        event.target.closest('[data-employee-section="commissions"], #payCommissionBtn')
+      ) {
+        scheduleEnsure(0);
+      }
+    },
+    true,
+  );
+
+  document.addEventListener("DOMContentLoaded", function () {
+    scheduleEnsure(0);
+    scheduleEnsure(200);
+  });
+  window.addEventListener("load", function () {
+    scheduleEnsure(80);
+  });
+
+  window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
+  scheduleEnsure(0);
 })();

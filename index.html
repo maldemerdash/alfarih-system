@@ -38,7 +38,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=182" />
+    <link rel="stylesheet" href="style.css?v=183" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -898,6 +898,7 @@
             <section class="employee-tab-panel" data-section-panel="commissions">
               <div class="form-section-title section-title-with-action"><span data-icon="trend-up"></span><div><h3>العمولات</h3><p>احتساب العمولة وصرفها وإصدار المخالصة</p></div><button type="button" class="commission-pay-btn" id="payCommissionBtn" aria-label="صرف العمولة" hidden><span data-icon="wallet"></span></button></div>
               <div class="form-grid form-grid-4">
+                <label class="commission-start-mode-field v183-commission-mode-fixed"><span>طريقة حساب العمولة</span><select name="commissionStartMode"><option value="auto">آلية</option><option value="manual">يدوية</option></select></label>
                 <label><span>تاريخ بداية استحقاق العمولة</span><input name="commissionStartDate" type="date" class="calculated-field" readonly /></label>
                 <label><span>قيمة العمولة</span><input name="commissionAmount" class="calculated-field latin-number" readonly /></label>
                 <label class="span-2"><span>حالة الاستحقاق</span><input name="commissionStatusText" class="calculated-field" readonly /></label>
@@ -1119,6 +1120,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=182"></script>
+    <script src="app.js?v=183"></script>
   </body>
 </html>

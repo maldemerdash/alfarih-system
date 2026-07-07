@@ -15857,6 +15857,27 @@ dialog[open][data-employee-org-dialog]::backdrop,
   }
 }
 
+/* v183 - fixed commission mode field */
+#employeeModal.employee-profile-modal .v183-commission-mode-fixed,
+#employeeModal.employee-profile-modal .commission-start-mode-field {
+  display: flex !important;
+  min-width: 0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#employeeModal.employee-profile-modal .v183-commission-mode-fixed select,
+#employeeModal.employee-profile-modal .commission-start-mode-field select {
+  width: 100% !important;
+  min-height: 47px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 11px !important;
+  background: #fff !important;
+  color: var(--text) !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+
 /* v173 final override - boot stays white, login background is image-only */
 html.app-booting body {
   background: #ffffff !important;
