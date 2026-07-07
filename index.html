@@ -38,7 +38,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=180" />
+    <link rel="stylesheet" href="style.css?v=181" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -792,12 +792,10 @@
           <input type="hidden" name="employeeId" />
           <aside class="employee-form-sidebar">
             <div class="employee-side-photo" id="employeePhotoPreview"><span data-icon="user"></span></div>
-            <div class="employee-side-identity">
-              <strong id="employeeSideName">اسم الموظف</strong>
-            </div>
             <label class="employee-photo-upload"><span data-icon="camera"></span><span>تحميل صورة</span><input type="file" id="employeePhotoInput" accept="image/*" /></label>
             <button type="button" class="employee-photo-remove" id="removeEmployeePhoto">إزالة الصورة</button>
-            <div class="employee-side-stat">
+            <div class="employee-side-stat employee-side-identity-card">
+              <strong class="employee-side-name" id="employeeSideName">اسم الموظف</strong>
               <span class="employee-side-label">رقم الموظف</span>
               <strong class="employee-side-number" id="employeeSideNumber">00-00</strong>
             </div>
@@ -1121,6 +1119,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=180"></script>
+    <script src="app.js?v=181"></script>
   </body>
 </html>

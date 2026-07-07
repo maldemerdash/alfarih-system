@@ -15751,6 +15751,61 @@ dialog[open][data-employee-org-dialog]::backdrop,
   }
 }
 
+/* v181 - employee name and number in one balanced card */
+#employeeModal.employee-profile-modal .employee-side-identity {
+  display: none !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-identity-card {
+  display: flex !important;
+  min-height: 80px !important;
+  margin-top: 9px !important;
+  padding: 9px 10px 10px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal #employeeSideName,
+#employeeModal.employee-profile-modal .employee-side-name {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-bottom: 7px !important;
+  border-bottom: 1px solid rgba(148, 163, 184, .28) !important;
+  color: #1f2937 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1.3 !important;
+  overflow-wrap: anywhere !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-identity-card .employee-side-label {
+  margin-top: 5px !important;
+  font-size: 9px !important;
+  line-height: 1.1 !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal .employee-side-identity-card .employee-side-number {
+  margin-top: 3px !important;
+  color: #111827 !important;
+  font-size: 24px !important;
+  font-weight: 950 !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0 !important;
+  text-align: center !important;
+}
+
+@media (max-width: 700px) {
+  #employeeModal.employee-profile-modal .employee-side-identity-card .employee-side-number {
+    font-size: 22px !important;
+  }
+}
+
 /* v173 final override - boot stays white, login background is image-only */
 html.app-booting body {
   background: #ffffff !important;
