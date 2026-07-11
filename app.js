@@ -37305,17 +37305,23 @@ async function init() {
         btn.hidden = !id;
         btn.toggleAttribute("hidden", !id);
         btn.classList.add(
+          "attachment-view-btn",
+          "attachment-preview-btn",
+        );
+        btn.classList.remove(
           "attachment-download-btn",
           "employee-attachment-download-inline",
         );
-        btn.setAttribute("title", "معاينة المرفق");
-        btn.setAttribute("aria-label", "معاينة مرفق العقد");
+        btn.dataset.v188ContractPreviewOnly = "1";
+        btn.setAttribute("title", "عرض مرفق العقد");
+        btn.setAttribute("aria-label", "عرض مرفق العقد");
         if (btn.dataset.v116IconReady !== "1") {
           try {
             btn.innerHTML =
-              typeof iconSvg === "function" ? iconSvg("download") : "تحميل";
+              (typeof iconSvg === "function" ? iconSvg("eye") : "") +
+              "<span>عرض</span>";
           } catch (_) {
-            btn.textContent = "تحميل";
+            btn.textContent = "عرض";
           }
           btn.dataset.v116IconReady = "1";
         }
@@ -52985,14 +52991,36 @@ window.nawahV169Fixes = {
       root
         .querySelectorAll("[data-view-attachment], [data-view-single-attachment]")
         .forEach(function (button) {
-          button.classList.add(
-            "attachment-preview-btn",
-            "attachment-download-btn",
-            "employee-attachment-download-inline",
-          );
+          const isContractPreview =
+            button.dataset.viewSingleAttachment === "contract" ||
+            button.matches?.('[data-view-single-attachment="contract"]');
+          button.classList.add("attachment-preview-btn");
+          if (isContractPreview) {
+            button.classList.add("attachment-view-btn");
+            button.classList.remove(
+              "attachment-download-btn",
+              "employee-attachment-download-inline",
+            );
+            button.dataset.v188ContractPreviewOnly = "1";
+            if (!button.querySelector("svg,[data-icon]")) {
+              button.innerHTML =
+                icon("eye") + '<span class="sr-only">عرض مرفق العقد</span>';
+            }
+          } else {
+            button.classList.add(
+              "attachment-download-btn",
+              "employee-attachment-download-inline",
+            );
+          }
           markPreviewButton(button);
           [40, 180].forEach(function (delay) {
             setTimeout(function () {
+              if (isContractPreview) {
+                button.classList.remove(
+                  "attachment-download-btn",
+                  "employee-attachment-download-inline",
+                );
+              }
               markPreviewButton(button);
             }, delay);
           });
@@ -57190,11 +57218,19 @@ window.nawahLeaveBalanceReportV185 = {
         button.toggleAttribute("hidden", shouldHide);
       }
       button.classList.add("attachment-view-btn", "attachment-preview-btn");
-      button.classList.remove("attachment-download-btn");
+      button.classList.remove(
+        "attachment-download-btn",
+        "employee-attachment-download-inline",
+      );
+      button.dataset.v188ContractPreviewOnly = "1";
       button.setAttribute("title", "عرض مرفق العقد");
       button.setAttribute("aria-label", "عرض مرفق العقد");
       if (attachmentId) {
+        const hasStableEye =
+          button.dataset.v188ContractPreviewOnly === "1" &&
+          Boolean(button.querySelector("svg,[data-icon]"));
         if (
+          !hasStableEye ||
           button.dataset.v187ContractAttachmentId !== attachmentId ||
           button.dataset.v187ContractIconReady !== "1"
         ) {
@@ -57207,6 +57243,7 @@ window.nawahLeaveBalanceReportV185 = {
           }
           button.dataset.v187ContractAttachmentId = attachmentId;
           button.dataset.v187ContractIconReady = "1";
+          button.dataset.v188ContractPreviewOnly = "1";
         }
       } else {
         if (button.textContent.trim() !== "عرض") button.textContent = "عرض";
