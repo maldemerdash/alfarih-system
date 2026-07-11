@@ -19157,7 +19157,7 @@ async function init() {
             setTimeout(r, 250),
           )
         : setTimeout(r, 250),
-      setInterval(r, 1500));
+      setInterval(r, 5000));
   })(),
   (function () {
     const e = ["المالية", "متابعة البنية المالية اليومية والصلاحيات"];
@@ -21216,7 +21216,7 @@ async function init() {
           )
         : setTimeout(f, 100),
       setTimeout(f, 800),
-      setInterval(p, 1200));
+      setInterval(p, 5000));
   })(),
   (function () {
     if (window.__finalFinanceDailyCreditFormulaLock) return;
@@ -21822,7 +21822,7 @@ async function init() {
           )
         : setTimeout(v, 120),
       setTimeout(v, 700),
-      setInterval(h, 1e3));
+      setInterval(h, 5000));
   })(),
   (function () {
     if (window.__absolutePermissionsSourceOfTruth20260628) return;
@@ -22557,7 +22557,7 @@ async function init() {
         : setTimeout(I, 80),
       setTimeout(I, 500),
       setTimeout(I, 1500),
-      setInterval(f, 300));
+      setInterval(f, 3000));
   })(),
   (function () {
     if (window.__absoluteFinalPermissionSourceLockV2) return;
@@ -23246,7 +23246,7 @@ async function init() {
         : setTimeout(I, 50),
       setTimeout(I, 500),
       setTimeout(I, 1500),
-      setInterval(f, 500));
+      setInterval(f, 4000));
   })(),
   (function () {
     if (window.__finalAttachmentPersistenceAndTopbarPhotoFix) return;
@@ -49570,8 +49570,8 @@ async function init() {
     var p = permissionsPanel();
     if (isPermissionsActive() && hasOldPermissionsUi(p))
       forceFinalPermissions("");
-    if (attempts > 60) clearInterval(timer);
-  }, 150);
+    if (attempts > 24) clearInterval(timer);
+  }, 500);
   try {
     new MutationObserver(function () {
       var p = permissionsPanel();
@@ -53013,17 +53013,20 @@ window.nawahV169Fixes = {
             );
           }
           markPreviewButton(button);
-          [40, 180].forEach(function (delay) {
-            setTimeout(function () {
-              if (isContractPreview) {
-                button.classList.remove(
-                  "attachment-download-btn",
-                  "employee-attachment-download-inline",
-                );
-              }
-              markPreviewButton(button);
-            }, delay);
-          });
+          if (button.dataset.v189PreviewMarkScheduled !== "1") {
+            button.dataset.v189PreviewMarkScheduled = "1";
+            [80, 260].forEach(function (delay) {
+              setTimeout(function () {
+                if (isContractPreview) {
+                  button.classList.remove(
+                    "attachment-download-btn",
+                    "employee-attachment-download-inline",
+                  );
+                }
+                markPreviewButton(button);
+              }, delay);
+            });
+          }
           if (!button.dataset.attachmentId && button.dataset.viewAttachment)
             button.dataset.attachmentId = button.dataset.viewAttachment;
         });
@@ -53254,8 +53257,22 @@ window.nawahV169Fixes = {
     true,
   );
 
-  const observer = new MutationObserver(function () {
-    scheduleEnhanceAttachments(document);
+  function mutationHasAttachmentNode(mutations) {
+    const selector =
+      "[data-view-attachment], [data-view-single-attachment], [data-hard-open-attachment], [data-branch-open-doc-attachment], .compact-file-control";
+    try {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes || []) {
+          if (node.nodeType !== 1) continue;
+          if (node.matches?.(selector) || node.querySelector?.(selector)) return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  const observer = new MutationObserver(function (mutations) {
+    if (mutationHasAttachmentNode(mutations)) scheduleEnhanceAttachments(document);
   });
   try {
     observer.observe(document.body || document.documentElement, {
@@ -57393,24 +57410,40 @@ window.nawahLeaveBalanceReportV185 = {
     } catch (_) {}
   }
 
+  let employeeFormSyncTimer = 0;
+  let employeeFormSyncLateTimer = 0;
+  let quickProfileSyncTimer = 0;
+  let quickProfileSyncLateTimer = 0;
+  let pendingQuickProfileEmployeeId = "";
+
+  function runEmployeeFormSync() {
+    employeeFormSyncTimer = 0;
+    syncEmployeeSideNumber();
+    syncContractAttachmentControl();
+  }
+
+  function runQuickProfileSync() {
+    const employeeId = pendingQuickProfileEmployeeId;
+    quickProfileSyncTimer = 0;
+    normalizeQuickProfile(employeeId);
+  }
+
   function scheduleEmployeeFormSync() {
-    setTimeout(function () {
+    clearTimeout(employeeFormSyncTimer);
+    clearTimeout(employeeFormSyncLateTimer);
+    employeeFormSyncTimer = setTimeout(runEmployeeFormSync, 30);
+    employeeFormSyncLateTimer = setTimeout(function () {
       syncEmployeeSideNumber();
       syncContractAttachmentControl();
-    }, 0);
-    setTimeout(function () {
-      syncEmployeeSideNumber();
-      syncContractAttachmentControl();
-    }, 160);
+    }, 220);
   }
 
   function scheduleQuickProfileSync(employeeId) {
-    setTimeout(function () {
-      normalizeQuickProfile(employeeId);
-    }, 0);
-    setTimeout(function () {
-      normalizeQuickProfile(employeeId);
-    }, 180);
+    pendingQuickProfileEmployeeId = employeeId || pendingQuickProfileEmployeeId || "";
+    clearTimeout(quickProfileSyncTimer);
+    clearTimeout(quickProfileSyncLateTimer);
+    quickProfileSyncTimer = setTimeout(runQuickProfileSync, 30);
+    quickProfileSyncLateTimer = setTimeout(runQuickProfileSync, 240);
   }
 
   try {
@@ -57503,22 +57536,43 @@ window.nawahLeaveBalanceReportV185 = {
     false,
   );
 
-  const observer = new MutationObserver(function () {
-    if (q("#employeeModal[open]")) scheduleEmployeeFormSync();
-    if (q("#quickViewModal[open]")) scheduleQuickProfileSync();
+  const observer = new MutationObserver(function (mutations) {
+    let needsEmployeeSync = false;
+    let needsQuickSync = false;
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes || []) {
+        if (node.nodeType !== 1) continue;
+        if (
+          node.id === "employeeModal" ||
+          node.closest?.("#employeeModal") ||
+          node.querySelector?.("#employeeForm,[data-single-attachment='contract']")
+        ) {
+          needsEmployeeSync = true;
+        }
+        if (
+          node.id === "quickViewModal" ||
+          node.closest?.("#quickViewModal") ||
+          node.querySelector?.("#quickViewContent,.employee-profile-side")
+        ) {
+          needsQuickSync = true;
+        }
+        if (needsEmployeeSync && needsQuickSync) break;
+      }
+      if (needsEmployeeSync && needsQuickSync) break;
+    }
+    if (needsEmployeeSync && q("#employeeModal[open]")) scheduleEmployeeFormSync();
+    if (needsQuickSync && q("#quickViewModal[open]")) scheduleQuickProfileSync();
   });
   try {
     observer.observe(document.body, {
       childList: true,
       subtree: true,
-      attributes: true,
-      attributeFilter: ["hidden", "class", "data-attachment-id"],
     });
   } catch (_) {}
 
   document.addEventListener("DOMContentLoaded", function () {
-    scheduleEmployeeFormSync();
-    scheduleQuickProfileSync();
+    if (q("#employeeModal[open]")) scheduleEmployeeFormSync();
+    if (q("#quickViewModal[open]")) scheduleQuickProfileSync();
   });
-  scheduleEmployeeFormSync();
+  if (q("#employeeModal[open]")) scheduleEmployeeFormSync();
 })();
