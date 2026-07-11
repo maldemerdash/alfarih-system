@@ -16283,24 +16283,33 @@ html.has-initial-login-bg .auth-gate,
 }
 
 #leavesView .v191-travel-table {
-  min-width: 1160px;
+  width: 100%;
+  min-width: 980px;
   table-layout: fixed;
 }
 
 #leavesView .v191-travel-table col.c-number {
-  width: 96px;
+  width: 72px;
 }
 
 #leavesView .v191-travel-table col.c-employee {
-  width: 190px;
+  width: 145px;
+}
+
+#leavesView .v191-travel-table col.c-date {
+  width: 82px;
+}
+
+#leavesView .v191-travel-table col.c-status {
+  width: 96px;
 }
 
 #leavesView .v191-travel-table col.c-duration {
-  width: 118px;
+  width: 90px;
 }
 
 #leavesView .v191-travel-table col.c-actions {
-  width: 270px;
+  width: 320px;
 }
 
 #leavesView .v191-travel-table th,
@@ -16308,6 +16317,7 @@ html.has-initial-login-bg .auth-gate,
   white-space: normal;
   overflow-wrap: anywhere;
   vertical-align: middle;
+  padding-inline: 6px;
 }
 
 #leavesView .travel-actions {
@@ -16370,6 +16380,117 @@ html.has-initial-login-bg .auth-gate,
   margin-top: 12px;
 }
 
+.payroll-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.payroll-summary .payroll-summary-card {
+  min-width: 0 !important;
+  padding: 14px 14px !important;
+}
+
+.payroll-summary .payroll-summary-card span {
+  font-size: 11px !important;
+}
+
+.payroll-summary .payroll-summary-card strong {
+  font-size: clamp(17px, 1.6vw, 24px) !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+}
+
+.payroll-summary .payroll-summary-card small {
+  font-size: 10px !important;
+  line-height: 1.35 !important;
+}
+
+.v192-site-favicon-card,
+.v192-company-stamp-card {
+  order: initial;
+}
+
+.v192-site-favicon-preview,
+.v192-stamp-preview {
+  background: #fff !important;
+  border: 1px solid rgba(20,184,166,.22) !important;
+  box-shadow: 0 18px 42px rgba(15,23,42,.10) !important;
+}
+
+.v192-site-favicon-preview img,
+.v192-stamp-preview img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  padding: 8px !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+}
+
+.v192-site-favicon-preview span,
+.v192-stamp-preview span {
+  color: #0f7d8f !important;
+  font-size: 13px !important;
+  font-weight: 950 !important;
+}
+
+.v192-media-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.company-logo-copy small {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.payroll-run-report-table {
+  table-layout: fixed;
+}
+
+.payroll-run-report-table th,
+.payroll-run-report-table td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.payroll-run-report-table th:first-child,
+.payroll-run-report-table td:first-child {
+  text-align: right;
+}
+
+.payroll-run-report-table td:nth-child(2),
+.payroll-run-report-table td:nth-child(3) {
+  color: #0f766e;
+  font-weight: 900;
+}
+
+.payroll-run-report-table td:nth-child(4),
+.payroll-run-report-table td:nth-child(5),
+.payroll-run-report-table td:nth-child(6),
+.payroll-run-report-table td:nth-child(7),
+.payroll-run-report-table td:nth-child(10) {
+  color: #b91c1c;
+  font-weight: 900;
+}
+
+.payroll-run-report-table td:nth-child(8) {
+  color: #1d4ed8;
+  font-weight: 950;
+}
+
+.payroll-run-report-table td:nth-child(9) {
+  color: #047857;
+  font-weight: 950;
+}
+
 .managers-settings-table {
   min-width: 760px;
 }
@@ -16421,6 +16542,10 @@ html.has-initial-login-bg .auth-gate,
   }
 
   #leavesView .v191-travel-table {
-    min-width: 1040px;
+    min-width: 980px;
+  }
+
+  .payroll-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
