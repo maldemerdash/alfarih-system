@@ -3550,6 +3550,10 @@ function syncIdentityFromHijri() {
     (e.elements.identityExpiryGregorian.value = t),
     updateIdentityStatus());
 }
+function formatEmployeeNumberDisplay(e) {
+  const t = String(e ?? "").trim().replace(/\s+/g, "");
+  return t ? t.split("").join("  ") : "—";
+}
 function updatePersonalCalculations() {
   const e = document.querySelector("#employeeForm"),
     t = normalizeNumerals(e.elements.identityNumber.value)
@@ -3573,7 +3577,8 @@ function updatePersonalCalculations() {
       .filter(Boolean)
       .join(" "),
     sideName = document.querySelector("#employeeSideName");
-  document.querySelector("#employeeSideNumber").textContent = o;
+  document.querySelector("#employeeSideNumber").textContent =
+    formatEmployeeNumberDisplay(o);
   sideName && (sideName.textContent = name || "اسم الموظف");
   const r = parseDate(e.elements.birthDate.value);
   ((e.elements.age.value = r ? `${durationParts(r)?.years || 0} سنة` : ""),
@@ -3737,6 +3742,10 @@ async function openEmployeeModal(e = null) {
     updateSingleAttachmentControl(
       "identity",
       employeeFormState.identityAttachmentId || "",
+    ),
+    updateSingleAttachmentControl(
+      "contract",
+      employeeFormState.contractAttachmentId || "",
     ),
     await renderEmployeePhoto(),
     updateAllFormCalculations());
@@ -3922,15 +3931,34 @@ async function setSingleAttachment(e, t) {
       : renderDocumentation());
 }
 function updateSingleAttachmentControl(e, t) {
-  const n = document
-    .querySelector(`[data-single-attachment="${e}"]`)
-    .closest(".compact-file-control");
-  (n.classList.toggle("has-file", Boolean(t)),
-    (n.querySelector(":scope > span:last-of-type").textContent = t
-      ? "تم الإرفاق"
-      : "إرفاق"));
-  const a = document.querySelector(`[data-view-single-attachment="${e}"]`);
-  ((a.hidden = !t), (a.dataset.attachmentId = t || ""));
+  const n = document.querySelector(`[data-single-attachment="${e}"]`),
+    a = n?.closest(".compact-file-control"),
+    o = document.querySelector(`[data-view-single-attachment="${e}"]`);
+  if (a) {
+    a.classList.toggle("has-file", Boolean(t));
+    const n = a.querySelector(":scope > span:last-of-type");
+    n && (n.textContent = t ? "تم الإرفاق" : "إرفاق");
+  }
+  if (o) {
+    ((o.hidden = !t), (o.dataset.attachmentId = t || ""));
+    if ("contract" === e) {
+      (o.classList.add("attachment-view-btn", "attachment-preview-btn"),
+        o.classList.remove(
+          "attachment-download-btn",
+          "employee-attachment-download-inline",
+        ),
+        (o.dataset.contractPreviewOnly = "1"),
+        o.setAttribute("title", "عرض مرفق العقد"),
+        o.setAttribute("aria-label", "عرض مرفق العقد"));
+      if (t && !o.querySelector("svg,[data-icon]")) {
+        try {
+          o.innerHTML = `${iconSvg("eye")}<span>عرض</span>`;
+        } catch (_) {
+          o.textContent = "عرض";
+        }
+      }
+    }
+  }
 }
 function readDynamicField(e, t, n) {
   const a = e.closest(`[data-${t}-index]`);
@@ -3960,6 +3988,39 @@ function getEmployeeAgeLabel(e) {
 function getEmployeeServiceLabel(e) {
   const t = parseDate(e.workStartDate || e.contractStartDate || e.joinDate);
   return t ? formatDuration(durationParts(t)) : "—";
+}
+function quickProfileLeaveBalanceCard(e) {
+  if (!e) return "";
+  let t = 0;
+  try {
+    if (
+      window.leaveBalanceV49 &&
+      "function" == typeof window.leaveBalanceV49.leaveBalance
+    ) {
+      t = Number(
+        window.leaveBalanceV49.leaveBalance(
+          e,
+          "function" == typeof dateInputNow ? dateInputNow() : void 0,
+        ),
+      );
+    } else {
+      t = Number(
+        e.remainingLeaveBalance ||
+          e.leaveBalanceAfter ||
+          e.leaveBalance ||
+          e.leaveBalanceOpening ||
+          0,
+      );
+    }
+  } catch (_) {
+    t = 0;
+  }
+  const n = t < 0 ? "is-negative" : t <= 3 ? "is-warning" : "is-good",
+    a =
+      "function" == typeof arabicNumber
+        ? arabicNumber(Math.round(t * 100) / 100)
+        : String(Math.round(t * 100) / 100);
+  return `<div class="leave-balance-profile-card ${n}"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>الرصيد المتبقي</span></div><div class="leave-balance-card-main"><strong>${escapeHtml(a)}</strong><span>يوم متبقي</span></div></div>`;
 }
 function getPrimaryPassport(e) {
   return Array.isArray(e.passports) && e.passports.length
@@ -4226,7 +4287,7 @@ async function openQuickView(e) {
         profileValue("اسم البنك", l.bankName || "—"),
         profileValue("رقم الآيبان", l.iban || "—", { latin: !0, wide: !0 }),
       ];
-    n.innerHTML = `<div class="employee-profile-view">\n      <aside class="employee-profile-side">\n        ${m}\n        <h3>${escapeHtml(t.name || "—")}</h3>\n        <p>${escapeHtml(t.role || "—")}</p>\n        <div class="employee-profile-side-number"><span>رقم الموظف</span><strong class="latin-number">${escapeHtml(t.employeeNumber || "—")}</strong></div>\n        <div class="employee-profile-side-number"><span>مدة الخدمة</span><strong>${getEmployeeServiceLabel(t)}</strong></div>\n        <div class="employee-profile-side-status">${statusBadge(t.status)}</div>\n      </aside>\n      <main class="employee-profile-main">\n        <section class="employee-profile-stats-card employee-profile-stats-top">\n          <h3>إحصائيات هذا الشهر</h3>\n          <div><span>أيام الحضور هذا الشهر</span><strong>${arabicNumber(u.present || 0)}</strong></div>\n          <div><span>أيام الغياب هذا الشهر</span><strong>${arabicNumber(u.absent || 0)}</strong></div>\n          <div><span>أيام الإجازة هذا الشهر</span><strong>${arabicNumber(u.leave || 0)}</strong></div>\n          <div><span>أيام العمل المحتسبة</span><strong>${arabicNumber(u.workdays || 0)}</strong></div>\n        </section>\n        <div class="employee-profile-columns">\n          <div class="employee-profile-stack">\n            ${profileCard("البيانات الرئيسية", p)}\n            ${profileCard("البيانات البنكية", v)}\n          </div>\n          <div class="employee-profile-stack">\n            ${profileCard("البيانات الوظيفية", y)}\n            ${profileCard("تفاصيل الراتب", f)}\n            ${profileCard("تفاصيل العمولات", h)}\n          </div>\n        </div>\n      </main>\n    </div>`;
+    n.innerHTML = `<div class="employee-profile-view">\n      <aside class="employee-profile-side">\n        ${m}\n        <h3>${escapeHtml(t.name || "—")}</h3>\n        <p>${escapeHtml(t.role || "—")}</p>\n        <div class="employee-profile-side-number"><span>رقم الموظف</span><strong class="latin-number" data-employee-number-display="spaced">${escapeHtml(formatEmployeeNumberDisplay(t.employeeNumber || "—"))}</strong></div>\n        <div class="employee-profile-side-number"><span>مدة الخدمة</span><strong>${getEmployeeServiceLabel(t)}</strong></div>\n        <div class="employee-profile-side-status">${statusBadge(t.status)}</div>\n        ${quickProfileLeaveBalanceCard(t)}\n      </aside>\n      <main class="employee-profile-main">\n        <section class="employee-profile-stats-card employee-profile-stats-top">\n          <h3>إحصائيات هذا الشهر</h3>\n          <div><span>أيام الحضور هذا الشهر</span><strong>${arabicNumber(u.present || 0)}</strong></div>\n          <div><span>أيام الغياب هذا الشهر</span><strong>${arabicNumber(u.absent || 0)}</strong></div>\n          <div><span>أيام الإجازة هذا الشهر</span><strong>${arabicNumber(u.leave || 0)}</strong></div>\n          <div><span>أيام العمل المحتسبة</span><strong>${arabicNumber(u.workdays || 0)}</strong></div>\n        </section>\n        <div class="employee-profile-columns">\n          <div class="employee-profile-stack">\n            ${profileCard("البيانات الرئيسية", p)}\n            ${profileCard("البيانات البنكية", v)}\n          </div>\n          <div class="employee-profile-stack">\n            ${profileCard("البيانات الوظيفية", y)}\n            ${profileCard("تفاصيل الراتب", f)}\n            ${profileCard("تفاصيل العمولات", h)}\n          </div>\n        </div>\n      </main>\n    </div>`;
   } catch (e) {
     (console.error("Quick view failed", e),
       (n.innerHTML =
@@ -37312,7 +37373,7 @@ async function init() {
           "attachment-download-btn",
           "employee-attachment-download-inline",
         );
-        btn.dataset.v188ContractPreviewOnly = "1";
+        btn.dataset.contractPreviewOnly = "1";
         btn.setAttribute("title", "عرض مرفق العقد");
         btn.setAttribute("aria-label", "عرض مرفق العقد");
         if (btn.dataset.v116IconReady !== "1") {
@@ -52180,6 +52241,10 @@ window.nawahPrivateAlerts = {
       "identity",
       employeeFormState?.identityAttachmentId || "",
     ]);
+    call(updateSingleAttachmentControl, [
+      "contract",
+      employeeFormState?.contractAttachmentId || "",
+    ]);
     const photo = call(renderEmployeePhoto);
     if (photo && typeof photo.catch === "function") photo.catch(function () {});
     call(updateAllFormCalculations);
@@ -53001,7 +53066,7 @@ window.nawahV169Fixes = {
               "attachment-download-btn",
               "employee-attachment-download-inline",
             );
-            button.dataset.v188ContractPreviewOnly = "1";
+            button.dataset.contractPreviewOnly = "1";
             if (!button.querySelector("svg,[data-icon]")) {
               button.innerHTML =
                 icon("eye") + '<span class="sr-only">عرض مرفق العقد</span>';
@@ -53013,8 +53078,8 @@ window.nawahV169Fixes = {
             );
           }
           markPreviewButton(button);
-          if (button.dataset.v189PreviewMarkScheduled !== "1") {
-            button.dataset.v189PreviewMarkScheduled = "1";
+          if (button.dataset.previewMarkScheduled !== "1") {
+            button.dataset.previewMarkScheduled = "1";
             [80, 260].forEach(function (delay) {
               setTimeout(function () {
                 if (isContractPreview) {
@@ -57110,469 +57175,4 @@ window.nawahLeaveBalanceReportV185 = {
     print: printLeaveBalanceReport,
     rows: leaveBalanceRows,
   };
-})();
-
-/* v187 - contract attachment sync, spaced employee number and stable quick profile */
-(function () {
-  if (window.__v187EmployeeProfileAttachmentStability) return;
-  window.__v187EmployeeProfileAttachmentStability = true;
-
-  function q(selector, root) {
-    return (root || document).querySelector(selector);
-  }
-
-  function qa(selector, root) {
-    return Array.from((root || document).querySelectorAll(selector));
-  }
-
-  function cleanText(value) {
-    return String(value == null ? "" : value).trim();
-  }
-
-  function escapeValue(value) {
-    try {
-      return typeof escapeHtml === "function" ? escapeHtml(value) : cleanText(value);
-    } catch (_) {
-      return cleanText(value);
-    }
-  }
-
-  function spacedEmployeeNumber(value) {
-    const raw = cleanText(value).replace(/\s+/g, "");
-    return raw ? raw.split("").join("  ") : "—";
-  }
-
-  function employeesList() {
-    try {
-      if (Array.isArray(employees)) return employees;
-    } catch (_) {}
-    try {
-      if (Array.isArray(window.employees)) return window.employees;
-    } catch (_) {}
-    return [];
-  }
-
-  function employeeById(id) {
-    const cleanId = cleanText(id);
-    if (!cleanId) return null;
-    try {
-      if (typeof getEmployee === "function") return getEmployee(cleanId);
-    } catch (_) {}
-    return (
-      employeesList().find(function (employee) {
-        return cleanText(employee && employee.id) === cleanId;
-      }) || null
-    );
-  }
-
-  function employeeByName(name) {
-    const cleanName = cleanText(name);
-    if (!cleanName) return null;
-    return (
-      employeesList().find(function (employee) {
-        return cleanText(employee && employee.name) === cleanName;
-      }) || null
-    );
-  }
-
-  function activeFormEmployeeId() {
-    try {
-      return cleanText(q("#employeeForm")?.elements?.employeeId?.value);
-    } catch (_) {
-      return "";
-    }
-  }
-
-  function activeFormEmployee() {
-    return employeeById(activeFormEmployeeId());
-  }
-
-  function currentContractAttachmentId() {
-    let id = "";
-    try {
-      if (employeeFormState && employeeFormState.contractAttachmentId) {
-        id = employeeFormState.contractAttachmentId;
-      }
-    } catch (_) {}
-    if (!id) {
-      const employee = activeFormEmployee();
-      id = employee && employee.contractAttachmentId ? employee.contractAttachmentId : "";
-    }
-    try {
-      if (id && employeeFormState && !employeeFormState.contractAttachmentId) {
-        employeeFormState.contractAttachmentId = id;
-      }
-    } catch (_) {}
-    return cleanText(id);
-  }
-
-  function syncContractAttachmentControl(id) {
-    const attachmentId = cleanText(id || currentContractAttachmentId());
-    try {
-      if (typeof updateSingleAttachmentControl === "function") {
-        updateSingleAttachmentControl("contract", attachmentId);
-      }
-    } catch (_) {}
-
-    const input = q('[data-single-attachment="contract"]');
-    const control = input && input.closest(".compact-file-control");
-    if (control) {
-      control.classList.toggle("has-file", Boolean(attachmentId));
-      control.classList.remove("is-uploading");
-      const label = control.querySelector(":scope > span:last-of-type");
-      const labelText = attachmentId ? "تم الإرفاق" : "إرفاق";
-      if (label && label.textContent !== labelText) label.textContent = labelText;
-    }
-
-    const button = q('[data-view-single-attachment="contract"]');
-    if (button) {
-      if (button.dataset.attachmentId !== attachmentId) {
-        button.dataset.attachmentId = attachmentId;
-      }
-      const shouldHide = !attachmentId;
-      if (button.hidden !== shouldHide) button.hidden = shouldHide;
-      if (button.hasAttribute("hidden") !== shouldHide) {
-        button.toggleAttribute("hidden", shouldHide);
-      }
-      button.classList.add("attachment-view-btn", "attachment-preview-btn");
-      button.classList.remove(
-        "attachment-download-btn",
-        "employee-attachment-download-inline",
-      );
-      button.dataset.v188ContractPreviewOnly = "1";
-      button.setAttribute("title", "عرض مرفق العقد");
-      button.setAttribute("aria-label", "عرض مرفق العقد");
-      if (attachmentId) {
-        const hasStableEye =
-          button.dataset.v188ContractPreviewOnly === "1" &&
-          Boolean(button.querySelector("svg,[data-icon]"));
-        if (
-          !hasStableEye ||
-          button.dataset.v187ContractAttachmentId !== attachmentId ||
-          button.dataset.v187ContractIconReady !== "1"
-        ) {
-          try {
-            button.innerHTML =
-              (typeof iconSvg === "function" ? iconSvg("eye") : "") +
-              "<span>عرض</span>";
-          } catch (_) {
-            button.textContent = "عرض";
-          }
-          button.dataset.v187ContractAttachmentId = attachmentId;
-          button.dataset.v187ContractIconReady = "1";
-          button.dataset.v188ContractPreviewOnly = "1";
-        }
-      } else {
-        if (button.textContent.trim() !== "عرض") button.textContent = "عرض";
-        button.dataset.v187ContractAttachmentId = "";
-        button.dataset.v187ContractIconReady = "";
-      }
-    }
-
-    try {
-      if (typeof hydrateIcons === "function") {
-        hydrateIcons(q("#employeeForm") || document);
-      }
-    } catch (_) {}
-  }
-
-  function syncEmployeeSideNumber() {
-    const node = q("#employeeSideNumber");
-    if (!node) return;
-    let number = "";
-    const employee = activeFormEmployee();
-    if (employee && employee.employeeNumber) number = employee.employeeNumber;
-    if (!number) {
-      try {
-        number = node.dataset.v187RawNumber || node.textContent || "";
-      } catch (_) {}
-    }
-    const compact = cleanText(number).replace(/\s+/g, "");
-    if (!compact) return;
-    node.dataset.v187RawNumber = compact;
-    node.textContent = spacedEmployeeNumber(compact);
-  }
-
-  function findEmployeeNumberRow(side) {
-    return qa(".employee-profile-side-number", side).find(function (row) {
-      return cleanText(row.querySelector("span")?.textContent).includes("رقم الموظف");
-    });
-  }
-
-  function findQuickEmployee(fallbackId) {
-    let employee = employeeById(fallbackId);
-    if (employee) return employee;
-    const editId = q("#quickViewModal [data-edit-employee]")?.dataset?.editEmployee;
-    employee = employeeById(editId);
-    if (employee) return employee;
-    return employeeByName(q("#quickViewContent .employee-profile-side h3")?.textContent);
-  }
-
-  function leaveBalanceValue(employee) {
-    try {
-      if (
-        window.leaveBalanceV49 &&
-        typeof window.leaveBalanceV49.leaveBalance === "function"
-      ) {
-        const dateValue =
-          typeof dateInputNow === "function" ? dateInputNow() : undefined;
-        return Number(window.leaveBalanceV49.leaveBalance(employee, dateValue));
-      }
-    } catch (_) {}
-    try {
-      return Number(
-        employee?.remainingLeaveBalance ||
-          employee?.leaveBalanceAfter ||
-          employee?.leaveBalance ||
-          employee?.leaveBalanceOpening ||
-          0,
-      );
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  function ensureQuickLeaveBalance(side, employee) {
-    if (!side || !employee) return;
-    let card = q("#quickViewContent .leave-balance-profile-card");
-    const statusNode = q(".employee-profile-side-status", side);
-    if (card) {
-      if (statusNode && card.parentElement !== side) {
-        statusNode.insertAdjacentElement("afterend", card);
-      }
-      return;
-    }
-    const balance = leaveBalanceValue(employee);
-    const stateClass = balance < 0 ? "is-negative" : balance <= 3 ? "is-warning" : "is-good";
-    const balanceText =
-      typeof arabicNumber === "function" ? arabicNumber(Math.round(balance * 100) / 100) : balance;
-    const html =
-      '<div class="leave-balance-profile-card ' +
-      stateClass +
-      '"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>الرصيد المتبقي</span></div><div class="leave-balance-card-main"><strong>' +
-      escapeValue(balanceText) +
-      '</strong><span>يوم متبقي</span></div></div>';
-    if (statusNode) statusNode.insertAdjacentHTML("afterend", html);
-    else side.insertAdjacentHTML("beforeend", html);
-  }
-
-  function normalizeQuickProfile(employeeId) {
-    const content = q("#quickViewContent");
-    const side = q(".employee-profile-side", content);
-    if (!content || !side) return;
-    const employee = findQuickEmployee(employeeId);
-
-    side.classList.add("v187-quick-profile-side");
-    q(".quick-profile-photo", side)?.classList.add("v187-quick-profile-photo");
-
-    const photo = q(".quick-profile-photo", side);
-    if (employee && photo && !q("h3", side)) {
-      photo.insertAdjacentHTML(
-        "afterend",
-        "<h3>" +
-          escapeValue(employee.name || "—") +
-          "</h3><p>" +
-          escapeValue(employee.role || "—") +
-          "</p>",
-      );
-    }
-
-    let numberRow = findEmployeeNumberRow(side);
-    if (!numberRow && employee) {
-      const serviceRow = qa(".employee-profile-side-number", side).find(function (row) {
-        return cleanText(row.querySelector("span")?.textContent).includes("مدة الخدمة");
-      });
-      const html =
-        '<div class="employee-profile-side-number"><span>رقم الموظف</span><strong class="latin-number" data-v187-employee-number="1">' +
-        escapeValue(spacedEmployeeNumber(employee.employeeNumber || "—")) +
-        "</strong></div>";
-      if (serviceRow) serviceRow.insertAdjacentHTML("beforebegin", html);
-      else q(".employee-profile-side-status", side)?.insertAdjacentHTML("beforebegin", html);
-      numberRow = findEmployeeNumberRow(side);
-    }
-    const numberNode = numberRow && numberRow.querySelector("strong");
-    if (numberNode) {
-      numberNode.dataset.v187EmployeeNumber = "1";
-      const raw =
-        (employee && employee.employeeNumber) ||
-        numberNode.dataset.v187RawNumber ||
-        numberNode.textContent ||
-        "";
-      const compact = cleanText(raw).replace(/\s+/g, "");
-      numberNode.dataset.v187RawNumber = compact;
-      numberNode.textContent = spacedEmployeeNumber(compact);
-    }
-
-    ensureQuickLeaveBalance(side, employee);
-
-    try {
-      if (typeof hydrateAttachmentImages === "function") hydrateAttachmentImages(content);
-    } catch (_) {}
-  }
-
-  let employeeFormSyncTimer = 0;
-  let employeeFormSyncLateTimer = 0;
-  let quickProfileSyncTimer = 0;
-  let quickProfileSyncLateTimer = 0;
-  let pendingQuickProfileEmployeeId = "";
-
-  function runEmployeeFormSync() {
-    employeeFormSyncTimer = 0;
-    syncEmployeeSideNumber();
-    syncContractAttachmentControl();
-  }
-
-  function runQuickProfileSync() {
-    const employeeId = pendingQuickProfileEmployeeId;
-    quickProfileSyncTimer = 0;
-    normalizeQuickProfile(employeeId);
-  }
-
-  function scheduleEmployeeFormSync() {
-    clearTimeout(employeeFormSyncTimer);
-    clearTimeout(employeeFormSyncLateTimer);
-    employeeFormSyncTimer = setTimeout(runEmployeeFormSync, 30);
-    employeeFormSyncLateTimer = setTimeout(function () {
-      syncEmployeeSideNumber();
-      syncContractAttachmentControl();
-    }, 220);
-  }
-
-  function scheduleQuickProfileSync(employeeId) {
-    pendingQuickProfileEmployeeId = employeeId || pendingQuickProfileEmployeeId || "";
-    clearTimeout(quickProfileSyncTimer);
-    clearTimeout(quickProfileSyncLateTimer);
-    quickProfileSyncTimer = setTimeout(runQuickProfileSync, 30);
-    quickProfileSyncLateTimer = setTimeout(runQuickProfileSync, 240);
-  }
-
-  try {
-    const previousUpdatePersonal =
-      typeof updatePersonalCalculations === "function"
-        ? updatePersonalCalculations
-        : window.updatePersonalCalculations;
-    if (
-      typeof previousUpdatePersonal === "function" &&
-      !previousUpdatePersonal.__v187EmployeeNumberSpacing
-    ) {
-      const wrappedUpdatePersonal = function () {
-        const result = previousUpdatePersonal.apply(this, arguments);
-        syncEmployeeSideNumber();
-        return result;
-      };
-      wrappedUpdatePersonal.__v187EmployeeNumberSpacing = true;
-      updatePersonalCalculations = wrappedUpdatePersonal;
-      window.updatePersonalCalculations = wrappedUpdatePersonal;
-    }
-  } catch (_) {}
-
-  try {
-    const previousOpenEmployee =
-      typeof openEmployeeModal === "function" ? openEmployeeModal : window.openEmployeeModal;
-    if (
-      typeof previousOpenEmployee === "function" &&
-      !previousOpenEmployee.__v187ContractAttachmentSync
-    ) {
-      const wrappedOpenEmployee = async function () {
-        const result = await previousOpenEmployee.apply(this, arguments);
-        scheduleEmployeeFormSync();
-        return result;
-      };
-      wrappedOpenEmployee.__v187ContractAttachmentSync = true;
-      openEmployeeModal = wrappedOpenEmployee;
-      window.openEmployeeModal = wrappedOpenEmployee;
-    }
-  } catch (_) {}
-
-  try {
-    const previousOpenQuickView =
-      typeof openQuickView === "function" ? openQuickView : window.openQuickView;
-    if (
-      typeof previousOpenQuickView === "function" &&
-      !previousOpenQuickView.__v187QuickProfileStable
-    ) {
-      const wrappedOpenQuickView = async function (employeeId) {
-        const result = await previousOpenQuickView.apply(this, arguments);
-        scheduleQuickProfileSync(employeeId);
-        return result;
-      };
-      wrappedOpenQuickView.__v187QuickProfileStable = true;
-      openQuickView = wrappedOpenQuickView;
-      window.openQuickView = wrappedOpenQuickView;
-    }
-  } catch (_) {}
-
-  document.addEventListener(
-    "click",
-    function (event) {
-      if (event.target?.closest?.('[data-edit-employee], #addEmployeeBtn, [data-employee-section]')) {
-        scheduleEmployeeFormSync();
-      }
-      const quickButton = event.target?.closest?.("[data-view-employee]");
-      if (quickButton) scheduleQuickProfileSync(quickButton.dataset.viewEmployee);
-      if (event.target?.closest?.('[data-view-single-attachment="contract"]')) {
-        syncContractAttachmentControl();
-      }
-    },
-    true,
-  );
-
-  document.addEventListener(
-    "change",
-    function (event) {
-      const input = event.target?.matches?.('[data-single-attachment="contract"]')
-        ? event.target
-        : null;
-      if (!input) return;
-      const control = input.closest(".compact-file-control");
-      if (control && input.files && input.files[0]) {
-        control.classList.add("is-uploading");
-        const label = control.querySelector(":scope > span:last-of-type");
-        if (label) label.textContent = "جاري الرفع";
-      }
-      setTimeout(syncContractAttachmentControl, 400);
-      setTimeout(syncContractAttachmentControl, 1200);
-    },
-    false,
-  );
-
-  const observer = new MutationObserver(function (mutations) {
-    let needsEmployeeSync = false;
-    let needsQuickSync = false;
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes || []) {
-        if (node.nodeType !== 1) continue;
-        if (
-          node.id === "employeeModal" ||
-          node.closest?.("#employeeModal") ||
-          node.querySelector?.("#employeeForm,[data-single-attachment='contract']")
-        ) {
-          needsEmployeeSync = true;
-        }
-        if (
-          node.id === "quickViewModal" ||
-          node.closest?.("#quickViewModal") ||
-          node.querySelector?.("#quickViewContent,.employee-profile-side")
-        ) {
-          needsQuickSync = true;
-        }
-        if (needsEmployeeSync && needsQuickSync) break;
-      }
-      if (needsEmployeeSync && needsQuickSync) break;
-    }
-    if (needsEmployeeSync && q("#employeeModal[open]")) scheduleEmployeeFormSync();
-    if (needsQuickSync && q("#quickViewModal[open]")) scheduleQuickProfileSync();
-  });
-  try {
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
-  } catch (_) {}
-
-  document.addEventListener("DOMContentLoaded", function () {
-    if (q("#employeeModal[open]")) scheduleEmployeeFormSync();
-    if (q("#quickViewModal[open]")) scheduleQuickProfileSync();
-  });
-  if (q("#employeeModal[open]")) scheduleEmployeeFormSync();
 })();

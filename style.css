@@ -16078,10 +16078,10 @@ html.has-initial-login-bg .auth-gate,
   background-image: none !important;
 }
 
-/* v187 final tail override - keep the employee profile repair last */
+/* employee profile final layout: stable side number, quick photo and leave balance */
 #employeeModal.employee-profile-modal .employee-side-identity-card .employee-side-number,
 #employeeSideNumber,
-#quickViewModal .employee-profile-side-number strong[data-v187-employee-number="1"] {
+#quickViewModal .employee-profile-side-number strong[data-employee-number-display="spaced"] {
   white-space: pre !important;
   letter-spacing: 0 !important;
   font-variant-numeric: tabular-nums !important;
@@ -16158,7 +16158,7 @@ html.has-initial-login-bg .auth-gate,
   }
 }
 
-/* v188 - contract attachment is preview-only, download remains inside preview modal */
+/* contract attachment preview: the field button opens preview, download is inside the modal */
 [data-view-single-attachment="contract"].attachment-preview-btn,
 [data-view-single-attachment="contract"].attachment-view-btn {
   display: inline-grid !important;
@@ -16191,7 +16191,7 @@ html.has-initial-login-bg .auth-gate,
   height: 18px !important;
 }
 
-#quickViewModal .employee-profile-side-number strong[data-v187-employee-number="1"] {
+#quickViewModal .employee-profile-side-number strong[data-employee-number-display="spaced"] {
   display: block !important;
   width: 100% !important;
   max-width: 100% !important;
@@ -16205,7 +16205,7 @@ html.has-initial-login-bg .auth-gate,
 }
 
 @media (max-width: 760px) {
-  #quickViewModal .employee-profile-side-number strong[data-v187-employee-number="1"] {
+  #quickViewModal .employee-profile-side-number strong[data-employee-number-display="spaced"] {
     font-size: 23px !important;
   }
 }
