@@ -17143,3 +17143,133 @@ html.has-initial-login-bg .auth-gate,
     flex: 1 1 100% !important;
   }
 }
+
+/* v198 - final travel ticket, leave balance, and report polish */
+.report-reserved-balance {
+  color: #dc2626 !important;
+  font-weight: 950 !important;
+}
+
+#travelTicketDetailsModal.v193-ticket-modal {
+  width: min(980px, calc(100vw - 96px)) !important;
+  max-width: calc(100vw - 96px) !important;
+  overflow: hidden !important;
+}
+
+#travelTicketDetailsForm.v193-ticket-card {
+  max-height: none !important;
+  height: auto !important;
+  grid-template-rows: auto auto auto !important;
+  overflow: hidden !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-body {
+  overflow: visible !important;
+  padding: 18px 22px 14px !important;
+  gap: 14px !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-form-grid {
+  grid-template-columns: .85fr 1.15fr .8fr !important;
+  align-items: end !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-form-grid textarea {
+  height: 58px !important;
+  min-height: 58px !important;
+  max-height: 58px !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-note {
+  min-height: 46px !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-actions {
+  padding: 12px 22px 18px !important;
+}
+
+.v80-attachment-actions,
+.v81-attachment-actions {
+  display: inline-flex !important;
+  grid-template-columns: none !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+  color: #64748b !important;
+}
+
+.v80-attachment-actions span,
+.v81-attachment-actions span {
+  margin: 0 4px 0 0 !important;
+  font-weight: 850 !important;
+}
+
+.v80-attachment-actions .attachment-view-btn,
+.v81-attachment-actions .attachment-view-btn,
+.v80-attachment-actions .v80-icon-action,
+.v81-attachment-actions .v81-icon-action {
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 2px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #0f766e !important;
+}
+
+.leave-balance-profile-card .leave-balance-card-main strong,
+.leave-balance-profile-card .leave-balance-main-number strong {
+  color: #059669 !important;
+}
+
+.leave-balance-profile-card .leave-balance-card-main small,
+.leave-balance-profile-card .leave-balance-main-number small {
+  display: block !important;
+}
+
+.leave-balance-reserved-card {
+  margin-top: 10px !important;
+  padding: 10px !important;
+  border: 1px solid #fecaca !important;
+  border-radius: 14px !important;
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+}
+
+.leave-balance-reserved-card span,
+.leave-balance-reserved-card small {
+  display: block !important;
+  color: #991b1b !important;
+  font-weight: 850 !important;
+}
+
+.leave-balance-reserved-card strong {
+  display: block !important;
+  margin: 3px 0 !important;
+  color: #dc2626 !important;
+  font-size: 22px !important;
+  font-weight: 950 !important;
+}
+
+@media (max-width: 760px) {
+  #travelTicketDetailsModal.v193-ticket-modal {
+    width: min(100vw - 20px, 560px) !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+
+  #travelTicketDetailsForm.v193-ticket-card {
+    max-height: calc(100vh - 40px) !important;
+  }
+
+  #travelTicketDetailsModal .v193-ticket-body {
+    overflow: auto !important;
+  }
+
+  #travelTicketDetailsModal .v193-ticket-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

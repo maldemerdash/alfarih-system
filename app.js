@@ -4482,16 +4482,52 @@ function currentFormEmployeeSnapshot() {
   };
 }
 async function buildClearanceMarkup(e) {
-  const t = e.employee,
-    n =
-      "signature" === e.authType || "both" === e.authType
+  const t = e.employee || {},
+    company = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("nawah-company-settings-v92") || "{}") || {};
+      } catch (_) {
+        return {};
+      }
+    })(),
+    managers = (() => {
+      try {
+        const list = JSON.parse(localStorage.getItem("nawah-managers") || "[]");
+        return Array.isArray(list) ? list : [];
+      } catch (_) {
+        return [];
+      }
+    })(),
+    manager =
+      managers.find((item) => String(item.name || "").trim() === String(t.directManager || "").trim()) ||
+      managers[0] ||
+      {},
+    employeeSignature =
+      ("signature" === e.authType || "both" === e.authType) && t.signatureAttachmentId
         ? await attachmentUrl(t.signatureAttachmentId)
         : "",
-    a =
-      "fingerprint" === e.authType || "both" === e.authType
+    employeeFingerprint =
+      ("fingerprint" === e.authType || "both" === e.authType) && t.fingerprintAttachmentId
         ? await attachmentUrl(t.fingerprintAttachmentId)
-        : "";
-  return `<article class="clearance-sheet">\n    <h2 class="clearance-title">مخالصة استلام عمولة</h2>\n    <p class="clearance-subtitle">شركة نواة للحلول الرقمية</p>\n    <section class="clearance-section"><h4>بيانات الموظف</h4><div class="clearance-grid">\n      <div><span>رقم الموظف</span><strong>${escapeHtml(t.employeeNumber)}</strong></div>\n      <div><span>الاسم</span><strong>${escapeHtml(t.name)}</strong></div>\n      <div><span>رقم الهوية</span><strong>${escapeHtml(t.identityNumber)}</strong></div>\n      <div><span>الجنسية</span><strong>${escapeHtml(t.nationality)}</strong></div>\n      <div><span>النوع</span><strong>${"female" === t.gender ? "أنثى" : "ذكر"}</strong></div>\n      <div><span>تاريخ الميلاد</span><strong class="latin-number">${formatDateEn(t.birthDate)}</strong></div>\n      <div><span>رقم الجوال</span><strong class="latin-number">${escapeHtml(t.phone || "—")}</strong></div>\n      <div><span>انتهاء الهوية</span><strong class="latin-number">${formatDateEn(t.identityExpiryGregorian)}</strong></div>\n    </div></section>\n    <section class="clearance-section"><h4>البيانات الوظيفية</h4><div class="clearance-grid">\n      <div><span>الإدارة</span><strong>${escapeHtml(t.department)}</strong></div>\n      <div><span>المدير المباشر</span><strong>${escapeHtml(t.directManager || "—")}</strong></div>\n      <div><span>المسمى الوظيفي</span><strong>${escapeHtml(t.role)}</strong></div>\n      <div><span>نوع العقد</span><strong>${"fixed" === t.contractType ? "محدد المدة" : "غير محدد المدة"}</strong></div>\n      <div><span>تاريخ بداية العقد</span><strong class="latin-number">${formatDateEn(t.contractStartDate)}</strong></div>\n      <div><span>تاريخ المباشرة</span><strong class="latin-number">${formatDateEn(t.workStartDate)}</strong></div>\n      <div><span>مدة العقد بالأشهر</span><strong class="latin-number">${"fixed" === t.contractType ? t.contractMonths : "—"}</strong></div>\n      <div><span>تاريخ انتهاء العقد</span><strong class="latin-number">${formatDateEn(t.contractEndDate)}</strong></div>\n      <div><span>التجديد / الانتهاء الجديد</span><strong>${"same" === t.renewalOption ? `مدة مماثلة - ${formatDateEn(t.renewedContractEndDate)}` : "عدم التجديد"}</strong></div>\n    </div></section>\n    <section class="clearance-section"><h4>تفاصيل الراتب</h4><div class="clearance-grid">\n      <div><span>الراتب الأساسي</span><strong>${formatCurrencyEn(t.baseSalary)}</strong></div>\n      <div><span>بدل السكن</span><strong>${formatCurrencyEn(t.housingAllowance)}</strong></div>\n      <div><span>بدل المواصلات</span><strong>${formatCurrencyEn(t.transportAllowance)}</strong></div>\n      <div><span>بدلات أخرى</span><strong>${formatCurrencyEn(t.otherAllowances)}</strong></div>\n      <div><span>خصم التأمينات</span><strong>${formatCurrencyEn(t.insuranceDeduction)}</strong></div>\n      <div><span>إجمالي الراتب</span><strong>${formatCurrencyEn(t.totalSalary)}</strong></div>\n    </div></section>\n    <section class="clearance-section"><h4>تفاصيل العمولة</h4><div class="clearance-grid">\n      <div><span>بداية الاستحقاق</span><strong class="latin-number">${formatDateEn(e.startDate)}</strong></div>\n      <div><span>نهاية الاستحقاق</span><strong class="latin-number">${formatDateEn(e.endDate)}</strong></div>\n      <div><span>الأيام المستحقة</span><strong>${e.days}</strong></div>\n      <div><span>أساس الاحتساب</span><strong>${formatCurrencyEn(t.baseSalary)}</strong></div>\n      <div><span>قيمة العمولة</span><strong>${formatCurrencyEn(e.amount)}</strong></div>\n      <div><span>تاريخ الصرف</span><strong class="latin-number">${formatDateTimeEn(e.paymentDate)}</strong></div>\n      <div class="clearance-wide"><span>تفقيط العمولة</span><strong>${amountToWords(e.amount)}</strong></div>\n    </div><p class="clearance-declaration">أقر أنا الموظف الموضحة بياناتي أعلاه بأنني استلمت كامل قيمة العمولة المبينة في هذه المخالصة، وأقر باستلام جميع حقوقي المالية المستحقة حتى تاريخ صرف العمولة، ولا توجد لي مطالبات مالية متعلقة بهذه العمولة تجاه المنشأة.</p></section>\n    <div class="clearance-auth">\n      <div>${n ? `<img src="${n}" alt="توقيع الموظف" />` : ""}<strong>${escapeHtml(t.name)}</strong><small>توقيع الموظف</small></div>\n      <div>${a ? `<img src="${a}" alt="بصمة الموظف" />` : ""}<strong class="latin-number">${formatDateTimeEn(e.paymentDate)}</strong><small>البصمة / تاريخ الاستلام</small></div>\n    </div>\n  </article>`;
+        : "",
+    managerSignature = manager.signatureAttachmentId ? await attachmentUrl(manager.signatureAttachmentId) : "",
+    companyStamp = company.stampAttachmentId ? await attachmentUrl(company.stampAttachmentId) : "",
+    logo =
+      company.logoDataUrl ||
+      company.logo ||
+      (company.logoAttachmentId ? await attachmentUrl(company.logoAttachmentId) : "") ||
+      "sar-symbol.png",
+    companyName = company.company || company.name || "المنشأة",
+    companyMeta = [
+      company.unifiedNumber && "الرقم الموحد: " + company.unifiedNumber,
+      company.commercialRecord && "السجل التجاري: " + company.commercialRecord,
+      company.phone && "هاتف: " + company.phone,
+    ]
+      .filter(Boolean)
+      .join(" | "),
+    employeeAuth = employeeSignature || employeeFingerprint,
+    employeeAuthLabel = employeeSignature ? "توقيع الموظف" : "بصمة الموظف";
+  return `<article class="clearance-sheet">\n    <header class="clearance-report-head"><img src="${escapeHtml(logo)}" alt=""><div><h1>${escapeHtml(companyName)}</h1><p>${escapeHtml(companyMeta || "نظام إدارة الموظفين")}</p></div></header>\n    <h2 class="clearance-title">مخالصة استلام عمولة</h2>\n    <p class="clearance-subtitle">مستند صرف عمولة معتمد من النظام</p>\n    <section class="clearance-section"><h4>بيانات الموظف</h4><div class="clearance-grid">\n      <div><span>رقم الموظف</span><strong>${escapeHtml(t.employeeNumber)}</strong></div>\n      <div><span>الاسم</span><strong>${escapeHtml(t.name)}</strong></div>\n      <div><span>رقم الهوية</span><strong>${escapeHtml(t.identityNumber)}</strong></div>\n      <div><span>الجنسية</span><strong>${escapeHtml(t.nationality)}</strong></div>\n      <div><span>النوع</span><strong>${"female" === t.gender ? "أنثى" : "ذكر"}</strong></div>\n      <div><span>تاريخ الميلاد</span><strong class="latin-number">${formatDateEn(t.birthDate)}</strong></div>\n      <div><span>رقم الجوال</span><strong class="latin-number">${escapeHtml(t.phone || "—")}</strong></div>\n      <div><span>انتهاء الهوية</span><strong class="latin-number">${formatDateEn(t.identityExpiryGregorian)}</strong></div>\n    </div></section>\n    <section class="clearance-section"><h4>البيانات الوظيفية</h4><div class="clearance-grid">\n      <div><span>الإدارة</span><strong>${escapeHtml(t.department)}</strong></div>\n      <div><span>المدير المباشر</span><strong>${escapeHtml(t.directManager || "—")}</strong></div>\n      <div><span>المسمى الوظيفي</span><strong>${escapeHtml(t.role)}</strong></div>\n      <div><span>نوع العقد</span><strong>${"fixed" === t.contractType ? "محدد المدة" : "غير محدد المدة"}</strong></div>\n      <div><span>تاريخ بداية العقد</span><strong class="latin-number">${formatDateEn(t.contractStartDate)}</strong></div>\n      <div><span>تاريخ المباشرة</span><strong class="latin-number">${formatDateEn(t.workStartDate)}</strong></div>\n      <div><span>مدة العقد بالأشهر</span><strong class="latin-number">${"fixed" === t.contractType ? t.contractMonths : "—"}</strong></div>\n      <div><span>تاريخ انتهاء العقد</span><strong class="latin-number">${formatDateEn(t.contractEndDate)}</strong></div>\n      <div><span>التجديد / الانتهاء الجديد</span><strong>${"same" === t.renewalOption ? `مدة مماثلة - ${formatDateEn(t.renewedContractEndDate)}` : "عدم التجديد"}</strong></div>\n    </div></section>\n    <section class="clearance-section"><h4>تفاصيل الراتب</h4><div class="clearance-grid">\n      <div><span>الراتب الأساسي</span><strong>${formatCurrencyEn(t.baseSalary)}</strong></div>\n      <div><span>بدل السكن</span><strong>${formatCurrencyEn(t.housingAllowance)}</strong></div>\n      <div><span>بدل المواصلات</span><strong>${formatCurrencyEn(t.transportAllowance)}</strong></div>\n      <div><span>بدلات أخرى</span><strong>${formatCurrencyEn(t.otherAllowances)}</strong></div>\n      <div><span>خصم التأمينات</span><strong>${formatCurrencyEn(t.insuranceDeduction)}</strong></div>\n      <div><span>إجمالي الراتب</span><strong>${formatCurrencyEn(t.totalSalary)}</strong></div>\n    </div></section>\n    <section class="clearance-section"><h4>تفاصيل العمولة</h4><div class="clearance-grid clearance-commission-grid">\n      <div><span>بداية الاستحقاق</span><strong class="latin-number">${formatDateEn(e.startDate)}</strong></div>\n      <div><span>نهاية الاستحقاق</span><strong class="latin-number">${formatDateEn(e.endDate)}</strong></div>\n      <div><span>الأيام المستحقة</span><strong>${e.days}</strong></div>\n      <div><span>أساس الاحتساب</span><strong>${formatCurrencyEn(t.baseSalary)}</strong></div>\n      <div><span>قيمة العمولة</span><strong>${formatCurrencyEn(e.amount)}</strong></div>\n      <div><span>تاريخ الصرف</span><strong class="latin-number">${formatDateTimeEn(e.paymentDate)}</strong></div>\n      <div class="clearance-wide"><span>تفقيط العمولة</span><strong>${amountToWords(e.amount)}</strong></div>\n    </div><p class="clearance-declaration">أقر أنا الموظف الموضحة بياناتي أعلاه بأنني استلمت كامل قيمة العمولة المبينة في هذه المخالصة، وأقر باستلام جميع حقوقي المالية المستحقة حتى تاريخ صرف العمولة، ولا توجد لي مطالبات مالية متعلقة بهذه العمولة تجاه المنشأة.</p></section>\n    <footer class="clearance-auth">\n      <div><small>الموظف</small><strong>${escapeHtml(t.name || "—")}</strong><small>${employeeAuthLabel}</small>${employeeAuth ? `<img src="${employeeAuth}" alt="${employeeAuthLabel}" />` : ""}</div>\n      <div><small>ختم المنشأة</small><strong>${escapeHtml(companyName)}</strong>${companyStamp ? `<img src="${companyStamp}" alt="ختم المنشأة" />` : ""}</div>\n      <div><small>المدير</small><strong>${escapeHtml(manager.name || t.directManager || "المدير")}</strong><small>توقيع المدير</small>${managerSignature ? `<img src="${managerSignature}" alt="توقيع المدير" />` : ""}</div>\n    </footer>\n  </article>`;
 }
 async function startCommissionPayment() {
   const e = document.querySelector("#employeeForm"),
@@ -4605,7 +4641,7 @@ async function issueClearance() {
     } catch (e) {}
   }));
 const clearancePrintStyle =
-  "@page{size:A4;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Almarai,Arial,sans-serif;color:#172226}.clearance-sheet{padding:6mm;border:1px solid #dfe7e9}.clearance-title{margin:0;text-align:center;font-size:17px;color:#0f5f59}.clearance-subtitle{text-align:center;color:#718084;font-size:8px;margin:3px 0 8px}.clearance-section{margin-top:7px}.clearance-section h4{font-size:9px;margin:0 0 4px;padding-bottom:4px;border-bottom:1px solid #e5ebed}.clearance-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.clearance-grid div{padding:5px;background:#f5f8f8;border-radius:4px}.clearance-grid .clearance-wide{grid-column:1/-1}.clearance-grid span{display:block;color:#748287;font-size:6px}.clearance-grid strong{display:block;margin-top:2px;font-size:7px}.clearance-declaration{font-size:7.5px;line-height:1.65;text-align:justify;margin:7px 0}.clearance-auth{display:flex;min-height:62px;align-items:end;justify-content:space-around;text-align:center}.clearance-auth img{display:block;max-width:100px;max-height:45px;margin:0 auto 3px;object-fit:contain}.clearance-auth strong,.clearance-auth small{display:block;font-size:7px}.clearance-auth small{color:#748287;margin-top:2px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}";
+  "@page{size:A4;margin:9mm}*{box-sizing:border-box}body{margin:0;font-family:Almarai,Arial,sans-serif;color:#172226;background:#fff}.clearance-sheet{min-height:278mm;padding:7mm;border:1px solid #dfe7e9;border-radius:10px}.clearance-report-head{display:grid;grid-template-columns:66px 1fr;gap:12px;align-items:center;border-bottom:2px solid #0f766e;padding-bottom:9px;margin-bottom:12px}.clearance-report-head img{width:58px;height:58px;object-fit:contain;border:1px solid #dbe8ef;border-radius:14px;background:#fff}.clearance-report-head h1{margin:0;color:#0f766e;font-size:18px}.clearance-report-head p{margin:4px 0 0;color:#64748b;font-size:9px}.clearance-title{margin:0;text-align:center;font-size:19px;color:#0f5f59}.clearance-subtitle{text-align:center;color:#718084;font-size:9px;margin:4px 0 10px}.clearance-section{margin-top:8px}.clearance-section h4{font-size:10px;margin:0 0 5px;padding-bottom:5px;border-bottom:1px solid #e5ebed;color:#172033}.clearance-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.clearance-grid div{padding:6px;background:#f7fafb;border:1px solid #e6eef2;border-radius:7px}.clearance-grid .clearance-wide{grid-column:1/-1}.clearance-grid span{display:block;color:#748287;font-size:7px}.clearance-grid strong{display:block;margin-top:2px;font-size:8.6px;line-height:1.55}.clearance-commission-grid strong{font-size:9.4px}.clearance-declaration{font-size:8.5px;line-height:1.85;text-align:justify;margin:9px 0;padding:8px 10px;border:1px solid #ccfbf1;background:#f0fdfa;border-radius:8px}.clearance-auth{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;min-height:88px;margin-top:22px;text-align:center;align-items:end}.clearance-auth>div{border-top:1px solid #94a3b8;padding-top:7px;min-height:82px}.clearance-auth img{display:block;max-width:112px;max-height:48px;margin:5px auto 0;object-fit:contain}.clearance-auth strong,.clearance-auth small{display:block;font-size:8px}.clearance-auth strong{margin:3px 0;color:#172033}.clearance-auth small{color:#748287}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}";
 async function printCommission(e) {
   try {
     const t = e.employee
@@ -17097,13 +17133,28 @@ async function init() {
         return !1;
       }
     }
-    function g() {
-      try {
-        return "admin" === String(authProfile?.role || "").trim();
-      } catch (e) {
-        return !1;
-      }
-    }
+	    function g() {
+	      try {
+	        const role = String(
+	          authProfile?.role ||
+	            authProfile?.title ||
+	            authProfile?.jobTitle ||
+	            authProfile?.position ||
+	            "",
+	        )
+	          .trim()
+	          .toLowerCase();
+	        return (
+	          role === "admin" ||
+	          role === "owner" ||
+	          role === "super_admin" ||
+	          role.indexOf("admin") > -1 ||
+	          role.indexOf("مدير") > -1
+	        );
+	      } catch (e) {
+	        return !1;
+	      }
+	    }
     function b() {
       try {
         return window.employeePermissionMatrix?.linkedEmployee?.() || null;
@@ -17898,28 +17949,49 @@ async function init() {
           ? '<span data-icon="check-circle"></span>المسير محفوظ ومصروف'
           : '<span data-icon="play"></span>اعتماد وصرف الرواتب'),
         A.classList.toggle("is-permission-hidden", !I()));
-      const E = document.getElementById("payrollExportBtn");
-      E &&
-        ((E.innerHTML = '<span data-icon="download"></span>تصدير PDF'),
-        E.classList.toggle("is-permission-hidden", !$()));
-      const M = document.querySelector("#payrollTableBody");
-      if (M) {
-        M.innerHTML = a
-          .map((e) => {
-            const n = e.line || {},
-              requiredHtml =
-                Number(n.required || 0) > 0
-                  ? `<strong class="payroll-required-amount">${o(n.required)}</strong>`
-                  : "",
-              r = n.cardWithdraw
-                ? '<span class="payroll-card-withdraw-text">نعم</span>'
-                : "";
-            const s = t
-              ? `<strong>${o(n.prepaidDeduction || 0)}</strong>`
-              : `<input class="payroll-prepaid-input" type="number" min="0" step="0.01" inputmode="decimal" data-payroll-prepaid="${a(e.employeeId)}" data-payroll-month="${a(d())}" value="${a(n.prepaidDeduction || "")}" aria-label="خصم مسبق للرواتب" />`;
-            return `<tr class="${n.cardWithdraw ? "payroll-row-card-withdraw" : ""}"><td class="payroll-employee-cell">${K(e)}</td><td class="payroll-money-cell payroll-base-amount">${o(n.baseSalary)}</td><td class="payroll-money-cell payroll-allowance-amount">${o(n.allowance)}</td><td class="payroll-money-cell payroll-deduction-amount"><strong>${o(n.insuranceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong class="absence-money-deduction">${o(n.absenceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong>${o(n.advanceDeduction)}</strong></td><td class="payroll-money-cell payroll-prepaid-cell">${s}</td><td class="payroll-money-cell payroll-net-amount"><strong>${o(n.net)}</strong></td><td class="payroll-money-cell payroll-transfer-cell"><strong class="payroll-transfer-amount">${o(n.transfer)}</strong></td><td class="payroll-money-cell payroll-required-cell">${requiredHtml}</td><td class="payroll-card-withdraw-cell">${r}</td><td><span class="status-badge status-paid">${t ? "مصروف" : "جاهز للصرف"}</span></td></tr>`;
-          })
-          .join("");
+	      const E = document.getElementById("payrollExportBtn");
+	      E &&
+	        ((E.innerHTML = '<span data-icon="download"></span>تصدير PDF'),
+	        E.classList.toggle("is-permission-hidden", !$()));
+	      const safeHtml = function (value) {
+	        try {
+	          return typeof escapeHtml === "function"
+	            ? escapeHtml(value ?? "")
+	            : String(value ?? "").replace(
+	                /[&<>"']/g,
+	                (ch) =>
+	                  ({
+	                    "&": "&amp;",
+	                    "<": "&lt;",
+	                    ">": "&gt;",
+	                    '"': "&quot;",
+	                    "'": "&#039;",
+	                  })[ch],
+	              );
+	        } catch (error) {
+	          return String(value ?? "");
+	        }
+	      };
+	      const M = document.querySelector("#payrollTableBody");
+	      if (M) {
+	        M.innerHTML = a.length
+	          ? a
+	              .map((e) => {
+	                const n = e.line || {},
+	                  requiredHtml =
+	                    Number(n.required || 0) > 0
+	                      ? `<strong class="payroll-required-amount">${o(n.required)}</strong>`
+	                      : "",
+	                  r = n.cardWithdraw
+	                    ? '<span class="payroll-card-withdraw-text">نعم</span>'
+	                    : "";
+	                const s = t
+	                  ? `<strong>${o(n.prepaidDeduction || 0)}</strong>`
+	                  : `<input class="payroll-prepaid-input" type="number" min="0" step="0.01" inputmode="decimal" data-payroll-prepaid="${safeHtml(e.employeeId)}" data-payroll-month="${safeHtml(d())}" value="${safeHtml(n.prepaidDeduction || "")}" aria-label="خصم مسبق للرواتب" />`;
+	                return `<tr class="${n.cardWithdraw ? "payroll-row-card-withdraw" : ""}"><td class="payroll-employee-cell">${K(e)}</td><td class="payroll-money-cell payroll-base-amount">${o(n.baseSalary)}</td><td class="payroll-money-cell payroll-allowance-amount">${o(n.allowance)}</td><td class="payroll-money-cell payroll-deduction-amount"><strong>${o(n.insuranceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong class="absence-money-deduction">${o(n.absenceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong>${o(n.advanceDeduction)}</strong></td><td class="payroll-money-cell payroll-prepaid-cell">${s}</td><td class="payroll-money-cell payroll-net-amount"><strong>${o(n.net)}</strong></td><td class="payroll-money-cell payroll-transfer-cell"><strong class="payroll-transfer-amount">${o(n.transfer)}</strong></td><td class="payroll-money-cell payroll-required-cell">${requiredHtml}</td><td class="payroll-card-withdraw-cell">${r}</td><td><span class="status-badge status-paid">${t ? "مصروف" : "جاهز للصرف"}</span></td></tr>`;
+	              })
+	              .join("")
+	          : '<tr><td colspan="12"><div class="empty-state"><strong>لا توجد بيانات مسير للعرض</strong></div></td></tr>';
         const e = M.closest("table")?.querySelector("thead tr");
         e &&
           (e.innerHTML =
@@ -31362,9 +31434,10 @@ async function init() {
   window.__v78CleanLeavesTravelInterface = true;
   var TRAVEL_KEY = "nawah-travel-requests";
   var activeTab = "travel";
-  var travelFilter = "all";
-  var travelYearScope = "year";
-  var leaveFilter = "all";
+	  var travelFilter = "all";
+	  var travelYearScope = "year";
+	  var leaveFilter = "all";
+	  var leaveYearScope = "year";
   var drawing = false;
   var pendingTravelModalId = "";
 
@@ -31913,10 +31986,28 @@ async function init() {
       "</div>"
     );
   }
-  function travelScopeButtons(allTravels, scopedTravels) {
-    return (
-      '<div class="v78-filter-row v193-travel-year-filter"><button type="button" class="' +
-      (travelYearScope === "year" ? "active" : "") +
+	  function yearScopeButtons(kind, allRows, scopedRows) {
+	    var scope = kind === "travel" ? travelYearScope : leaveYearScope;
+	    return (
+	      '<div class="v78-filter-row v193-travel-year-filter"><button type="button" class="' +
+	      (scope === "year" ? "active" : "") +
+	      '" data-v193-year-scope="' +
+	      kind +
+	      '" data-v193-scope-value="year">هذا العام <span>' +
+	      num(scopedRows.length) +
+	      '</span></button><button type="button" class="' +
+	      (scope === "all" ? "active" : "") +
+	      '" data-v193-year-scope="' +
+	      kind +
+	      '" data-v193-scope-value="all">الكل <span>' +
+	      num(allRows.length) +
+	      "</span></button></div>"
+	    );
+	  }
+	  function travelScopeButtons(allTravels, scopedTravels) {
+	    return (
+	      '<div class="v78-filter-row v193-travel-year-filter"><button type="button" class="' +
+	      (travelYearScope === "year" ? "active" : "") +
       '" data-v193-travel-scope="year">هذا العام <span>' +
       num(scopedTravels.length) +
       '</span></button><button type="button" class="' +
@@ -31929,10 +32020,17 @@ async function init() {
   function filterTravelsByYearScope(list) {
     if (travelYearScope === "all") return list;
     var year = currentYear();
-    return list.filter(function (r) {
-      return String(r.travelDate || r.from || r.startDate || "").slice(0, 4) === year;
-    });
-  }
+	    return list.filter(function (r) {
+	      return String(r.travelDate || r.from || r.startDate || "").slice(0, 4) === year;
+	    });
+	  }
+	  function filterLeavesByYearScope(list) {
+	    if (leaveYearScope === "all") return list;
+	    var year = currentYear();
+	    return list.filter(function (r) {
+	      return String(r.from || r.startDate || r.createdAt || "").slice(0, 4) === year;
+	    });
+	  }
   function render() {
     var view = q("#leavesView");
     if (!view || !view.classList.contains("active") || drawing) return;
@@ -31943,21 +32041,22 @@ async function init() {
         return employee(r.employeeId);
       });
       var scopedTravels = filterTravelsByYearScope(travels);
-      var leaveArr = readLeaves().filter(function (r) {
-        return employee(r.employeeId);
-      });
-      var shownTravels =
-        travelFilter === "all"
-          ? scopedTravels
-          : scopedTravels.filter(function (r) {
-              return travelCategory(r) === travelFilter;
-            });
-      var shownLeaves =
-        leaveFilter === "all"
-          ? leaveArr
-          : leaveArr.filter(function (r) {
-              return leaveCategory(r) === leaveFilter;
-            });
+	      var leaveArr = readLeaves().filter(function (r) {
+	        return employee(r.employeeId);
+	      });
+	      var scopedLeaves = filterLeavesByYearScope(leaveArr);
+	      var shownTravels =
+	        travelFilter === "all"
+	          ? scopedTravels
+	          : scopedTravels.filter(function (r) {
+	              return travelCategory(r) === travelFilter;
+	            });
+	      var shownLeaves =
+	        leaveFilter === "all"
+	          ? scopedLeaves
+	          : scopedLeaves.filter(function (r) {
+	              return leaveCategory(r) === leaveFilter;
+	            });
       view.innerHTML =
         '<div class="v78-leave-page"><div class="v78-page-tabs"><button type="button" class="' +
         (activeTab === "travel" ? "active" : "") +
@@ -31983,7 +32082,8 @@ async function init() {
         '" data-v78-panel="leave"><div class="v78-card-head"><div><h3>الإجازات</h3><p>كل طلبات الإجازات في جدول واحد؛ الاعتماد والرفض والمباشرة من نفس الصف.</p></div><button class="primary-btn" id="newLeaveBtn">' +
         icon("plus") +
         "طلب إجازة</button></div>" +
-        filterButtons("leave", leaveArr) +
+	        yearScopeButtons("leave", leaveArr, scopedLeaves) +
+	        filterButtons("leave", scopedLeaves) +
         '<div class="v78-table-scroll"><table class="v78-soft-table v78-leave-table"><colgroup><col class="c-employee"><col class="c-type"><col class="c-date"><col class="c-date"><col class="c-duration"><col class="c-status"><col class="c-actions"></colgroup><thead><tr><th>الموظف</th><th>نوع الإجازة</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>' +
         leaveRows(shownLeaves) +
         "</tbody></table></div></section></div>";
@@ -32037,7 +32137,7 @@ async function init() {
       var t =
         e.target && e.target.closest
           ? e.target.closest(
-              '[data-v78-tab], [data-v78-filter], [data-v193-travel-scope], [data-page="leaves"], [data-view="leaves"], [data-go-view="leaves"], #newTravelBtn, #newLeaveBtn, [data-ticket-details], [data-print-request-letter], [data-travel-approve], [data-dashboard-request-action="approve"], [data-travel-resume], [data-travel-reject], [data-leave-action], [data-leave-return]',
+	              '[data-v78-tab], [data-v78-filter], [data-v193-travel-scope], [data-v193-year-scope], [data-page="leaves"], [data-view="leaves"], [data-go-view="leaves"], #newTravelBtn, #newLeaveBtn, [data-ticket-details], [data-print-request-letter], [data-travel-approve], [data-dashboard-request-action="approve"], [data-travel-resume], [data-travel-reject], [data-leave-action], [data-leave-return]',
             )
           : null;
       if (!t) return;
@@ -32056,12 +32156,21 @@ async function init() {
         render();
         return;
       }
-      if (t.hasAttribute("data-v193-travel-scope")) {
-        travelYearScope = t.getAttribute("data-v193-travel-scope") || "year";
-        e.preventDefault();
-        render();
-        return;
-      }
+	      if (t.hasAttribute("data-v193-travel-scope")) {
+	        travelYearScope = t.getAttribute("data-v193-travel-scope") || "year";
+	        e.preventDefault();
+	        render();
+	        return;
+	      }
+	      if (t.hasAttribute("data-v193-year-scope")) {
+	        var scopeKind = t.getAttribute("data-v193-year-scope");
+	        var scopeVal = t.getAttribute("data-v193-scope-value") || "year";
+	        if (scopeKind === "travel") travelYearScope = scopeVal;
+	        if (scopeKind === "leave") leaveYearScope = scopeVal;
+	        e.preventDefault();
+	        render();
+	        return;
+	      }
       if (t.hasAttribute("data-travel-approve")) {
         var id = t.getAttribute("data-travel-approve");
         pendingTravelModalId = id;
@@ -37527,37 +37636,31 @@ async function init() {
         '</div><div class="modal-actions v102-delete-actions">' +
         buttons +
         "</div></div>";
-      var done = false;
-      function finish(v) {
-        if (done) return;
-        done = true;
-        try {
-          dlg.close();
-        } catch (_) {}
-        resolve(v || "cancel");
-      }
-      dlg.addEventListener(
-        "click",
-        function (e) {
-          var b =
-            e.target && e.target.closest
-              ? e.target.closest("[data-v102-choice]")
-              : null;
-          if (b) {
-            e.preventDefault();
-            finish(b.getAttribute("data-v102-choice"));
-          }
-        },
-        { once: true },
-      );
-      dlg.addEventListener(
-        "cancel",
-        function (e) {
-          e.preventDefault();
-          finish("cancel");
-        },
-        { once: true },
-      );
+	      var done = false;
+	      function finish(v) {
+	        if (done) return;
+	        done = true;
+	        dlg.onclick = null;
+	        dlg.oncancel = null;
+	        try {
+	          dlg.close();
+	        } catch (_) {}
+	        resolve(v || "cancel");
+	      }
+	      dlg.onclick = function (e) {
+	        var b =
+	          e.target && e.target.closest
+	            ? e.target.closest("[data-v102-choice]")
+	            : null;
+	        if (b) {
+	          e.preventDefault();
+	          finish(b.getAttribute("data-v102-choice"));
+	        }
+	      };
+	      dlg.oncancel = function (e) {
+	        e.preventDefault();
+	        finish("cancel");
+	      };
       try {
         if (typeof hydrateIcons === "function") hydrateIcons(dlg);
       } catch (_) {}
@@ -38963,10 +39066,45 @@ async function init() {
     if (b) return "إلى " + b;
     return "";
   }
-  function daysText(v) {
-    var n = Number(v || 0);
-    return n ? Math.round(n * 100) / 100 + " يوم" : "";
-  }
+	  function daysText(v) {
+	    var n = roundDay(v);
+	    return n ? n + " يوم" : "";
+	  }
+	  function roundDay(v) {
+	    var n = Number(v || 0);
+	    if (!Number.isFinite(n)) return 0;
+	    var sign = n < 0 ? -1 : 1;
+	    n = Math.abs(n);
+	    var base = Math.floor(n);
+	    return sign * (n - base >= 0.5 ? base + 1 : base);
+	  }
+	  function leaveBalanceDetailsForReport(emp, dateValue) {
+	    try {
+	      if (
+	        window.leaveBalanceV49 &&
+	        typeof window.leaveBalanceV49.leaveBalance === "function"
+	      ) {
+	        var b = window.leaveBalanceV49.leaveBalance(
+	          emp,
+	          dateValue || new Date().toISOString().slice(0, 10),
+	          {},
+	        );
+	        if (b && typeof b === "object") {
+	          return {
+	            original: Number(b.original ?? b.total ?? b.balance ?? (Number(b.opening || 0) + Number(b.accrued || 0))) || 0,
+	            remaining: Number(b.remaining || 0) || 0,
+	            reserved: Number(b.reserved || 0) || 0,
+	          };
+	        }
+	      }
+	    } catch (_) {}
+	    var remaining = currentLeaveBalanceForReport(emp);
+	    return {
+	      original: remaining == null ? 0 : Number(remaining || 0),
+	      remaining: remaining == null ? 0 : Number(remaining || 0),
+	      reserved: 0,
+	    };
+	  }
   function requestDays(x) {
     var v =
       x &&
@@ -39051,23 +39189,39 @@ async function init() {
     var d = new Date(String(v || "").slice(0, 10) + "T00:00:00");
     return isNaN(d) ? 0 : d.getTime();
   }
-  function makeLeaveTravelRow(x, type, start, end, emp) {
-    var used = requestDays(x);
-    var rem = remainingAfterRecord(x, emp, used);
-    return {
-      employee: emp,
-      type: type,
-      period: dateRangeText(start, end),
-      periodFrom: fmt(start || ""),
-      periodTo: fmt(end || ""),
-      used: daysText(used),
-      usedValue: Number(used || 0) || 0,
-      remainingNumber: rem !== "" ? Number(rem) : null,
-      remaining: rem !== "" ? daysText(rem) : "",
-      startSort: sortDateValue(start),
-      raw: x,
-    };
-  }
+	  function makeLeaveTravelRow(x, type, start, end, emp) {
+	    var used = requestDays(x);
+	    var rem = remainingAfterRecord(x, emp, used);
+	    var balance = leaveBalanceDetailsForReport(emp, end || start || new Date().toISOString().slice(0, 10));
+	    var reserved = Math.max(
+	      0,
+	      Number(
+	        (x &&
+	          (x.generalLeaveOverageDays ||
+	            x.carryOverDays ||
+	            x.reservedLeaveDays ||
+	            x.reservedBalanceDays)) ||
+	          0,
+	      ) || 0,
+	    );
+	    if (!reserved && rem !== "" && Number(rem) < 0) reserved = Math.abs(Number(rem));
+	    return {
+	      employee: emp,
+	      type: type,
+	      period: dateRangeText(start, end),
+	      periodFrom: fmt(start || ""),
+	      periodTo: fmt(end || ""),
+	      employeeBalance: daysText(balance.original),
+	      used: daysText(used),
+	      usedValue: Number(used || 0) || 0,
+	      remainingNumber: rem !== "" ? Number(rem) : null,
+	      remaining: rem !== "" ? daysText(rem) : "",
+	      reservedValue: reserved,
+	      reserved: reserved ? daysText(reserved) : "",
+	      startSort: sortDateValue(start),
+	      raw: x,
+	    };
+	  }
   function leaveTravelRecords() {
     var out = [];
     try {
@@ -39480,26 +39634,47 @@ async function init() {
     if (isNaN(x) || isNaN(y)) return null;
     return Math.ceil((y - x) / 86400000);
   }
-  function contractStateText(endDate, noticeDays) {
-    if (!endDate) return "";
-    var diff = dayDiffSigned(new Date().toISOString().slice(0, 10), endDate);
-    if (diff === null) return "";
-    if (diff < 0) return "منتهي منذ " + Math.abs(diff) + " يوم";
+	  function contractStateText(endDate, noticeDays) {
+	    if (!endDate) return "";
+	    if (String(endDate).indexOf("غير محدد") > -1) return "عقد غير محدد المدة";
+	    var diff = dayDiffSigned(new Date().toISOString().slice(0, 10), endDate);
+	    if (diff === null) return "";
+	    if (diff < 0) return "منتهي منذ " + Math.abs(diff) + " يوم";
     if (Number(noticeDays || 0) > 0 && diff <= Number(noticeDays || 0))
       return "داخل فترة الإشعار - متبقي " + diff + " يوم";
     return "متبقي " + diff + " يوم";
   }
-  function contractStateClass(text) {
-    text = String(text || "");
-    if (text.indexOf("منتهي") > -1) return "contract-state-red";
-    if (text.indexOf("فترة الإشعار") > -1) return "contract-state-yellow";
-    if (text.indexOf("متبقي") > -1) return "contract-state-green";
-    return "";
-  }
-  function lastContractEnd(emp) {
-    var base =
-      emp &&
-      (emp.contractEndDate ||
+	  function contractStateClass(text) {
+	    text = String(text || "");
+	    if (text.indexOf("منتهي") > -1) return "contract-state-red";
+	    if (text.indexOf("فترة الإشعار") > -1) return "contract-state-yellow";
+	    if (text.indexOf("متبقي") > -1) return "contract-state-green";
+	    if (text.indexOf("غير محدد") > -1) return "contract-state-green";
+	    return "";
+	  }
+	  function isUnlimitedContractReport(emp) {
+	    var value = String(
+	      (emp &&
+	        (emp.contractType ||
+	          emp.contractKind ||
+	          emp.contractDurationType ||
+	          "")) ||
+	        "",
+	    )
+	      .trim()
+	      .toLowerCase();
+	    return (
+	      value === "unlimited" ||
+	      value === "غير محدد" ||
+	      value === "غير محدد المدة" ||
+	      value.indexOf("unlimited") > -1
+	    );
+	  }
+	  function lastContractEnd(emp) {
+	    if (isUnlimitedContractReport(emp)) return "عقد غير محدد المدة";
+	    var base =
+	      emp &&
+	      (emp.contractEndDate ||
         emp.contractEnd ||
         emp.expiryDate ||
         emp.endDate ||
@@ -39515,8 +39690,8 @@ async function init() {
       })
       .filter(Boolean)
       .sort();
-    return dates.length ? dates[dates.length - 1] : base;
-  }
+	    return dates.length ? dates[dates.length - 1] : base;
+	  }
   function payrollReportMoney(v) {
     try {
       if (typeof formatCurrencyEn === "function") return formatCurrencyEn(v);
@@ -39624,23 +39799,25 @@ async function init() {
   }
   function rowsFor(tab) {
     var emps = empList();
-    if (tab === "leaveTravel") {
-      var out = [];
-      leaveTravelGroups().forEach(function (g) {
-        (g.records || []).forEach(function (r, idx) {
-          out.push([
-            idx === 0 ? empNo(g.employee) || "" : "",
-            idx === 0 ? g.employee.name || "" : "",
-            idx === 0 ? empNationality(g.employee) : "",
-            idx === 0 ? empIdentity(g.employee) : "",
-            r.type || "",
-            r.period || "",
-            r.used || "",
-            r.remaining || "",
-          ]);
-        });
-      });
-      return out;
+	    if (tab === "leaveTravel") {
+	      var out = [];
+	      leaveTravelGroups().forEach(function (g) {
+	        (g.records || []).forEach(function (r) {
+	          out.push([
+	            empNo(g.employee) || "",
+	            g.employee.name || "",
+	            empNationality(g.employee),
+	            empIdentity(g.employee),
+	            r.employeeBalance || "",
+	            r.type || "",
+	            r.period || "",
+	            r.used || "",
+	            r.remaining || "",
+	            r.reserved || "",
+	          ]);
+	        });
+	      });
+	      return out;
     }
     if (tab === "banking") {
       var out = [];
@@ -39695,9 +39872,9 @@ async function init() {
       return out;
     }
     if (tab === "payrollRun") return payrollReportRows();
-    if (tab === "contracts") {
-      return emps.map(function (e) {
-        var end = lastContractEnd(e);
+	    if (tab === "contracts") {
+	      return emps.map(function (e) {
+	        var end = lastContractEnd(e);
         var arr = Array.isArray(e.contractExtensions)
           ? e.contractExtensions
           : [];
@@ -39718,8 +39895,10 @@ async function init() {
             .sort();
           last = dates[dates.length - 1] || "";
         }
-        var baseEnd =
-          e.contractEndDate || e.contractEnd || e.expiryDate || e.endDate || "";
+	        var baseEnd =
+	          isUnlimitedContractReport(e)
+	            ? "عقد غير محدد المدة"
+	            : e.contractEndDate || e.contractEnd || e.expiryDate || e.endDate || "";
         var notice =
           Number(
             e.contractNoticeDays ||
@@ -39728,21 +39907,21 @@ async function init() {
               0,
           ) || 0;
         var state = contractStateText(end, notice);
-        return [
-          e.employeeNumber || e.id || "",
-          e.name || "",
-          fmt(e.contractStartDate || e.startDate),
-          fmt(baseEnd),
-          fmt(last),
-          notice ? notice + " يوم" : "",
-          state,
-        ];
+	        return [
+	          e.employeeNumber || e.id || "",
+	          e.name || "",
+	          fmt(e.contractStartDate || e.startDate),
+	          String(baseEnd).indexOf("غير محدد") > -1 ? baseEnd : fmt(baseEnd),
+	          String(last).indexOf("غير محدد") > -1 ? last : fmt(last),
+	          notice ? notice + " يوم" : "",
+	          state,
+	        ];
       });
     }
     return [];
   }
   var tabCols = {
-    leaveTravel: 5,
+	    leaveTravel: 10,
     banking: 5,
     absences: 5,
     advances: 5,
@@ -39769,58 +39948,30 @@ async function init() {
     var body = q("#" + bodies[tab]);
     if (!body) return;
     var rows = rowsFor(tab);
-    if (tab === "leaveTravel") {
-      var ltGroups = leaveTravelGroups();
-      if (!ltGroups.length) {
-        body.innerHTML = '<tr><td colspan="5">لا توجد بيانات للعرض</td></tr>';
-        return;
-      }
-      body.innerHTML = ltGroups
-        .map(function (g, i) {
-          var id = "leave-travel-report-details-" + i;
-          var records = g.records || [];
-          var details =
-            '<div class="report-nested-wrap"><table class="report-nested-table"><thead><tr><th>النوع</th><th>الفترة</th><th>المستنفد من الرصيد</th><th>المتبقي من الرصيد</th></tr></thead><tbody>' +
-            records
-              .map(function (r) {
-                return (
-                  "<tr><td>" +
-                  esc(r.type) +
-                  "</td><td>" +
-                  reportPeriodCellHtml(r) +
-                  "</td><td>" +
-                  esc(r.used) +
-                  "</td><td>" +
-                  esc(r.remaining) +
-                  "</td></tr>"
-                );
-              })
-              .join("") +
-            "</tbody></table></div>";
-          return (
-            '<tr class="report-employee-row"><td>' +
-            esc(empNo(g.employee)) +
-            '</td><td><button type="button" class="report-toggle" data-report-toggle="' +
-            id +
-            '" aria-expanded="false"><span class="report-toggle-arrow">▾</span><span>' +
-            esc(g.employee.name || "") +
-            "</span></button></td><td>" +
-            esc(empNationality(g.employee)) +
-            "</td><td>" +
-            esc(empIdentity(g.employee)) +
-            "</td><td>" +
-            esc(records.length) +
-            ' سجل</td></tr><tr class="report-details-row" id="' +
-            id +
-            '" hidden><td colspan="5">' +
-            details +
-            "</td></tr>"
-          );
-        })
-        .join("");
-      try {
-        typeof hydrateIcons === "function" && hydrateIcons(body);
-      } catch (_) {}
+	    if (tab === "leaveTravel") {
+	      var heads = reportHeads(tab);
+	      var hrow = body.closest("table")?.querySelector("thead tr");
+	      if (hrow) hrow.innerHTML = heads.map(function (h) { return "<th>" + esc(h) + "</th>"; }).join("");
+	      if (!rows.length) {
+	        body.innerHTML = '<tr><td colspan="10">لا توجد بيانات للعرض</td></tr>';
+	        return;
+	      }
+	      body.innerHTML = rows
+	        .map(function (row) {
+	          return (
+	            "<tr>" +
+	            row
+	              .map(function (cell, idx) {
+	                return '<td' + (idx === 9 && cell ? ' class="report-reserved-balance"' : "") + ">" + esc(cell) + "</td>";
+	              })
+	              .join("") +
+	            "</tr>"
+	          );
+	        })
+	        .join("");
+	      try {
+	        typeof hydrateIcons === "function" && hydrateIcons(body);
+	      } catch (_) {}
       return;
     }
     if (tab === "banking") {
@@ -40105,17 +40256,19 @@ async function init() {
         "اسم الفرع",
         "رقم الحساب",
       ];
-    if (tab === "leaveTravel")
-      return [
-        "رقم الموظف",
-        "اسم الموظف",
-        "الجنسية",
-        "رقم الهوية",
-        "النوع",
-        "الفترة",
-        "المستنفد",
-        "المتبقي",
-      ];
+	    if (tab === "leaveTravel")
+	      return [
+	        "رقم الموظف",
+	        "اسم الموظف",
+	        "الجنسية",
+	        "رقم الهوية",
+	        "رصيد الموظف",
+	        "النوع",
+	        "الفترة",
+	        "عدد أيام الفترة",
+	        "الرصيد المتبقي",
+	        "الرصيد المحجوز من الرصيد القادم",
+	      ];
     if (tab === "absences")
       return [
         "رقم الموظف",
@@ -40195,50 +40348,28 @@ async function init() {
         .join("") +
       "</tr></thead>";
     var bodyHtml = "";
-    if (tab === "leaveTravel") {
-      var ltGroups = leaveTravelGroups();
-      if (!ltGroups.length) {
-        bodyHtml =
-          '<tr><td colspan="' +
-          Math.max(1, heads.length) +
-          '">لا توجد بيانات للعرض</td></tr>';
-      } else {
-        bodyHtml = ltGroups
-          .map(function (g) {
-            return (g.records || [])
-              .map(function (r, idx) {
-                var cells = [
-                  idx === 0 ? empNo(g.employee) || "" : "",
-                  idx === 0 ? g.employee.name || "" : "",
-                  idx === 0 ? empNationality(g.employee) : "",
-                  idx === 0 ? empIdentity(g.employee) : "",
-                  r.type || "",
-                ];
-                return (
-                  '<tr class="' +
-                  (idx === 0
-                    ? "employee-group-start"
-                    : "employee-group-detail") +
-                  '">' +
-                  cells
-                    .map(function (c) {
-                      return "<td>" + esc(c) + "</td>";
-                    })
-                    .join("") +
-                  "<td>" +
-                  reportPeriodCellHtml(r) +
-                  "</td><td>" +
-                  esc(r.used || "") +
-                  "</td><td>" +
-                  esc(r.remaining || "") +
-                  "</td></tr>"
-                );
-              })
-              .join("");
-          })
-          .join("");
-      }
-      return (
+	    if (tab === "leaveTravel") {
+	      if (!rows.length) {
+	        bodyHtml =
+	          '<tr><td colspan="' +
+	          Math.max(1, heads.length) +
+	          '">لا توجد بيانات للعرض</td></tr>';
+	      } else {
+	        bodyHtml = rows
+	          .map(function (row) {
+	            return (
+	              "<tr>" +
+	              row
+	                .map(function (cell, idx) {
+	                  return '<td' + (idx === 9 && cell ? ' class="report-reserved-balance"' : "") + ">" + esc(cell) + "</td>";
+	                })
+	                .join("") +
+	              "</tr>"
+	            );
+	          })
+	          .join("");
+	      }
+	      return (
         '<table class="print-report-table grouped-report-table print-report-leave-travel-table">' +
         headHtml +
         "<tbody>" +
@@ -40591,7 +40722,7 @@ async function init() {
     var html =
       '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
       esc(title) +
-      '</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10.5px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:6px 7px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-banking-table{table-layout:fixed}.print-report-banking-table th:nth-child(1),.print-report-banking-table td:nth-child(1){width:10%}.print-report-banking-table th:nth-child(2),.print-report-banking-table td:nth-child(2){width:20%}.print-report-banking-table th:nth-child(3),.print-report-banking-table td:nth-child(3){width:12%}.print-report-banking-table th:nth-child(4),.print-report-banking-table td:nth-child(4){width:16%}.print-report-banking-table th:nth-child(5),.print-report-banking-table td:nth-child(5){width:20%}.print-report-banking-table th:nth-child(6),.print-report-banking-table td:nth-child(6){width:22%}.report-period-cell{display:flex;flex-direction:column;gap:2px;line-height:1.45;text-align:center;font-weight:800;color:#172033}.report-period-cell div{display:block;white-space:nowrap}.bank-account-print{white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;direction:ltr;text-align:left!important;font-size:9px;letter-spacing:-.2px}.grouped-report-table tbody td{border-bottom:0!important}.grouped-report-table tbody tr.employee-group-start td{border-top:1px solid #cfd8e3}.grouped-report-table tbody tr.employee-group-start:first-child td{border-top:0}.print-report-table.grouped-report-table tbody tr.employee-group-detail td{border-top:0!important;border-bottom:0!important}.print-report-table.grouped-report-table tbody tr.employee-group-start td{border-bottom:0!important}.print-report-advances-table th:nth-child(1),.print-report-advances-table td:nth-child(1){width:9%}.print-report-advances-table th:nth-child(2),.print-report-advances-table td:nth-child(2){width:17%}.print-report-advances-table th:nth-child(3),.print-report-advances-table td:nth-child(3){width:9%}.print-report-advances-table th:nth-child(4),.print-report-advances-table td:nth-child(4){width:12%}.print-report-advances-table th:nth-child(5),.print-report-advances-table td:nth-child(5){width:11%}.print-report-advances-table th:nth-child(6),.print-report-advances-table td:nth-child(6){width:11%}.print-report-advances-table th:nth-child(7),.print-report-advances-table td:nth-child(7){width:10%}.print-report-advances-table th:nth-child(8),.print-report-advances-table td:nth-child(8){width:11%}.print-report-advances-table th:nth-child(9),.print-report-advances-table td:nth-child(9){width:10%}.print-payroll-run-table{border-collapse:separate;border-spacing:0;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden;font-size:8px}.print-payroll-run-table th{text-align:center;background:#f3f8f8;color:#0f5f59}.print-payroll-run-table td{text-align:center;padding:4px 3px}.print-payroll-run-table th:first-child,.print-payroll-run-table td:first-child{text-align:right;width:15%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.report-page{page-break-inside:auto}.print-report-table{page-break-inside:auto}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
+      '</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10.5px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:6px 7px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-banking-table{table-layout:fixed}.print-report-banking-table th:nth-child(1),.print-report-banking-table td:nth-child(1){width:10%}.print-report-banking-table th:nth-child(2),.print-report-banking-table td:nth-child(2){width:20%}.print-report-banking-table th:nth-child(3),.print-report-banking-table td:nth-child(3){width:12%}.print-report-banking-table th:nth-child(4),.print-report-banking-table td:nth-child(4){width:16%}.print-report-banking-table th:nth-child(5),.print-report-banking-table td:nth-child(5){width:20%}.print-report-banking-table th:nth-child(6),.print-report-banking-table td:nth-child(6){width:22%}.report-period-cell{display:flex;flex-direction:column;gap:2px;line-height:1.45;text-align:center;font-weight:800;color:#172033}.report-period-cell div{display:block;white-space:nowrap}.bank-account-print{white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;direction:ltr;text-align:left!important;font-size:9px;letter-spacing:-.2px}.grouped-report-table tbody td{border-bottom:0!important}.grouped-report-table tbody tr.employee-group-start td{border-top:1px solid #cfd8e3}.grouped-report-table tbody tr.employee-group-start:first-child td{border-top:0}.print-report-table.grouped-report-table tbody tr.employee-group-detail td{border-top:0!important;border-bottom:0!important}.print-report-table.grouped-report-table tbody tr.employee-group-start td{border-bottom:0!important}.print-report-advances-table th:nth-child(1),.print-report-advances-table td:nth-child(1){width:9%}.print-report-advances-table th:nth-child(2),.print-report-advances-table td:nth-child(2){width:17%}.print-report-advances-table th:nth-child(3),.print-report-advances-table td:nth-child(3){width:9%}.print-report-advances-table th:nth-child(4),.print-report-advances-table td:nth-child(4){width:12%}.print-report-advances-table th:nth-child(5),.print-report-advances-table td:nth-child(5){width:11%}.print-report-advances-table th:nth-child(6),.print-report-advances-table td:nth-child(6){width:11%}.print-report-advances-table th:nth-child(7),.print-report-advances-table td:nth-child(7){width:10%}.print-report-advances-table th:nth-child(8),.print-report-advances-table td:nth-child(8){width:11%}.print-report-advances-table th:nth-child(9),.print-report-advances-table td:nth-child(9){width:10%}.print-report-leave-travel-table{font-size:8.6px}.print-report-leave-travel-table th:nth-child(1),.print-report-leave-travel-table td:nth-child(1){width:7%}.print-report-leave-travel-table th:nth-child(2),.print-report-leave-travel-table td:nth-child(2){width:15%}.print-report-leave-travel-table th:nth-child(3),.print-report-leave-travel-table td:nth-child(3){width:8%}.print-report-leave-travel-table th:nth-child(4),.print-report-leave-travel-table td:nth-child(4){width:12%}.print-report-leave-travel-table th:nth-child(5),.print-report-leave-travel-table td:nth-child(5){width:10%}.print-report-leave-travel-table th:nth-child(6),.print-report-leave-travel-table td:nth-child(6){width:8%}.print-report-leave-travel-table th:nth-child(7),.print-report-leave-travel-table td:nth-child(7){width:13%}.print-report-leave-travel-table th:nth-child(8),.print-report-leave-travel-table td:nth-child(8){width:9%}.print-report-leave-travel-table th:nth-child(9),.print-report-leave-travel-table td:nth-child(9){width:9%}.print-report-leave-travel-table th:nth-child(10),.print-report-leave-travel-table td:nth-child(10){width:9%}.print-payroll-run-table{border-collapse:separate;border-spacing:0;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden;font-size:8px}.print-payroll-run-table th{text-align:center;background:#f3f8f8;color:#0f5f59}.print-payroll-run-table td{text-align:center;padding:4px 3px}.print-payroll-run-table th:first-child,.print-payroll-run-table td:first-child{text-align:right;width:15%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}.report-reserved-balance{color:#dc2626!important;font-weight:900}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.report-page{page-break-inside:auto}.print-report-table{page-break-inside:auto}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
       esc(logo) +
       '" alt="شعار المنشأة"><div class="company-title"><h1>' +
       esc(company.name) +
@@ -58581,15 +58712,40 @@ window.nawahLeaveBalanceReportV185 = {
       dlg.removeAttribute("open");
     }
   }
-  function readFinanceDay(date) {
-    const days = parseJson(localStorage.getItem(FINANCE_DAYS_KEY), {});
-    const open = parseJson(localStorage.getItem(FINANCE_OPEN_KEY), {});
-    const current = days[date] || (open && open.financeDate === date ? open : {});
-    const normalizeRows = function (rows) {
-      const list = Array.isArray(rows) ? rows.slice() : [];
-      if (!list.length || text(list[list.length - 1].amount) || text(list[list.length - 1].note))
-        list.push({ amount: "", note: "" });
-      return list;
+	  function readFinanceDay(date) {
+	    const days = parseJson(localStorage.getItem(FINANCE_DAYS_KEY), {});
+	    const open = parseJson(localStorage.getItem(FINANCE_OPEN_KEY), {});
+	    let current = days[date] || (open && open.financeDate === date ? open : {});
+	    const closedNextDate =
+	      open && open.financeDate && open.isClosed
+	        ? String(open.nextFinanceDate || nextDate(open.financeDate)).slice(0, 10)
+	        : "";
+	    if (
+	      (!current || !Object.keys(current).length) &&
+	      closedNextDate &&
+	      String(date).slice(0, 10) === closedNextDate
+	    ) {
+	      current = {
+	        financeDate: closedNextDate,
+	        pending: Array.isArray(open.pending) ? open.pending : [],
+	        expenses: [],
+	        cashSales: [],
+	        cardSales: [],
+	        budgetAmount: "",
+	        manualCashAmount: "",
+	        carriedAmountOverride: Number(open.newCarriedAmountSnapshot || 0) || 0,
+	        isClosed: false,
+	      };
+	    }
+	    const normalizeRows = function (rows) {
+	      const list = Array.isArray(rows)
+	        ? rows.map(function (row) {
+	            return row && typeof row === "object" ? Object.assign({}, row) : { amount: "", note: "" };
+	          })
+	        : [];
+	      if (!list.length || text(list[list.length - 1].amount) || text(list[list.length - 1].note))
+	        list.push({ amount: "", note: "" });
+	      return list;
     };
     return {
       days: days && typeof days === "object" ? days : {},
@@ -58635,18 +58791,36 @@ window.nawahLeaveBalanceReportV185 = {
       return String(open.nextFinanceDate || nextDate(open.financeDate)).slice(0, 10);
     return today();
   }
-  function postTicketExpense(req, amount, note) {
-    const date = financeTargetDate();
-    const pack = readFinanceDay(date);
-    const exists = pack.record.expenses.some(function (row) {
-      return (
-        row &&
-        row.source === "travel-ticket" &&
-        String(row.travelId) === String(req.id)
-      );
-    });
-    if (!exists) {
-      const blank = pack.record.expenses.pop() || { amount: "", note: "" };
+	  function postTicketExpense(req, amount, note) {
+	    const date = financeTargetDate();
+	    const pack = readFinanceDay(date);
+	    let exists = false;
+	    pack.record.expenses = pack.record.expenses.map(function (row) {
+	      if (
+	        row &&
+	        row.source === "travel-ticket" &&
+	        String(row.travelId) === String(req.id)
+	      ) {
+	        exists = true;
+	        return Object.assign({}, row, {
+	          amount: String(Number(amount || 0) || 0),
+	          note: note,
+	          updatedAt: new Date().toISOString(),
+	        });
+	      }
+	      return row;
+	    });
+	    if (!exists) {
+	      exists = pack.record.expenses.some(function (row) {
+	      return (
+	        row &&
+	        row.source === "travel-ticket" &&
+	        String(row.travelId) === String(req.id)
+	      );
+	    });
+	    }
+	    if (!exists) {
+	      const blank = pack.record.expenses.pop() || { amount: "", note: "" };
       if (text(blank.amount) || text(blank.note)) pack.record.expenses.push(blank);
       pack.record.expenses.push({
         id: "travel-ticket-expense-" + Date.now(),
@@ -58658,12 +58832,16 @@ window.nawahLeaveBalanceReportV185 = {
       });
       pack.record.expenses.push({ amount: "", note: "" });
     }
-    pack.days[date] = pack.record;
-    localStorage.setItem(FINANCE_DAYS_KEY, JSON.stringify(pack.days));
-    if (!pack.record.isClosed) localStorage.setItem(FINANCE_OPEN_KEY, JSON.stringify(pack.record));
-    try {
-      window.dispatchEvent(new CustomEvent("nawah:finance-expense-posted", { detail: { date, source: "travel-ticket" } }));
-    } catch (_) {}
+	    pack.days[date] = pack.record;
+	    localStorage.setItem(FINANCE_DAYS_KEY, JSON.stringify(pack.days));
+	    if (!pack.record.isClosed) localStorage.setItem(FINANCE_OPEN_KEY, JSON.stringify(pack.record));
+	    try {
+	      if (typeof saveLocalMeta === "function") saveLocalMeta();
+	      else if (typeof queueCloudStateSave === "function") queueCloudStateSave();
+	    } catch (_) {}
+	    try {
+	      window.dispatchEvent(new CustomEvent("nawah:finance-expense-posted", { detail: { date, source: "travel-ticket" } }));
+	    } catch (_) {}
   }
   async function saveTicket(postExpense) {
     const dlg = ticketModal();
@@ -59193,11 +59371,16 @@ window.nawahLeaveBalanceReportV185 = {
         } catch (_) {}
       }, delay == null ? 60 : delay);
     };
-    const wrapped = function () {
-      const result = previousRenderSettings.apply(this, arguments);
-      scheduleSettingsMediaRefresh(80);
-      return result;
-    };
+	    const wrapped = function () {
+	      const result = previousRenderSettings.apply(this, arguments);
+	      try {
+	        renderManagers();
+	        companyStampControl();
+	        applySiteFavicon();
+	      } catch (_) {}
+	      scheduleSettingsMediaRefresh(20);
+	      return result;
+	    };
     wrapped.__v191OperationalLogic = true;
     try {
       renderSettings = wrapped;
@@ -59682,11 +59865,78 @@ window.nawahLeaveBalanceReportV185 = {
       : readLeaves().find(function (item) { return String(item.id) === String(id); });
     return { type, id, req };
   }
-  function approvedRequest(req) {
-    const status = text(req && req.status);
-    return status === "approved" || status === "returned" || Boolean(req && (req.approvedAt || req.approvalDate || req.workResumeDate || req.returnConfirmedAt));
-  }
-  async function printRequestLetterV193(key) {
+	  function approvedRequest(req) {
+	    const status = text(req && req.status);
+	    return status === "approved" || status === "returned" || Boolean(req && (req.approvedAt || req.approvalDate || req.workResumeDate || req.returnConfirmedAt));
+	  }
+	  function roundLeaveDay(value) {
+	    let n = Number(value || 0);
+	    if (!Number.isFinite(n)) return 0;
+	    const sign = n < 0 ? -1 : 1;
+	    n = Math.abs(n);
+	    const base = Math.floor(n);
+	    return sign * (n - base >= 0.5 ? base + 1 : base);
+	  }
+	  function leaveDayText(value) {
+	    const n = roundLeaveDay(value);
+	    const label = typeof arabicNumber === "function" ? arabicNumber(n) : String(n);
+	    return label + " يوم";
+	  }
+	  function requestStart(type, req) {
+	    return type === "travel" ? req.travelDate || req.from || "" : req.from || req.travelDate || "";
+	  }
+	  function requestEnd(type, req) {
+	    return type === "travel"
+	      ? req.workResumeDate || req.returnedAt || req.returnDate || req.to || requestStart(type, req)
+	      : req.to || req.returnDate || req.returnConfirmedAt || req.from || requestStart(type, req);
+	  }
+	  function daysBetweenForLetter(from, to) {
+	    const a = new Date(String(from || "").slice(0, 10) + "T12:00:00");
+	    const b = new Date(String(to || from || "").slice(0, 10) + "T12:00:00");
+	    return !Number.isNaN(a.getTime()) && !Number.isNaN(b.getTime()) && b >= a
+	      ? Math.floor((b - a) / 86400000) + 1
+	      : 0;
+	  }
+	  function requestDeductedDays(type, req) {
+	    const direct = Number(
+	      req.generalLeaveRequestDays ||
+	        req.leaveDeductedDays ||
+	        req.travelDays ||
+	        req.leaveDays ||
+	        req.days ||
+	        req.durationDays ||
+	        0,
+	    );
+	    if (direct > 0) return direct;
+	    return daysBetweenForLetter(requestStart(type, req), requestEnd(type, req));
+	  }
+	  function requestBalanceSummary(type, req, emp) {
+	    const start = requestStart(type, req) || (typeof dateInputNow === "function" ? dateInputNow() : today());
+	    const deducted = requestDeductedDays(type, req);
+	    let original = 0;
+	    let remaining = 0;
+	    let hasBalanceEngine = false;
+	    let reserved = Math.max(
+	      0,
+	      Number(req.generalLeaveOverageDays || req.carryOverDays || req.reservedLeaveDays || 0) || 0,
+	    );
+	    try {
+	      if (window.leaveBalanceV49 && typeof window.leaveBalanceV49.leaveBalance === "function") {
+	        const before = window.leaveBalanceV49.leaveBalance(emp, start, { excludeId: req.id });
+	        if (before && typeof before === "object") {
+	          original = Number(before.original ?? before.total ?? before.balance ?? (Number(before.opening || 0) + Number(before.accrued || 0))) || 0;
+	          const usedBefore = Number(before.used || 0) || 0;
+	          remaining = original - usedBefore - deducted;
+	          hasBalanceEngine = true;
+	        }
+	      }
+	    } catch (_) {}
+	    if (!original) original = Number(emp.leaveBalance || emp.leaveBalanceOpening || emp.remainingLeaveBalance || 0) || 0;
+	    if (!hasBalanceEngine) remaining = original - deducted;
+	    if (!reserved && remaining < 0) reserved = Math.abs(remaining);
+	    return { original, deducted, remaining, reserved };
+	  }
+	  async function printRequestLetterV193(key) {
     const found = requestByKey(key);
     const req = found.req;
     if (!req) return notify("تعذر العثور على الطلب.");
@@ -59701,13 +59951,18 @@ window.nawahLeaveBalanceReportV185 = {
       managers[0] ||
       {};
     const approved = approvedRequest(req);
-    const employeeAuthId = emp.signatureAttachmentId || emp.fingerprintAttachmentId || "";
-    const employeeAuthLabel = emp.signatureAttachmentId ? "التوقيع" : emp.fingerprintAttachmentId ? "البصمة" : "التوقيع";
-    const employeeAuthUrl = await imageUrl(employeeAuthId);
-    const managerSignatureUrl = approved ? await imageUrl(manager.signatureAttachmentId) : "";
-    const stampUrl = approved ? await imageUrl(company.stampAttachmentId) : "";
-    const logo = company.logoDataUrl || company.logo || "sar-symbol.png";
-    const title = type === "travel" ? "خطاب طلب سفر" : "خطاب طلب إجازة";
+	    const employeeAuthId = emp.signatureAttachmentId || emp.fingerprintAttachmentId || "";
+	    const employeeAuthLabel = emp.signatureAttachmentId ? "التوقيع" : emp.fingerprintAttachmentId ? "البصمة" : "التوقيع";
+	    const employeeAuthUrl = await imageUrl(employeeAuthId);
+	    const managerSignatureUrl = approved ? await imageUrl(manager.signatureAttachmentId) : "";
+	    const stampUrl = approved ? await imageUrl(company.stampAttachmentId) : "";
+	    const logo =
+	      company.logoDataUrl ||
+	      company.logo ||
+	      (company.logoAttachmentId ? await imageUrl(company.logoAttachmentId) : "") ||
+	      "sar-symbol.png";
+	    const title = type === "travel" ? "خطاب طلب سفر" : "خطاب طلب إجازة";
+	    const balance = requestBalanceSummary(type, req, emp);
     const range =
       type === "travel"
         ? "تاريخ السفر: " + dateLabel(req.travelDate) + "، تاريخ العودة: " + (req.returnDate ? dateLabel(req.returnDate) : "غير محدد")
@@ -59734,14 +59989,23 @@ window.nawahLeaveBalanceReportV185 = {
       "، بطلب " +
       (type === "travel" ? "السفر" : "الإجازة") +
       " حسب البيانات الموضحة في هذا الخطاب، وأقر بصحة البيانات والالتزام بتاريخ العودة والمباشرة.";
-    const dataCells = [
-      ["اسم الموظف", emp.name || "—"],
-      ["رقم الموظف", emp.employeeNumber || "—"],
+	    const dataCells = [
+	      ["اسم الموظف", emp.name || "—"],
+	      ["رقم الموظف", emp.employeeNumber || "—"],
       ["الإدارة / القسم", [emp.department, emp.section].filter(Boolean).join(" / ") || "—"],
       ["المهنة", emp.role || "—"],
-      ["بيانات الطلب", range],
-      ["حالة الطلب", approved ? "معتمد" : "قيد المراجعة"],
-    ].concat(details);
+	      ["بيانات الطلب", range],
+	      ["حالة الطلب", approved ? "معتمد" : "قيد المراجعة"],
+	      ["الرصيد الإجمالي", leaveDayText(balance.original)],
+	      ["الرصيد المستقطع لهذا الطلب", leaveDayText(balance.deducted)],
+	      ["الرصيد المتبقي", leaveDayText(balance.remaining)],
+	    ].concat(details);
+	    if (balance.reserved > 0) {
+	      dataCells.push([
+	        "الرصيد المحجوز من الرصيد القادم",
+	        leaveDayText(balance.reserved),
+	      ]);
+	    }
     const cellsHtml = dataCells
       .map(function (item) {
         return '<div class="cell"><span>' + esc(item[0]) + "</span><strong>" + esc(item[1]) + "</strong></div>";
@@ -59762,7 +60026,7 @@ window.nawahLeaveBalanceReportV185 = {
     const html =
       '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
       esc(title) +
-      '</title><style>@page{size:A4;margin:13mm}*{box-sizing:border-box}body{margin:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.letter{min-height:270mm;border:1px solid #dce8ef;padding:12mm}.head{display:grid;grid-template-columns:74px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px}.head img{width:64px;height:64px;object-fit:contain;border-radius:14px}.head h1{margin:0;color:#08758a;font-size:20px}.head p{margin:5px 0 0;color:#64748b;font-size:12px}.title{text-align:center;margin:22px 0 16px;color:#172033;font-size:21px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:16px 0}.cell{border:1px solid #e3edf3;background:#fbfdff;border-radius:10px;padding:10px}.cell span{display:block;color:#64748b;font-size:11px}.cell strong{display:block;margin-top:4px;font-size:13px}.text{line-height:2;border:1px solid #ccfbf1;background:#f0fdfa;border-radius:12px;padding:14px;margin:18px 0;font-weight:700}.sign{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:42px;text-align:center;direction:rtl}.sigbox{min-height:122px;border-top:1px solid #94a3b8;padding-top:10px;display:grid;gap:6px;align-content:start}.sigbox strong,.sigbox span,.sigbox small{display:block}.sigbox span{font-weight:800;color:#172033}.sigbox small{color:#64748b;font-weight:800}.sigbox img{max-width:140px;max-height:58px;object-fit:contain;display:block;margin:0 auto}.sig-placeholder{display:grid;place-items:center;min-height:42px;color:#94a3b8;font-size:11px;font-style:normal}.footer{margin-top:24px;color:#64748b;font-size:11px;text-align:center}</style></head><body><main class="letter"><header class="head"><img src="' +
+	      '</title><style>@page{size:A4;margin:13mm}*{box-sizing:border-box}body{margin:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.letter{min-height:270mm;border:1px solid #dce8ef;padding:12mm}.head{display:grid;grid-template-columns:74px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px}.head img{width:64px;height:64px;object-fit:contain;border-radius:14px}.head h1{margin:0;color:#08758a;font-size:20px}.head p{margin:5px 0 0;color:#64748b;font-size:12px}.title{text-align:center;margin:22px 0 16px;color:#172033;font-size:21px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:16px 0}.cell{border:1px solid #e3edf3;background:#fbfdff;border-radius:10px;padding:10px}.cell span{display:block;color:#64748b;font-size:11px}.cell strong{display:block;margin-top:4px;font-size:13px}.cell:nth-last-child(1){border-color:#fecaca}.text{line-height:2;border:1px solid #ccfbf1;background:#f0fdfa;border-radius:12px;padding:14px;margin:18px 0;font-weight:700}.sign{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:42px;text-align:center;direction:rtl}.sigbox{min-height:122px;border-top:1px solid #94a3b8;padding-top:10px;display:grid;gap:6px;align-content:start}.sigbox strong,.sigbox span,.sigbox small{display:block}.sigbox span{font-weight:800;color:#172033}.sigbox small{color:#64748b;font-weight:800}.sigbox img{max-width:140px;max-height:58px;object-fit:contain;display:block;margin:0 auto}.sig-placeholder{display:grid;place-items:center;min-height:42px;color:#94a3b8;font-size:11px;font-style:normal}.footer{margin-top:24px;color:#64748b;font-size:11px;text-align:center}</style></head><body><main class="letter"><header class="head"><img src="' +
       esc(logo) +
       '"><div><h1>' +
       esc(company.company || company.name || "المنشأة") +
@@ -59832,9 +60096,9 @@ window.nawahLeaveBalanceReportV185 = {
           .join("")
       : '<tr><td colspan="4"><div class="employee-note-empty">لا توجد تمديدات مسجلة.</div></td></tr>';
   }
-  function ensureContractExtensionPanel() {
-    const form = q("#employeeForm");
-    if (!form || !form.elements || !form.elements.contractRemaining) return;
+	  function ensureContractExtensionPanel() {
+	    const form = q("#employeeForm");
+	    if (!form || !form.elements || !form.elements.contractRemaining) return;
     try {
       if (employeeFormState && !Array.isArray(employeeFormState.contractExtensions)) employeeFormState.contractExtensions = [];
     } catch (_) {}
@@ -59845,9 +60109,10 @@ window.nawahLeaveBalanceReportV185 = {
       panel.innerHTML =
         '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يعتمد تاريخ نهاية العقد الحالي على آخر تمديد دون تغيير تاريخ العقد الأساسي.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>النهاية السابقة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>';
       form.elements.contractRemaining.closest("label")?.insertAdjacentElement("afterend", panel);
-    }
-    renderContractExtensionsBody();
-  }
+	    }
+	    renderContractExtensionsBody();
+	  }
+	  window.ensureContractExtensionPanel = ensureContractExtensionPanel;
   function refreshQuickLeaveBalanceCard() {
     const modal = q("#quickViewModal[open]");
     const card = q("#quickViewContent .leave-balance-profile-card");
@@ -59941,18 +60206,22 @@ window.nawahLeaveBalanceReportV185 = {
     if (target.closest('[data-settings-section="departmentsSettings"],[data-v176-add-org],[data-v176-edit-org],[data-v176-delete-org]')) {
       setTimeout(scheduleOrgDecorate, 90);
     }
-    if (target.closest("#addEmployeeBtn,[data-edit-employee],.edit-employee-btn,[data-open-employee-modal],[data-employee-section]")) {
-      setTimeout(ensureContractExtensionPanel, 140);
-    }
+	    if (target.closest("#addEmployeeBtn,[data-edit-employee],.edit-employee-btn,[data-open-employee-modal],[data-employee-section],#saveEmployeeBtn,.save-employee-btn,[data-save-employee]")) {
+	      setTimeout(ensureContractExtensionPanel, 60);
+	      setTimeout(ensureContractExtensionPanel, 180);
+	      setTimeout(ensureContractExtensionPanel, 420);
+	    }
     if (target.closest("[data-quick-view]")) {
       setTimeout(refreshQuickLeaveBalanceCard, 240);
     }
   }, true);
-  document.addEventListener("submit", function (event) {
-    if (event.target?.matches?.("#employeeForm")) {
-      setTimeout(ensureContractExtensionPanel, 180);
-    }
-  }, true);
+	  document.addEventListener("submit", function (event) {
+	    if (event.target?.matches?.("#employeeForm")) {
+	      setTimeout(ensureContractExtensionPanel, 80);
+	      setTimeout(ensureContractExtensionPanel, 260);
+	      setTimeout(ensureContractExtensionPanel, 520);
+	    }
+	  }, true);
   document.addEventListener("DOMContentLoaded", function () {
     scheduleOrgDecorate();
   });
