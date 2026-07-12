@@ -4107,13 +4107,12 @@ function quickProfileLeaveBalanceCard(e) {
     if (
       window.leaveBalanceV49 &&
       "function" == typeof window.leaveBalanceV49.leaveBalance
-    ) {
-      t = Number(
-        window.leaveBalanceV49.leaveBalance(
-          e,
-          "function" == typeof dateInputNow ? dateInputNow() : void 0,
-        ),
-      );
+	    ) {
+	      const n = window.leaveBalanceV49.leaveBalance(
+	        e,
+	        "function" == typeof dateInputNow ? dateInputNow() : void 0,
+	      );
+	      t = Number(n && "object" == typeof n ? n.remaining : n);
     } else {
       t = Number(
         e.remainingLeaveBalance ||
@@ -26232,89 +26231,136 @@ async function init() {
         return [];
       }
     }
-    function u(e) {
-      return (
-        e?.workStartDate ||
-        e?.contractStartDate ||
-        e?.joinDate ||
-        e?.employmentDate ||
-        ""
-      );
-    }
-    function m(e, t) {
-      const n = new Date(e.getTime());
-      return (n.setFullYear(n.getFullYear() + t), n);
-    }
-    function p(t, n) {
-      const a = o(u(t)),
-        l = o(n || r(new Date()));
-      if (!a || !l || l < a) return 0;
-      const c = m(a, 5);
-      let d = 0;
-      if (l < c) d += i(r(a), r(l)) * (21 / 365);
-      else {
-        const t = new Date(c.getTime() - e);
-        (t >= a && (d += i(r(a), r(t)) * (21 / 365)),
-          (d += i(r(c), r(l)) * (30 / 365)));
-      }
-      return s(d);
-    }
+	    function u(e) {
+	      return (
+	        e?.contractStartDate ||
+	        e?.workStartDate ||
+	        e?.joinDate ||
+	        e?.employmentDate ||
+	        ""
+	      );
+	    }
+	    function effectiveLeaveStart(e, t, n = {}) {
+	      const a = o(u(e)),
+	        i = o(t || r(new Date()));
+	      if (!a || !i) return a ? r(a) : "";
+	      const s = String(e?.id || ""),
+	        l = n.excludeId ? String(n.excludeId) : "";
+	      let c = a;
+	      const m = (e, t) => {
+	        const n = o(e);
+	        n && n >= a && n <= i && (!l || String(t || "") !== l) && n > c && (c = n);
+	      };
+	      try {
+	        d().forEach((e) => {
+	          e &&
+	            String(e.employeeId || "") === s &&
+	            ("approved" === String(e.status || "") ||
+	              "returned" === String(e.status || "")) &&
+	            (e.returnDate || e.returnConfirmedAt) &&
+	            m(e.returnDate || e.returnConfirmedAt, e.id);
+	        });
+	      } catch (e) {}
+	      try {
+	        const e = JSON.parse(
+	          localStorage.getItem("nawah-travel-requests") || "[]",
+	        );
+	        Array.isArray(e) &&
+	          e.forEach((e) => {
+	            if (!e || String(e.employeeId || "") !== s) return;
+	            if ("approved" !== String(e.status || "") && "returned" !== String(e.status || "")) return;
+	            const t = e.workResumeDate || e.returnedAt || e.returnConfirmedAt || "";
+	            t && m(t, e.id);
+	          });
+	      } catch (e) {}
+	      return r(c);
+	    }
+	    function m(e, t) {
+	      const n = new Date(e.getTime());
+	      return (n.setFullYear(n.getFullYear() + t), n);
+	    }
+		    function p(t, n, a) {
+		      const l = o(u(t)),
+		        c = o(a || u(t)),
+		        d = o(n || r(new Date()));
+		      if (!l || !c || !d) return 0;
+		      const y = c < l ? l : c;
+		      if (d < y) return 0;
+		      const f = m(l, 5);
+		      let h = 0;
+		      if (d < f) h += i(r(y), r(d)) * (21 / 365);
+		      else {
+		        const t = new Date(f.getTime() - e);
+		        (t >= y && (h += i(r(y), r(t)) * (21 / 365)),
+		          (h += i(r(y > f ? y : f), r(d)) * (30 / 365)));
+		      }
+		      return s(h);
+		    }
     function y(e) {
       const n = String(e || "")
         .trim()
         .toLowerCase();
       return t.some((e) => n === String(e).trim().toLowerCase());
     }
-    function f(e) {
-      return e
-        ? Number(e.days || 0) > 0
-          ? Number(e.days || 0)
-          : i(e.from, e.to)
-        : 0;
-    }
-    function h(e, t, n = {}) {
-      const a = String(e?.id || ""),
-        o = n.excludeId ? String(n.excludeId) : "";
-      let l = (Array.isArray(t) ? t : d()).reduce(
-        (e, t) =>
-          t && String(t.employeeId || "") === a
-            ? (o && String(t.id || "") === o) ||
-              "approved" !== String(t.status || "")
-              ? e
-              : y(t.type || t.leaveType)
-                ? e + f(t)
-                : e
-            : e,
-        0,
-      );
-      try {
-        const e = JSON.parse(
-            localStorage.getItem("nawah-travel-requests") || "[]",
-          ),
-          t = r(new Date());
-        Array.isArray(e) &&
-          (l += e.reduce((e, n) => {
-            if (!n || String(n.employeeId || "") !== a) return e;
-            if (o && String(n.id || "") === o) return e;
-            const r = String(n.status || "");
-            if ("approved" !== r && "returned" !== r) return e;
-            const s = n.travelDate,
-              l = n.workResumeDate || n.returnDate || t;
-            return s ? e + i(s, l) : e;
-          }, 0));
-      } catch (e) {}
-      return s(l);
-    }
-    function v(e, t, n = {}) {
-      const a = t || r(new Date()),
-        i = u(e),
-        l = (function (e, t) {
-          const n = o(u(e)),
-            a = o(r(t instanceof Date ? t : new Date(t || Date.now())));
-          return !n || !a || a < n ? 0 : a >= m(n, 5) ? 30 : 21;
-        })(e, a),
-        c = p(e, a),
-        y = (function (e) {
+	    function f(e) {
+	      return e
+	        ? Number(e.days || 0) > 0
+	          ? Number(e.days || 0)
+	          : i(e.from, e.to)
+	        : 0;
+	    }
+	    function usedDaysInCurrentCycle(e, t, n) {
+	      const a = o(e),
+	        r = o(t || e),
+	        i = o(n || "");
+	      if (!a || !r || r < a) return 0;
+	      if (i && r <= i) return 0;
+	      const s = i && a <= i ? new Date(i.getTime() + 864e5) : a;
+	      return r >= s ? Math.max(0, Math.floor((r - s) / 864e5) + 1) : 0;
+	    }
+	    function h(e, t, n = {}) {
+	      const a = String(e?.id || ""),
+	        exclude = n.excludeId ? String(n.excludeId) : "",
+	        c = effectiveLeaveStart(e, n.asOf || r(new Date()), n);
+	      let total = (Array.isArray(t) ? t : d()).reduce(
+	        (e, t) => {
+	          if (!t || String(t.employeeId || "") !== a) return e;
+	          if (exclude && String(t.id || "") === exclude) return e;
+	          if ("approved" !== String(t.status || "")) return e;
+	          if (!y(t.type || t.leaveType)) return e;
+	          return e + usedDaysInCurrentCycle(t.from, t.to, c);
+	        },
+	        0,
+	      );
+	      try {
+	        const e = JSON.parse(
+	            localStorage.getItem("nawah-travel-requests") || "[]",
+	          ),
+	          t = r(new Date());
+	        Array.isArray(e) &&
+	          (total += e.reduce((e, n) => {
+	            if (!n || String(n.employeeId || "") !== a) return e;
+	            if (exclude && String(n.id || "") === exclude) return e;
+	            const r = String(n.status || "");
+	            if ("approved" !== r && "returned" !== r) return e;
+	            const s = n.travelDate,
+	              l = n.workResumeDate || n.returnedAt || n.returnDate || t;
+	            return s ? e + usedDaysInCurrentCycle(s, l, c) : e;
+	          }, 0));
+	      } catch (e) {}
+	      return s(total);
+	    }
+	    function v(e, t, n = {}) {
+	      const a = t || r(new Date()),
+	        i = u(e),
+	        start = effectiveLeaveStart(e, a, n),
+	        l = (function (e, t) {
+	          const n = o(u(e)),
+	            a = o(r(t instanceof Date ? t : new Date(t || Date.now())));
+	          return !n || !a || a < n ? 0 : a >= m(n, 5) ? 30 : 21;
+	        })(e, a),
+	        c = p(e, a, start),
+	        y = (function (e) {
           return (
             Number(
               e?.leaveOpeningBalance ??
@@ -26324,11 +26370,12 @@ async function init() {
             ) || 0
           );
         })(e),
-        f = s(h(e, d(), n)),
-        v = s(y + c - f);
-      return {
-        startDate: i,
-        annualEntitlement: l,
+	        f = s(h(e, d(), Object.assign({}, n, { asOf: a }))),
+	        v = s(y + c - f);
+	      return {
+	        startDate: start || i,
+	        contractStartDate: i,
+	        annualEntitlement: l,
         accrued: s(c),
         opening: s(y),
         used: f,
@@ -26643,15 +26690,9 @@ async function init() {
         },
         !0,
       ));
-    const M = new MutationObserver(() => {
-      setTimeout(A, 0);
-    });
-    try {
-      M.observe(document.body, { childList: !0, subtree: !0 });
-    } catch (e) {}
-    const x = () => {
-      (A(), setTimeout(A, 250), setTimeout(A, 900));
-    };
+	    const x = () => {
+	      (A(), setTimeout(A, 180));
+	    };
     ("loading" === document.readyState
       ? document.addEventListener("DOMContentLoaded", x)
       : x(),
@@ -31433,9 +31474,9 @@ async function init() {
     });
   }
 
-  function fileBox(id, label, hint) {
-    return (
-      '<label class="v78-upload-box" for="' +
+	  function fileBox(id, label, hint) {
+	    return (
+	      '<label class="v78-upload-box" for="' +
       id +
       '"><input id="' +
       id +
@@ -31444,11 +31485,17 @@ async function init() {
       esc(label) +
       "</strong><small>" +
       esc(hint || "PDF أو صورة واضحة") +
-      '</small><em data-file-label="' +
-      id +
-      '">لم يتم اختيار ملف</em></span></label>'
-    );
-  }
+	      '</small><em data-file-label="' +
+	      id +
+	      '">لم يتم اختيار ملف</em></span></label>'
+	    );
+	  }
+	  function ticketBox() {
+	    return (
+	      '<button type="button" class="v78-upload-box v195-ticket-upload-box" id="openTravelTicketDetailsBtn">' +
+	      '<span class="v78-upload-icon" data-icon="ticket"></span><span class="v78-upload-text"><strong>إرفاق التذكرة</strong><small>تسجيل بيانات التذكرة ومرفقها</small><em id="travelApprovalTicketLabel" data-file-label="travelTicketDetails">لم يتم تسجيل بيانات التذكرة</em></span></button>'
+	    );
+	  }
   function ensureTravelApprovalModal() {
     var old = q("#travelApprovalModal");
     if (old && old.dataset.v78Modal === "true") return old;
@@ -31461,15 +31508,11 @@ async function init() {
     dlg.id = "travelApprovalModal";
     dlg.dataset.v78Modal = "true";
     dlg.innerHTML =
-      '<div class="v78-modal-shell"><div class="modal-head v78-approval-head"><div><h2>اعتماد طلب السفر</h2><p>أرفق مستندات السفر ثم اختر طريقة الاعتماد.</p></div><button type="button" class="icon-btn" data-close-modal="travelApprovalModal"><span data-icon="x"></span></button></div>' +
-      '<div class="modal-body v78-approval-body"><div id="v78TravelApprovalSummary" class="v78-approval-summary"></div><div class="v78-attachment-grid">' +
-      fileBox(
-        "travelTicketAttachmentInput",
-        "إرفاق التذكرة",
-        "ترتبط التذكرة بطلب السفر الحالي فقط",
-      ) +
-      fileBox(
-        "travelVisaAttachmentInput",
+	      '<div class="v78-modal-shell"><div class="modal-head v78-approval-head"><div><h2>اعتماد طلب السفر</h2><p>أرفق مستندات السفر ثم اختر طريقة الاعتماد.</p></div><button type="button" class="icon-btn" data-close-modal="travelApprovalModal"><span data-icon="x"></span></button></div>' +
+	      '<div class="modal-body v78-approval-body"><div id="v78TravelApprovalSummary" class="v78-approval-summary"></div><div class="v78-attachment-grid">' +
+	      ticketBox() +
+	      fileBox(
+	        "travelVisaAttachmentInput",
         "إرفاق التأشيرة / الخروج والعودة",
         "ترتبط التأشيرة بطلب السفر الحالي فقط",
       ) +
@@ -31517,14 +31560,16 @@ async function init() {
     }
     var dlg = ensureTravelApprovalModal();
     updateTravelApprovalSummary(id);
-    ["travelTicketAttachmentInput", "travelVisaAttachmentInput"].forEach(
-      function (fid) {
-        var input = q("#" + fid);
-        if (input) input.value = "";
+	    ["travelVisaAttachmentInput"].forEach(
+	      function (fid) {
+	        var input = q("#" + fid);
+	        if (input) input.value = "";
         var label = q('[data-file-label="' + fid + '"]');
-        if (label) label.textContent = "لم يتم اختيار ملف";
-      },
-    );
+	        if (label) label.textContent = "لم يتم اختيار ملف";
+	      },
+	    );
+	    var ticketButton = q("#openTravelTicketDetailsBtn");
+	    if (ticketButton) ticketButton.setAttribute("data-ticket-details", id);
     try {
       dlg.showModal();
     } catch (_) {
@@ -31563,9 +31608,9 @@ async function init() {
       );
     return statusTravel(r);
   }
-  function travelAttachmentButton(id, label) {
-    var cleanId = String(id || "").trim();
-    var cleanLabel = label || "المرفق";
+	  function travelAttachmentButton(id, label) {
+	    var cleanId = String(id || "").trim();
+	    var cleanLabel = label || "المرفق";
     if (!cleanId)
       return '<span class="v174-travel-attachment-empty">—</span>';
     return (
@@ -31579,29 +31624,40 @@ async function init() {
       esc(cleanLabel) +
       '">' +
       icon("eye") +
-      "</button>"
-    );
-  }
-  function ticketDetailsButton(r) {
-    var info = (r && r.ticketInfo) || {};
-    var hasDetails =
-      String(info.tripType || info.carrier || info.amount || info.details || "").trim() ||
-      r.ticketAttachmentId;
-    return (
-      '<button type="button" class="v174-travel-attachment-btn v193-ticket-details-eye" data-ticket-details="' +
-      esc(r.id) +
-      '" title="' +
-      esc(hasDetails ? "عرض بيانات التذكرة" : "تسجيل بيانات التذكرة") +
-      '" aria-label="' +
-      esc(hasDetails ? "عرض بيانات التذكرة" : "تسجيل بيانات التذكرة") +
-      '">' +
-      icon("eye") +
-      "</button>"
-    );
-  }
-  function travelAttachmentCell(r) {
-    return (
-      '<div class="v174-travel-attachments v193-travel-attachments-inline" title="مرفقات السفر">' +
+	      "</button>"
+	    );
+	  }
+	  function travelApprovedForDisplay(r) {
+	    var st = String((r && r.status) || "");
+	    return (
+	      st === "approved" ||
+	      st === "returned" ||
+	      Boolean(r && (r.approvedAt || r.approvalDate || r.workResumeDate))
+	    );
+	  }
+	  function ticketDetailsButton(r) {
+	    var info = (r && r.ticketInfo) || {};
+	    var hasDetails =
+	      String(info.updatedAt || info.carrier || info.amount || info.details || "").trim();
+	    return hasDetails
+	      ? (
+	      '<button type="button" class="v174-travel-attachment-btn v193-ticket-details-eye" data-ticket-details="' +
+	      esc(r.id) +
+	      '" title="' +
+	      esc("عرض بيانات التذكرة") +
+	      '" aria-label="' +
+	      esc("عرض بيانات التذكرة") +
+	      '">' +
+	      icon("eye") +
+	      "</button>"
+	    )
+	      : '<span class="v174-travel-attachment-empty">—</span>';
+	  }
+	  function travelAttachmentCell(r) {
+	    if (!travelApprovedForDisplay(r))
+	      return '<div class="v174-travel-attachments v193-travel-attachments-inline" title="مرفقات السفر"><span class="v174-travel-attachment-empty">—</span></div>';
+	    return (
+	      '<div class="v174-travel-attachments v193-travel-attachments-inline" title="مرفقات السفر">' +
       travelAttachmentButton(r.visaAttachmentId, "التأشيرة") +
       travelAttachmentButton(r.ticketAttachmentId, "التذكرة") +
       ticketDetailsButton(r) +
@@ -31926,8 +31982,7 @@ async function init() {
       var input = e.target;
       if (
         input &&
-        (input.id === "travelTicketAttachmentInput" ||
-          input.id === "travelVisaAttachmentInput")
+	        input.id === "travelVisaAttachmentInput"
       ) {
         var label = q('[data-file-label="' + input.id + '"]');
         if (label)
@@ -32202,39 +32257,36 @@ async function init() {
       if (typeof queueCloudStateSave === "function") queueCloudStateSave();
     } catch (_) {}
   }
-  async function saveFiles() {
-    var out = {};
-    var ticket = q("#travelTicketAttachmentInput");
-    var visa = q("#travelVisaAttachmentInput");
-    try {
-      if (
-        ticket &&
-        ticket.files &&
-        ticket.files[0] &&
-        typeof saveAttachment === "function"
-      )
-        out.ticketAttachmentId = await saveAttachment(
-          ticket.files[0],
-          "travel-ticket",
-        );
-    } catch (e) {
-      console.warn(e);
-    }
-    try {
-      if (
-        visa &&
-        visa.files &&
+	  async function saveFiles() {
+	    var out = {};
+	    var visa = q("#travelVisaAttachmentInput");
+	    try {
+	      if (
+	        visa &&
+	        visa.files &&
         visa.files[0] &&
-        typeof saveAttachment === "function"
-      )
-        out.visaAttachmentId = await saveAttachment(
-          visa.files[0],
-          "travel-visa",
-        );
-    } catch (e) {
-      console.warn(e);
-    }
-    return out;
+	        typeof saveAttachment === "function"
+	      )
+	        {
+	          var visaLabel = q('[data-file-label="travelVisaAttachmentInput"]');
+	          var visaBox = visa.closest(".v78-upload-box");
+	          if (visaLabel) visaLabel.textContent = "جاري الرفع...";
+	          if (visaBox) visaBox.classList.add("is-uploading");
+	          out.visaAttachmentId = await saveAttachment(
+	            visa.files[0],
+	            "travel-visa",
+	          );
+	          if (visaLabel) visaLabel.textContent = visa.files[0].name || "تم رفع التأشيرة";
+	          if (visaBox) visaBox.classList.remove("is-uploading");
+	        }
+	    } catch (e) {
+	      var failedLabel = q('[data-file-label="travelVisaAttachmentInput"]');
+	      var failedBox = visa && visa.closest ? visa.closest(".v78-upload-box") : null;
+	      if (failedLabel) failedLabel.textContent = "تعذر رفع التأشيرة";
+	      if (failedBox) failedBox.classList.remove("is-uploading");
+	      console.warn(e);
+	    }
+	    return out;
   }
   function fileBox(id, label, hint) {
     return (
@@ -32246,13 +32298,19 @@ async function init() {
       esc(label) +
       "</strong><small>" +
       esc(hint || "PDF أو صورة واضحة") +
-      '</small><em data-file-label="' +
-      id +
-      '">لم يتم اختيار ملف</em></span></label>'
-    );
-  }
-  function ensureModal() {
-    var dlg = q("#travelApprovalModal");
+	      '</small><em data-file-label="' +
+	      id +
+	      '">لم يتم اختيار ملف</em></span></label>'
+	    );
+	  }
+	  function ticketBox() {
+	    return (
+	      '<button type="button" class="v78-upload-box v195-ticket-upload-box" id="openTravelTicketDetailsBtn">' +
+	      '<span class="v78-upload-icon" data-icon="ticket"></span><span class="v78-upload-text"><strong>إرفاق التذكرة</strong><small>تسجيل بيانات التذكرة ومرفقها</small><em id="travelApprovalTicketLabel" data-file-label="travelTicketDetails">لم يتم تسجيل بيانات التذكرة</em></span></button>'
+	    );
+	  }
+	  function ensureModal() {
+	    var dlg = q("#travelApprovalModal");
     if (!dlg) {
       dlg = document.createElement("dialog");
       dlg.className = "modal v78-travel-approval-modal";
@@ -32260,19 +32318,16 @@ async function init() {
       document.body.appendChild(dlg);
     }
     dlg.dataset.v79Modal = "true";
-    if (
-      !dlg.querySelector("#approveTravelOnlyBtn") ||
-      !dlg.querySelector("#v78TravelApprovalSummary")
-    ) {
-      dlg.innerHTML =
-        '<div class="v78-modal-shell"><div class="modal-head v78-approval-head"><div><h2>اعتماد طلب السفر</h2><p>أرفق مستندات السفر ثم اختر طريقة الاعتماد.</p></div><button type="button" class="icon-btn" data-close-modal="travelApprovalModal"><span data-icon="x"></span></button></div><div class="modal-body v78-approval-body"><div id="v78TravelApprovalSummary" class="v78-approval-summary"></div><div class="v78-attachment-grid">' +
-        fileBox(
-          "travelTicketAttachmentInput",
-          "إرفاق التذكرة",
-          "ترتبط التذكرة بطلب السفر الحالي فقط",
-        ) +
-        fileBox(
-          "travelVisaAttachmentInput",
+	    if (
+	      !dlg.querySelector("#approveTravelOnlyBtn") ||
+	      !dlg.querySelector("#v78TravelApprovalSummary") ||
+	      !dlg.querySelector("#openTravelTicketDetailsBtn")
+	    ) {
+	      dlg.innerHTML =
+	        '<div class="v78-modal-shell"><div class="modal-head v78-approval-head"><div><h2>اعتماد طلب السفر</h2><p>أرفق مستندات السفر ثم اختر طريقة الاعتماد.</p></div><button type="button" class="icon-btn" data-close-modal="travelApprovalModal"><span data-icon="x"></span></button></div><div class="modal-body v78-approval-body"><div id="v78TravelApprovalSummary" class="v78-approval-summary"></div><div class="v78-attachment-grid">' +
+	        ticketBox() +
+	        fileBox(
+	          "travelVisaAttachmentInput",
           "إرفاق التأشيرة / الخروج والعودة",
           "ترتبط التأشيرة بطلب السفر الحالي فقط",
         ) +
@@ -32305,19 +32360,28 @@ async function init() {
       num(days(req.travelDate, req.returnDate || req.travelDate)) +
       " يوم</strong></div><div><span>الحالة</span><strong>بانتظار الاعتماد</strong></div>";
   }
-  function openModal(id) {
-    currentTravelApprovalId = id;
-    var dlg = ensureModal();
-    fillSummary(id);
-    ["travelTicketAttachmentInput", "travelVisaAttachmentInput"].forEach(
-      function (fid) {
-        var inp = q("#" + fid);
-        if (inp) inp.value = "";
+	  function openModal(id) {
+	    currentTravelApprovalId = id;
+	    try {
+	      window.pendingTravelApprovalId = id;
+	    } catch (_) {}
+	    var dlg = ensureModal();
+	    fillSummary(id);
+	    ["travelVisaAttachmentInput"].forEach(
+	      function (fid) {
+	        var inp = q("#" + fid);
+	        if (inp) inp.value = "";
         var lab = q('[data-file-label="' + fid + '"]');
-        if (lab) lab.textContent = "لم يتم اختيار ملف";
-      },
-    );
-    try {
+	        if (lab) lab.textContent = "لم يتم اختيار ملف";
+	      },
+	    );
+	    var ticketButton = q("#openTravelTicketDetailsBtn");
+	    if (ticketButton) ticketButton.setAttribute("data-ticket-details", id);
+	    try {
+	      if (typeof window.nawahUpdateTravelApprovalTicketBox === "function")
+	        window.nawahUpdateTravelApprovalTicketBox(id);
+	    } catch (_) {}
+	    try {
       dlg.showModal();
     } catch (_) {
       dlg.setAttribute("open", "open");
@@ -32384,20 +32448,29 @@ async function init() {
         : x;
     });
     saveTravels(list);
-    try {
-      q("#travelApprovalModal").close();
-    } catch (_) {
-      try {
-        q("#travelApprovalModal").removeAttribute("open");
-      } catch (__) {}
-    }
-    currentTravelApprovalId = "";
-    try {
-      if (typeof renderAll === "function") renderAll();
-    } catch (_) {}
-    try {
-      if (window.nawahRenderLeavesV78) window.nawahRenderLeavesV78();
-    } catch (_) {}
+	    try {
+	      q("#travelApprovalModal").close();
+	    } catch (_) {
+	      try {
+	        q("#travelApprovalModal").removeAttribute("open");
+	      } catch (__) {}
+	    }
+	    currentTravelApprovalId = "";
+	    try {
+	      window.pendingTravelApprovalId = "";
+	    } catch (_) {}
+	    try {
+	      if (window.nawahRenderLeavesV78) window.nawahRenderLeavesV78();
+	      else if (typeof renderLeaves === "function") renderLeaves();
+	    } catch (_) {}
+	    try {
+	      if (document.querySelector("#dashboardView.active") && typeof renderDashboard === "function")
+	        renderDashboard();
+	    } catch (_) {}
+	    try {
+	      if (document.querySelector("#employeesView.active") && typeof renderEmployees === "function")
+	        renderEmployees();
+	    } catch (_) {}
     try {
       if (typeof showToast === "function")
         showToast(
@@ -32436,14 +32509,18 @@ async function init() {
       if (target.getAttribute("data-close-modal") === "travelApprovalModal") {
         e.preventDefault();
         e.stopImmediatePropagation();
-        try {
-          q("#travelApprovalModal").close();
-        } catch (_) {
-          q("#travelApprovalModal") &&
-            q("#travelApprovalModal").removeAttribute("open");
-        }
-        return;
-      }
+	      try {
+	        q("#travelApprovalModal").close();
+	      } catch (_) {
+	        q("#travelApprovalModal") &&
+	          q("#travelApprovalModal").removeAttribute("open");
+	      }
+	      currentTravelApprovalId = "";
+	      try {
+	        window.pendingTravelApprovalId = "";
+	      } catch (_) {}
+	      return;
+	    }
     },
     true,
   );
@@ -32453,8 +32530,7 @@ async function init() {
       var input = e.target;
       if (
         input &&
-        (input.id === "travelTicketAttachmentInput" ||
-          input.id === "travelVisaAttachmentInput")
+	        input.id === "travelVisaAttachmentInput"
       ) {
         var lab = q('[data-file-label="' + input.id + '"]');
         if (lab)
@@ -41697,9 +41773,11 @@ async function init() {
     else if (key === "work") setTimeout(renderWorkReview, 40);
     else if (key === "permissions") setTimeout(cleanPermissionsPanel, 80);
   }
-  function renderDepartmentsSettingsPanel() {
-    ensureDepartmentsSettingsPanel();
-    ensureStyle();
+	  function renderDepartmentsSettingsPanel() {
+	    if (typeof window.v176RenderDepartmentsSettingsPanel === "function")
+	      return window.v176RenderDepartmentsSettingsPanel();
+	    ensureDepartmentsSettingsPanel();
+	    ensureStyle();
     const panel = document.querySelector(
       '[data-settings-panel="departmentsSettings"]',
     );
@@ -47312,8 +47390,10 @@ async function init() {
       "</div>"
     );
   }
-  function renderDepartmentsSettingsPanelV150() {
-    let panel = document.querySelector(
+	  function renderDepartmentsSettingsPanelV150() {
+	    if (typeof window.v176RenderDepartmentsSettingsPanel === "function")
+	      return window.v176RenderDepartmentsSettingsPanel();
+	    let panel = document.querySelector(
       '[data-settings-panel="departmentsSettings"]',
     );
     const settingsPanel = document.querySelector(
@@ -55252,10 +55332,10 @@ window.nawahV169Fixes = {
 
       const settingsButton = event.target?.closest?.(
         '[data-settings-section="departmentsSettings"]',
-      );
-      if (settingsButton) {
-        setTimeout(renderDepartmentsSettingsPanelV176, 30);
-      }
+	      );
+	      if (settingsButton) {
+	        renderDepartmentsSettingsPanelV176();
+	      }
     },
     true,
   );
@@ -55305,19 +55385,20 @@ window.nawahV169Fixes = {
   try {
     previousRenderSettings = typeof renderSettings === "function" ? renderSettings : null;
     if (previousRenderSettings && !previousRenderSettings.__v176OrgFinal) {
-      const wrapped = function () {
-        const result = previousRenderSettings.apply(this, arguments);
-        setTimeout(renderDepartmentsSettingsPanelV176, 50);
-        return result;
-      };
+	      const wrapped = function () {
+	        const result = previousRenderSettings.apply(this, arguments);
+	        renderDepartmentsSettingsPanelV176();
+	        return result;
+	      };
       wrapped.__v176OrgFinal = true;
       renderSettings = wrapped;
       window.renderSettings = wrapped;
     }
   } catch (_) {}
 
-  window.v150RenderDepartmentsSettingsPanel = renderDepartmentsSettingsPanelV176;
-  window.v176RenderDepartmentsSettingsPanel = renderDepartmentsSettingsPanelV176;
+	  window.v150RenderDepartmentsSettingsPanel = renderDepartmentsSettingsPanelV176;
+	  window.v176RenderDepartmentsSettingsPanel = renderDepartmentsSettingsPanelV176;
+	  window.renderDepartmentsSettingsPanelV150 = renderDepartmentsSettingsPanelV176;
 
   ["DOMContentLoaded", "load"].forEach(function (eventName) {
     window.addEventListener(eventName, function () {
@@ -58062,9 +58143,9 @@ window.nawahLeaveBalanceReportV185 = {
     } catch (_) {}
     return dlg;
   }
-  function openTicketModal(id) {
-    const req = readTravels().find(function (item) {
-      return String(item.id) === String(id);
+	  function openTicketModal(id) {
+	    const req = readTravels().find(function (item) {
+	      return String(item.id) === String(id);
     });
     if (!req) return notify("تعذر العثور على طلب السفر.");
     const emp = employeeById(req.employeeId) || {};
@@ -58100,12 +58181,37 @@ window.nawahLeaveBalanceReportV185 = {
     try {
       dlg.showModal();
     } catch (_) {
-      dlg.setAttribute("open", "open");
-    }
-  }
-  function closeTicketModal() {
-    const dlg = q("#travelTicketDetailsModal");
-    if (!dlg) return;
+	      dlg.setAttribute("open", "open");
+	    }
+	  }
+	  function ticketInfoReady(req) {
+	    const info = (req && req.ticketInfo) || {};
+	    return Boolean(
+	      text(info.updatedAt) ||
+	        text(info.carrier) ||
+	        text(info.details) ||
+	        Number(info.amount || 0) > 0 ||
+	        text(info.attachmentId || req?.ticketAttachmentId),
+	    );
+	  }
+	  function updateTravelApprovalTicketBox(id) {
+	    const req = readTravels().find(function (item) {
+	      return String(item.id) === String(id);
+	    });
+	    const button = q("#openTravelTicketDetailsBtn");
+	    const label = q("#travelApprovalTicketLabel");
+	    if (button && id) button.setAttribute("data-ticket-details", id);
+	    if (!label || !req) return;
+	    const info = req.ticketInfo || {};
+	    const ready = ticketInfoReady(req);
+	    label.textContent = ready
+	      ? info.fileName || info.carrier || "تم تسجيل بيانات التذكرة"
+	      : "لم يتم تسجيل بيانات التذكرة";
+	    if (button) button.classList.toggle("has-ticket-data", ready);
+	  }
+	  function closeTicketModal() {
+	    const dlg = q("#travelTicketDetailsModal");
+	    if (!dlg) return;
     try {
       dlg.close();
     } catch (_) {
@@ -58205,15 +58311,27 @@ window.nawahLeaveBalanceReportV185 = {
       return String(item.id) === String(travelId);
     });
     if (!req) return notify("تعذر العثور على طلب السفر.");
-    const current = req.ticketInfo || {};
-    let attachmentId = current.attachmentId || req.ticketAttachmentId || "";
-    let fileName = current.fileName || "";
-    const file = form.elements.ticketFile.files && form.elements.ticketFile.files[0];
-    if (file) {
-      if (typeof saveAttachment !== "function") return notify("تعذر حفظ المرفق حالياً.");
-      attachmentId = await saveAttachment(file, "travel-ticket");
-      fileName = file.name;
-    }
+	    const current = req.ticketInfo || {};
+	    let attachmentId = current.attachmentId || req.ticketAttachmentId || "";
+	    let fileName = current.fileName || "";
+	    const file = form.elements.ticketFile.files && form.elements.ticketFile.files[0];
+	    if (file) {
+	      if (typeof saveAttachment !== "function") return notify("تعذر حفظ المرفق حالياً.");
+	      const label = q("#travelTicketFileName", dlg);
+	      const fileBox = q(".v191-ticket-file .attachment-line", dlg);
+	      if (label) label.textContent = "جاري الرفع...";
+	      if (fileBox) fileBox.classList.add("is-uploading");
+	      try {
+	        attachmentId = await saveAttachment(file, "travel-ticket");
+	        fileName = file.name;
+	      } catch (error) {
+	        if (label) label.textContent = "تعذر رفع التذكرة";
+	        if (fileBox) fileBox.classList.remove("is-uploading");
+	        console.warn(error);
+	        return notify("تعذر رفع مرفق التذكرة.");
+	      }
+	      if (fileBox) fileBox.classList.remove("is-uploading");
+	    }
     const amount = Number(form.elements.amount.value || 0) || 0;
     const info = {
       tripType: form.elements.tripType.value || "flight",
@@ -58244,17 +58362,15 @@ window.nawahLeaveBalanceReportV185 = {
           })
         : item;
     });
-    saveTravels(list);
-    closeTicketModal();
+	    saveTravels(list);
+	    updateTravelApprovalTicketBox(req.id);
+	    closeTicketModal();
+	    try {
+	      if (postExpense && typeof renderFinance === "function") renderFinance();
+	    } catch (_) {}
     try {
-      if (typeof renderFinance === "function") renderFinance();
-    } catch (_) {}
-    try {
-      if (typeof renderAll === "function") renderAll();
-    } catch (_) {}
-    try {
-      if (window.nawahRenderLeavesV78) window.nawahRenderLeavesV78();
-    } catch (_) {}
+	      if (window.nawahRenderLeavesV78) window.nawahRenderLeavesV78();
+	    } catch (_) {}
     notify(postExpense ? "تم حفظ التذكرة وترحيل قيمتها إلى مصروفات اليوم." : "تم حفظ بيانات التذكرة.");
   }
 
@@ -58728,13 +58844,13 @@ window.nawahLeaveBalanceReportV185 = {
 
   document.addEventListener("click", function (event) {
     const ticket = event.target?.closest?.("[data-ticket-details]");
-    if (ticket) {
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation && event.stopImmediatePropagation();
-      openTicketModal(ticket.getAttribute("data-ticket-details"));
-      return;
-    }
+	    if (ticket) {
+	      event.preventDefault();
+	      event.stopPropagation();
+	      event.stopImmediatePropagation && event.stopImmediatePropagation();
+	      openTicketModal(ticket.getAttribute("data-ticket-details") || window.pendingTravelApprovalId || "");
+	      return;
+	    }
     if (event.target?.closest?.("[data-v191-close-ticket]")) {
       event.preventDefault();
       closeTicketModal();
@@ -58913,14 +59029,16 @@ window.nawahLeaveBalanceReportV185 = {
     applySiteFavicon();
   }, 400);
 
-  window.nawahV191 = {
-    openTicketModal,
-    renderManagers,
-    refreshTransactionSelects,
-  };
+	  window.nawahV191 = {
+	    openTicketModal,
+	    updateTravelApprovalTicketBox,
+	    renderManagers,
+	    refreshTransactionSelects,
+	  };
+	  window.nawahUpdateTravelApprovalTicketBox = updateTravelApprovalTicketBox;
 })();
 
-/* v194 - travel letters, org-manager guards, and event-driven performance stabilizers */
+/* v195 - precise leave balance, travel ticket approval flow, and settings flicker cleanup */
 (function () {
   if (window.__v193TravelLettersOrgGuards) return;
   window.__v193TravelLettersOrgGuards = true;
@@ -59379,11 +59497,12 @@ window.nawahLeaveBalanceReportV185 = {
     }
     if (!emp) return;
     let balance = Number(emp.remainingLeaveBalance || emp.leaveBalanceAfter || emp.leaveBalance || emp.leaveBalanceOpening || 0);
-    try {
-      if (window.leaveBalanceV49 && typeof window.leaveBalanceV49.leaveBalance === "function") {
-        balance = Number(window.leaveBalanceV49.leaveBalance(emp, typeof dateInputNow === "function" ? dateInputNow() : undefined));
-      }
-    } catch (_) {}
+	    try {
+	      if (window.leaveBalanceV49 && typeof window.leaveBalanceV49.leaveBalance === "function") {
+	        const details = window.leaveBalanceV49.leaveBalance(emp, typeof dateInputNow === "function" ? dateInputNow() : undefined);
+	        balance = Number(details && typeof details === "object" ? details.remaining : details);
+	      }
+	    } catch (_) {}
     const rounded = Math.round((Number(balance) || 0) * 100) / 100;
     const label = typeof arabicNumber === "function" ? arabicNumber(rounded) : String(rounded);
     card.classList.toggle("is-negative", rounded < 0);

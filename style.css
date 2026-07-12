@@ -16553,35 +16553,61 @@ html.has-initial-login-bg .auth-gate,
 /* v193 - final travel ticket modal, inline attachment eyes, and org manager detach */
 #leavesView .v191-travel-table {
   table-layout: fixed;
-  min-width: 1040px;
+  min-width: 0;
+  width: 100%;
 }
 
 #leavesView .v191-travel-table col.c-number {
-  width: 88px;
+  width: 7%;
 }
 
 #leavesView .v191-travel-table col.c-employee {
-  width: 190px;
+  width: 16%;
 }
 
 #leavesView .v191-travel-table col.c-date {
-  width: 104px;
+  width: 8.5%;
 }
 
 #leavesView .v191-travel-table col.c-status {
-  width: 118px;
+  width: 9%;
 }
 
 #leavesView .v191-travel-table col.c-duration {
-  width: 106px;
+  width: 8.5%;
 }
 
 #leavesView .v191-travel-table col.c-attachments {
-  width: 122px;
+  width: 10%;
 }
 
 #leavesView .v191-travel-table col.c-actions {
-  width: 178px;
+  width: 15%;
+}
+
+#leavesView .v191-travel-table th,
+#leavesView .v191-travel-table td {
+  padding-inline: 6px !important;
+}
+
+#leavesView .v191-travel-table .travel-actions {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+#leavesView .v191-travel-table .travel-actions .primary-btn,
+#leavesView .v191-travel-table .travel-actions .secondary-btn,
+#leavesView .v191-travel-table .v174-travel-attachment-btn,
+#leavesView .v191-travel-table .v174-travel-attachment-empty {
+  min-height: 28px;
+}
+
+#leavesView .v191-travel-table .travel-actions .primary-btn,
+#leavesView .v191-travel-table .travel-actions .secondary-btn {
+  padding: 5px 7px !important;
+  font-size: 11px !important;
+  border-radius: 9px !important;
+  white-space: nowrap;
 }
 
 .v193-travel-attachments-inline {
@@ -16590,12 +16616,41 @@ html.has-initial-login-bg .auth-gate,
   align-items: center !important;
   justify-content: center !important;
   gap: 6px !important;
-  min-width: 108px;
+  min-width: 0;
 }
 
 .v193-travel-attachments-inline .v174-travel-attachment-btn,
 .v193-travel-attachments-inline .v174-travel-attachment-empty {
-  flex: 0 0 31px;
+  flex: 0 0 28px;
+}
+
+.v195-ticket-upload-box {
+  width: 100%;
+  border-style: dashed;
+  font: inherit;
+  text-align: right;
+}
+
+.v78-upload-box.is-uploading,
+.v193-ticket-file-line.is-uploading {
+  border-color: rgba(14, 165, 183, .62) !important;
+  background: linear-gradient(180deg, #ecfeff, #f8fafc) !important;
+  box-shadow: 0 12px 28px rgba(14, 165, 183, .14);
+}
+
+.v78-upload-box.is-uploading .v78-upload-icon,
+.v193-ticket-file-line.is-uploading .attachment-view-btn {
+  animation: uploadPulseV195 1s ease-in-out infinite;
+}
+
+.v195-ticket-upload-box.has-ticket-data {
+  border-color: rgba(16, 185, 129, .5);
+  background: linear-gradient(180deg, #ecfdf5, #ffffff);
+}
+
+@keyframes uploadPulseV195 {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(.94); opacity: .68; }
 }
 
 .v193-ticket-details-eye {
@@ -16758,6 +16813,6 @@ html.has-initial-login-bg .auth-gate,
   }
 
   #leavesView .v191-travel-table {
-    min-width: 1060px;
+    min-width: 0;
   }
 }
