@@ -58703,26 +58703,20 @@ window.nawahLeaveBalanceReportV185 = {
   const previousRenderSettings =
     typeof renderSettings === "function" ? renderSettings : window.renderSettings;
   if (typeof previousRenderSettings === "function" && !previousRenderSettings.__v191OperationalLogic) {
+    let settingsMediaTimer = 0;
+    const scheduleSettingsMediaRefresh = function (delay) {
+      clearTimeout(settingsMediaTimer);
+      settingsMediaTimer = setTimeout(function () {
+        try {
+          renderManagers();
+          companyStampControl();
+          applySiteFavicon();
+        } catch (_) {}
+      }, delay == null ? 60 : delay);
+    };
     const wrapped = function () {
       const result = previousRenderSettings.apply(this, arguments);
-      try {
-        renderManagers();
-        companyStampControl();
-        applySiteFavicon();
-      } catch (_) {}
-      setTimeout(function () {
-        renderManagers();
-        companyStampControl();
-        applySiteFavicon();
-      }, 80);
-      setTimeout(function () {
-        companyStampControl();
-        applySiteFavicon();
-      }, 220);
-      setTimeout(function () {
-        companyStampControl();
-        applySiteFavicon();
-      }, 620);
+      scheduleSettingsMediaRefresh(80);
       return result;
     };
     wrapped.__v191OperationalLogic = true;
@@ -58926,7 +58920,7 @@ window.nawahLeaveBalanceReportV185 = {
   };
 })();
 
-/* v193 - travel letters, org-manager guards, and small performance stabilizers */
+/* v194 - travel letters, org-manager guards, and event-driven performance stabilizers */
 (function () {
   if (window.__v193TravelLettersOrgGuards) return;
   window.__v193TravelLettersOrgGuards = true;
@@ -59179,6 +59173,8 @@ window.nawahLeaveBalanceReportV185 = {
   }
   let orgDecorateTimer = 0;
   function scheduleOrgDecorate() {
+    const panel = q('[data-settings-panel="departmentsSettings"].active');
+    if (!panel) return;
     clearTimeout(orgDecorateTimer);
     orgDecorateTimer = setTimeout(function () {
       try {
@@ -59187,6 +59183,7 @@ window.nawahLeaveBalanceReportV185 = {
       } catch (_) {}
     }, 60);
   }
+  window.nawahV194DecorateOrgManagers = scheduleOrgDecorate;
   async function imageUrl(attachmentId) {
     if (!attachmentId) return "";
     try {
@@ -59400,6 +59397,7 @@ window.nawahLeaveBalanceReportV185 = {
     "click",
     function (event) {
       const target = event.target;
+      if (!target?.closest) return;
       const printBtn = target?.closest?.("[data-print-request-letter],[data-v81-print],[data-v80-print]");
       if (printBtn) {
         event.preventDefault();
@@ -59436,44 +59434,27 @@ window.nawahLeaveBalanceReportV185 = {
     true,
   );
   document.addEventListener("click", function (event) {
-    if (event.target?.closest?.('[data-settings-section="departmentsSettings"],[data-v176-add-org],[data-v176-edit-org],[data-v176-delete-org]')) {
-      scheduleOrgDecorate();
+    const target = event.target;
+    if (!target?.closest) return;
+    if (target.closest('[data-settings-section="departmentsSettings"],[data-v176-add-org],[data-v176-edit-org],[data-v176-delete-org]')) {
+      setTimeout(scheduleOrgDecorate, 90);
     }
-    if (event.target?.closest?.("#addEmployeeBtn,[data-edit-employee],.edit-employee-btn,[data-open-employee-modal],[data-employee-section]")) {
-      setTimeout(ensureContractExtensionPanel, 80);
-      setTimeout(ensureContractExtensionPanel, 260);
+    if (target.closest("#addEmployeeBtn,[data-edit-employee],.edit-employee-btn,[data-open-employee-modal],[data-employee-section]")) {
+      setTimeout(ensureContractExtensionPanel, 140);
     }
-    if (event.target?.closest?.("[data-quick-view]")) {
-      setTimeout(refreshQuickLeaveBalanceCard, 160);
-      setTimeout(refreshQuickLeaveBalanceCard, 520);
+    if (target.closest("[data-quick-view]")) {
+      setTimeout(refreshQuickLeaveBalanceCard, 240);
     }
   }, true);
   document.addEventListener("submit", function (event) {
     if (event.target?.matches?.("#employeeForm")) {
       setTimeout(ensureContractExtensionPanel, 180);
-      setTimeout(refreshQuickLeaveBalanceCard, 250);
     }
   }, true);
   document.addEventListener("DOMContentLoaded", function () {
     scheduleOrgDecorate();
-    setTimeout(ensureContractExtensionPanel, 250);
   });
-  try {
-    const observer = new MutationObserver(function () {
-      scheduleOrgDecorate();
-      setTimeout(ensureContractExtensionPanel, 80);
-      setTimeout(refreshQuickLeaveBalanceCard, 120);
-    });
-    [
-      q("#settingsView"),
-      q("#employeeModal"),
-      q("#quickViewModal"),
-    ].filter(Boolean).forEach(function (target) {
-      observer.observe(target, { childList: true, subtree: true, attributes: true });
-    });
-  } catch (_) {}
   setTimeout(function () {
     scheduleOrgDecorate();
-    ensureContractExtensionPanel();
-  }, 500);
+  }, 300);
 })();
