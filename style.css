@@ -16867,3 +16867,279 @@ html.has-initial-login-bg .auth-gate,
     min-width: 0;
   }
 }
+
+/* v197 - identity-aligned travel ticket modal without desktop scrolling */
+#travelTicketDetailsModal.v193-ticket-modal {
+  width: min(920px, calc(100vw - 64px)) !important;
+  max-width: calc(100vw - 64px) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 28px !important;
+  background: transparent !important;
+  overflow: hidden !important;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, .28) !important;
+}
+
+#travelTicketDetailsModal.v193-ticket-modal::backdrop {
+  background: rgba(15, 23, 42, .48) !important;
+  backdrop-filter: blur(7px) !important;
+}
+
+#travelTicketDetailsForm.v193-ticket-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: calc(100vh - 96px) !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  border: 1px solid rgba(226, 232, 240, .95) !important;
+  border-radius: 28px !important;
+  background: #fff !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-head {
+  min-height: 84px !important;
+  padding: 18px 22px !important;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(255, 255, 255, .22), transparent 28%),
+    linear-gradient(135deg, #0f766e 0%, #10a99d 48%, #14b8a6 100%) !important;
+  border-bottom: 0 !important;
+  color: #fff !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-head h2 {
+  margin: 0 !important;
+  color: #fff !important;
+  font-size: 22px !important;
+  font-weight: 950 !important;
+  line-height: 1.25 !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-head p {
+  margin: 5px 0 0 !important;
+  color: rgba(255, 255, 255, .86) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1.5 !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-head .icon-btn {
+  width: 38px !important;
+  height: 38px !important;
+  border: 1px solid rgba(255, 255, 255, .28) !important;
+  background: rgba(255, 255, 255, .16) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-body {
+  min-width: 0 !important;
+  padding: 16px 18px 12px !important;
+  display: grid !important;
+  grid-template-rows: auto auto auto !important;
+  gap: 12px !important;
+  overflow: hidden !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-summary {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 10px !important;
+  border: 1px solid #dbeaf0 !important;
+  border-radius: 18px !important;
+  background: #f8fbfc !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-summary div {
+  min-width: 0 !important;
+  padding: 10px 12px !important;
+  border: 1px solid #e2eef3 !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-summary span,
+#travelTicketDetailsModal .v193-ticket-form-grid label > span {
+  display: block !important;
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 950 !important;
+  line-height: 1.4 !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-summary strong {
+  display: block !important;
+  margin-top: 4px !important;
+  color: #172033 !important;
+  font-size: 13px !important;
+  font-weight: 950 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-form-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-form-grid label {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 7px !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-form-grid .full-field {
+  grid-column: 1 / -1 !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-form-grid input,
+#travelTicketDetailsModal .v193-ticket-form-grid select,
+#travelTicketDetailsModal .v193-ticket-form-grid textarea {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  padding: 10px 13px !important;
+  border: 1px solid #dbe8ef !important;
+  border-radius: 14px !important;
+  outline: 0 !important;
+  background: #fff !important;
+  color: #172033 !important;
+  font: inherit !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  text-align: right !important;
+  box-shadow: inset 0 1px 0 rgba(15, 23, 42, .02) !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-form-grid textarea {
+  height: 62px !important;
+  min-height: 62px !important;
+  max-height: 62px !important;
+  resize: none !important;
+  line-height: 1.7 !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-form-grid input:focus,
+#travelTicketDetailsModal .v193-ticket-form-grid select:focus,
+#travelTicketDetailsModal .v193-ticket-form-grid textarea:focus {
+  border-color: #14b8a6 !important;
+  box-shadow: 0 0 0 4px rgba(20, 184, 166, .12) !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-file-line {
+  min-width: 0 !important;
+  min-height: 54px !important;
+  padding: 9px 10px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+  border: 1.5px dashed #99f6e4 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, #f0fdfa, #ffffff) !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-file-line strong {
+  min-width: 0 !important;
+  color: #0f766e !important;
+  font-size: 12px !important;
+  font-weight: 950 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-file-line .secondary-btn {
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 12px !important;
+  background: #eef7f8 !important;
+  color: #0f7d8f !important;
+  border-color: rgba(14, 165, 183, .24) !important;
+  font-size: 12px !important;
+  font-weight: 950 !important;
+  white-space: nowrap !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-file-line .attachment-view-btn {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  border-radius: 12px !important;
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  border-color: rgba(16, 185, 129, .26) !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-note {
+  margin: 0 !important;
+  padding: 10px 12px !important;
+  border-radius: 16px !important;
+  align-items: center !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-note p {
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1.6 !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-actions {
+  padding: 12px 18px 16px !important;
+  display: flex !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  flex-wrap: nowrap !important;
+  border-top: 1px solid #e2e8f0 !important;
+  background: #fbfdff !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-actions button {
+  min-height: 42px !important;
+  border-radius: 13px !important;
+  padding: 0 16px !important;
+  font-size: 13px !important;
+  font-weight: 950 !important;
+  white-space: nowrap !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-actions .primary-btn {
+  min-width: 184px !important;
+}
+
+@media (max-width: 760px) {
+  #travelTicketDetailsModal.v193-ticket-modal {
+    width: min(100vw - 20px, 560px) !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+
+  #travelTicketDetailsForm.v193-ticket-card {
+    max-height: calc(100vh - 40px) !important;
+  }
+
+  #travelTicketDetailsModal .v193-ticket-body {
+    overflow: auto !important;
+  }
+
+  #travelTicketDetailsModal .v193-ticket-summary,
+  #travelTicketDetailsModal .v193-ticket-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #travelTicketDetailsModal .v193-ticket-actions {
+    flex-wrap: wrap !important;
+  }
+
+  #travelTicketDetailsModal .v193-ticket-actions button {
+    flex: 1 1 100% !important;
+  }
+}
