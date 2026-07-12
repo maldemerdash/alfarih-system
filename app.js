@@ -39058,18 +39058,63 @@ async function init() {
     }
     return { id: sid, name: fallback, employeeNumber: sid };
   }
-  function dateRangeText(a, b) {
-    a = fmt(a || "");
-    b = fmt(b || "");
-    if (a && b) return "من " + a + " إلى " + b;
-    if (a) return "من " + a;
-    if (b) return "إلى " + b;
-    return "";
-  }
-	  function daysText(v) {
-	    var n = roundDay(v);
-	    return n ? n + " يوم" : "";
+	  function dateRangeText(a, b) {
+	    a = fmt(a || "");
+	    b = fmt(b || "");
+	    if (a && b) return "من " + a + " إلى " + b;
+	    if (a) return "من " + a;
+	    if (b) return "إلى " + b;
+	    return "";
 	  }
+	  function reportDateObj(value) {
+	    var d = new Date(String(value || "").slice(0, 10) + "T12:00:00");
+	    return isNaN(d) ? null : d;
+	  }
+	  function reportDateInput(date) {
+	    if (!(date instanceof Date) || isNaN(date)) return "";
+	    return (
+	      date.getFullYear() +
+	      "-" +
+	      String(date.getMonth() + 1).padStart(2, "0") +
+	      "-" +
+	      String(date.getDate()).padStart(2, "0")
+	    );
+	  }
+	  function originalAccruedLeaveForReport(emp, dateValue) {
+	    var start = reportDateObj(
+	      emp &&
+	        (emp.contractStartDate ||
+	          emp.workStartDate ||
+	          emp.joinDate ||
+	          emp.employmentDate),
+	    );
+	    var end = reportDateObj(dateValue || new Date().toISOString().slice(0, 10));
+	    if (!start || !end || end < start) return 0;
+	    var opening =
+	      Number(
+	        (emp &&
+	          (emp.leaveOpeningBalance ||
+	            emp.openingLeaveBalance ||
+	            emp.leaveBalanceOpening)) ||
+	          0,
+	      ) || 0;
+	    var fiveYears = new Date(start.getTime());
+	    fiveYears.setFullYear(fiveYears.getFullYear() + 5);
+	    var dayMs = 86400000,
+	      accrued = 0;
+	    if (end < fiveYears) {
+	      accrued = (Math.floor((end - start) / dayMs) + 1) * (21 / 365);
+	    } else {
+	      var firstEnd = new Date(fiveYears.getTime() - dayMs);
+	      accrued += (Math.floor((firstEnd - start) / dayMs) + 1) * (21 / 365);
+	      accrued += (Math.floor((end - fiveYears) / dayMs) + 1) * (30 / 365);
+	    }
+	    return Math.round((opening + accrued) * 100) / 100;
+	  }
+		  function daysText(v) {
+		    var n = roundDay(v);
+		    return n ? n + " يوم" : "";
+		  }
 	  function roundDay(v) {
 	    var n = Number(v || 0);
 	    if (!Number.isFinite(n)) return 0;
@@ -39078,33 +39123,37 @@ async function init() {
 	    var base = Math.floor(n);
 	    return sign * (n - base >= 0.5 ? base + 1 : base);
 	  }
-	  function leaveBalanceDetailsForReport(emp, dateValue) {
-	    try {
-	      if (
-	        window.leaveBalanceV49 &&
-	        typeof window.leaveBalanceV49.leaveBalance === "function"
+		  function leaveBalanceDetailsForReport(emp, dateValue) {
+		    var original = originalAccruedLeaveForReport(
+		      emp,
+		      dateValue || new Date().toISOString().slice(0, 10),
+		    );
+		    try {
+		      if (
+		        window.leaveBalanceV49 &&
+		        typeof window.leaveBalanceV49.leaveBalance === "function"
 	      ) {
 	        var b = window.leaveBalanceV49.leaveBalance(
 	          emp,
 	          dateValue || new Date().toISOString().slice(0, 10),
 	          {},
-	        );
-	        if (b && typeof b === "object") {
-	          return {
-	            original: Number(b.original ?? b.total ?? b.balance ?? (Number(b.opening || 0) + Number(b.accrued || 0))) || 0,
-	            remaining: Number(b.remaining || 0) || 0,
-	            reserved: Number(b.reserved || 0) || 0,
-	          };
-	        }
-	      }
-	    } catch (_) {}
-	    var remaining = currentLeaveBalanceForReport(emp);
-	    return {
-	      original: remaining == null ? 0 : Number(remaining || 0),
-	      remaining: remaining == null ? 0 : Number(remaining || 0),
-	      reserved: 0,
-	    };
-	  }
+		        );
+		        if (b && typeof b === "object") {
+		          return {
+		            original: original,
+		            remaining: Number(b.remaining || 0) || 0,
+		            reserved: Number(b.reserved || 0) || 0,
+		          };
+		        }
+		      }
+		    } catch (_) {}
+		    var remaining = currentLeaveBalanceForReport(emp);
+		    return {
+		      original: original,
+		      remaining: remaining == null ? 0 : Number(remaining || 0),
+		      reserved: 0,
+		    };
+		  }
   function requestDays(x) {
     var v =
       x &&
@@ -39331,11 +39380,12 @@ async function init() {
     var d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
   }
-  var reportMonthState = {
-    absences: reportCurrentYm(),
-    advances: reportCurrentYm(),
-    payrollRun: reportCurrentYm(),
-  };
+	  var reportMonthState = {
+	    absences: reportCurrentYm(),
+	    advances: reportCurrentYm(),
+	    payrollRun: reportCurrentYm(),
+	    attendance: reportCurrentYm(),
+	  };
   var reportMonthNames = [
     "يناير",
     "فبراير",
@@ -39398,8 +39448,8 @@ async function init() {
     syncReportMonthFilters();
     renderReport(tab);
   }
-  function syncReportMonthFilters() {
-    ["absences", "advances", "payrollRun"].forEach(function (tab) {
+	  function syncReportMonthFilters() {
+	    ["absences", "advances", "payrollRun", "attendance"].forEach(function (tab) {
       var ym = reportSelectedYm(tab),
         p = ym.split("-"),
         y = Number(p[0]),
@@ -39599,19 +39649,82 @@ async function init() {
         );
       });
   }
-  function advanceReportGroups() {
-    var map = {};
-    advanceReportRecords().forEach(function (r) {
-      var key = String(
+	  function advanceReportGroups() {
+	    var map = {};
+	    advanceReportRecords().forEach(function (r) {
+	      var key = String(
         empNo(r.employee) || r.employee.id || r.employee.name || "",
       );
       if (!map[key]) map[key] = { employee: r.employee, records: [] };
       map[key].records.push(r);
     });
     return Object.keys(map).map(function (k) {
-      return map[k];
-    });
-  }
+	      return map[k];
+	    });
+	  }
+	  function reportMonthDates(ym) {
+	    var parts = String(ym || reportCurrentYm()).split("-"),
+	      y = Number(parts[0]) || new Date().getFullYear(),
+	      m = Number(parts[1]) || 1,
+	      end = new Date(y, m, 0, 12),
+	      days = [];
+	    for (var d = new Date(y, m - 1, 1, 12); d <= end; d.setDate(d.getDate() + 1)) {
+	      days.push(reportDateInput(d));
+	    }
+	    return days;
+	  }
+	  function attendanceReportGroups(ym, employeeId) {
+	    var selectedYm = ym || reportSelectedYm("attendance"),
+	      dates = reportMonthDates(selectedYm),
+	      list = empList()
+	        .filter(function (emp) {
+	          return (
+	            emp &&
+	            emp.id &&
+	            (!employeeId || String(emp.id) === String(employeeId))
+	          );
+	        })
+	        .sort(function (a, b) {
+	          return String(a.name || "").localeCompare(String(b.name || ""), "ar");
+	        });
+	    return list.map(function (emp) {
+	      var counts = { present: 0, absent: 0, leave: 0, off: 0 },
+	        records = dates.map(function (date) {
+	          var state = {};
+	          try {
+	            state =
+	              typeof attendanceStateForEmployee === "function"
+	                ? attendanceStateForEmployee(emp, date)
+	                : {};
+	          } catch (_) {
+	            state = {};
+	          }
+	          if (state.present) counts.present += 1;
+	          else if (state.absent) counts.absent += 1;
+	          else if (state.leave) counts.leave += 1;
+	          else counts.off += 1;
+	          return {
+	            date: date,
+	            day: reportDayName(date),
+	            statusHtml: state.badge || "",
+	            statusText: state.present
+	              ? "حاضر"
+	              : state.absent
+	                ? "غائب"
+	                : state.leave
+	                  ? "إجازة"
+	                  : state.key === "weekly-off"
+	                    ? "إجازة أسبوعية"
+	                    : "خارج الدوام",
+	            checkIn: state.checkIn || "—",
+	            checkOut: state.checkOut || "—",
+	            hours: state.hours || "—",
+	            source: state.source || "—",
+	          };
+	        });
+	      return { employee: emp, records: records, counts: counts, ym: selectedYm };
+	    });
+	  }
   function statusLabel(v) {
     var s = String(v || "").toLowerCase();
     if (s === "approved") return "معتمد";
@@ -39871,8 +39984,22 @@ async function init() {
       });
       return out;
     }
-    if (tab === "payrollRun") return payrollReportRows();
-	    if (tab === "contracts") {
+	    if (tab === "payrollRun") return payrollReportRows();
+	    if (tab === "attendance") {
+	      return attendanceReportGroups().map(function (g) {
+	        return [
+	          empNo(g.employee) || "",
+	          g.employee.name || "",
+	          empNationality(g.employee),
+	          empIdentity(g.employee),
+	          g.counts.present + " يوم",
+	          g.counts.absent + " يوم",
+	          g.counts.leave + " يوم",
+	          g.counts.off + " يوم",
+	        ];
+	      });
+	    }
+		    if (tab === "contracts") {
 	      return emps.map(function (e) {
 	        var end = lastContractEnd(e);
         var arr = Array.isArray(e.contractExtensions)
@@ -39920,60 +40047,96 @@ async function init() {
     }
     return [];
   }
-  var tabCols = {
-	    leaveTravel: 10,
-    banking: 5,
-    absences: 5,
-    advances: 5,
-    payrollRun: 12,
-    contracts: 7,
-  };
+	  var tabCols = {
+		    leaveTravel: 10,
+	    banking: 5,
+	    absences: 5,
+	    advances: 5,
+	    payrollRun: 12,
+	    attendance: 8,
+	    contracts: 7,
+	  };
   var bodies = {
     leaveTravel: "reportLeaveTravelBody",
     banking: "reportBankingBody",
     absences: "reportAbsencesBody",
-    advances: "reportAdvancesBody",
-    payrollRun: "reportPayrollRunBody",
-    contracts: "reportContractsBody",
-  };
+	    advances: "reportAdvancesBody",
+	    payrollRun: "reportPayrollRunBody",
+	    attendance: "reportAttendanceBody",
+	    contracts: "reportContractsBody",
+	  };
   var titles = {
     leaveTravel: "الإجازات والسفر",
     banking: "البيانات البنكية",
     absences: "غياب هذا الشهر",
-    advances: "السلفيات",
-    payrollRun: "مسير رواتب هذا الشهر",
-    contracts: "بيانات العقود الوظيفية",
-  };
-  function renderReport(tab) {
-    var body = q("#" + bodies[tab]);
-    if (!body) return;
-    var rows = rowsFor(tab);
-	    if (tab === "leaveTravel") {
-	      var heads = reportHeads(tab);
-	      var hrow = body.closest("table")?.querySelector("thead tr");
-	      if (hrow) hrow.innerHTML = heads.map(function (h) { return "<th>" + esc(h) + "</th>"; }).join("");
-	      if (!rows.length) {
-	        body.innerHTML = '<tr><td colspan="10">لا توجد بيانات للعرض</td></tr>';
-	        return;
-	      }
-	      body.innerHTML = rows
-	        .map(function (row) {
-	          return (
-	            "<tr>" +
-	            row
-	              .map(function (cell, idx) {
-	                return '<td' + (idx === 9 && cell ? ' class="report-reserved-balance"' : "") + ">" + esc(cell) + "</td>";
-	              })
-	              .join("") +
-	            "</tr>"
-	          );
-	        })
-	        .join("");
-	      try {
-	        typeof hydrateIcons === "function" && hydrateIcons(body);
-	      } catch (_) {}
-      return;
-    }
+	    advances: "السلفيات",
+	    payrollRun: "مسير رواتب هذا الشهر",
+	    attendance: "حضور الموظف",
+	    contracts: "بيانات العقود الوظيفية",
+	  };
+	  function renderReport(tab) {
+	    var body = q("#" + bodies[tab]);
+	    if (!body) return;
+	    var rows = tab === "leaveTravel" || tab === "attendance" ? [] : rowsFor(tab);
+		    if (tab === "leaveTravel") {
+		      var heads = ["رقم الموظف", "اسم الموظف", "الجنسية", "رقم الهوية", "رصيد الموظف"];
+		      var hrow = body.closest("table")?.querySelector("thead tr");
+		      if (hrow) hrow.innerHTML = heads.map(function (h) { return "<th>" + esc(h) + "</th>"; }).join("");
+		      var groupsLT = leaveTravelGroups();
+		      if (!groupsLT.length) {
+		        body.innerHTML = '<tr><td colspan="5">لا توجد بيانات للعرض</td></tr>';
+		        return;
+		      }
+		      body.innerHTML = groupsLT
+		        .map(function (g, i) {
+		          var id = "leave-travel-report-details-" + i;
+		          var details =
+		            '<div class="report-nested-wrap"><table class="report-nested-table report-leave-travel-nested-table"><thead><tr><th>النوع</th><th>الفترة</th><th>عدد أيام الفترة</th><th>الرصيد المتبقي</th><th>الرصيد المحجوز من الرصيد القادم</th></tr></thead><tbody>' +
+		            (g.records || [])
+		              .map(function (r) {
+		                return (
+		                  "<tr><td>" +
+		                  esc(r.type || "") +
+		                  "</td><td>" +
+		                  reportPeriodCellHtml(r) +
+		                  "</td><td>" +
+		                  esc(r.used || "") +
+		                  "</td><td>" +
+		                  esc(r.remaining || "") +
+		                  '</td><td class="report-reserved-balance">' +
+		                  esc(r.reserved || "") +
+		                  "</td></tr>"
+		                );
+		              })
+		              .join("") +
+		            "</tbody></table></div>";
+		          var balance = leaveBalanceDetailsForReport(g.employee, new Date().toISOString().slice(0, 10));
+		          return (
+		            '<tr class="report-employee-row"><td>' +
+		            esc(empNo(g.employee)) +
+		            '</td><td><button type="button" class="report-toggle" data-report-toggle="' +
+		            id +
+		            '" aria-expanded="false"><span class="report-toggle-arrow">▾</span><span>' +
+		            esc(g.employee.name || "") +
+		            "</span></button></td><td>" +
+		            esc(empNationality(g.employee)) +
+		            "</td><td>" +
+		            esc(empIdentity(g.employee)) +
+		            "</td><td>" +
+		            esc(daysText(balance.original)) +
+		            '</td></tr><tr class="report-details-row" id="' +
+		            id +
+		            '" hidden><td colspan="5">' +
+		            details +
+		            "</td></tr>"
+		          );
+		        })
+		        .join("");
+		      try {
+		        typeof hydrateIcons === "function" && hydrateIcons(body);
+		      } catch (_) {}
+	      return;
+	    }
     if (tab === "banking") {
       var groups = bankReportGroups();
       if (!groups.length) {
@@ -40076,8 +40239,8 @@ async function init() {
       } catch (_) {}
       return;
     }
-    if (tab === "advances") {
-      var groupsV = advanceReportGroups();
+	    if (tab === "advances") {
+	      var groupsV = advanceReportGroups();
       if (!groupsV.length) {
         body.innerHTML = '<tr><td colspan="5">لا توجد بيانات للعرض</td></tr>';
         return;
@@ -40129,10 +40292,75 @@ async function init() {
         .join("");
       try {
         typeof hydrateIcons === "function" && hydrateIcons(body);
-      } catch (_) {}
-      return;
-    }
-    if (!rows.length) {
+	      } catch (_) {}
+	      return;
+	    }
+	    if (tab === "attendance") {
+	      var groupsT = attendanceReportGroups();
+	      if (!groupsT.length) {
+	        body.innerHTML = '<tr><td colspan="8">لا توجد بيانات للعرض</td></tr>';
+	        return;
+	      }
+	      body.innerHTML = groupsT
+	        .map(function (g, i) {
+	          var id = "attendance-report-details-" + i;
+	          var details =
+	            '<div class="report-nested-wrap"><table class="report-nested-table report-attendance-nested-table"><thead><tr><th>التاريخ</th><th>اليوم</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>الساعات</th><th>المصدر</th></tr></thead><tbody>' +
+	            (g.records || [])
+	              .map(function (r) {
+	                return (
+	                  "<tr><td>" +
+	                  esc(fmt(r.date)) +
+	                  "</td><td>" +
+	                  esc(r.day || "") +
+	                  "</td><td>" +
+	                  (r.statusHtml || esc(r.statusText || "")) +
+	                  "</td><td>" +
+	                  esc(r.checkIn || "—") +
+	                  "</td><td>" +
+	                  esc(r.checkOut || "—") +
+	                  "</td><td>" +
+	                  esc(r.hours || "—") +
+	                  "</td><td>" +
+	                  esc(r.source || "—") +
+	                  "</td></tr>"
+	                );
+	              })
+	              .join("") +
+	            "</tbody></table></div>";
+	          return (
+	            '<tr class="report-employee-row"><td>' +
+	            esc(empNo(g.employee)) +
+	            '</td><td><button type="button" class="report-toggle" data-report-toggle="' +
+	            id +
+	            '" aria-expanded="false"><span class="report-toggle-arrow">▾</span><span>' +
+	            esc(g.employee.name || "") +
+	            "</span></button></td><td>" +
+	            esc(empNationality(g.employee)) +
+	            "</td><td>" +
+	            esc(empIdentity(g.employee)) +
+	            "</td><td>" +
+	            esc(g.counts.present + " يوم") +
+	            "</td><td>" +
+	            esc(g.counts.absent + " يوم") +
+	            "</td><td>" +
+	            esc(g.counts.leave + " يوم") +
+	            "</td><td>" +
+	            esc(g.counts.off + " يوم") +
+	            '</td></tr><tr class="report-details-row" id="' +
+	            id +
+	            '" hidden><td colspan="8">' +
+	            details +
+	            "</td></tr>"
+	          );
+	        })
+	        .join("");
+	      try {
+	        typeof hydrateIcons === "function" && hydrateIcons(body);
+	      } catch (_) {}
+	      return;
+	    }
+	    if (!rows.length) {
       body.innerHTML =
         '<tr><td colspan="' + tabCols[tab] + '">لا توجد بيانات للعرض</td></tr>';
       return;
@@ -40217,9 +40445,11 @@ async function init() {
   function renderReports() {
     if (!q("#reportsView")) return;
     syncReportMonthFilters();
-    ["leaveTravel", "banking", "absences", "advances", "payrollRun", "contracts"].forEach(
-      renderReport,
-    );
+	    var active =
+	      q("[data-report-tab].active")?.dataset.reportTab ||
+	      q("[data-report-panel].active")?.dataset.reportPanel ||
+	      "leaveTravel";
+	    renderReport(active);
     try {
       typeof hydrateIcons === "function" && hydrateIcons(q("#reportsView"));
     } catch (_) {}
@@ -40291,9 +40521,9 @@ async function init() {
         "المتبقي",
         "الحالة",
       ];
-    if (tab === "payrollRun")
-      return [
-        "الموظف",
+	    if (tab === "payrollRun")
+	      return [
+	        "الموظف",
         "الراتب الأساسي",
         "البدلات",
         "التأمينات",
@@ -40304,8 +40534,19 @@ async function init() {
         "المحول للموظف",
         "المطلوب من الموظف",
         "سحب البطاقة",
-        "الحالة",
-      ];
+	        "الحالة",
+	      ];
+	    if (tab === "attendance")
+	      return [
+	        "رقم الموظف",
+	        "اسم الموظف",
+	        "الجنسية",
+	        "رقم الهوية",
+	        "أيام الحضور",
+	        "أيام الغياب",
+	        "أيام الإجازة",
+	        "أيام العطلات",
+	      ];
     var panel = q('[data-report-panel="' + tab + '"]');
     var heads = panel
       ? qa("thead th", panel).map(function (th) {
@@ -40324,8 +40565,8 @@ async function init() {
     var to = String((r && (r.periodTo || "")) || "").trim();
     if (!from && !to) return esc((r && r.period) || "");
     var lines = [];
-    if (from) lines.push("من " + from);
-    if (to) lines.push("إلى " + to);
+    if (from) lines.push("من: " + from);
+    if (to) lines.push("إلى: " + to);
     return (
       '<div class="report-period-cell simple-period">' +
       lines
@@ -40338,7 +40579,8 @@ async function init() {
   }
   function reportTableHtml(tab) {
     var heads = reportHeads(tab),
-      rows = rowsFor(tab);
+      rows =
+        tab === "leaveTravel" || tab === "attendance" ? [] : rowsFor(tab);
     var headHtml =
       "<thead><tr>" +
       heads
@@ -40348,28 +40590,51 @@ async function init() {
         .join("") +
       "</tr></thead>";
     var bodyHtml = "";
-	    if (tab === "leaveTravel") {
-	      if (!rows.length) {
-	        bodyHtml =
-	          '<tr><td colspan="' +
-	          Math.max(1, heads.length) +
-	          '">لا توجد بيانات للعرض</td></tr>';
-	      } else {
-	        bodyHtml = rows
-	          .map(function (row) {
-	            return (
-	              "<tr>" +
-	              row
-	                .map(function (cell, idx) {
-	                  return '<td' + (idx === 9 && cell ? ' class="report-reserved-balance"' : "") + ">" + esc(cell) + "</td>";
-	                })
-	                .join("") +
-	              "</tr>"
-	            );
-	          })
-	          .join("");
-	      }
-	      return (
+		    if (tab === "leaveTravel") {
+		      var groupsLT = leaveTravelGroups();
+		      if (!groupsLT.length) {
+		        bodyHtml =
+		          '<tr><td colspan="' +
+		          Math.max(1, heads.length) +
+		          '">لا توجد بيانات للعرض</td></tr>';
+		      } else {
+		        bodyHtml = groupsLT
+		          .map(function (g) {
+		            return (g.records || [])
+		              .map(function (r) {
+		                var balance = leaveBalanceDetailsForReport(
+		                  g.employee,
+		                  new Date().toISOString().slice(0, 10),
+		                );
+		                return (
+		                  "<tr><td>" +
+		                  esc(empNo(g.employee) || "") +
+		                  "</td><td>" +
+		                  esc(g.employee.name || "") +
+		                  "</td><td>" +
+		                  esc(empNationality(g.employee)) +
+		                  "</td><td>" +
+		                  esc(empIdentity(g.employee)) +
+		                  "</td><td>" +
+		                  esc(daysText(balance.original)) +
+		                  "</td><td>" +
+		                  esc(r.type || "") +
+		                  "</td><td>" +
+		                  reportPeriodCellHtml(r) +
+		                  "</td><td>" +
+		                  esc(r.used || "") +
+		                  "</td><td>" +
+		                  esc(r.remaining || "") +
+		                  '</td><td class="report-reserved-balance">' +
+		                  esc(r.reserved || "") +
+		                  "</td></tr>"
+		                );
+		              })
+		              .join("");
+		          })
+		          .join("");
+		      }
+		      return (
         '<table class="print-report-table grouped-report-table print-report-leave-travel-table">' +
         headHtml +
         "<tbody>" +
@@ -40476,7 +40741,7 @@ async function init() {
         "</tbody></table>"
       );
     }
-    if (tab === "advances") {
+	    if (tab === "advances") {
       var advGroups = advanceReportGroups();
       if (!advGroups.length) {
         bodyHtml =
@@ -40520,11 +40785,51 @@ async function init() {
       return (
         '<table class="print-report-table grouped-report-table print-report-advances-table">' +
         headHtml +
-        "<tbody>" +
-        bodyHtml +
-        "</tbody></table>"
-      );
-    }
+	        "<tbody>" +
+	        bodyHtml +
+	        "</tbody></table>"
+	      );
+	    }
+	    if (tab === "attendance") {
+	      var attGroups = attendanceReportGroups();
+	      if (!attGroups.length) {
+	        bodyHtml =
+	          '<tr><td colspan="' +
+	          Math.max(1, heads.length) +
+	          '">لا توجد بيانات للعرض</td></tr>';
+	      } else {
+	        bodyHtml = attGroups
+	          .map(function (g) {
+	            return (
+	              "<tr><td>" +
+	              esc(empNo(g.employee) || "") +
+	              "</td><td>" +
+	              esc(g.employee.name || "") +
+	              "</td><td>" +
+	              esc(empNationality(g.employee)) +
+	              "</td><td>" +
+	              esc(empIdentity(g.employee)) +
+	              "</td><td>" +
+	              esc(g.counts.present + " يوم") +
+	              "</td><td>" +
+	              esc(g.counts.absent + " يوم") +
+	              "</td><td>" +
+	              esc(g.counts.leave + " يوم") +
+	              "</td><td>" +
+	              esc(g.counts.off + " يوم") +
+	              "</td></tr>"
+	            );
+	          })
+	          .join("");
+	      }
+	      return (
+	        '<table class="print-report-table print-report-attendance-table">' +
+	        headHtml +
+	        "<tbody>" +
+	        bodyHtml +
+	        "</tbody></table>"
+	      );
+	    }
     if (!rows.length) {
       bodyHtml =
         '<tr><td colspan="' +
@@ -40679,13 +40984,15 @@ async function init() {
       return (
         "تقرير السلفيات لشهر " + reportMonthLabel(reportSelectedYm("advances"))
       );
-    if (tab === "payrollRun")
-      return (
-        "مسير رواتب شهر " + reportMonthLabel(reportSelectedYm("payrollRun"))
-      );
-    return titles[tab] || "تقرير";
-  }
-  function reportSubtitle(tab) {
+	    if (tab === "payrollRun")
+	      return (
+	        "مسير رواتب شهر " + reportMonthLabel(reportSelectedYm("payrollRun"))
+	      );
+	    if (tab === "attendance")
+	      return "تقرير حضور الموظف لشهر " + reportMonthLabel(reportSelectedYm("attendance"));
+	    return titles[tab] || "تقرير";
+	  }
+	  function reportSubtitle(tab) {
     if (tab === "contracts")
       return "تقرير بيانات العقود الوظيفية وحالة الانتهاء وفترة الإشعار";
     if (tab === "banking") return "تقرير البيانات البنكية للموظفين";
@@ -40700,14 +41007,271 @@ async function init() {
         "سجل السلفيات للشهر المحدد: " +
         reportMonthLabel(reportSelectedYm("advances"))
       );
-    if (tab === "payrollRun")
-      return (
-        "مسير الرواتب للشهر المحدد: " +
-        reportMonthLabel(reportSelectedYm("payrollRun"))
-      );
-    return "تقرير إداري";
-  }
-  async function printReport(tab, mode) {
+	    if (tab === "payrollRun")
+	      return (
+	        "مسير الرواتب للشهر المحدد: " +
+	        reportMonthLabel(reportSelectedYm("payrollRun"))
+	      );
+	    if (tab === "attendance")
+	      return (
+	        "سجل الحضور والغياب للشهر المحدد: " +
+	        reportMonthLabel(reportSelectedYm("attendance"))
+	      );
+	    return "تقرير إداري";
+	  }
+	  function ensureAttendancePrintDialog() {
+	    var dlg = q("#attendanceReportPrintModal");
+	    if (dlg) return dlg;
+	    dlg = document.createElement("dialog");
+	    dlg.id = "attendanceReportPrintModal";
+	    dlg.className = "modal v191-ticket-modal v199-attendance-print-modal";
+	    dlg.innerHTML =
+	      '<form method="dialog" class="v78-modal-shell v191-ticket-card v199-attendance-print-card">' +
+	      '<div class="modal-head v78-approval-head v193-ticket-head"><div><h2>خيارات تقرير حضور الموظف</h2><p>اختر الموظفين ونطاق الأشهر قبل الطباعة أو التصدير.</p></div><button type="button" class="icon-btn" data-attendance-print-close><span data-icon="x"></span></button></div>' +
+	      '<div class="modal-body v78-approval-body v199-attendance-print-body">' +
+	      '<label class="full-field"><span>الموظف</span><select name="employeeId"></select></label>' +
+	      '<div class="v199-attendance-print-range"><label><span>من شهر</span><select name="fromMonth"></select></label><label><span>سنة البداية</span><input type="number" name="fromYear" min="2000" max="2100" step="1"></label><label><span>إلى شهر</span><select name="toMonth"></select></label><label><span>سنة النهاية</span><input type="number" name="toYear" min="2000" max="2100" step="1"></label></div>' +
+	      '<div class="v78-approval-note v193-ticket-note"><span data-icon="info"></span><p>يمكن طباعة موظف واحد أو جميع الموظفين لشهر واحد أو عدة أشهر. عند تعدد الأشهر يبدأ كل شهر في صفحة مستقلة.</p></div>' +
+	      '</div><div class="modal-actions v78-approval-actions v193-ticket-actions"><button type="button" class="secondary-btn" data-attendance-print-close>إلغاء</button><button type="button" class="primary-btn" data-attendance-print-run>تجهيز التقرير</button></div>' +
+	      "</form>";
+	    document.body.appendChild(dlg);
+	    try {
+	      typeof hydrateIcons === "function" && hydrateIcons(dlg);
+	    } catch (_) {}
+	    return dlg;
+	  }
+	  function fillAttendancePrintDialog(dlg) {
+	    var empSelect = q('select[name="employeeId"]', dlg);
+	    if (empSelect) {
+	      empSelect.innerHTML =
+	        '<option value="">جميع الموظفين</option>' +
+	        empList()
+	          .slice()
+	          .sort(function (a, b) {
+	            return String(a.name || "").localeCompare(String(b.name || ""), "ar");
+	          })
+	          .map(function (emp) {
+	            return (
+	              '<option value="' +
+	              esc(emp.id || "") +
+	              '">' +
+	              esc((emp.employeeNumber ? emp.employeeNumber + " - " : "") + (emp.name || "")) +
+	              "</option>"
+	            );
+	          })
+	          .join("");
+	    }
+	    ["fromMonth", "toMonth"].forEach(function (name) {
+	      var sel = q('select[name="' + name + '"]', dlg);
+	      if (sel && !sel.options.length) {
+	        reportMonthNames.forEach(function (month, idx) {
+	          var opt = document.createElement("option");
+	          opt.value = String(idx + 1).padStart(2, "0");
+	          opt.textContent = month;
+	          sel.appendChild(opt);
+	        });
+	      }
+	    });
+	    var p = reportSelectedYm("attendance").split("-");
+	    ["fromMonth", "toMonth"].forEach(function (name) {
+	      var sel = q('select[name="' + name + '"]', dlg);
+	      if (sel) sel.value = p[1] || String(new Date().getMonth() + 1).padStart(2, "0");
+	    });
+	    ["fromYear", "toYear"].forEach(function (name) {
+	      var inp = q('input[name="' + name + '"]', dlg);
+	      if (inp) inp.value = p[0] || new Date().getFullYear();
+	    });
+	  }
+	  function openAttendancePrintDialog(mode) {
+	    var dlg = ensureAttendancePrintDialog();
+	    dlg.dataset.mode = mode || "print";
+	    fillAttendancePrintDialog(dlg);
+	    try {
+	      dlg.showModal();
+	    } catch (_) {
+	      dlg.setAttribute("open", "open");
+	    }
+	  }
+	  function closeAttendancePrintDialog() {
+	    var dlg = q("#attendanceReportPrintModal");
+	    if (!dlg) return;
+	    try {
+	      dlg.close();
+	    } catch (_) {
+	      dlg.removeAttribute("open");
+	    }
+	  }
+	  function attendanceMonthRange(fromYm, toYm) {
+	    var a = String(fromYm || reportSelectedYm("attendance")).split("-"),
+	      b = String(toYm || fromYm || reportSelectedYm("attendance")).split("-"),
+	      y = Number(a[0]) || new Date().getFullYear(),
+	      m = Number(a[1]) || 1,
+	      ey = Number(b[0]) || y,
+	      em = Number(b[1]) || m,
+	      out = [],
+	      guard = 0;
+	    while ((y < ey || (y === ey && m <= em)) && guard < 72) {
+	      out.push(normalizeReportYm(y, m));
+	      m += 1;
+	      if (m > 12) {
+	        m = 1;
+	        y += 1;
+	      }
+	      guard += 1;
+	    }
+	    return out.length ? out : [fromYm || reportSelectedYm("attendance")];
+	  }
+	  function attendancePrintTable(ym, employeeId) {
+	    var groups = attendanceReportGroups(ym, employeeId);
+	    if (!groups.length)
+	      return '<table class="print-report-table print-report-attendance-table"><tbody><tr><td>لا توجد بيانات للعرض</td></tr></tbody></table>';
+	    if (employeeId) {
+	      return groups
+	        .map(function (g) {
+	          var summary =
+	            '<table class="print-report-table print-report-attendance-summary"><thead><tr><th>الموظف</th><th>الحضور</th><th>الغياب</th><th>الإجازات</th><th>العطلات</th></tr></thead><tbody><tr><td>' +
+	            esc((empNo(g.employee) ? empNo(g.employee) + " - " : "") + (g.employee.name || "")) +
+	            "</td><td>" +
+	            esc(g.counts.present + " يوم") +
+	            "</td><td>" +
+	            esc(g.counts.absent + " يوم") +
+	            "</td><td>" +
+	            esc(g.counts.leave + " يوم") +
+	            "</td><td>" +
+	            esc(g.counts.off + " يوم") +
+	            "</td></tr></tbody></table>";
+	          var details =
+	            '<table class="print-report-table print-report-attendance-detail"><thead><tr><th>التاريخ</th><th>اليوم</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>الساعات</th><th>المصدر</th></tr></thead><tbody>' +
+	            (g.records || [])
+	              .map(function (r) {
+	                return (
+	                  "<tr><td>" +
+	                  esc(fmt(r.date)) +
+	                  "</td><td>" +
+	                  esc(r.day || "") +
+	                  "</td><td>" +
+	                  esc(r.statusText || "") +
+	                  "</td><td>" +
+	                  esc(r.checkIn || "—") +
+	                  "</td><td>" +
+	                  esc(r.checkOut || "—") +
+	                  "</td><td>" +
+	                  esc(r.hours || "—") +
+	                  "</td><td>" +
+	                  esc(r.source || "—") +
+	                  "</td></tr>"
+	                );
+	              })
+	              .join("") +
+	            "</tbody></table>";
+	          return summary + details;
+	        })
+	        .join("");
+	    }
+	    return (
+	      '<table class="print-report-table print-report-attendance-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>الحضور</th><th>الغياب</th><th>الإجازات</th><th>العطلات</th></tr></thead><tbody>' +
+	      groups
+	        .map(function (g) {
+	          return (
+	            "<tr><td>" +
+	            esc(empNo(g.employee) || "") +
+	            "</td><td>" +
+	            esc(g.employee.name || "") +
+	            "</td><td>" +
+	            esc(empNationality(g.employee)) +
+	            "</td><td>" +
+	            esc(empIdentity(g.employee)) +
+	            "</td><td>" +
+	            esc(g.counts.present + " يوم") +
+	            "</td><td>" +
+	            esc(g.counts.absent + " يوم") +
+	            "</td><td>" +
+	            esc(g.counts.leave + " يوم") +
+	            "</td><td>" +
+	            esc(g.counts.off + " يوم") +
+	            "</td></tr>"
+	          );
+	        })
+	        .join("") +
+	      "</tbody></table>"
+	    );
+	  }
+	  async function printAttendanceReportFromDialog() {
+	    var dlg = ensureAttendancePrintDialog(),
+	      employeeId = q('select[name="employeeId"]', dlg)?.value || "",
+	      fromYm = normalizeReportYm(
+	        Number(q('input[name="fromYear"]', dlg)?.value),
+	        Number(q('select[name="fromMonth"]', dlg)?.value),
+	      ),
+	      toYm = normalizeReportYm(
+	        Number(q('input[name="toYear"]', dlg)?.value),
+	        Number(q('select[name="toMonth"]', dlg)?.value),
+	      ),
+	      months = attendanceMonthRange(fromYm, toYm),
+	      company = reportCompanyData(),
+	      logo = await reportLogoUrl(company),
+	      printedAt = reportDateTime(),
+	      companyMeta = company.meta.length
+	        ? company.meta.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("")
+	        : "<span>بيانات المنشأة غير مكتملة</span>";
+	    var html =
+	      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حضور الموظف</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.attendance-print-month{break-before:page;page-break-before:always;padding-bottom:16mm}.attendance-print-month:first-child{break-before:auto;page-break-before:auto}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:5px 6px;text-align:right;vertical-align:middle;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-report-attendance-table th:nth-child(1),.print-report-attendance-table td:nth-child(1){width:9%}.print-report-attendance-table th:nth-child(2),.print-report-attendance-table td:nth-child(2){width:24%;white-space:nowrap}.print-report-attendance-detail th:nth-child(1),.print-report-attendance-detail td:nth-child(1){width:12%}.print-report-attendance-detail th:nth-child(7),.print-report-attendance-detail td:nth-child(7){width:24%}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>' +
+	      months
+	        .map(function (ym) {
+	          return (
+	            '<section class="attendance-print-month"><header class="report-header"><img class="report-logo" src="' +
+	            esc(logo) +
+	            '" alt="شعار المنشأة"><div class="company-title"><h1>' +
+	            esc(company.name) +
+	            '</h1><div class="meta">' +
+	            companyMeta +
+	            '</div></div></header><section class="report-name"><div><h2>تقرير حضور الموظف - ' +
+	            esc(reportMonthLabel(ym)) +
+	            "</h2><p>" +
+	            esc(employeeId ? "تقرير موظف محدد" : "تقرير جميع الموظفين") +
+	            '</p></div><div class="date">تاريخ الطباعة: ' +
+	            esc(printedAt) +
+	            "</div></section>" +
+	            attendancePrintTable(ym, employeeId) +
+	            "</section>"
+	          );
+	        })
+	        .join("") +
+	      '<footer class="report-footer"><span>تمت طباعة هذا التقرير من نظام إدارة الموظفين</span><span class="pages"></span><span>' +
+	      esc(printedAt) +
+	      "</span></footer></body></html>";
+	    closeAttendancePrintDialog();
+	    var frame = document.createElement("iframe");
+	    frame.className = "report-print-frame";
+	    frame.setAttribute("aria-hidden", "true");
+	    frame.style.cssText = "position:fixed;left:0;bottom:0;width:0;height:0;border:0;opacity:0";
+	    document.body.appendChild(frame);
+	    var doc = frame.contentWindow && frame.contentWindow.document;
+	    if (!doc) return;
+	    doc.open();
+	    doc.write(html);
+	    doc.close();
+	    var done = false;
+	    function doPrint() {
+	      if (done) return;
+	      done = true;
+	      try {
+	        frame.contentWindow.focus();
+	        frame.contentWindow.print();
+	      } catch (err) {
+	        console.warn(err);
+	        if (typeof showToast === "function") showToast("تعذر تجهيز تقرير الحضور.");
+	      }
+	      setTimeout(function () {
+	        try {
+	          frame.remove();
+	        } catch (_) {}
+	      }, 2500);
+	    }
+	    frame.onload = function () { setTimeout(doPrint, 220); };
+	    setTimeout(doPrint, 650);
+	  }
+	  async function printReport(tab, mode) {
     var title = reportTitle(tab);
     var company = reportCompanyData();
     var logo = await reportLogoUrl(company);
@@ -40722,7 +41286,7 @@ async function init() {
     var html =
       '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
       esc(title) +
-      '</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10.5px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:6px 7px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-banking-table{table-layout:fixed}.print-report-banking-table th:nth-child(1),.print-report-banking-table td:nth-child(1){width:10%}.print-report-banking-table th:nth-child(2),.print-report-banking-table td:nth-child(2){width:20%}.print-report-banking-table th:nth-child(3),.print-report-banking-table td:nth-child(3){width:12%}.print-report-banking-table th:nth-child(4),.print-report-banking-table td:nth-child(4){width:16%}.print-report-banking-table th:nth-child(5),.print-report-banking-table td:nth-child(5){width:20%}.print-report-banking-table th:nth-child(6),.print-report-banking-table td:nth-child(6){width:22%}.report-period-cell{display:flex;flex-direction:column;gap:2px;line-height:1.45;text-align:center;font-weight:800;color:#172033}.report-period-cell div{display:block;white-space:nowrap}.bank-account-print{white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;direction:ltr;text-align:left!important;font-size:9px;letter-spacing:-.2px}.grouped-report-table tbody td{border-bottom:0!important}.grouped-report-table tbody tr.employee-group-start td{border-top:1px solid #cfd8e3}.grouped-report-table tbody tr.employee-group-start:first-child td{border-top:0}.print-report-table.grouped-report-table tbody tr.employee-group-detail td{border-top:0!important;border-bottom:0!important}.print-report-table.grouped-report-table tbody tr.employee-group-start td{border-bottom:0!important}.print-report-advances-table th:nth-child(1),.print-report-advances-table td:nth-child(1){width:9%}.print-report-advances-table th:nth-child(2),.print-report-advances-table td:nth-child(2){width:17%}.print-report-advances-table th:nth-child(3),.print-report-advances-table td:nth-child(3){width:9%}.print-report-advances-table th:nth-child(4),.print-report-advances-table td:nth-child(4){width:12%}.print-report-advances-table th:nth-child(5),.print-report-advances-table td:nth-child(5){width:11%}.print-report-advances-table th:nth-child(6),.print-report-advances-table td:nth-child(6){width:11%}.print-report-advances-table th:nth-child(7),.print-report-advances-table td:nth-child(7){width:10%}.print-report-advances-table th:nth-child(8),.print-report-advances-table td:nth-child(8){width:11%}.print-report-advances-table th:nth-child(9),.print-report-advances-table td:nth-child(9){width:10%}.print-report-leave-travel-table{font-size:8.6px}.print-report-leave-travel-table th:nth-child(1),.print-report-leave-travel-table td:nth-child(1){width:7%}.print-report-leave-travel-table th:nth-child(2),.print-report-leave-travel-table td:nth-child(2){width:15%}.print-report-leave-travel-table th:nth-child(3),.print-report-leave-travel-table td:nth-child(3){width:8%}.print-report-leave-travel-table th:nth-child(4),.print-report-leave-travel-table td:nth-child(4){width:12%}.print-report-leave-travel-table th:nth-child(5),.print-report-leave-travel-table td:nth-child(5){width:10%}.print-report-leave-travel-table th:nth-child(6),.print-report-leave-travel-table td:nth-child(6){width:8%}.print-report-leave-travel-table th:nth-child(7),.print-report-leave-travel-table td:nth-child(7){width:13%}.print-report-leave-travel-table th:nth-child(8),.print-report-leave-travel-table td:nth-child(8){width:9%}.print-report-leave-travel-table th:nth-child(9),.print-report-leave-travel-table td:nth-child(9){width:9%}.print-report-leave-travel-table th:nth-child(10),.print-report-leave-travel-table td:nth-child(10){width:9%}.print-payroll-run-table{border-collapse:separate;border-spacing:0;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden;font-size:8px}.print-payroll-run-table th{text-align:center;background:#f3f8f8;color:#0f5f59}.print-payroll-run-table td{text-align:center;padding:4px 3px}.print-payroll-run-table th:first-child,.print-payroll-run-table td:first-child{text-align:right;width:15%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}.report-reserved-balance{color:#dc2626!important;font-weight:900}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.report-page{page-break-inside:auto}.print-report-table{page-break-inside:auto}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
+      '</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 18mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10.5px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:6px 7px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-banking-table{table-layout:fixed}.print-report-banking-table th:nth-child(1),.print-report-banking-table td:nth-child(1){width:10%}.print-report-banking-table th:nth-child(2),.print-report-banking-table td:nth-child(2){width:20%}.print-report-banking-table th:nth-child(3),.print-report-banking-table td:nth-child(3){width:12%}.print-report-banking-table th:nth-child(4),.print-report-banking-table td:nth-child(4){width:16%}.print-report-banking-table th:nth-child(5),.print-report-banking-table td:nth-child(5){width:20%}.print-report-banking-table th:nth-child(6),.print-report-banking-table td:nth-child(6){width:22%}.report-period-cell{display:flex;flex-direction:column;gap:2px;line-height:1.45;text-align:center;font-weight:800;color:#172033}.report-period-cell div{display:block;white-space:nowrap}.bank-account-print{white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;direction:ltr;text-align:left!important;font-size:9px;letter-spacing:-.2px}.grouped-report-table tbody td{border-bottom:0!important}.grouped-report-table tbody tr.employee-group-start td{border-top:1px solid #cfd8e3}.grouped-report-table tbody tr.employee-group-start:first-child td{border-top:0}.print-report-table.grouped-report-table tbody tr.employee-group-detail td{border-top:0!important;border-bottom:0!important}.print-report-table.grouped-report-table tbody tr.employee-group-start td{border-bottom:0!important}.print-report-advances-table th:nth-child(1),.print-report-advances-table td:nth-child(1){width:9%}.print-report-advances-table th:nth-child(2),.print-report-advances-table td:nth-child(2){width:17%}.print-report-advances-table th:nth-child(3),.print-report-advances-table td:nth-child(3){width:9%}.print-report-advances-table th:nth-child(4),.print-report-advances-table td:nth-child(4){width:12%}.print-report-advances-table th:nth-child(5),.print-report-advances-table td:nth-child(5){width:11%}.print-report-advances-table th:nth-child(6),.print-report-advances-table td:nth-child(6){width:11%}.print-report-advances-table th:nth-child(7),.print-report-advances-table td:nth-child(7){width:10%}.print-report-advances-table th:nth-child(8),.print-report-advances-table td:nth-child(8){width:11%}.print-report-advances-table th:nth-child(9),.print-report-advances-table td:nth-child(9){width:10%}.print-report-leave-travel-table{font-size:8.6px}.print-report-leave-travel-table th:nth-child(1),.print-report-leave-travel-table td:nth-child(1){width:7%}.print-report-leave-travel-table th:nth-child(2),.print-report-leave-travel-table td:nth-child(2){width:19%;white-space:nowrap}.print-report-leave-travel-table th:nth-child(3),.print-report-leave-travel-table td:nth-child(3){width:7%}.print-report-leave-travel-table th:nth-child(4),.print-report-leave-travel-table td:nth-child(4){width:11%}.print-report-leave-travel-table th:nth-child(5),.print-report-leave-travel-table td:nth-child(5){width:8%}.print-report-leave-travel-table th:nth-child(6),.print-report-leave-travel-table td:nth-child(6){width:8%}.print-report-leave-travel-table th:nth-child(7),.print-report-leave-travel-table td:nth-child(7){width:15%}.print-report-leave-travel-table th:nth-child(8),.print-report-leave-travel-table td:nth-child(8){width:9%}.print-report-leave-travel-table th:nth-child(9),.print-report-leave-travel-table td:nth-child(9){width:9%}.print-report-leave-travel-table th:nth-child(10),.print-report-leave-travel-table td:nth-child(10){width:9%}.print-payroll-run-table{border-collapse:separate;border-spacing:0;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden;font-size:8px}.print-payroll-run-table th{text-align:center;background:#f3f8f8;color:#0f5f59}.print-payroll-run-table td{text-align:center;padding:4px 3px}.print-payroll-run-table th:first-child,.print-payroll-run-table td:first-child{text-align:right;width:15%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}.report-reserved-balance{color:#dc2626!important;font-weight:900}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.report-page{page-break-inside:auto}.print-report-table{page-break-inside:auto}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
       esc(logo) +
       '" alt="شعار المنشأة"><div class="company-title"><h1>' +
       esc(company.name) +
@@ -40806,20 +41370,44 @@ async function init() {
         setTab(t.dataset.reportTab);
         return;
       }
-      var ex =
-        e.target &&
-        e.target.closest &&
-        e.target.closest("[data-report-export]");
-      if (ex) {
-        csv(ex.dataset.reportExport);
-        return;
-      }
-      var pr =
-        e.target && e.target.closest && e.target.closest("[data-report-print]");
-      if (pr) {
-        printReport(pr.dataset.reportPrint);
-        return;
-      }
+	      var ex =
+	        e.target &&
+	        e.target.closest &&
+	        e.target.closest("[data-report-export]");
+	      if (ex) {
+	        if (ex.dataset.reportExport === "attendance") {
+	          openAttendancePrintDialog("export");
+	          return;
+	        }
+	        csv(ex.dataset.reportExport);
+	        return;
+	      }
+	      var pr =
+	        e.target && e.target.closest && e.target.closest("[data-report-print]");
+	      if (pr) {
+	        if (pr.dataset.reportPrint === "attendance") {
+	          openAttendancePrintDialog("print");
+	          return;
+	        }
+	        printReport(pr.dataset.reportPrint);
+	        return;
+	      }
+	      var closeAttendancePrint =
+	        e.target &&
+	        e.target.closest &&
+	        e.target.closest("[data-attendance-print-close]");
+	      if (closeAttendancePrint) {
+	        closeAttendancePrintDialog();
+	        return;
+	      }
+	      var runAttendancePrint =
+	        e.target &&
+	        e.target.closest &&
+	        e.target.closest("[data-attendance-print-run]");
+	      if (runAttendancePrint) {
+	        printAttendanceReportFromDialog();
+	        return;
+	      }
       var nv =
         e.target &&
         e.target.closest &&

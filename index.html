@@ -43,7 +43,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=198" />
+    <link rel="stylesheet" href="style.css?v=199" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -580,6 +580,7 @@
                 <button type="button" data-report-tab="advances">السلفيات</button>
                 <button type="button" data-report-tab="payrollRun">مسير رواتب هذا الشهر</button>
                 <button type="button" data-report-tab="contracts">بيانات العقود الوظيفية</button>
+                <button type="button" data-report-tab="attendance">حضور الموظف</button>
                 <button type="button" data-report-tab="leaveBalance">رصيد الإجازات</button>
               </div>
 
@@ -668,6 +669,24 @@
                   </div>
                 </div>
                 <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>تاريخ البداية</th><th>تاريخ الانتهاء الأساسي</th><th>آخر تمديد</th><th>فترة الإشعار</th><th>الحالة</th></tr></thead><tbody id="reportContractsBody"><tr><td colspan="7">لا توجد بيانات للعرض</td></tr></tbody></table></div>
+              </section>
+
+              <section class="report-tab-panel" data-report-panel="attendance">
+                <div class="report-head">
+                  <div><h3>حضور الموظف</h3><p>تفاصيل حضور وغياب الموظفين حسب الشهر المحدد</p></div>
+                  <div class="report-actions">
+                    <button type="button" class="secondary-btn" data-report-export="attendance"><span data-icon="download"></span>تصدير PDF</button>
+                    <button type="button" class="secondary-btn" data-report-print="attendance"><span data-icon="printer"></span>طباعة PDF</button>
+                  </div>
+                </div>
+                <div class="report-month-filter" data-report-month-filter="attendance" aria-label="فلتر شهر حضور الموظف">
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="attendance:-1">الشهر السابق</button>
+                  <strong data-report-month-label="attendance">الشهر الحالي</strong>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="attendance:1">الشهر التالي</button>
+                  <label>الشهر<select data-report-month-select="attendance"></select></label>
+                  <label>السنة<input type="number" min="2000" max="2100" step="1" data-report-year-input="attendance"></label>
+                </div>
+                <div class="table-wrap reports-table-wrap attendance-report-wrap"><table class="reports-table attendance-report-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>الحضور</th><th>الغياب</th><th>الإجازات</th><th>العطلات</th></tr></thead><tbody id="reportAttendanceBody"><tr><td colspan="8">لا توجد بيانات للعرض</td></tr></tbody></table></div>
               </section>
 
               <section class="report-tab-panel" data-report-panel="leaveBalance">
@@ -1194,6 +1213,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=198"></script>
+    <script src="app.js?v=199"></script>
   </body>
 </html>

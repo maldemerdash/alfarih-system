@@ -17273,3 +17273,305 @@ html.has-initial-login-bg .auth-gate,
     grid-template-columns: 1fr !important;
   }
 }
+
+/* v199 - reports, attendance print, and resume/ticket dialog polish */
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table th:nth-child(1),
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table td:nth-child(1) {
+  width: 9% !important;
+  white-space: nowrap !important;
+}
+
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table th:nth-child(2),
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table td:nth-child(2) {
+  width: 34% !important;
+}
+
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table th:nth-child(2) .report-toggle,
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table td:nth-child(2) .report-toggle,
+.report-tab-panel[data-report-panel="attendance"] .reports-table th:nth-child(2) .report-toggle,
+.report-tab-panel[data-report-panel="attendance"] .reports-table td:nth-child(2) .report-toggle {
+  max-width: 100% !important;
+  white-space: nowrap !important;
+}
+
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table td:nth-child(2) .report-toggle span:last-child,
+.report-tab-panel[data-report-panel="attendance"] .reports-table td:nth-child(2) .report-toggle span:last-child {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table th:nth-child(3),
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table td:nth-child(3) {
+  width: 11% !important;
+}
+
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table th:nth-child(4),
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table td:nth-child(4) {
+  width: 20% !important;
+}
+
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table th:nth-child(5),
+.report-tab-panel[data-report-panel="leaveTravel"] .reports-table td:nth-child(5) {
+  width: 14% !important;
+  color: #059669 !important;
+  font-weight: 950 !important;
+}
+
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table th:nth-child(1),
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table td:nth-child(1) {
+  width: 12% !important;
+}
+
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table th:nth-child(2),
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table td:nth-child(2) {
+  width: 26% !important;
+}
+
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table th:nth-child(3),
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table td:nth-child(3),
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table th:nth-child(4),
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table td:nth-child(4),
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table th:nth-child(5),
+.report-tab-panel[data-report-panel="leaveTravel"] .report-nested-table td:nth-child(5) {
+  width: 20% !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .reports-table-wrap {
+  overflow: visible !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .reports-table {
+  min-width: 0 !important;
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .reports-table th,
+.report-tab-panel[data-report-panel="attendance"] .reports-table td,
+.report-tab-panel[data-report-panel="attendance"] .report-nested-table th,
+.report-tab-panel[data-report-panel="attendance"] .report-nested-table td {
+  border-left: 0 !important;
+  border-right: 0 !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .report-employee-row td {
+  border-bottom: 1px solid rgba(148, 163, 184, .22) !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .report-details-row td {
+  border-bottom: 0 !important;
+  padding-top: 0 !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .report-nested-wrap {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .report-nested-table tbody tr td {
+  border-bottom: 0 !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .reports-table th:nth-child(1),
+.report-tab-panel[data-report-panel="attendance"] .reports-table td:nth-child(1) {
+  width: 9% !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .reports-table th:nth-child(2),
+.report-tab-panel[data-report-panel="attendance"] .reports-table td:nth-child(2) {
+  width: 31% !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .reports-table th:nth-child(3),
+.report-tab-panel[data-report-panel="attendance"] .reports-table td:nth-child(3) {
+  width: 10% !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .reports-table th:nth-child(4),
+.report-tab-panel[data-report-panel="attendance"] .reports-table td:nth-child(4) {
+  width: 15% !important;
+}
+
+.report-tab-panel[data-report-panel="attendance"] .reports-table th:nth-child(n+5),
+.report-tab-panel[data-report-panel="attendance"] .reports-table td:nth-child(n+5) {
+  width: 8.75% !important;
+  text-align: center !important;
+}
+
+#travelResumeModal.v88-travel-resume-dialog {
+  width: min(940px, calc(100vw - 96px)) !important;
+  max-width: calc(100vw - 96px) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 28px !important;
+  overflow: hidden !important;
+}
+
+#travelResumeModal.v88-travel-resume-dialog::backdrop {
+  background: rgba(15, 23, 42, .46) !important;
+  backdrop-filter: blur(7px) !important;
+}
+
+#travelResumeModal .v88-travel-resume-card {
+  width: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  border-radius: 28px !important;
+  border: 1px solid rgba(20, 184, 166, .16) !important;
+  background: #fff !important;
+}
+
+#travelResumeModal .v88-travel-resume-head {
+  background: linear-gradient(135deg, #effdff 0%, #f7fffb 58%, #fff 100%) !important;
+  border-bottom-color: rgba(19, 163, 183, .14) !important;
+}
+
+#travelResumeModal .v88-travel-resume-icon {
+  background: linear-gradient(135deg, #e6fbff, #ecfdf5) !important;
+  border-color: rgba(19, 163, 183, .18) !important;
+  color: #0f7f90 !important;
+}
+
+#travelResumeModal .v88-travel-resume-title span {
+  background: #e8fbff !important;
+  color: #0f7f90 !important;
+}
+
+#travelResumeModal .v88-travel-resume-body {
+  grid-template-columns: minmax(0, 1fr) minmax(0, .9fr) !important;
+  align-items: stretch !important;
+  overflow: visible !important;
+}
+
+#travelResumeModal .v88-travel-resume-summary,
+#travelResumeModal .v88-travel-resume-input-card {
+  min-width: 0 !important;
+  border-color: rgba(148, 163, 184, .24) !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .06) !important;
+}
+
+#travelResumeModal .v88-travel-resume-grid {
+  grid-template-columns: 1fr !important;
+}
+
+#travelResumeModal .v88-travel-resume-grid textarea {
+  height: 74px !important;
+  min-height: 74px !important;
+  max-height: 74px !important;
+  resize: none !important;
+}
+
+#travelTicketDetailsModal.v193-ticket-modal,
+#travelTicketDetailsForm.v193-ticket-card {
+  overflow: hidden !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-body,
+#travelTicketDetailsModal .v193-ticket-form-grid,
+#travelTicketDetailsModal .v193-ticket-file-line,
+#travelTicketDetailsModal .v193-ticket-actions {
+  min-width: 0 !important;
+}
+
+#travelTicketDetailsModal .v193-ticket-file-line {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+}
+
+.v199-attendance-print-modal {
+  width: min(820px, calc(100vw - 80px)) !important;
+  max-width: calc(100vw - 80px) !important;
+  border: 0 !important;
+  border-radius: 28px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.v199-attendance-print-modal::backdrop {
+  background: rgba(15, 23, 42, .46) !important;
+  backdrop-filter: blur(7px) !important;
+}
+
+.v199-attendance-print-card {
+  width: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 28px !important;
+  overflow: hidden !important;
+  background: #fff !important;
+}
+
+.v199-attendance-print-card .v199-attendance-print-body {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 14px !important;
+  padding: 18px 22px !important;
+}
+
+.v199-attendance-print-card label {
+  display: grid !important;
+  gap: 7px !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+
+.v199-attendance-print-card select,
+.v199-attendance-print-card input {
+  height: 44px !important;
+  border: 1px solid #d9e3ee !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  color: #172033 !important;
+  padding: 0 12px !important;
+  font: inherit !important;
+}
+
+.v199-attendance-print-card .v199-attendance-print-range {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px !important;
+}
+
+.v199-attendance-print-card .v199-attendance-print-note {
+  grid-column: 1 / -1 !important;
+  margin: 0 !important;
+  padding: 12px 14px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(19, 163, 183, .18) !important;
+  background: #effdff !important;
+  color: #0f5968 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1.7 !important;
+}
+
+.v199-attendance-print-card .v199-attendance-print-actions {
+  display: flex !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  padding: 14px 22px 18px !important;
+  border-top: 1px solid #e2e8f0 !important;
+  background: #fbfdff !important;
+}
+
+@media (max-width: 760px) {
+  #travelResumeModal.v88-travel-resume-dialog,
+  .v199-attendance-print-modal {
+    width: min(100vw - 20px, 560px) !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+
+  #travelResumeModal .v88-travel-resume-card,
+  .v199-attendance-print-card {
+    max-height: calc(100vh - 40px) !important;
+  }
+
+  #travelResumeModal .v88-travel-resume-body,
+  .v199-attendance-print-card .v199-attendance-print-body,
+  .v199-attendance-print-card .v199-attendance-print-range {
+    grid-template-columns: 1fr !important;
+  }
+}
