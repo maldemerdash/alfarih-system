@@ -765,6 +765,10 @@ function buildCloudState() {
       {},
     ),
     managers: loadLocalData("nawah-managers", []),
+    leaveBalanceReservations: loadLocalData(
+      "nawah-leave-balance-reservations",
+      [],
+    ),
   };
 }
 function applyCloudState(e) {
@@ -809,6 +813,11 @@ function applyCloudState(e) {
       ),
     Array.isArray(e.managers) &&
       localStorage.setItem("nawah-managers", JSON.stringify(e.managers)),
+    Array.isArray(e.leaveBalanceReservations) &&
+      localStorage.setItem(
+        "nawah-leave-balance-reservations",
+        JSON.stringify(e.leaveBalanceReservations),
+      ),
     e.orgStructure &&
       localStorage.setItem(
         "nawah-org-structure",
@@ -4102,17 +4111,19 @@ function getEmployeeServiceLabel(e) {
 }
 function quickProfileLeaveBalanceCard(e) {
   if (!e) return "";
-  let t = 0;
+  let t = 0,
+    reserved = 0;
   try {
     if (
       window.leaveBalanceV49 &&
       "function" == typeof window.leaveBalanceV49.leaveBalance
-	    ) {
-	      const n = window.leaveBalanceV49.leaveBalance(
-	        e,
-	        "function" == typeof dateInputNow ? dateInputNow() : void 0,
-	      );
-	      t = Number(n && "object" == typeof n ? n.remaining : n);
+		    ) {
+		      const n = window.leaveBalanceV49.leaveBalance(
+		        e,
+		        "function" == typeof dateInputNow ? dateInputNow() : void 0,
+		      );
+		      t = Number(n && "object" == typeof n ? n.remaining : n);
+		      reserved = Number(n && "object" == typeof n ? n.reserved : 0);
     } else {
       t = Number(
         e.remainingLeaveBalance ||
@@ -4124,13 +4135,24 @@ function quickProfileLeaveBalanceCard(e) {
     }
   } catch (_) {
     t = 0;
+    reserved = 0;
   }
-  const n = t < 0 ? "is-negative" : t <= 3 ? "is-warning" : "is-good",
+  const rounded = Math.round(Number(t || 0)),
+    reservedRounded = Math.round(Number(reserved || 0)),
+    n = t < 0 ? "is-negative" : t <= 3 ? "is-warning" : "is-good",
     a =
       "function" == typeof arabicNumber
-        ? arabicNumber(Math.round(t * 100) / 100)
-        : String(Math.round(t * 100) / 100);
-  return `<div class="leave-balance-profile-card ${n}"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>الرصيد المتبقي</span></div><div class="leave-balance-card-main"><strong>${escapeHtml(a)}</strong><span>يوم متبقي</span></div></div>`;
+        ? arabicNumber(rounded)
+        : String(rounded),
+    reservedCard =
+      reservedRounded > 0
+        ? `<div class="leave-balance-reserved-card"><span>الرصيد المحجوز من الرصيد القادم</span><strong>${escapeHtml(
+            "function" == typeof arabicNumber
+              ? arabicNumber(reservedRounded)
+              : String(reservedRounded),
+          )}</strong><small>يوم محجوز</small></div>`
+        : "";
+  return `<div class="leave-balance-profile-card ${n}"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>الرصيد المتبقي</span></div><div class="leave-balance-card-main"><strong>${escapeHtml(a)}</strong><span>يوم متبقي</span></div>${reservedCard}</div>`;
 }
 function getPrimaryPassport(e) {
   return Array.isArray(e.passports) && e.passports.length
@@ -26224,16 +26246,95 @@ async function init() {
         return [];
       }
     }
-    function d() {
-      try {
-        return Array.isArray(leaves) ? leaves : [];
-      } catch (e) {
-        return [];
-      }
-    }
-	    function u(e) {
-	      return (
-	        e?.contractStartDate ||
+	    function d() {
+	      try {
+	        return Array.isArray(leaves) ? leaves : [];
+	      } catch (e) {
+	        return [];
+	      }
+	    }
+	    function readBalanceReservations() {
+	      try {
+	        const e = JSON.parse(
+	          localStorage.getItem("nawah-leave-balance-reservations") || "[]",
+	        );
+	        return Array.isArray(e) ? e : [];
+	      } catch (e) {
+	        return [];
+	      }
+	    }
+	    function readTravelRequestsForBalance() {
+	      try {
+	        const e = JSON.parse(
+	          localStorage.getItem("nawah-travel-requests") || "[]",
+	        );
+	        return Array.isArray(e) ? e : [];
+	      } catch (e) {
+	        return [];
+	      }
+	    }
+	    function wholeDay(e) {
+	      return Math.round(Number(e || 0));
+	    }
+	    function overageValue(e) {
+	      return Math.max(
+	        0,
+	        Number(e?.generalLeaveOverageDays || e?.carryOverDays || 0) || 0,
+	      );
+	    }
+	    function reservedBalanceDays(e, t = {}) {
+	      const n = String(e?.id || ""),
+	        a = t.excludeId ? String(t.excludeId) : "";
+	      let o = 0;
+	      try {
+	        d().forEach((e) => {
+	          e &&
+	            String(e.employeeId || "") === n &&
+	            (!a || String(e.id || "") !== a) &&
+	            !e.sourceTravelId &&
+	            !e.generatedFromTravel &&
+	            (o += overageValue(e));
+	        });
+	      } catch (e) {}
+	      try {
+	        readTravelRequestsForBalance().forEach((e) => {
+	          e &&
+	            String(e.employeeId || "") === n &&
+	            (!a || String(e.id || "") !== a) &&
+	            (o += overageValue(e));
+	        });
+	      } catch (e) {}
+	      try {
+	        readBalanceReservations().forEach((e) => {
+	          e &&
+	            String(e.employeeId || "") === n &&
+	            (!a ||
+	              (String(e.sourceId || "") !== a && String(e.id || "") !== a)) &&
+	            (o += Math.max(0, Number(e.overageDays || 0) || 0));
+	        });
+	      } catch (e) {}
+	      return s(o);
+	    }
+	    function reservedUsedDays(e, t, n = "") {
+	      return s(
+	        readBalanceReservations().reduce((a, o) => {
+	          if (!o || String(o.employeeId || "") !== String(e || "")) return a;
+	          if (
+	            n &&
+	            (String(o.sourceId || "") === n || String(o.id || "") === n)
+	          )
+	            return a;
+	          if (!y(o.type || o.leaveType || "إجازة سنوية")) return a;
+	          const r = o.from || o.travelDate || o.date || "",
+	            s = o.to || o.endDate || o.returnDate || r,
+	            l = r ? usedDaysInCurrentCycle(r, s, t) : 0;
+	          return a + (l || Number(o.days || 0) || 0);
+	        }, 0),
+	      );
+	    }
+		    function u(e) {
+		      return (
+		        e?.contractStartDate ||
 	        e?.workStartDate ||
 	        e?.joinDate ||
 	        e?.employmentDate ||
@@ -26337,20 +26438,21 @@ async function init() {
 	            localStorage.getItem("nawah-travel-requests") || "[]",
 	          ),
 	          t = r(new Date());
-	        Array.isArray(e) &&
-	          (total += e.reduce((e, n) => {
-	            if (!n || String(n.employeeId || "") !== a) return e;
-	            if (exclude && String(n.id || "") === exclude) return e;
+		        Array.isArray(e) &&
+		          (total += e.reduce((e, n) => {
+		            if (!n || String(n.employeeId || "") !== a) return e;
+		            if (exclude && String(n.id || "") === exclude) return e;
 	            const r = String(n.status || "");
 	            if ("approved" !== r && "returned" !== r) return e;
 	            const s = n.travelDate,
 	              l = n.workResumeDate || n.returnedAt || n.returnDate || t;
-	            return s ? e + usedDaysInCurrentCycle(s, l, c) : e;
-	          }, 0));
-	      } catch (e) {}
-	      return s(total);
-	    }
-	    function v(e, t, n = {}) {
+		            return s ? e + usedDaysInCurrentCycle(s, l, c) : e;
+		          }, 0));
+		      } catch (e) {}
+		      total += reservedUsedDays(a, c, exclude);
+		      return s(total);
+		    }
+		    function v(e, t, n = {}) {
 	      const a = t || r(new Date()),
 	        i = u(e),
 	        start = effectiveLeaveStart(e, a, n),
@@ -26378,26 +26480,37 @@ async function init() {
 	        annualEntitlement: l,
         accrued: s(c),
         opening: s(y),
-        used: f,
-        remaining: v,
-      };
-    }
+		        used: f,
+		        remaining: v,
+		        reserved: reservedBalanceDays(e, n),
+	      };
+	    }
     function g(e) {
       const t = Number(e || 0);
       return t < 0 ? "is-negative" : t <= 3 ? "is-warning" : "is-good";
     }
-    function b(e, t, o = {}) {
-      if (!e) return "";
-      const r = v(e, t, o);
-      if (!r.startDate)
-        return '<section class="leave-balance-profile-card is-warning"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>غير متاح</span></div><p class="leave-balance-card-note">لم يتم تحديد تاريخ بداية العمل للموظف.</p></section>';
-      return (
-        '<section class="leave-balance-profile-card ' +
-        g(r.remaining) +
-        '"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>حتى اليوم</span></div><div class="leave-balance-main-number"><strong>' +
-        a(r.remaining) +
-        '</strong><span>يوم متبقي</span></div><div class="leave-balance-mini-grid"><div><span>المستحق</span><b>' +
-        a(r.accrued) +
+	    function b(e, t, o = {}) {
+	      if (!e) return "";
+	      const r = v(e, t, o);
+	      if (!r.startDate)
+	        return '<section class="leave-balance-profile-card is-warning"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>غير متاح</span></div><p class="leave-balance-card-note">لم يتم تحديد تاريخ بداية العمل للموظف.</p></section>';
+	      const i = wholeDay(r.remaining),
+	        l = wholeDay(r.reserved),
+	        c =
+	          l > 0
+	            ? '<div class="leave-balance-reserved-card"><span>الرصيد المحجوز من الرصيد القادم</span><strong>' +
+	              a(l) +
+	              '</strong><small>يوم محجوز</small></div>'
+	            : "";
+	      return (
+	        '<section class="leave-balance-profile-card ' +
+	        g(r.remaining) +
+	        '"><div class="leave-balance-card-head"><strong>رصيد الإجازات</strong><span>حتى اليوم</span></div><div class="leave-balance-main-number"><strong>' +
+	        a(i) +
+	        '</strong><span>يوم متبقي</span></div>' +
+	        c +
+	        '<div class="leave-balance-mini-grid"><div><span>المستحق</span><b>' +
+	        a(r.accrued) +
         " يوم</b></div><div><span>المستخدم</span><b>" +
         a(r.used) +
         " يوم</b></div><div><span>السنوي</span><b>" +
@@ -36890,9 +37003,10 @@ async function init() {
 (function () {
   if (window.__v102EmployeeScopedRecordDeletion) return;
   window.__v102EmployeeScopedRecordDeletion = true;
-  var TRAVEL_KEY = "nawah-travel-requests";
-  var LEAVE_KEY = "nawah-leaves";
-  var refreshTimer = null;
+	  var TRAVEL_KEY = "nawah-travel-requests";
+	  var LEAVE_KEY = "nawah-leaves";
+	  var RESERVE_KEY = "nawah-leave-balance-reservations";
+	  var refreshTimer = null;
   function q(s, r) {
     return (r || document).querySelector(s);
   }
@@ -36947,9 +37061,9 @@ async function init() {
       return [];
     }
   }
-  function writeLeaves(list) {
-    list = Array.isArray(list) ? list : [];
-    try {
+	  function writeLeaves(list) {
+	    list = Array.isArray(list) ? list : [];
+	    try {
       leaves = list;
     } catch (_) {}
     try {
@@ -36957,8 +37071,27 @@ async function init() {
     } catch (_) {}
     try {
       if (typeof queueCloudStateSave === "function") queueCloudStateSave();
-    } catch (_) {}
-  }
+	    } catch (_) {}
+	  }
+	  function readReservations() {
+	    try {
+	      var a = JSON.parse(localStorage.getItem(RESERVE_KEY) || "[]");
+	      return Array.isArray(a) ? a : [];
+	    } catch (_) {
+	      return [];
+	    }
+	  }
+	  function writeReservations(list) {
+	    try {
+	      localStorage.setItem(
+	        RESERVE_KEY,
+	        JSON.stringify(Array.isArray(list) ? list : []),
+	      );
+	    } catch (_) {}
+	    try {
+	      if (typeof queueCloudStateSave === "function") queueCloudStateSave();
+	    } catch (_) {}
+	  }
   function getEmp(id) {
     try {
       if (typeof getEmployee === "function") return getEmployee(id);
@@ -37050,12 +37183,258 @@ async function init() {
     var d = new Date(String(v).slice(0, 10) + "T12:00:00");
     return isNaN(d.getTime()) ? null : d;
   }
-  function days(a, b) {
-    var x = parse(a),
-      y = parse(b || a);
-    return x && y && y >= x ? Math.floor((y - x) / 86400000) + 1 : 0;
-  }
-  function statusKeyTravel(r) {
+	  function days(a, b) {
+	    var x = parse(a),
+	      y = parse(b || a);
+	    return x && y && y >= x ? Math.floor((y - x) / 86400000) + 1 : 0;
+	  }
+	  function today() {
+	    try {
+	      if (typeof formatInputDate === "function")
+	        return formatInputDate(
+	          typeof todayAtNoon === "function" ? todayAtNoon() : new Date(),
+	        );
+	    } catch (_) {}
+	    return new Date().toISOString().slice(0, 10);
+	  }
+	  function recordStart(kind, r) {
+	    return kind === "travel"
+	      ? r.travelDate || r.from || r.approvalDate || r.createdAt || ""
+	      : r.from || r.travelDate || r.approvedAt || r.createdAt || "";
+	  }
+	  function recordEnd(kind, r) {
+	    if (kind === "travel")
+	      return (
+	        r.workResumeDate ||
+	        r.returnedAt ||
+	        r.returnDate ||
+	        r.to ||
+	        today()
+	      );
+	    return r.to || r.returnDate || r.returnConfirmedAt || recordStart(kind, r);
+	  }
+	  function balanceDays(kind, r) {
+	    var n = Number(
+	      r.leaveDeductedDays ||
+	        r.generalLeaveRequestDays ||
+	        r.days ||
+	        r.durationDays ||
+	        0,
+	    );
+	    if (n > 0) return n;
+	    return days(recordStart(kind, r), recordEnd(kind, r));
+	  }
+	  function balanceOverage(r) {
+	    return Math.max(
+	      0,
+	      Number(r.generalLeaveOverageDays || r.carryOverDays || 0) || 0,
+	    );
+	  }
+	  function reservationSourceId(kind, r) {
+	    return String(
+	      (kind === "travel"
+	        ? r.id || r.travelId || r.sourceTravelId || r.generatedFromTravel
+	        : r.id || r.leaveId) || "",
+	    );
+	  }
+	  function snapshotBalanceEffect(empId, kind, rows) {
+	    rows = (rows || []).filter(Boolean);
+	    if (!rows.length) return;
+	    var list = readReservations(),
+	      now = new Date().toISOString(),
+	      user = typeof currentUser !== "undefined" ? currentUser : "";
+	    rows.forEach(function (r) {
+	      if (kind === "travel" && !isRelevantTravel(r)) return;
+	      if (kind === "leave" && !isRelevantLeave(r)) return;
+	      var sourceId = reservationSourceId(kind, r),
+	        from = recordStart(kind, r),
+	        to = recordEnd(kind, r),
+	        used = balanceDays(kind, r);
+	      if (!sourceId || !from || !used) return;
+	      list = list.filter(function (x) {
+	        return !(
+	          String(x.employeeId || "") === String(empId) &&
+	          String(x.sourceType || "") === String(kind) &&
+	          String(x.sourceId || "") === sourceId
+	        );
+	      });
+	      list.push({
+	        id: "balance-reserve-" + kind + "-" + sourceId + "-" + Date.now(),
+	        employeeId: String(empId),
+	        sourceType: kind,
+	        sourceId: sourceId,
+	        from: from,
+	        to: to,
+	        days: used,
+	        type: r.type || r.leaveType || "إجازة سنوية",
+	        overageDays: balanceOverage(r),
+	        createdAt: now,
+	        createdBy: user,
+	      });
+	    });
+	    writeReservations(list);
+	  }
+	  function clearBalanceEffect(empId, kind, ids) {
+	    ids = (ids || []).map(String);
+	    if (!ids.length) return;
+	    writeReservations(
+	      readReservations().filter(function (x) {
+	        return !(
+	          String(x.employeeId || "") === String(empId) &&
+	          String(x.sourceType || "") === String(kind) &&
+	          ids.indexOf(String(x.sourceId || "")) >= 0
+	        );
+	      }),
+	    );
+	  }
+	  function isRelevantTravel(r) {
+	    if (!r) return false;
+	    var s = String(r.status || "");
+	    return (
+	      s === "approved" ||
+	      s === "travel" ||
+	      s === "مسافر" ||
+	      s === "returned" ||
+	      !!r.workResumeDate ||
+	      !!r.returnedAt
+	    );
+	  }
+	  function isRelevantLeave(r) {
+	    if (!r) return false;
+	    var s = String(r.status || "");
+	    return (
+	      s === "approved" ||
+	      s === "leave" ||
+	      s === "إجازة" ||
+	      s === "returned" ||
+	      s === "finished" ||
+	      !!r.returnDate ||
+	      !!r.returnConfirmedAt
+	    );
+	  }
+	  function isOpenTravel(r) {
+	    var s = String((r && r.status) || "");
+	    return (
+	      isRelevantTravel(r) &&
+	      s !== "returned" &&
+	      !r.workResumeDate &&
+	      !r.returnedAt &&
+	      !r.closedAt
+	    );
+	  }
+	  function isOpenLeave(r) {
+	    var s = String((r && r.status) || "");
+	    return (
+	      isRelevantLeave(r) &&
+	      s !== "returned" &&
+	      s !== "finished" &&
+	      !r.returnDate &&
+	      !r.returnConfirmedAt &&
+	      !r.closedAt
+	    );
+	  }
+	  function sortDateValue(kind, r) {
+	    var d =
+	      parse(recordStart(kind, r)) ||
+	      parse(r.approvedAt || r.approvalDate || r.createdAt || "");
+	    return d ? d.getTime() : 0;
+	  }
+	  function latestEmployeeMovement(empId) {
+	    var rows = [];
+	    readTravels().forEach(function (r) {
+	      if (String(r.employeeId || "") === String(empId) && isRelevantTravel(r))
+	        rows.push({ kind: "travel", record: r, at: sortDateValue("travel", r) });
+	    });
+	    readLeaves().forEach(function (r) {
+	      if (
+	        String(r.employeeId || "") === String(empId) &&
+	        !r.sourceTravelId &&
+	        !r.generatedFromTravel &&
+	        isRelevantLeave(r)
+	      )
+	        rows.push({ kind: "leave", record: r, at: sortDateValue("leave", r) });
+	    });
+	    rows.sort(function (a, b) {
+	      return b.at - a.at;
+	    });
+	    return rows[0] || null;
+	  }
+	  async function recalcEmployeeStatus(empId, deletedIds) {
+	    var emp = getEmp(empId);
+	    if (!emp || emp.status === "terminated") return false;
+	    var next = latestEmployeeMovement(empId),
+	      copy = Object.assign({}, emp),
+	      old = JSON.stringify({
+	        status: copy.status,
+	        travelStatus: copy.travelStatus || null,
+	        leaveStatus: copy.leaveStatus || null,
+	        attendance: copy.attendance || null,
+	        commissionPaused: !!copy.commissionPaused,
+	        commissionPauseReason: copy.commissionPauseReason || "",
+	        commissionPausedByLeaveId: copy.commissionPausedByLeaveId || "",
+	      });
+	    if (next && next.kind === "travel" && isOpenTravel(next.record)) {
+	      copy.status = "travel";
+	      copy.attendance = null;
+	      copy.leaveStatus = null;
+	      copy.travelStatus = {
+	        travelId: next.record.id,
+	        travelDate: next.record.travelDate || "",
+	        returnDate: next.record.returnDate || "",
+	        workResumeDate: "",
+	        updatedAt: new Date().toISOString(),
+	      };
+	    } else if (next && next.kind === "leave" && isOpenLeave(next.record)) {
+	      copy.status = "leave";
+	      copy.attendance = null;
+	      copy.travelStatus = null;
+	      copy.leaveStatus = {
+	        leaveId: next.record.id,
+	        from: next.record.from || "",
+	        to: next.record.to || "",
+	        updatedAt: new Date().toISOString(),
+	      };
+	    } else {
+	      copy.status = "active";
+	      copy.travelStatus = null;
+	      copy.leaveStatus = null;
+	      copy.attendance = copy.attendance || "08:00";
+	    }
+	    deletedIds = (deletedIds || []).map(String);
+	    if (
+	      copy.commissionPausedByLeaveId &&
+	      deletedIds.indexOf(String(copy.commissionPausedByLeaveId)) >= 0
+	    ) {
+	      copy.commissionPaused = false;
+	      copy.commissionPauseReason = "";
+	      copy.commissionPausedByLeaveId = "";
+	      copy.commissionPausedAt = "";
+	    }
+	    var now = JSON.stringify({
+	      status: copy.status,
+	      travelStatus: copy.travelStatus || null,
+	      leaveStatus: copy.leaveStatus || null,
+	      attendance: copy.attendance || null,
+	      commissionPaused: !!copy.commissionPaused,
+	      commissionPauseReason: copy.commissionPauseReason || "",
+	      commissionPausedByLeaveId: copy.commissionPausedByLeaveId || "",
+	    });
+	    if (old === now) return false;
+	    try {
+	      if (
+	        typeof employeeFormState !== "undefined" &&
+	        employeeFormState &&
+	        String(employeeFormState.id || employeeFormState.employeeId || "") ===
+	          String(empId)
+	      ) {
+	        employeeFormState.status = copy.status;
+	        employeeFormState.travelStatus = copy.travelStatus;
+	        employeeFormState.leaveStatus = copy.leaveStatus;
+	      }
+	    } catch (_) {}
+	    return saveEmp(copy);
+	  }
+	  function statusKeyTravel(r) {
     var s = String((r && r.status) || "pending");
     if (s === "rejected") return "rejected";
     if (
@@ -37222,11 +37601,11 @@ async function init() {
         : "حذف سجل " + (kind === "travel" ? "السفر" : "الإجازة"),
       subtitle: "اختر طريقة الحذف المناسبة لهذا الإجراء.",
       body:
-        '<div class="v102-choice-grid"><div><strong>حذف مع عكس الأثر</strong><p>' +
-        (kind === "leave"
-          ? "يحذف السجل ويجعل رصيد الإجازات يعاد احتسابه بدون هذا السجل."
-          : "يحذف السفر ويعكس آثاره المرتبطة به مثل حالة السفر والإجازة الآلية المرتبطة إن وجدت.") +
-        "</p></div><div><strong>حذف السجل فقط</strong><p>يحذف الصف من السجل فقط بدون تعديل الحالات أو السجلات المرتبطة الأخرى.</p></div></div>",
+	        '<div class="v102-choice-grid"><div><strong>حذف مع عكس الأثر</strong><p>' +
+	        (kind === "leave"
+	          ? "يحذف السجل ويجعل رصيد الإجازات يعاد احتسابه بدون هذا السجل."
+	          : "يحذف السفر ويعكس أثره على رصيد الإجازات والسجلات الآلية المرتبطة إن وجدت.") +
+	        "</p></div><div><strong>حذف السجل فقط</strong><p>يحذف الصف من السجل ويحافظ على أثر الرصيد كما هو، مع إعادة حساب حالة الموظف من آخر سجل متبقٍ.</p></div></div>",
       buttons: [
         {
           value: "reverse",
@@ -37237,47 +37616,6 @@ async function init() {
         { value: "cancel", label: "إلغاء", className: "secondary-btn" },
       ],
     });
-  }
-  function setEmployeeNormalIfRelated(empId, kind, ids) {
-    var emp = getEmp(empId);
-    if (!emp) return Promise.resolve(false);
-    var copy = Object.assign({}, emp),
-      changed = false;
-    ids = (ids || []).map(String);
-    if (
-      kind === "travel" &&
-      copy.travelStatus &&
-      ids.indexOf(
-        String(copy.travelStatus.travelId || copy.travelStatus.id || ""),
-      ) >= 0
-    ) {
-      copy.status = "active";
-      copy.travelStatus = null;
-      copy.attendance = copy.attendance || null;
-      changed = true;
-    }
-    if (
-      kind === "leave" &&
-      copy.leaveStatus &&
-      ids.indexOf(
-        String(copy.leaveStatus.leaveId || copy.leaveStatus.id || ""),
-      ) >= 0
-    ) {
-      copy.status = "active";
-      copy.leaveStatus = null;
-      changed = true;
-    }
-    if (
-      copy.commissionPausedByLeaveId &&
-      ids.indexOf(String(copy.commissionPausedByLeaveId)) >= 0
-    ) {
-      copy.commissionPaused = false;
-      copy.commissionPauseReason = "";
-      copy.commissionPausedByLeaveId = "";
-      copy.commissionPausedAt = "";
-      changed = true;
-    }
-    return changed ? saveEmp(copy) : Promise.resolve(false);
   }
   function refreshHistoryCards() {
     qa(".v81-employee-history-card,.v80-employee-history-card").forEach(
@@ -37300,46 +37638,60 @@ async function init() {
     );
     setTimeout(decorate, 60);
   }
-  async function deleteTravel(empId, id, mode) {
-    var list = readTravels(),
-      ids = id
-        ? [String(id)]
-        : list
+	  async function deleteTravel(empId, id, mode) {
+	    var list = readTravels(),
+	      removed = [],
+	      ids = id
+	        ? [String(id)]
+	        : list
             .filter(function (r) {
               return String(r.employeeId || "") === String(empId);
             })
             .map(function (r) {
               return String(r.id || "");
-            });
-    if (!ids.length) return;
-    writeTravels(
-      list.filter(function (r) {
-        return !(
+	            });
+	    if (!ids.length) return;
+	    removed = list.filter(function (r) {
+	      return (
+	        String(r.employeeId || "") === String(empId) &&
+	        ids.indexOf(String(r.id || "")) >= 0
+	      );
+	    });
+	    if (mode === "record") snapshotBalanceEffect(empId, "travel", removed);
+	    else clearBalanceEffect(empId, "travel", ids);
+	    writeTravels(
+	      list.filter(function (r) {
+	        return !(
           String(r.employeeId || "") === String(empId) &&
           ids.indexOf(String(r.id || "")) >= 0
-        );
-      }),
-    );
-    if (mode === "reverse") {
-      var ll = readLeaves().filter(function (l) {
-        return !(
-          String(l.employeeId || "") === String(empId) &&
-          (ids.indexOf(String(l.sourceTravelId || "")) >= 0 ||
-            ids.indexOf(String(l.generatedFromTravel || "")) >= 0 ||
-            ids.indexOf(String(l.travelId || "")) >= 0)
-        );
-      });
-      writeLeaves(ll);
-      await setEmployeeNormalIfRelated(empId, "travel", ids);
-    }
-    refreshHistoryCards();
-    toast(id ? "تم حذف سجل السفر." : "تم حذف كامل سجل السفر.");
-  }
-  async function deleteLeave(empId, id, mode) {
-    var list = readLeaves(),
-      ids = id
-        ? [String(id)]
-        : list
+	          );
+	      }),
+	    );
+	    var relatedLeaveIds = [];
+	    var ll = readLeaves().filter(function (l) {
+	      var related =
+	        String(l.employeeId || "") === String(empId) &&
+	        (ids.indexOf(String(l.sourceTravelId || "")) >= 0 ||
+	          ids.indexOf(String(l.generatedFromTravel || "")) >= 0 ||
+	          ids.indexOf(String(l.travelId || "")) >= 0);
+	      related && relatedLeaveIds.push(String(l.id || ""));
+	      return !related;
+	    });
+	    writeLeaves(ll);
+	    await recalcEmployeeStatus(empId, ids.concat(relatedLeaveIds));
+	    refreshHistoryCards();
+	    try {
+	      if (typeof window.refreshQuickLeaveBalanceCard === "function")
+	        window.refreshQuickLeaveBalanceCard();
+	    } catch (_) {}
+	    toast(id ? "تم حذف سجل السفر." : "تم حذف كامل سجل السفر.");
+	  }
+	  async function deleteLeave(empId, id, mode) {
+	    var list = readLeaves(),
+	      removed = [],
+	      ids = id
+	        ? [String(id)]
+	        : list
             .filter(function (r) {
               return (
                 String(r.employeeId || "") === String(empId) &&
@@ -37349,21 +37701,32 @@ async function init() {
             })
             .map(function (r) {
               return String(r.id || "");
-            });
-    if (!ids.length) return;
-    writeLeaves(
-      list.filter(function (r) {
-        return !(
+	            });
+	    if (!ids.length) return;
+	    removed = list.filter(function (r) {
+	      return (
+	        String(r.employeeId || "") === String(empId) &&
+	        ids.indexOf(String(r.id || "")) >= 0
+	      );
+	    });
+	    if (mode === "record") snapshotBalanceEffect(empId, "leave", removed);
+	    else clearBalanceEffect(empId, "leave", ids);
+	    writeLeaves(
+	      list.filter(function (r) {
+	        return !(
           String(r.employeeId || "") === String(empId) &&
           ids.indexOf(String(r.id || "")) >= 0
-        );
-      }),
-    );
-    if (mode === "reverse")
-      await setEmployeeNormalIfRelated(empId, "leave", ids);
-    refreshHistoryCards();
-    toast(id ? "تم حذف سجل الإجازة." : "تم حذف كامل سجل الإجازات.");
-  }
+	          );
+	      }),
+	    );
+	    await recalcEmployeeStatus(empId, ids);
+	    refreshHistoryCards();
+	    try {
+	      if (typeof window.refreshQuickLeaveBalanceCard === "function")
+	        window.refreshQuickLeaveBalanceCard();
+	    } catch (_) {}
+	    toast(id ? "تم حذف سجل الإجازة." : "تم حذف كامل سجل الإجازات.");
+	  }
   async function deleteCommission(empId, idx, all) {
     var emp = getEmp(empId);
     if (!emp) return;
@@ -59038,7 +59401,7 @@ window.nawahLeaveBalanceReportV185 = {
 	  window.nawahUpdateTravelApprovalTicketBox = updateTravelApprovalTicketBox;
 })();
 
-/* v195 - precise leave balance, travel ticket approval flow, and settings flicker cleanup */
+/* v196 - true travel/leave deletion, status recalculation, and reserved leave balance card */
 (function () {
   if (window.__v193TravelLettersOrgGuards) return;
   window.__v193TravelLettersOrgGuards = true;
@@ -59497,20 +59860,40 @@ window.nawahLeaveBalanceReportV185 = {
     }
     if (!emp) return;
     let balance = Number(emp.remainingLeaveBalance || emp.leaveBalanceAfter || emp.leaveBalance || emp.leaveBalanceOpening || 0);
-	    try {
-	      if (window.leaveBalanceV49 && typeof window.leaveBalanceV49.leaveBalance === "function") {
-	        const details = window.leaveBalanceV49.leaveBalance(emp, typeof dateInputNow === "function" ? dateInputNow() : undefined);
-	        balance = Number(details && typeof details === "object" ? details.remaining : details);
-	      }
-	    } catch (_) {}
-    const rounded = Math.round((Number(balance) || 0) * 100) / 100;
+    let reserved = 0;
+		    try {
+		      if (window.leaveBalanceV49 && typeof window.leaveBalanceV49.leaveBalance === "function") {
+		        const details = window.leaveBalanceV49.leaveBalance(emp, typeof dateInputNow === "function" ? dateInputNow() : undefined);
+		        balance = Number(details && typeof details === "object" ? details.remaining : details);
+		        reserved = Number(details && typeof details === "object" ? details.reserved : 0);
+		      }
+		    } catch (_) {}
+    const rounded = Math.round(Number(balance) || 0);
+    const reservedRounded = Math.round(Number(reserved) || 0);
     const label = typeof arabicNumber === "function" ? arabicNumber(rounded) : String(rounded);
     card.classList.toggle("is-negative", rounded < 0);
     card.classList.toggle("is-warning", rounded >= 0 && rounded <= 3);
     card.classList.toggle("is-good", rounded > 3);
     const main = q(".leave-balance-card-main strong", card) || q(".leave-balance-main-number strong", card);
     if (main) main.textContent = label;
+    let reservedCard = q(".leave-balance-reserved-card", card);
+    if (reservedRounded > 0) {
+      const reservedLabel = typeof arabicNumber === "function" ? arabicNumber(reservedRounded) : String(reservedRounded);
+      if (!reservedCard) {
+        reservedCard = document.createElement("div");
+        reservedCard.className = "leave-balance-reserved-card";
+        const mainRow = q(".leave-balance-card-main", card) || q(".leave-balance-main-number", card);
+        mainRow?.insertAdjacentElement("afterend", reservedCard);
+      }
+      reservedCard.innerHTML =
+        "<span>الرصيد المحجوز من الرصيد القادم</span><strong>" +
+        esc(reservedLabel) +
+        "</strong><small>يوم محجوز</small>";
+    } else if (reservedCard) {
+      reservedCard.remove();
+    }
   }
+  window.refreshQuickLeaveBalanceCard = refreshQuickLeaveBalanceCard;
   window.nawahPrintRequestLetter = printRequestLetterV193;
   window.addEventListener(
     "click",

@@ -12516,17 +12516,64 @@ button[data-edit-employee] {
 }
 .leave-balance-main-number {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  flex-direction: column;
   gap: 8px;
+  text-align: center;
+}
+.leave-balance-card-main {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
 }
 .leave-balance-main-number strong {
   color: var(--primary);
   font-size: 30px;
   line-height: 1;
 }
+.leave-balance-card-main strong {
+  color: #059669;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 950;
+}
 .leave-balance-main-number span {
   color: var(--muted);
   font-size: 10px;
+}
+.leave-balance-card-main span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.leave-balance-reserved-card {
+  display: grid;
+  place-items: center;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid rgba(220, 38, 38, .18);
+  border-radius: 14px;
+  background: #fff5f5;
+  text-align: center;
+}
+.leave-balance-reserved-card span {
+  color: #991b1b;
+  font-size: 10px;
+  font-weight: 900;
+}
+.leave-balance-reserved-card strong {
+  color: #dc2626;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 950;
+}
+.leave-balance-reserved-card small {
+  color: #b91c1c;
+  font-size: 10px;
+  font-weight: 800;
 }
 .leave-balance-profile-card.is-warning .leave-balance-main-number strong,
 .leave-balance-dashboard-card.is-warning .leave-balance-dashboard-number strong,
@@ -12534,6 +12581,10 @@ button[data-edit-employee] {
 .leave-balance-profile-card.is-negative .leave-balance-main-number strong,
 .leave-balance-dashboard-card.is-negative .leave-balance-dashboard-number strong,
 .leave-balance-request-card.is-negative strong { color: var(--red); }
+.leave-balance-profile-card .leave-balance-main-number strong,
+.leave-balance-profile-card .leave-balance-card-main strong {
+  color: #059669;
+}
 .leave-balance-preview-slot { margin: -2px 0 4px; }
 .leave-balance-request-card {
   display: grid;
