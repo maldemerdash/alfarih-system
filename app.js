@@ -41030,8 +41030,9 @@ async function init() {
 	      '<div class="modal-head v78-approval-head v193-ticket-head"><div><h2>خيارات تقرير حضور الموظف</h2><p>اختر الموظفين ونطاق الأشهر قبل الطباعة أو التصدير.</p></div><button type="button" class="icon-btn" data-attendance-print-close><span data-icon="x"></span></button></div>' +
 	      '<div class="modal-body v78-approval-body v199-attendance-print-body">' +
 	      '<label class="full-field"><span>الموظف</span><select name="employeeId"></select></label>' +
+	      '<fieldset class="v200-attendance-print-type"><legend>نوع التقرير</legend><label><input type="radio" name="reportKind" value="summary" checked><span>إجمالي</span></label><label><input type="radio" name="reportKind" value="details"><span>تفصيلي</span></label></fieldset>' +
 	      '<div class="v199-attendance-print-range"><label><span>من شهر</span><select name="fromMonth"></select></label><label><span>سنة البداية</span><input type="number" name="fromYear" min="2000" max="2100" step="1"></label><label><span>إلى شهر</span><select name="toMonth"></select></label><label><span>سنة النهاية</span><input type="number" name="toYear" min="2000" max="2100" step="1"></label></div>' +
-	      '<div class="v78-approval-note v193-ticket-note"><span data-icon="info"></span><p>يمكن طباعة موظف واحد أو جميع الموظفين لشهر واحد أو عدة أشهر. عند تعدد الأشهر يبدأ كل شهر في صفحة مستقلة.</p></div>' +
+	      '<div class="v78-approval-note v193-ticket-note"><span data-icon="info"></span><p>الإجمالي يعرض ملخص الحضور، والتفصيلي يعرض السجل اليومي. عند اختيار التفصيلي لجميع الموظفين يبدأ كل موظف في صفحة مستقلة.</p></div>' +
 	      '</div><div class="modal-actions v78-approval-actions v193-ticket-actions"><button type="button" class="secondary-btn" data-attendance-print-close>إلغاء</button><button type="button" class="primary-btn" data-attendance-print-run>تجهيز التقرير</button></div>' +
 	      "</form>";
 	    document.body.appendChild(dlg);
@@ -41121,53 +41122,10 @@ async function init() {
 	    }
 	    return out.length ? out : [fromYm || reportSelectedYm("attendance")];
 	  }
-	  function attendancePrintTable(ym, employeeId) {
+	  function attendancePrintSummaryTable(ym, employeeId) {
 	    var groups = attendanceReportGroups(ym, employeeId);
 	    if (!groups.length)
 	      return '<table class="print-report-table print-report-attendance-table"><tbody><tr><td>لا توجد بيانات للعرض</td></tr></tbody></table>';
-	    if (employeeId) {
-	      return groups
-	        .map(function (g) {
-	          var summary =
-	            '<table class="print-report-table print-report-attendance-summary"><thead><tr><th>الموظف</th><th>الحضور</th><th>الغياب</th><th>الإجازات</th><th>العطلات</th></tr></thead><tbody><tr><td>' +
-	            esc((empNo(g.employee) ? empNo(g.employee) + " - " : "") + (g.employee.name || "")) +
-	            "</td><td>" +
-	            esc(g.counts.present + " يوم") +
-	            "</td><td>" +
-	            esc(g.counts.absent + " يوم") +
-	            "</td><td>" +
-	            esc(g.counts.leave + " يوم") +
-	            "</td><td>" +
-	            esc(g.counts.off + " يوم") +
-	            "</td></tr></tbody></table>";
-	          var details =
-	            '<table class="print-report-table print-report-attendance-detail"><thead><tr><th>التاريخ</th><th>اليوم</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>الساعات</th><th>المصدر</th></tr></thead><tbody>' +
-	            (g.records || [])
-	              .map(function (r) {
-	                return (
-	                  "<tr><td>" +
-	                  esc(fmt(r.date)) +
-	                  "</td><td>" +
-	                  esc(r.day || "") +
-	                  "</td><td>" +
-	                  esc(r.statusText || "") +
-	                  "</td><td>" +
-	                  esc(r.checkIn || "—") +
-	                  "</td><td>" +
-	                  esc(r.checkOut || "—") +
-	                  "</td><td>" +
-	                  esc(r.hours || "—") +
-	                  "</td><td>" +
-	                  esc(r.source || "—") +
-	                  "</td></tr>"
-	                );
-	              })
-	              .join("") +
-	            "</tbody></table>";
-	          return summary + details;
-	        })
-	        .join("");
-	    }
 	    return (
 	      '<table class="print-report-table print-report-attendance-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>الحضور</th><th>الغياب</th><th>الإجازات</th><th>العطلات</th></tr></thead><tbody>' +
 	      groups
@@ -41196,9 +41154,72 @@ async function init() {
 	      "</tbody></table>"
 	    );
 	  }
+	  function attendancePrintDetailTable(g) {
+	    if (!g || !(g.records || []).length)
+	      return '<table class="print-report-table print-report-attendance-detail"><tbody><tr><td>لا توجد بيانات للعرض</td></tr></tbody></table>';
+	    return (
+	      '<table class="print-report-table print-report-attendance-detail"><thead><tr><th>التاريخ</th><th>اليوم</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>الساعات</th><th>المصدر</th></tr></thead><tbody>' +
+	      (g.records || [])
+	        .map(function (r) {
+	          return (
+	            "<tr><td>" +
+	            esc(fmt(r.date)) +
+	            "</td><td>" +
+	            esc(r.day || "") +
+	            "</td><td>" +
+	            esc(r.statusText || "") +
+	            "</td><td>" +
+	            esc(r.checkIn || "—") +
+	            "</td><td>" +
+	            esc(r.checkOut || "—") +
+	            "</td><td>" +
+	            esc(r.hours || "—") +
+	            "</td><td>" +
+	            esc(r.source || "—") +
+	            "</td></tr>"
+	          );
+	        })
+	        .join("") +
+	      "</tbody></table>"
+	    );
+	  }
+	  function attendancePrintEmployeeSummary(g) {
+	    if (!g || !g.employee) return "";
+	    return (
+	      '<div class="attendance-print-employee-strip"><strong>' +
+	      esc((empNo(g.employee) ? empNo(g.employee) + " - " : "") + (g.employee.name || "")) +
+	      '</strong><span>الحضور: ' +
+	      esc(g.counts.present + " يوم") +
+	      '</span><span>الغياب: ' +
+	      esc(g.counts.absent + " يوم") +
+	      '</span><span>الإجازات: ' +
+	      esc(g.counts.leave + " يوم") +
+	      '</span><span>العطلات: ' +
+	      esc(g.counts.off + " يوم") +
+	      "</span></div>"
+	    );
+	  }
+	  function attendancePrintHeaderHtml(company, logo, companyMeta, title, subtitle, printedAt) {
+	    return (
+	      '<header class="report-header"><img class="report-logo" src="' +
+	      esc(logo) +
+	      '" alt="شعار المنشأة"><div class="company-title"><h1>' +
+	      esc(company.name) +
+	      '</h1><div class="meta">' +
+	      companyMeta +
+	      '</div></div></header><section class="report-name"><div><h2>' +
+	      esc(title) +
+	      "</h2><p>" +
+	      esc(subtitle) +
+	      '</p></div><div class="date">تاريخ الطباعة: ' +
+	      esc(printedAt) +
+	      "</div></section>"
+	    );
+	  }
 	  async function printAttendanceReportFromDialog() {
 	    var dlg = ensureAttendancePrintDialog(),
 	      employeeId = q('select[name="employeeId"]', dlg)?.value || "",
+	      reportKind = q('input[name="reportKind"]:checked', dlg)?.value || "summary",
 	      fromYm = normalizeReportYm(
 	        Number(q('input[name="fromYear"]', dlg)?.value),
 	        Number(q('select[name="fromMonth"]', dlg)?.value),
@@ -41214,29 +41235,94 @@ async function init() {
 	      companyMeta = company.meta.length
 	        ? company.meta.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("")
 	        : "<span>بيانات المنشأة غير مكتملة</span>";
-	    var html =
-	      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حضور الموظف</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.attendance-print-month{break-before:page;page-break-before:always;padding-bottom:16mm}.attendance-print-month:first-child{break-before:auto;page-break-before:auto}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:5px 6px;text-align:right;vertical-align:middle;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-report-attendance-table th:nth-child(1),.print-report-attendance-table td:nth-child(1){width:9%}.print-report-attendance-table th:nth-child(2),.print-report-attendance-table td:nth-child(2){width:24%;white-space:nowrap}.print-report-attendance-detail th:nth-child(1),.print-report-attendance-detail td:nth-child(1){width:12%}.print-report-attendance-detail th:nth-child(7),.print-report-attendance-detail td:nth-child(7){width:24%}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>' +
-	      months
+	    var isDetailed = reportKind === "details";
+	    var sections = "";
+	    if (isDetailed) {
+	      var detailedEmployees = empList()
+	        .filter(function (emp) {
+	          return (
+	            emp &&
+	            emp.id &&
+	            (!employeeId || String(emp.id) === String(employeeId))
+	          );
+	        })
+	        .sort(function (a, b) {
+	          return String(a.name || "").localeCompare(String(b.name || ""), "ar");
+	        });
+	      if (!detailedEmployees.length) {
+	        sections =
+	          '<section class="attendance-print-employee">' +
+	          attendancePrintHeaderHtml(
+	            company,
+	            logo,
+	            companyMeta,
+	            "تقرير حضور الموظف التفصيلي",
+	            "لا توجد بيانات موظفين ضمن الاختيار الحالي",
+	            printedAt,
+	          ) +
+	          '<table class="print-report-table"><tbody><tr><td>لا توجد بيانات للعرض</td></tr></tbody></table></section>';
+	      } else {
+	        sections = detailedEmployees
+	          .map(function (emp) {
+	            var monthBlocks = months
+	              .map(function (ym) {
+	                var g = attendanceReportGroups(ym, emp.id)[0] || {
+	                  employee: emp,
+	                  records: [],
+	                  counts: { present: 0, absent: 0, leave: 0, off: 0 },
+	                };
+	                return (
+	                  '<section class="attendance-detail-month"><h3>' +
+	                  esc(reportMonthLabel(ym)) +
+	                  "</h3>" +
+	                  attendancePrintEmployeeSummary(g) +
+	                  attendancePrintDetailTable(g) +
+	                  "</section>"
+	                );
+	              })
+	              .join("");
+	            return (
+	              '<section class="attendance-print-employee">' +
+	              attendancePrintHeaderHtml(
+	                company,
+	                logo,
+	                companyMeta,
+	                "تقرير حضور تفصيلي - " + (emp.name || "موظف"),
+	                (employeeId ? "تقرير موظف محدد" : "تقرير تفصيلي لجميع الموظفين") +
+	                  " خلال الفترة من " +
+	                  reportMonthLabel(months[0]) +
+	                  " إلى " +
+	                  reportMonthLabel(months[months.length - 1]),
+	                printedAt,
+	              ) +
+	              monthBlocks +
+	              "</section>"
+	            );
+	          })
+	          .join("");
+	      }
+	    } else {
+	      sections = months
 	        .map(function (ym) {
 	          return (
-	            '<section class="attendance-print-month"><header class="report-header"><img class="report-logo" src="' +
-	            esc(logo) +
-	            '" alt="شعار المنشأة"><div class="company-title"><h1>' +
-	            esc(company.name) +
-	            '</h1><div class="meta">' +
-	            companyMeta +
-	            '</div></div></header><section class="report-name"><div><h2>تقرير حضور الموظف - ' +
-	            esc(reportMonthLabel(ym)) +
-	            "</h2><p>" +
-	            esc(employeeId ? "تقرير موظف محدد" : "تقرير جميع الموظفين") +
-	            '</p></div><div class="date">تاريخ الطباعة: ' +
-	            esc(printedAt) +
-	            "</div></section>" +
-	            attendancePrintTable(ym, employeeId) +
+	            '<section class="attendance-print-month">' +
+	            attendancePrintHeaderHtml(
+	              company,
+	              logo,
+	              companyMeta,
+	              "تقرير حضور الموظف - " + reportMonthLabel(ym),
+	              employeeId ? "تقرير إجمالي لموظف محدد" : "تقرير إجمالي لجميع الموظفين",
+	              printedAt,
+	            ) +
+	            attendancePrintSummaryTable(ym, employeeId) +
 	            "</section>"
 	          );
 	        })
-	        .join("") +
+	        .join("");
+	    }
+	    var html =
+	      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حضور الموظف</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.attendance-print-month,.attendance-print-employee{break-before:page;page-break-before:always;padding-bottom:16mm}.attendance-print-month:first-child,.attendance-print-employee:first-child{break-before:auto;page-break-before:auto}.attendance-detail-month{break-inside:avoid-page;page-break-inside:avoid;margin-top:10px}.attendance-detail-month h3{margin:0 0 6px;padding:7px 10px;border-radius:9px;background:#eff8fb;color:#0f5968;font-size:13px;font-weight:900}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.attendance-print-employee-strip{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:6px 0 7px;padding:7px 10px;border:1px solid #dbeafe;border-radius:10px;background:#fbfdff;color:#334155;font-size:9.5px}.attendance-print-employee-strip strong{color:#0f172a;font-size:10.5px}.attendance-print-employee-strip span{white-space:nowrap}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:5px 6px;text-align:right;vertical-align:middle;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-report-attendance-table th:nth-child(1),.print-report-attendance-table td:nth-child(1){width:9%}.print-report-attendance-table th:nth-child(2),.print-report-attendance-table td:nth-child(2){width:24%;white-space:nowrap}.print-report-attendance-detail th:nth-child(1),.print-report-attendance-detail td:nth-child(1){width:12%}.print-report-attendance-detail th:nth-child(2),.print-report-attendance-detail td:nth-child(2){width:10%}.print-report-attendance-detail th:nth-child(3),.print-report-attendance-detail td:nth-child(3){width:13%}.print-report-attendance-detail th:nth-child(7),.print-report-attendance-detail td:nth-child(7){width:22%}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>' +
+	      sections +
 	      '<footer class="report-footer"><span>تمت طباعة هذا التقرير من نظام إدارة الموظفين</span><span class="pages"></span><span>' +
 	      esc(printedAt) +
 	      "</span></footer></body></html>";

@@ -17535,7 +17535,55 @@ html.has-initial-login-bg .auth-gate,
   gap: 10px !important;
 }
 
-.v199-attendance-print-card .v199-attendance-print-note {
+.v200-attendance-print-type {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 12px !important;
+  border: 1px solid rgba(19, 163, 183, .18) !important;
+  border-radius: 16px !important;
+  background: #f8fbfc !important;
+}
+
+.v200-attendance-print-type legend {
+  padding: 0 6px !important;
+  color: #0f5968 !important;
+  font-size: 12px !important;
+  font-weight: 950 !important;
+}
+
+.v200-attendance-print-type label {
+  display: inline-flex !important;
+  grid-template-columns: none !important;
+  align-items: center !important;
+  gap: 7px !important;
+  min-height: 34px !important;
+  padding: 0 11px !important;
+  border: 1px solid rgba(148, 163, 184, .24) !important;
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: #334155 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+
+.v200-attendance-print-type input {
+  width: 16px !important;
+  height: 16px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  accent-color: #0f9aaa !important;
+}
+
+.v200-attendance-print-type label:has(input:checked) {
+  border-color: rgba(15, 154, 170, .38) !important;
+  background: #e8fbff !important;
+  color: #0f5968 !important;
+}
+
+.v199-attendance-print-card .v199-attendance-print-note,
+.v199-attendance-print-card .v78-approval-note {
   grid-column: 1 / -1 !important;
   margin: 0 !important;
   padding: 12px 14px !important;
@@ -17571,7 +17619,10 @@ html.has-initial-login-bg .auth-gate,
 
   #travelResumeModal .v88-travel-resume-body,
   .v199-attendance-print-card .v199-attendance-print-body,
-  .v199-attendance-print-card .v199-attendance-print-range {
+  .v199-attendance-print-card .v199-attendance-print-range,
+  .v200-attendance-print-type {
     grid-template-columns: 1fr !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
   }
 }
