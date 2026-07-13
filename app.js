@@ -2317,7 +2317,10 @@ function approvedPayrollAdvancesForEmployee(employeeId, monthKey) {
             String(monthKey || "") &&
           String(advance.status || "approved") === "approved",
       )
-      .reduce((sum, advance) => sum + Number(advance.amount || 0), 0);
+      .reduce(
+        (sum, advance) => sum + payrollAdvanceRemainingAmount(advance),
+        0,
+      );
   } catch (_) {
     return 0;
   }
@@ -2844,20 +2847,14 @@ function renderAbsenceRecords() {
         .map((e) => {
           const t = getEmployee(e.employeeId),
             n = absenceTypeMeta(e.type),
-            a =
-              e.from === e.to
-                ? formatDate(e.from)
-                : `${formatDate(e.from)} إلى ${formatDate(e.to)}`,
+            a = selectedAttendanceDate,
             o = absencePenaltyDetails(e),
-            r = o.showPeriod
-              ? o.periodLabel ||
-                absencePeriodMeta(e.periodSegment || "fullDay").label
-              : "—",
+            r = absenceSegmentDisplayLabel(e.periodSegment),
             i = absenceDeductionAmount(e);
-          return `<tr><td>${t ? employeeCell(t) : "موظف محذوف"}</td><td>${a}</td><td><span class="status-badge ${n.className}">${n.label}</span></td><td>${r}</td><td><span class="status-badge absence-penalty-badge">${escapeHtml(o.text)}</span></td><td><strong class="absence-money-deduction">${formatCurrencyEn(i)}</strong></td><td>${escapeHtml(e.reason || "—")}</td><td><button class="quick-view-btn delete-absence-btn" data-delete-absence="${e.id}" title="حذف الغياب">${iconSvg("trash")}</button></td></tr>`;
+          return `<tr><td>${t ? employeeCell(t) : "موظف محذوف"}</td><td>${escapeHtml(dayNameForDateValue(a) || "—")}</td><td>${formatDate(a)}</td><td>${escapeHtml(r)}</td><td><span class="status-badge ${n.className}">${n.label}</span></td><td><span class="status-badge absence-penalty-badge">${escapeHtml(o.text)}</span></td><td><strong class="absence-money-deduction">${formatCurrencyEn(i)}</strong></td><td>${escapeHtml(e.reason || "—")}</td><td><button class="quick-view-btn delete-absence-btn" data-delete-absence="${e.id}" title="حذف الغياب">${iconSvg("trash")}</button></td></tr>`;
         })
         .join("")
-    : '<tr><td colspan="8"><div class="empty-state"><strong>لا توجد غيابات مسجلة لهذا التاريخ</strong><p>كل موظف نشط سيظهر حاضرًا آليًا إذا كان اليوم يوم عمل.</p></div></td></tr>'),
+    : '<tr><td colspan="9"><div class="empty-state"><strong>لا توجد غيابات مسجلة لهذا التاريخ</strong><p>كل موظف نشط سيظهر حاضرًا آليًا إذا كان اليوم يوم عمل.</p></div></td></tr>'),
     hydrateIcons(e),
     hydrateAttachmentImages(e));
 }
@@ -3002,6 +2999,139 @@ function readPayrollAdvances() {
     return [];
   }
 }
+function payrollAdvanceAmountValue(advance) {
+  return Math.max(
+    0,
+    Number(
+      advance?.amount ||
+        advance?.value ||
+        advance?.total ||
+        advance?.advanceAmount ||
+        0,
+    ) || 0,
+  );
+}
+function payrollAdvancePayments(advance) {
+  const payments = Array.isArray(advance?.payments)
+    ? advance.payments.filter(Boolean)
+    : [];
+  if (payments.length)
+    return payments.map((payment) => ({
+      ...payment,
+      amount: Math.max(0, Number(payment.amount || 0) || 0),
+    }));
+  const legacyPaid = Math.max(
+    0,
+    Number(
+      advance?.paidAmount ||
+        advance?.paid ||
+        advance?.totalPaid ||
+        advance?.settledAmount ||
+        advance?.deductedAmount ||
+        0,
+    ) || 0,
+  );
+  return legacyPaid
+    ? [
+        {
+          id: `legacy-${advance?.id || Date.now()}`,
+          amount: legacyPaid,
+          date: advance?.paidDate || advance?.paymentDate || advance?.date || "",
+          source: advance?.paymentSource || advance?.source || "manual",
+          sourceLabel:
+            advance?.paymentSourceLabel || advance?.sourceLabel || "نقدي",
+        },
+      ]
+    : [];
+}
+function payrollAdvancePaidAmount(advance) {
+  const amount = payrollAdvanceAmountValue(advance),
+    paid = payrollAdvancePayments(advance).reduce(
+      (sum, payment) => sum + Number(payment.amount || 0),
+      0,
+    );
+  return Math.min(amount, Math.max(0, paid));
+}
+function payrollAdvanceRemainingAmount(advance) {
+  return Math.max(
+    0,
+    payrollAdvanceAmountValue(advance) - payrollAdvancePaidAmount(advance),
+  );
+}
+function payrollAdvancePaymentSourceLabel(advance) {
+  const payments = payrollAdvancePayments(advance);
+  if (!payments.length) return "—";
+  const latest = payments[payments.length - 1] || {};
+  return latest.sourceLabel || latest.source || "نقدي";
+}
+function payrollAdvanceWithPayment(advance, payment) {
+  const amount = payrollAdvanceAmountValue(advance),
+    payAmount = Math.min(
+      payrollAdvanceRemainingAmount(advance),
+      Math.max(0, Number(payment?.amount || 0) || 0),
+    );
+  if (!(payAmount > 0)) return advance;
+  const payments = payrollAdvancePayments(advance).concat({
+    id: payment?.id || `pay-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    amount: payAmount,
+    date: payment?.date || formatInputDate(todayAtNoon()),
+    source: payment?.source || "manual",
+    sourceLabel: payment?.sourceLabel || "نقدي",
+    payrollRunId: payment?.payrollRunId || "",
+    createdAt: payment?.createdAt || new Date().toISOString(),
+    createdBy:
+      payment?.createdBy ||
+      (authProfile?.full_name ? authProfile.full_name : "النظام"),
+  });
+  const paidAmount = Math.min(
+      amount,
+      payments.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    ),
+    remainingAmount = Math.max(0, amount - paidAmount),
+    latest = payments[payments.length - 1] || {};
+  return {
+    ...advance,
+    amount,
+    payments,
+    paidAmount,
+    remainingAmount,
+    paymentSource: latest.source || "",
+    paymentSourceLabel: latest.sourceLabel || "",
+    paidDate: latest.date || advance?.paidDate || "",
+    settledAt: remainingAmount <= 0 ? latest.createdAt || new Date().toISOString() : "",
+  };
+}
+function absenceSegmentDisplayLabel(segment) {
+  const value = String(segment || "fullDay");
+  if (value === "first") return "الفترة الأولى";
+  if (value === "second") return "الفترة الثانية";
+  return "اليوم بأكمله";
+}
+function absenceTypeDisplayLabel(record) {
+  try {
+    return absenceTypeMeta(record?.type).label || record?.type || "غياب";
+  } catch {
+    return record?.typeLabel || record?.type || "غياب";
+  }
+}
+function absencePenaltyDisplayText(record) {
+  try {
+    return absencePenaltyDetails(record).text || record?.penaltyText || "—";
+  } catch {
+    return record?.penaltyText || record?.penalty || "—";
+  }
+}
+function dayNameForDateValue(dateValue) {
+  const value = String(dateValue || "").slice(0, 10);
+  if (!value) return "";
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat("ar-SA", { weekday: "long" }).format(date);
+  } catch {
+    return "";
+  }
+}
 function readPayrollPrepaidDeductions() {
   try {
     const e = JSON.parse(
@@ -3111,7 +3241,7 @@ function renderAdvancesPage() {
       const t = getEmployee(e.employeeId);
       if (!t) return;
       const a = n.get(t.id) || { employee: t, total: 0, items: [] };
-      ((a.total += Number(e.amount || 0)), a.items.push(e), n.set(t.id, a));
+      ((a.total += payrollAdvanceAmountValue(e)), a.items.push(e), n.set(t.id, a));
     });
   const a = Array.from(n.values()).sort((e, t) =>
       String(e.employee.name || "").localeCompare(String(t.employee.name || ""), "ar"),
@@ -3122,13 +3252,18 @@ function renderAdvancesPage() {
     ? a
         .map((e) => {
           const t = `adv-${String(e.employee.id || "").replace(/[^A-Za-z0-9_-]/g, "_")}`;
-          return `<tr class="advance-summary-row" data-toggle-advance-page-details="${escapeHtml(t)}"><td class="advance-employee-cell"><button type="button" class="advance-toggle-btn" aria-expanded="false" aria-label="عرض تفاصيل السلفيات"><span class="advance-arrow">▾</span></button><div class="advance-employee-compact">${employeeCell(e.employee)}</div></td><td class="advance-total-cell"><strong>${formatCurrencyEn(e.total)}</strong></td></tr><tr class="advance-detail-row" id="advances-page-detail-${escapeHtml(t)}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>التاريخ</th><th>اليوم</th><th>القيمة</th><th>إجراء</th></tr></thead><tbody>${e.items
+          return `<tr class="advance-summary-row" data-toggle-advance-page-details="${escapeHtml(t)}"><td class="advance-employee-cell"><button type="button" class="advance-toggle-btn" aria-expanded="false" aria-label="عرض تفاصيل السلفيات"><span class="advance-arrow">▾</span></button><div class="advance-employee-compact">${employeeCell(e.employee)}</div></td><td class="advance-total-cell"><strong>${formatCurrencyEn(e.total)}</strong></td></tr><tr class="advance-detail-row" id="advances-page-detail-${escapeHtml(t)}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>اليوم</th><th>التاريخ</th><th>قيمة السلفة</th><th>المسدد</th><th>المتبقي</th><th>مصدر السداد</th><th>الإجراءات</th></tr></thead><tbody>${e.items
             .slice()
             .sort((e, t) => String(e.date || "").localeCompare(String(t.date || "")))
-            .map(
-              (e) =>
-                `<tr><td>${formatDateEn(e.date)}</td><td>${escapeHtml(e.dayName || "")}</td><td><strong>${formatCurrencyEn(e.amount)}</strong></td><td><button type="button" class="quick-view-btn danger-inline-btn payroll-delete-advance-btn" data-delete-payroll-advance="${escapeHtml(e.id)}" title="حذف السلفة">${iconSvg("trash")}</button></td></tr>`,
-            )
+            .map((e) => {
+              const paid = payrollAdvancePaidAmount(e),
+                remaining = payrollAdvanceRemainingAmount(e),
+                payAction =
+                  remaining > 0
+                    ? `<button type="button" class="quick-view-btn" data-pay-payroll-advance="${escapeHtml(e.id)}" title="تسديد السلفة">${iconSvg("wallet")}</button>`
+                    : '<span class="status-badge status-paid">مسددة</span>';
+              return `<tr><td>${escapeHtml(e.dayName || dayNameForDateValue(e.date) || "")}</td><td>${formatDateEn(e.date)}</td><td><strong>${formatCurrencyEn(payrollAdvanceAmountValue(e))}</strong></td><td><strong>${formatCurrencyEn(paid)}</strong></td><td><strong>${formatCurrencyEn(remaining)}</strong></td><td>${escapeHtml(payrollAdvancePaymentSourceLabel(e))}</td><td><span class="advance-action-buttons">${payAction}<button type="button" class="quick-view-btn danger-inline-btn payroll-delete-advance-btn" data-delete-payroll-advance="${escapeHtml(e.id)}" title="حذف السلفة">${iconSvg("trash")}</button></span></td></tr>`;
+            })
             .join("")}</tbody></table></div></td></tr>`;
         })
         .join("")
@@ -14973,23 +15108,17 @@ async function init() {
               .map((e) => {
                 const a = getEmployee(e.employeeId),
                   o = absenceTypeMeta(e.type),
-                  r =
-                    e.from === e.to
-                      ? formatDate(e.from)
-                      : `${formatDate(e.from)} إلى ${formatDate(e.to)}`,
+                  r = selectedAttendanceDate,
                   i = absencePenaltyDetails(e),
-                  l = i.showPeriod
-                    ? i.periodLabel ||
-                      absencePeriodMeta(e.periodSegment || "fullDay").label
-                    : "—",
+                  l = absenceSegmentDisplayLabel(e.periodSegment),
                   c = absenceDeductionAmount(e),
                   d = s("attendance.deleteAbsence")
                     ? `<button class="quick-view-btn delete-absence-btn" data-delete-absence="${t(e.id)}" title="حذف الغياب">${n("trash")}</button>`
                     : "—";
-                return `<tr><td>${a ? employeeCell(a) : "موظف محذوف"}</td><td>${r}</td><td><span class="status-badge ${o.className}">${o.label}</span></td><td>${l}</td><td><span class="status-badge absence-penalty-badge">${t(i.text)}</span></td><td><strong class="absence-money-deduction">${formatCurrencyEn(c)}</strong></td><td>${t(e.reason || "—")}</td><td>${d}</td></tr>`;
+                return `<tr><td>${a ? employeeCell(a) : "موظف محذوف"}</td><td>${t(dayNameForDateValue(r) || "—")}</td><td>${formatDate(r)}</td><td>${t(l)}</td><td><span class="status-badge ${o.className}">${o.label}</span></td><td><span class="status-badge absence-penalty-badge">${t(i.text)}</span></td><td><strong class="absence-money-deduction">${formatCurrencyEn(c)}</strong></td><td>${t(e.reason || "—")}</td><td>${d}</td></tr>`;
               })
               .join("")
-          : '<tr><td colspan="8"><div class="empty-state"><strong>لا توجد غيابات مسجلة لهذا التاريخ</strong></div></td></tr>'),
+          : '<tr><td colspan="9"><div class="empty-state"><strong>لا توجد غيابات مسجلة لهذا التاريخ</strong></div></td></tr>'),
           "function" == typeof hydrateIcons && hydrateIcons(e));
       }));
     const L = populateFormOptions;
@@ -17521,6 +17650,192 @@ async function init() {
       } catch (e) {}
       return !0;
     }
+    function ensureAdvancePaymentModal() {
+      let e = document.getElementById("advancePaymentModal");
+      if (e) return e;
+      ((e = document.createElement("dialog")),
+        (e.id = "advancePaymentModal"),
+        (e.className = "modal small-modal advance-payment-modal"),
+        (e.innerHTML =
+          '<form id="advancePaymentForm" method="dialog"><div class="modal-head advance-modal-head"><div><h2>تسديد السلفة</h2><p id="advancePaymentSubtitle">مصدر السداد اليدوي: نقدي</p></div><button type="button" class="icon-btn" data-close-advance-payment><span data-icon="x"></span></button></div><div class="modal-body advance-payment-body"><div class="advance-payment-summary"><span>الموظف</span><strong id="advancePaymentEmployee">—</strong><span>المتبقي الحالي</span><strong id="advancePaymentCurrentRemaining">—</strong></div><fieldset class="advance-payment-options"><legend>طريقة السداد</legend><label><input type="radio" name="advancePaymentMode" value="full" checked> كامل المبلغ</label><label><input type="radio" name="advancePaymentMode" value="partial"> جزء من السلفة</label></fieldset><label class="advance-payment-partial-field" hidden><span>المبلغ المسدد</span><input id="advancePaymentAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label><label><span>تاريخ السداد</span><input id="advancePaymentDate" type="date" required></label><div class="advance-payment-preview"><span>المتبقي بعد السداد</span><strong id="advancePaymentRemainingPreview">—</strong></div></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-advance-payment>إلغاء</button><button type="submit" class="primary-btn">حفظ السداد</button></div></form>'),
+        document.body.appendChild(e),
+        e
+          .querySelectorAll("[data-close-advance-payment]")
+          .forEach((t) => t.addEventListener("click", () => e.close())));
+      const t = () => updateAdvancePaymentPreview(e);
+      (e
+        .querySelectorAll('input[name="advancePaymentMode"]')
+        .forEach((e) => e.addEventListener("change", t)),
+        e.querySelector("#advancePaymentAmount")?.addEventListener("input", t),
+        e.querySelector("#advancePaymentForm")?.addEventListener("submit", (t) => {
+          (t.preventDefault(), saveAdvancePaymentFromModal(e));
+        }));
+      try {
+        "function" == typeof hydrateIcons && hydrateIcons(e);
+      } catch (e) {}
+      return e;
+    }
+    function advancePaymentModalState(e) {
+      try {
+        return JSON.parse(e?.dataset?.advancePaymentState || "{}") || {};
+      } catch (e) {
+        return {};
+      }
+    }
+    function updateAdvancePaymentPreview(e) {
+      const t = advancePaymentModalState(e),
+        n = Number(t.remaining || 0) || 0,
+        a =
+          e.querySelector('input[name="advancePaymentMode"]:checked')?.value ||
+          "full",
+        r = e.querySelector(".advance-payment-partial-field"),
+        i = e.querySelector("#advancePaymentAmount");
+      r && (r.hidden = "partial" !== a);
+      const s =
+          "partial" === a
+            ? Math.min(n, Math.max(0, Number(i?.value || 0) || 0))
+            : n,
+        l = Math.max(0, n - s);
+      e.querySelector("#advancePaymentRemainingPreview") &&
+        (e.querySelector("#advancePaymentRemainingPreview").textContent = o(l));
+    }
+    function openAdvancePaymentModal(e) {
+      const t = String(e || "").trim(),
+        n = C().find((e) => String(e?.id || "") === t);
+      if (!n) {
+        try {
+          showToast("تعذر العثور على السلفة");
+        } catch (e) {}
+        return;
+      }
+      const r = payrollAdvanceRemainingAmount(n);
+      if (!(r > 0)) {
+        try {
+          showToast("هذه السلفة مسددة بالكامل");
+        } catch (e) {}
+        return;
+      }
+      const i = M(n.employeeId),
+        s = ensureAdvancePaymentModal(),
+        l = (function (e) {
+          try {
+            return "function" == typeof formatInputDate
+              ? formatInputDate(e)
+              : new Date(e).toISOString().slice(0, 10);
+          } catch (e) {
+            return new Date().toISOString().slice(0, 10);
+          }
+        })(new Date());
+      ((s.dataset.advancePaymentState = JSON.stringify({ id: t, remaining: r })),
+        s.querySelector("#advancePaymentEmployee") &&
+          (s.querySelector("#advancePaymentEmployee").textContent =
+            i?.name || n.employeeName || "الموظف"),
+        s.querySelector("#advancePaymentCurrentRemaining") &&
+          (s.querySelector("#advancePaymentCurrentRemaining").textContent = o(r)),
+        s.querySelector('input[name="advancePaymentMode"][value="full"]') &&
+          (s.querySelector('input[name="advancePaymentMode"][value="full"]').checked = !0),
+        s.querySelector("#advancePaymentAmount") &&
+          (s.querySelector("#advancePaymentAmount").value = ""),
+        s.querySelector("#advancePaymentDate") &&
+          (s.querySelector("#advancePaymentDate").value = l),
+        updateAdvancePaymentPreview(s));
+      try {
+        s.open || s.showModal();
+      } catch (e) {
+        s.setAttribute("open", "open");
+      }
+    }
+    async function saveAdvancePaymentFromModal(e) {
+      const t = advancePaymentModalState(e),
+        n = String(t.id || "").trim(),
+        a = C(),
+        r = a.find((e) => String(e?.id || "") === n);
+      if (!r) return;
+      const i = payrollAdvanceRemainingAmount(r),
+        s =
+          e.querySelector('input[name="advancePaymentMode"]:checked')?.value ||
+          "full",
+        l =
+          "partial" === s
+            ? Math.min(
+                i,
+                Math.max(
+                  0,
+                  Number(e.querySelector("#advancePaymentAmount")?.value || 0) ||
+                    0,
+                ),
+              )
+            : i,
+        c = e.querySelector("#advancePaymentDate")?.value || "";
+      if (!(l > 0)) {
+        try {
+          showToast("أدخل مبلغ السداد");
+        } catch (e) {}
+        return;
+      }
+      if (!c) {
+        try {
+          showToast("اختر تاريخ السداد");
+        } catch (e) {}
+        return;
+      }
+      P(
+        a.map((e) =>
+          String(e?.id || "") === n
+            ? payrollAdvanceWithPayment(e, {
+                amount: l,
+                date: c,
+                source: "manual",
+                sourceLabel: "نقدي",
+              })
+            : e,
+        ),
+      );
+      (_(r.monthKey || String(r.date || "").slice(0, 7) || p()),
+        await F(),
+        e.open && e.close(),
+        B());
+      try {
+        showToast("تم حفظ سداد السلفة وتحديث المتبقي");
+      } catch (e) {}
+    }
+    function payMonthAdvancesFromPayroll(e, t) {
+      const n = C();
+      let a = 0,
+        r = 0;
+      const i = (function (e) {
+        try {
+          return "function" == typeof formatInputDate
+            ? formatInputDate(e)
+            : new Date(e).toISOString().slice(0, 10);
+        } catch (e) {
+          return new Date().toISOString().slice(0, 10);
+        }
+      })(new Date());
+      P(
+        n.map((n) => {
+          const s = n.monthKey || String(n.date || "").slice(0, 7),
+            l = payrollAdvanceRemainingAmount(n);
+          if (
+            n &&
+            String(n.status || "approved") === "approved" &&
+            String(s || "") === String(e || "") &&
+            l > 0
+          ) {
+            ((a += 1), (r += l));
+            return payrollAdvanceWithPayment(n, {
+              amount: l,
+              date: i,
+              source: "payroll",
+              sourceLabel: "مسدد في مسير الرواتب",
+              payrollRunId: t?.id || "",
+            });
+          }
+          return n;
+        }),
+      );
+      return { count: a, total: r };
+    }
     function O(e = p()) {
       return C().filter(
         (t) => t && t.status === n && t.monthKey === e && M(t.employeeId),
@@ -17529,7 +17844,7 @@ async function init() {
     function R(e, t = p()) {
       return O(t)
         .filter((t) => String(t.employeeId) === String(e))
-        .reduce((e, t) => e + Number(t.amount || 0), 0);
+        .reduce((e, t) => e + payrollAdvanceRemainingAmount(t), 0);
     }
     function readPrepaidDeductions() {
       try {
@@ -17689,6 +18004,10 @@ async function init() {
           dayName: f(y),
           monthKey: s,
           status: n,
+          payments: [],
+          paidAmount: 0,
+          remainingAmount: r,
+          paymentSourceLabel: "",
           createdAt: m.toISOString(),
           createdBy:
             void 0 !== authProfile && authProfile?.full_name
@@ -17824,12 +18143,19 @@ async function init() {
         } catch (e) {}
         return void Q();
       }
-      N(J(e));
+      const t = J(e),
+        n = y(e);
+      N(t);
+      const a = payMonthAdvancesFromPayroll(e, t);
       try {
         F();
       } catch (e) {}
       try {
-        showToast(`تم اعتماد وصرف مسير رواتب ${y(e)} وحفظه`);
+        showToast(
+          `تم اعتماد وصرف مسير رواتب ${n} وحفظه${
+            a.count ? `، وتم تسديد ${a.count} سلفة من المسير` : ""
+          }`,
+        );
       } catch (e) {}
       Q();
     }
@@ -18573,7 +18899,11 @@ async function init() {
           }
           const a = e.target.closest("[data-toggle-advance-page-details]");
           if (a) {
-            if (e.target.closest("[data-delete-payroll-advance]")) return;
+            if (
+              e.target.closest("[data-delete-payroll-advance]") ||
+              e.target.closest("[data-pay-payroll-advance]")
+            )
+              return;
             e.preventDefault();
             const t = a.dataset.toggleAdvancePageDetails || "",
               n = document.getElementById(`advances-page-detail-${CSS.escape(t)}`),
@@ -18586,6 +18916,15 @@ async function init() {
                 r && (r.textContent = e ? "▴" : "▾"));
             }
             return;
+          }
+          const r = e.target.closest("[data-pay-payroll-advance]");
+          if (r && r.closest("#advancesView")) {
+            return (
+              e.preventDefault(),
+              e.stopPropagation(),
+              e.stopImmediatePropagation(),
+              void openAdvancePaymentModal(r.dataset.payPayrollAdvance)
+            );
           }
           const o = e.target.closest("[data-delete-payroll-advance]");
           if (o && o.closest("#advancesView")) {
@@ -39758,6 +40097,43 @@ async function init() {
     });
   }
 
+  function reportDateRangeDays(from, to, ym) {
+    var start = reportDateObj(from || to),
+      end = reportDateObj(to || from),
+      days = [];
+    if (!start || !end) return [];
+    if (end < start) end = start;
+    for (
+      var d = new Date(start.getTime());
+      d <= end;
+      d.setDate(d.getDate() + 1)
+    ) {
+      var value = reportDateInput(d);
+      if (!ym || reportRecordYm(value) === ym) days.push(value);
+    }
+    return days;
+  }
+  function reportAbsenceDeduction(x) {
+    try {
+      if (typeof absenceDeductionAmount === "function")
+        return money(absenceDeductionAmount(x));
+    } catch (_) {}
+    return money(x && (x.deductionAmount || x.deduction || x.amount || 0));
+  }
+  function reportAbsencePenalty(x) {
+    try {
+      return absencePenaltyDisplayText(x) || "—";
+    } catch (_) {
+      return (x && (x.penaltyText || x.penalty || x.policy)) || "—";
+    }
+  }
+  function reportAbsencePeriod(x) {
+    try {
+      return absenceSegmentDisplayLabel(x && x.periodSegment);
+    } catch (_) {
+      return "اليوم بأكمله";
+    }
+  }
   function absenceReportRecords() {
     var ym = reportSelectedYm("absences"),
       out = [];
@@ -39770,26 +40146,38 @@ async function init() {
       exs = [];
     }
     exs.forEach(function (x) {
-      var d = String(x.date || x.day || x.absenceDate || "").slice(0, 10);
-      var typ = String(x.typeLabel || x.type || x.status || "غياب");
-      var isAbsence =
-        typ.indexOf("غياب") > -1 ||
-        typ.toLowerCase().indexOf("absence") > -1 ||
-        String(x.kind || "")
-          .toLowerCase()
-          .indexOf("absence") > -1;
+      var typ = String(x.typeLabel || x.type || x.status || "غياب"),
+        absenceShape = x.from || x.to || x.periodSegment || x.deductionAmount,
+        isAbsence =
+          absenceShape ||
+          typ.indexOf("غياب") > -1 ||
+          typ.toLowerCase().indexOf("absence") > -1 ||
+          String(x.kind || "")
+            .toLowerCase()
+            .indexOf("absence") > -1;
       if (!isAbsence) return;
-      if (reportRecordYm(d) !== ym) return;
-      var emp = findReportEmployee(
-        x.employeeId || x.empId || x.employeeNumber || "",
-        x.employeeName || x.name || "",
+      var dates = reportDateRangeDays(
+        x.from || x.date || x.day || x.absenceDate,
+        x.to || x.date || x.day || x.absenceDate,
+        ym,
       );
-      out.push({
-        employee: emp,
-        date: d,
-        type: typ || "غياب",
-        day: reportDayName(d),
-        note: x.note || x.reason || x.details || "",
+      if (!dates.length) return;
+      var emp = findReportEmployee(
+          x.employeeId || x.empId || x.employeeNumber || "",
+          x.employeeName || x.name || "",
+        ),
+        typeLabel = absenceTypeDisplayLabel(x);
+      dates.forEach(function (d) {
+        out.push({
+          employee: emp,
+          date: d,
+          type: typeLabel || "غياب",
+          day: reportDayName(d),
+          period: reportAbsencePeriod(x),
+          penalty: reportAbsencePenalty(x),
+          deduction: reportAbsenceDeduction(x),
+          note: x.note || x.reason || x.details || "",
+        });
       });
     });
     empList().forEach(function (e) {
@@ -39811,6 +40199,9 @@ async function init() {
           date: d,
           type: n || "غياب",
           day: reportDayName(d),
+          period: reportAbsencePeriod(m),
+          penalty: m.penalty || m.penaltyText || "—",
+          deduction: money(m.deductionAmount || m.deduction || 0),
           note: m.absenceReason || m.details || m.note || "",
         });
       });
@@ -39856,44 +40247,63 @@ async function init() {
     );
   }
   function advanceAmount(x) {
-    return money(x.amount || x.value || x.total || x.advanceAmount || 0);
+    try {
+      return money(payrollAdvanceAmountValue(x));
+    } catch (_) {
+      return money(x.amount || x.value || x.total || x.advanceAmount || 0);
+    }
   }
   function advancePaid(x) {
-    var v =
-      x.paid ||
-      x.paidAmount ||
-      x.totalPaid ||
-      x.settledAmount ||
-      x.deductedAmount;
-    if (v === undefined || v === null || String(v) === "") return "";
-    return money(v);
+    try {
+      return money(payrollAdvancePaidAmount(x));
+    } catch (_) {
+      var v =
+        x.paid ||
+        x.paidAmount ||
+        x.totalPaid ||
+        x.settledAmount ||
+        x.deductedAmount;
+      if (v === undefined || v === null || String(v) === "") return "";
+      return money(v);
+    }
   }
   function advanceRemaining(x) {
-    var v =
-      x.remaining ||
-      x.remainingAmount ||
-      x.balance ||
-      x.outstanding ||
-      x.unpaidAmount;
-    if (
-      (v === undefined || v === null || String(v) === "") &&
-      (x.amount !== undefined || x.value !== undefined || x.total !== undefined)
-    ) {
-      var amount =
-        Number(x.amount || x.value || x.total || x.advanceAmount || 0) || 0;
-      var paid =
-        Number(
-          x.paid ||
-            x.paidAmount ||
-            x.totalPaid ||
-            x.settledAmount ||
-            x.deductedAmount ||
-            0,
-        ) || 0;
-      if (amount || paid) v = Math.max(0, amount - paid);
+    try {
+      return money(payrollAdvanceRemainingAmount(x));
+    } catch (_) {
+      var v =
+        x.remaining ||
+        x.remainingAmount ||
+        x.balance ||
+        x.outstanding ||
+        x.unpaidAmount;
+      if (
+        (v === undefined || v === null || String(v) === "") &&
+        (x.amount !== undefined || x.value !== undefined || x.total !== undefined)
+      ) {
+        var amount =
+          Number(x.amount || x.value || x.total || x.advanceAmount || 0) || 0;
+        var paid =
+          Number(
+            x.paid ||
+              x.paidAmount ||
+              x.totalPaid ||
+              x.settledAmount ||
+              x.deductedAmount ||
+              0,
+          ) || 0;
+        if (amount || paid) v = Math.max(0, amount - paid);
+      }
+      if (v === undefined || v === null || String(v) === "") return "";
+      return money(v);
     }
-    if (v === undefined || v === null || String(v) === "") return "";
-    return money(v);
+  }
+  function advanceSource(x) {
+    try {
+      return payrollAdvancePaymentSourceLabel(x);
+    } catch (_) {
+      return x.paymentSourceLabel || x.sourceLabel || x.source || "—";
+    }
   }
   function advanceReportRecords() {
     var list = [];
@@ -39909,9 +40319,11 @@ async function init() {
         return {
           employee: emp,
           date: advanceDate(x),
+          day: reportDayName(advanceDate(x)),
           amount: advanceAmount(x),
           paid: advancePaid(x),
           remaining: advanceRemaining(x),
+          source: advanceSource(x),
           status: statusLabel(x.status || x.state || ""),
           note: x.note || x.reason || x.description || "",
         };
@@ -40399,9 +40811,12 @@ async function init() {
             idx === 0 ? g.employee.name || "" : "",
             idx === 0 ? empNationality(g.employee) : "",
             idx === 0 ? empIdentity(g.employee) : "",
-            fmt(r.date),
             r.day || "",
-            r.note || "",
+            fmt(r.date),
+            r.period || "",
+            r.type || "",
+            r.penalty || "",
+            r.deduction || "",
           ]);
         });
       });
@@ -40416,11 +40831,12 @@ async function init() {
             idx === 0 ? g.employee.name || "" : "",
             idx === 0 ? empNationality(g.employee) : "",
             idx === 0 ? empIdentity(g.employee) : "",
+            r.day || "",
             fmt(r.date),
             r.amount || "",
             r.paid || "",
             r.remaining || "",
-            r.status || "",
+            r.source || "",
           ]);
         });
       });
@@ -40640,16 +41056,22 @@ async function init() {
           var id = "absence-report-details-" + i;
           var records = g.records || [];
           var details =
-            '<div class="report-nested-wrap"><table class="report-nested-table"><thead><tr><th>تاريخ الغياب</th><th>اليوم</th><th>الملاحظة</th></tr></thead><tbody>' +
+            '<div class="report-nested-wrap"><table class="report-nested-table report-absence-nested-table"><thead><tr><th>اليوم</th><th>تاريخ الغياب</th><th>فترة الغياب</th><th>نوع الغياب</th><th>الجزاء المُوقع</th><th>الحسم</th></tr></thead><tbody>' +
             records
               .map(function (r) {
                 return (
                   "<tr><td>" +
-                  esc(fmt(r.date)) +
-                  "</td><td>" +
                   esc(r.day || "") +
                   "</td><td>" +
-                  esc(r.note || "") +
+                  esc(fmt(r.date)) +
+                  "</td><td>" +
+                  esc(r.period || "") +
+                  "</td><td>" +
+                  esc(r.type || "") +
+                  "</td><td>" +
+                  esc(r.penalty || "") +
+                  "</td><td>" +
+                  esc(r.deduction || "") +
                   "</td></tr>"
                 );
               })
@@ -40692,11 +41114,13 @@ async function init() {
           var id = "advance-report-details-" + i;
           var records = g.records || [];
           var details =
-            '<div class="report-nested-wrap"><table class="report-nested-table report-advance-nested-table"><thead><tr><th>تاريخ السلفة</th><th>المبلغ</th><th>المسدد</th><th>المتبقي</th><th>الحالة</th></tr></thead><tbody>' +
+            '<div class="report-nested-wrap"><table class="report-nested-table report-advance-nested-table"><thead><tr><th>اليوم</th><th>التاريخ</th><th>قيمة السلفة</th><th>المسدد</th><th>المتبقي</th><th>مصدر السداد</th></tr></thead><tbody>' +
             records
               .map(function (r) {
                 return (
                   "<tr><td>" +
+                  esc(r.day || "") +
+                  "</td><td>" +
                   esc(fmt(r.date)) +
                   "</td><td>" +
                   esc(r.amount || "") +
@@ -40705,7 +41129,7 @@ async function init() {
                   "</td><td>" +
                   esc(r.remaining || "") +
                   "</td><td>" +
-                  esc(r.status || "") +
+                  esc(r.source || "") +
                   "</td></tr>"
                 );
               })
@@ -40947,9 +41371,12 @@ async function init() {
         "اسم الموظف",
         "الجنسية",
         "رقم الهوية",
-        "تاريخ الغياب",
         "اليوم",
-        "الملاحظة",
+        "تاريخ الغياب",
+        "فترة الغياب",
+        "نوع الغياب",
+        "الجزاء المُوقع",
+        "الحسم",
       ];
     if (tab === "advances")
       return [
@@ -40957,11 +41384,12 @@ async function init() {
         "اسم الموظف",
         "الجنسية",
         "رقم الهوية",
-        "تاريخ السلفة",
-        "المبلغ",
+        "اليوم",
+        "التاريخ",
+        "قيمة السلفة",
         "المسدد",
         "المتبقي",
-        "الحالة",
+        "مصدر السداد",
       ];
 	    if (tab === "payrollRun")
 	      return [
@@ -41101,9 +41529,12 @@ async function init() {
                   idx === 0 ? g.employee.name || "" : "",
                   idx === 0 ? empNationality(g.employee) : "",
                   idx === 0 ? empIdentity(g.employee) : "",
-                  fmt(r.date),
                   r.day || "",
-                  r.note || "",
+                  fmt(r.date),
+                  r.period || "",
+                  r.type || "",
+                  r.penalty || "",
+                  r.deduction || "",
                 ];
                 return (
                   '<tr class="' +
@@ -41200,11 +41631,12 @@ async function init() {
                   idx === 0 ? g.employee.name || "" : "",
                   idx === 0 ? empNationality(g.employee) : "",
                   idx === 0 ? empIdentity(g.employee) : "",
+                  r.day || "",
                   fmt(r.date),
                   r.amount || "",
                   r.paid || "",
                   r.remaining || "",
-                  r.status || "",
+                  r.source || "",
                 ];
                 return (
                   '<tr class="' +

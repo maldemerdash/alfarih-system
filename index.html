@@ -43,7 +43,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=204" />
+    <link rel="stylesheet" href="style.css?v=205" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -377,7 +377,7 @@
                 </div>
                 <div class="table-wrap compact-table-wrap">
                   <table>
-                    <thead><tr><th>الموظف</th><th>الفترة</th><th>نوع الغياب</th><th>الفترة الغائبة</th><th>الجزاء الموقع</th><th>الحسم</th><th>السبب</th><th>الإجراء</th></tr></thead>
+                    <thead><tr><th>الموظف</th><th>اليوم</th><th>تاريخ الغياب</th><th>فترة الغياب</th><th>نوع الغياب</th><th>الجزاء الموقع</th><th>الحسم</th><th>السبب</th><th>الإجراء</th></tr></thead>
                     <tbody id="absenceRecordsBody"></tbody>
                   </table>
                 </div>
@@ -1219,6 +1219,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=204"></script>
+    <script src="app.js?v=205"></script>
   </body>
 </html>
