@@ -17626,3 +17626,128 @@ html.has-initial-login-bg .auth-gate,
     align-items: stretch !important;
   }
 }
+
+/* v203 focused cleanup: advances period controls, payroll cards, finance calendar, company media states */
+#advancesView .panel-head {
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+#advancesView .advances-period-controls {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  flex-wrap: nowrap !important;
+}
+
+#advancesView .advances-period-controls .icon-btn {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(203, 213, 225, .75) !important;
+  box-shadow: none !important;
+  background: #fff !important;
+  color: #64748b !important;
+}
+
+#advancesView .advances-period-controls select,
+#advancesView .advances-period-controls input {
+  height: 34px !important;
+  min-height: 34px !important;
+  border: 1px solid rgba(203, 213, 225, .85) !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  color: #172033 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  box-shadow: none !important;
+}
+
+#advancesView .advances-period-controls select {
+  width: 112px !important;
+}
+
+#advancesView .advances-period-controls input {
+  width: 82px !important;
+  text-align: center !important;
+}
+
+#payrollView .payroll-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+#payrollView .payroll-summary-card {
+  min-width: 0 !important;
+  min-height: 84px !important;
+  padding: 12px 14px !important;
+}
+
+#payrollView .payroll-summary-card strong {
+  font-size: clamp(16px, 1.05vw, 21px) !important;
+  white-space: nowrap !important;
+}
+
+#payrollView .payroll-summary-card span,
+#payrollView .payroll-summary-card small {
+  display: block !important;
+  max-width: 100% !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+#financeView .finance-calendar-btn {
+  width: 38px !important;
+  min-width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  color: #64748b !important;
+  box-shadow: none !important;
+}
+
+#financeView .finance-calendar-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 2 !important;
+}
+
+.company-logo-upload-real.is-uploading {
+  border-color: rgba(19, 163, 183, .42) !important;
+  background: linear-gradient(135deg, #f0fdff, #fff) !important;
+}
+
+.company-logo-upload-real.is-uploading .company-logo-preview {
+  position: relative !important;
+}
+
+.company-logo-upload-real.is-uploading .company-logo-preview::after {
+  content: "جاري الرفع" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: inherit !important;
+  background: rgba(255, 255, 255, .82) !important;
+  color: #0f5968 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+
+@media (max-width: 980px) {
+  #payrollView .payroll-summary {
+    grid-template-columns: repeat(5, minmax(120px, 1fr)) !important;
+    overflow-x: auto !important;
+    padding-bottom: 4px !important;
+  }
+
+  #advancesView .panel-head {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+}

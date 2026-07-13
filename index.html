@@ -43,7 +43,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=202" />
+    <link rel="stylesheet" href="style.css?v=203" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -526,6 +526,12 @@
             <article class="panel advances-page-panel">
               <div class="panel-head">
                 <div><h3>جدول السلفيات</h3><p id="advancesMonthLabel">السلفيات المعتمدة لهذا الشهر</p></div>
+                <div class="advances-period-controls" aria-label="تحديد شهر السلفيات">
+                  <button type="button" class="icon-btn" data-advances-month-shift="-1" aria-label="الشهر السابق"><span data-icon="chevron-right"></span></button>
+                  <select data-advances-month-select aria-label="الشهر"></select>
+                  <input type="number" data-advances-year-input aria-label="السنة" min="2000" max="2100" step="1" />
+                  <button type="button" class="icon-btn" data-advances-month-shift="1" aria-label="الشهر التالي"><span data-icon="chevron-left"></span></button>
+                </div>
               </div>
               <div class="table-wrap payroll-advances-table-wrap">
                 <table class="payroll-advances-table advances-page-table">
@@ -1213,6 +1219,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=202"></script>
+    <script src="app.js?v=203"></script>
   </body>
 </html>
