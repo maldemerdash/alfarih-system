@@ -39718,7 +39718,7 @@ async function init() {
 	          isStarted = !isToday || !capFuture || now >= win.start,
 	          isDone = !isToday || !capFuture || now >= win.end,
 	          status = state && state.present ? "حاضر" : state && state.absent ? "غائب" : state && state.leave ? "إجازة" : "—",
-	          hours = state && state.absent ? "٠ س" : shift.hours || formatWorkMinutes(shift.minutes || 0),
+	          hours = state && state.present ? shift.hours || formatWorkMinutes(shift.minutes || 0) : "٠ س",
 	          endText = shift.end || "—";
 	        if (!isStarted && state && state.present) return null;
 	        if (isToday && capFuture && state && state.present && !isDone) {
@@ -39732,7 +39732,7 @@ async function init() {
 	          end: endText,
 	          status: status,
 	          hours: hours,
-	          minutes: state && state.absent ? 0 : Number(shift.minutes || 0) || 0,
+	          minutes: state && state.present ? Number(shift.minutes || 0) || 0 : 0,
 	          ongoing: Boolean(isToday && capFuture && state && state.present && !isDone),
 	        };
 	      })
@@ -39779,6 +39779,23 @@ async function init() {
 	        );
 	      })
 	      .join(" | ");
+	  }
+	  function attendancePeriodPrintCell(periods, index) {
+	    var p = periods && periods[index];
+	    if (!p) return "—";
+	    return (
+	      '<div class="attendance-period-cell"><strong>' +
+	      esc(p.status || "—") +
+	      "</strong><span>من " +
+	      esc(p.start || "—") +
+	      " إلى " +
+	      esc(p.end || "") +
+	      "</span></div>"
+	    );
+	  }
+	  function attendancePeriodPrintHours(periods, index) {
+	    var p = periods && periods[index];
+	    return p ? esc(p.hours || "—") : "—";
 	  }
 	  function attendanceReportGroups(ym, employeeId, options) {
 	    var selectedYm = ym || reportSelectedYm("attendance"),
@@ -41301,7 +41318,7 @@ async function init() {
 	    if (!g || !(g.records || []).length)
 	      return '<table class="print-report-table print-report-attendance-detail"><tbody><tr><td>لا توجد بيانات للعرض</td></tr></tbody></table>';
 	    return (
-	      '<table class="print-report-table print-report-attendance-detail"><thead><tr><th>التاريخ</th><th>اليوم</th><th>الحالة</th><th>الفترات</th><th>الحضور</th><th>الانصراف</th><th>الساعات</th><th>المصدر</th></tr></thead><tbody>' +
+	      '<table class="print-report-table print-report-attendance-detail"><thead><tr><th>التاريخ</th><th>اليوم</th><th>الفترة الأولى</th><th>ساعات الفترة الأولى</th><th>الفترة الثانية</th><th>ساعات الفترة الثانية</th><th>مجموع ساعات الحضور</th><th>المصدر</th></tr></thead><tbody>' +
 	      (g.records || [])
 	        .map(function (r) {
 	          return (
@@ -41310,13 +41327,13 @@ async function init() {
 	            "</td><td>" +
 	            esc(r.day || "") +
 	            "</td><td>" +
-	            esc(r.statusText || "") +
+	            attendancePeriodPrintCell(r.periods, 0) +
 	            "</td><td>" +
-	            (r.periodsHtml || esc(r.periodsText || "—")) +
+	            attendancePeriodPrintHours(r.periods, 0) +
 	            "</td><td>" +
-	            esc(r.checkIn || "—") +
+	            attendancePeriodPrintCell(r.periods, 1) +
 	            "</td><td>" +
-	            esc(r.checkOut || "") +
+	            attendancePeriodPrintHours(r.periods, 1) +
 	            "</td><td>" +
 	            esc(r.hours || "—") +
 	            "</td><td>" +
@@ -41470,7 +41487,7 @@ async function init() {
 	        .join("");
 	    }
 	    var html =
-	      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حضور الموظف</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.attendance-print-month,.attendance-print-employee{break-before:page;page-break-before:always;padding-bottom:16mm}.attendance-print-month:first-child,.attendance-print-employee:first-child{break-before:auto;page-break-before:auto}.attendance-detail-month{break-inside:avoid-page;page-break-inside:avoid;margin-top:10px}.attendance-detail-month h3{margin:0 0 6px;padding:7px 10px;border-radius:9px;background:#eff8fb;color:#0f5968;font-size:13px;font-weight:900}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.attendance-print-employee-strip{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:6px 0 7px;padding:7px 10px;border:1px solid #dbeafe;border-radius:10px;background:#fbfdff;color:#334155;font-size:9.5px}.attendance-print-employee-strip strong{color:#0f172a;font-size:10.5px}.attendance-print-employee-strip span{white-space:nowrap}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.4px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:4px 5px;text-align:right;vertical-align:middle;line-height:1.32}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-report-attendance-table th:nth-child(1),.print-report-attendance-table td:nth-child(1){width:9%}.print-report-attendance-table th:nth-child(2),.print-report-attendance-table td:nth-child(2){width:24%;white-space:nowrap}.print-report-attendance-detail th:nth-child(1),.print-report-attendance-detail td:nth-child(1){width:9%}.print-report-attendance-detail th:nth-child(2),.print-report-attendance-detail td:nth-child(2){width:7%}.print-report-attendance-detail th:nth-child(3),.print-report-attendance-detail td:nth-child(3){width:9%}.print-report-attendance-detail th:nth-child(4),.print-report-attendance-detail td:nth-child(4){width:42%}.print-report-attendance-detail th:nth-child(5),.print-report-attendance-detail td:nth-child(5){width:7%}.print-report-attendance-detail th:nth-child(6),.print-report-attendance-detail td:nth-child(6){width:7%}.print-report-attendance-detail th:nth-child(7),.print-report-attendance-detail td:nth-child(7){width:8%}.print-report-attendance-detail th:nth-child(8),.print-report-attendance-detail td:nth-child(8){width:11%}.attendance-period-lines{display:grid;gap:2px;line-height:1.35}.attendance-period-lines span{display:block;white-space:normal}.attendance-period-lines b{color:#0f5968}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>' +
+	      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حضور الموظف</title><style>@page{size:A4 landscape;margin:12mm 10mm 15mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.attendance-print-month,.attendance-print-employee{break-before:page;page-break-before:always;padding-bottom:16mm}.attendance-print-month:first-child,.attendance-print-employee:first-child{break-before:auto;page-break-before:auto}.attendance-detail-month{break-inside:avoid-page;page-break-inside:avoid;margin-top:10px}.attendance-detail-month h3{margin:0 0 6px;padding:7px 10px;border-radius:9px;background:#eff8fb;color:#0f5968;font-size:13px;font-weight:900}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.attendance-print-employee-strip{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:6px 0 7px;padding:7px 10px;border:1px solid #dbeafe;border-radius:10px;background:#fbfdff;color:#334155;font-size:9.5px}.attendance-print-employee-strip strong{color:#0f172a;font-size:10.5px}.attendance-print-employee-strip span{white-space:nowrap}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.4px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:4px 5px;text-align:right;vertical-align:middle;line-height:1.32}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-report-attendance-table th:nth-child(1),.print-report-attendance-table td:nth-child(1){width:9%}.print-report-attendance-table th:nth-child(2),.print-report-attendance-table td:nth-child(2){width:24%;white-space:nowrap}.print-report-attendance-detail th:nth-child(1),.print-report-attendance-detail td:nth-child(1){width:9%}.print-report-attendance-detail th:nth-child(2),.print-report-attendance-detail td:nth-child(2){width:7%}.print-report-attendance-detail th:nth-child(3),.print-report-attendance-detail td:nth-child(3){width:22%}.print-report-attendance-detail th:nth-child(4),.print-report-attendance-detail td:nth-child(4){width:10%}.print-report-attendance-detail th:nth-child(5),.print-report-attendance-detail td:nth-child(5){width:22%}.print-report-attendance-detail th:nth-child(6),.print-report-attendance-detail td:nth-child(6){width:10%}.print-report-attendance-detail th:nth-child(7),.print-report-attendance-detail td:nth-child(7){width:9%}.print-report-attendance-detail th:nth-child(8),.print-report-attendance-detail td:nth-child(8){width:12%}.attendance-period-lines{display:grid;gap:2px;line-height:1.35}.attendance-period-lines span{display:block;white-space:normal}.attendance-period-lines b{color:#0f5968}.attendance-period-cell{display:grid;gap:2px;line-height:1.32}.attendance-period-cell strong{color:#0f5968;font-size:8.6px}.attendance-period-cell span{display:block;white-space:nowrap;color:#475569;font-size:8px}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>' +
 	      sections +
 	      '<footer class="report-footer"><span>تمت طباعة هذا التقرير من نظام إدارة الموظفين</span><span class="pages"></span><span>' +
 	      esc(printedAt) +
