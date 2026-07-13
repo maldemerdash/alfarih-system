@@ -5030,7 +5030,6 @@ function setSelectedAttendanceDate(e) {
 }
 function switchView(e) {
   ("users" === e && renderUsersManagement(),
-    "advances" === e && renderAdvancesPage(),
     document
       .querySelectorAll(".view")
       .forEach((e) => e.classList.remove("active")),
@@ -5043,6 +5042,12 @@ function switchView(e) {
     (document.querySelector("#pageSubtitle").textContent = t[1]),
     closeSidebar(),
     window.scrollTo({ top: 0, behavior: "smooth" }));
+  if ("advances" === e) {
+    advancesSelectedMonthKey = currentPayrollMonthKey();
+    renderAdvancesPage();
+    setTimeout(renderAdvancesPage, 80);
+    setTimeout(renderAdvancesPage, 260);
+  }
 }
 function closeSidebar() {
   (document.querySelector("#sidebar").classList.remove("open"),
@@ -18176,6 +18181,91 @@ async function init() {
           hydrateIcons(document.getElementById("payrollView") || document);
       } catch (e) {}
     }
+    function payrollVisibleItemsForMonth(e = p()) {
+      const t = k(e),
+        n = t
+          ? t.items
+          : (function () {
+              const e = h().filter(isOnDutyEmployee);
+              if (S() || I() || $()) return e;
+              if (w()) {
+                const t = b();
+                return t ? e.filter((e) => String(e.id) === String(t.id)) : [];
+              }
+              return [];
+            })().map((t) => ({
+              employeeId: t.id,
+              employee: G(t),
+              line: z(t, e),
+            }));
+      return t
+        ? (function (e) {
+            const t = Array.isArray(e) ? e : [];
+            if (S() || I() || $()) return t;
+            const n = b();
+            return w() && n
+              ? t.filter(
+                  (e) =>
+                    String(e.employeeId || e.employee?.id || "") ===
+                    String(n.id),
+                )
+              : [];
+          })(n)
+        : n;
+    }
+    function updatePayrollSummaryOnly(e = p()) {
+      const t = payrollVisibleItemsForMonth(e),
+        n = W(t),
+        a = document.querySelector("#payrollHeroTotal"),
+        r = document.querySelector("#payrollEmployeeCount"),
+        i = document.querySelector("#baseSalaryTotal"),
+        s = document.querySelector("#allowanceTotal"),
+        l = document.querySelector("#advanceTotal"),
+        c = document.querySelector("#deductionTotal"),
+        d = document.querySelector("#absenceDeductionTotal"),
+        u = document.querySelector("#prepaidDeductionTotal"),
+        m = (e) =>
+          "function" == typeof formatCurrency ? formatCurrency(e) : o(e);
+      (a && (a.textContent = m(n.net)),
+        r &&
+          (r.textContent =
+            "function" == typeof arabicNumber
+              ? arabicNumber(t.length)
+              : String(t.length)),
+        i && (i.textContent = m(n.base)),
+        s && (s.textContent = m(n.allowance)),
+        l && (l.textContent = m(n.advances)),
+        c && (c.textContent = m(n.deductions)),
+        d && (d.textContent = m(n.absence || 0)),
+        u && (u.textContent = m(n.prepaid || 0)));
+    }
+    function updatePayrollPrepaidRow(e) {
+      if (!e) return;
+      const t = e.dataset.payrollMonth || p(),
+        n = M(e.dataset.payrollPrepaid);
+      if (!n) return updatePayrollSummaryOnly(t);
+      const a = z(n, t),
+        r = e.closest("tr");
+      if (r) {
+        r.classList.toggle("payroll-row-card-withdraw", Boolean(a.cardWithdraw));
+        const e = r.querySelector(".payroll-net-amount strong"),
+          t = r.querySelector(".payroll-transfer-amount"),
+          n = r.querySelector(".payroll-required-cell"),
+          i = r.querySelector(".payroll-card-withdraw-cell");
+        (e && (e.textContent = o(a.net)),
+          t && (t.textContent = o(a.transfer)),
+          n &&
+            (n.innerHTML =
+              Number(a.required || 0) > 0
+                ? `<strong class="payroll-required-amount">${o(a.required)}</strong>`
+                : ""),
+          i &&
+            (i.innerHTML = a.cardWithdraw
+              ? '<span class="payroll-card-withdraw-text">نعم</span>'
+              : ""));
+      }
+      updatePayrollSummaryOnly(t);
+    }
     ((window.deletePayrollAdvanceRecord = H),
       (window.cleanupEmployeePayrollAdvances = async function (e) {
         const t = String(e || "").trim();
@@ -18219,11 +18309,13 @@ async function init() {
     if (ee && !ee.__payrollAdvancesWrapped) {
       const e = function (e) {
         const t = ee.apply(this, arguments);
-        return (
-          e && Array.isArray(e.payrollAdvances) && P(e.payrollAdvances),
-          e && Array.isArray(e.payrollRuns) && L(e.payrollRuns),
-          t
-        );
+        (e && Array.isArray(e.payrollAdvances) && P(e.payrollAdvances),
+          e && Array.isArray(e.payrollRuns) && L(e.payrollRuns));
+        try {
+          renderAdvancesPage();
+          setTimeout(renderAdvancesPage, 120);
+        } catch (e) {}
+        return t;
       };
       e.__payrollAdvancesWrapped = !0;
       try {
@@ -18351,7 +18443,7 @@ async function init() {
       return `<main class="payroll-print-sheet">${await payrollCompanyHeader(title, `تفاصيل مسير الرواتب لشهر ${y(e)}`, printedAt)}<table class="payroll-print-table"><thead><tr><th>الموظف</th><th>الراتب الأساسي</th><th>البدلات</th><th>التأمينات</th><th>حسم الغياب</th><th>السلفيات</th><th>خصم مسبق للرواتب</th><th>صافي الراتب</th><th>المحول للموظف</th><th>المطلوب من الموظف</th><th>سحب البطاقة</th><th>الحالة</th></tr></thead><tbody>${c || '<tr><td colspan="12">لا توجد بيانات في هذا المسير</td></tr>'}</tbody></table>${await payrollStampHtml()}<div class="payroll-print-footer"><p>يحتوي هذا التقرير على ${i} صفحة، وتمت الطباعة في تاريخ ${printedAt}، وتم اعتماد المسير في تاريخ ${te(r)}</p></div></main>`;
     }
     const oe =
-      "@page{size:A4 landscape;margin:7mm 7mm 14mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{direction:rtl;font-family:Almarai,Arial,Tahoma,sans-serif;color:#172226;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.payroll-print-sheet{width:100%;padding:0 0 24mm}.report-header{display:grid;grid-template-columns:62px 1fr;gap:12px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:8px;margin-bottom:8px}.report-logo{width:54px;height:54px;border-radius:12px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:17px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:5px;color:#475569;font-size:8.5px;line-height:1.45}.report-name{margin:7px 0 7px;padding:6px 8px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:10px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:14px;font-weight:900}.report-name p{margin:2px 0 0;color:#64748b;font-size:8.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:8.5px}.payroll-print-title{margin:0 0 6px;text-align:center;color:#0f5f59;font-size:13px;font-weight:900;line-height:1.3}.payroll-print-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:7.5px;line-height:1.25;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden}.payroll-print-table th{background:#f3f8f8;color:#0f5f59;font-weight:800;border-bottom:1px solid #dfe7e9;padding:5px 2px;text-align:center;white-space:normal}.payroll-print-table td{border-bottom:1px solid #edf2f3;padding:4px 2px;text-align:center;vertical-align:middle;white-space:normal;word-break:break-word}.payroll-print-table tr:last-child td{border-bottom:0}.payroll-print-table th:nth-child(1),.payroll-print-table td:nth-child(1){width:15%;text-align:right}.payroll-print-table th:nth-child(9),.payroll-print-table td:nth-child(9){width:9%}.payroll-print-table th:nth-child(10),.payroll-print-table td:nth-child(10){width:9%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.status-badge{display:inline-block;font-size:7px;line-height:1;border-radius:999px;padding:3px 5px;background:#dcfce7;color:#166534;font-weight:800}.payroll-row-card-withdraw .payroll-report-employee{background:transparent;color:#991b1b}.payroll-row-card-withdraw .payroll-required-cell{background:transparent;color:#b91c1c}.payroll-risk-marker{display:inline-block;width:4px;height:18px;border-radius:999px;background:#dc2626;margin-left:6px;vertical-align:middle}.payroll-risk-name{display:inline-block;vertical-align:middle;color:#991b1b;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.payroll-report-stamp{position:fixed;left:50%;bottom:8mm;transform:translateX(-50%);min-width:82px;text-align:center;color:#0f5968;font-size:8px;font-weight:900;line-height:1.25}.payroll-report-stamp strong{display:block;margin-bottom:2px}.payroll-report-stamp img{display:block;max-width:82px;max-height:42px;object-fit:contain;margin:0 auto}.payroll-report-stamp span{display:block;color:#94a3b8;font-size:7px}.payroll-print-footer{margin-top:6px;border-top:1.5px solid #172226;padding-top:5px;font-size:8px;color:#334155;text-align:center}.payroll-print-footer p{margin:0}.payroll-print-table tr.payroll-row-card-withdraw td{background:#fff!important;box-shadow:none!important}.payroll-print-table tr.payroll-row-card-withdraw td.payroll-report-employee,.payroll-print-table tr.payroll-row-card-withdraw td.payroll-required-cell{background:#fff!important;box-shadow:none!important}.payroll-risk-marker{display:inline-block!important;width:4px!important;height:18px!important;border-radius:999px!important;background:#dc2626!important;margin-left:10px!important;vertical-align:middle!important}.payroll-risk-name{display:inline-block!important;vertical-align:middle!important;color:#991b1b!important;font-weight:900!important}@media print{body{background:#fff}.payroll-print-table{font-size:7px}.payroll-print-table th{padding:4px 2px}.payroll-print-table td{padding:3px 2px}.payroll-print-footer{break-inside:avoid}}";
+      "@page{size:A4 landscape;margin:7mm 7mm 14mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{direction:rtl;font-family:Almarai,Arial,Tahoma,sans-serif;color:#172226;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.payroll-print-sheet{width:100%;padding:0 0 24mm}.report-header{display:grid;grid-template-columns:62px 1fr;gap:12px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:8px;margin-bottom:8px}.report-logo{width:54px;height:54px;border-radius:12px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:17px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:5px;color:#475569;font-size:8.5px;line-height:1.45}.report-name{margin:7px 0 7px;padding:6px 8px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:10px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:14px;font-weight:900}.report-name p{margin:2px 0 0;color:#64748b;font-size:8.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:8.5px}.payroll-print-title{margin:0 0 6px;text-align:center;color:#0f5f59;font-size:13px;font-weight:900;line-height:1.3}.payroll-print-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:7.5px;line-height:1.25;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden}.payroll-print-table th{background:#f3f8f8;color:#0f5f59;font-weight:800;border-bottom:1px solid #dfe7e9;padding:5px 2px;text-align:center;white-space:normal}.payroll-print-table td{border-bottom:1px solid #edf2f3;padding:4px 2px;text-align:center;vertical-align:middle;white-space:normal;word-break:break-word}.payroll-print-table tr:last-child td{border-bottom:0}.payroll-print-table th:nth-child(1),.payroll-print-table td:nth-child(1){width:15%;text-align:right}.payroll-print-table th:nth-child(9),.payroll-print-table td:nth-child(9){width:9%}.payroll-print-table th:nth-child(10),.payroll-print-table td:nth-child(10){width:9%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.status-badge{display:inline-block;font-size:7px;line-height:1;border-radius:999px;padding:3px 5px;background:#dcfce7;color:#166534;font-weight:800}.payroll-row-card-withdraw .payroll-report-employee{background:transparent;color:#991b1b}.payroll-row-card-withdraw .payroll-required-cell{background:transparent;color:#b91c1c}.payroll-risk-marker{display:inline-block;width:4px;height:18px;border-radius:999px;background:#dc2626;margin-left:6px;vertical-align:middle}.payroll-risk-name{display:inline-block;vertical-align:middle;color:#991b1b;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.payroll-report-stamp{margin:10px auto 0;padding-top:8px;border-top:1px solid #dbe3ef;min-width:82px;text-align:center;color:#0f5968;font-size:8px;font-weight:900;line-height:1.25;break-inside:avoid}.payroll-report-stamp strong{display:block;margin-bottom:2px}.payroll-report-stamp img{display:block;max-width:82px;max-height:42px;object-fit:contain;margin:0 auto}.payroll-report-stamp span{display:block;color:#94a3b8;font-size:7px}.payroll-print-footer{margin-top:6px;border-top:1.5px solid #172226;padding-top:5px;font-size:8px;color:#334155;text-align:center}.payroll-print-footer p{margin:0}.payroll-print-table tr.payroll-row-card-withdraw td{background:#fff!important;box-shadow:none!important}.payroll-print-table tr.payroll-row-card-withdraw td.payroll-report-employee,.payroll-print-table tr.payroll-row-card-withdraw td.payroll-required-cell{background:#fff!important;box-shadow:none!important}.payroll-risk-marker{display:inline-block!important;width:4px!important;height:18px!important;border-radius:999px!important;background:#dc2626!important;margin-left:10px!important;vertical-align:middle!important}.payroll-risk-name{display:inline-block!important;vertical-align:middle!important;color:#991b1b!important;font-weight:900!important}@media print{body{background:#fff}.payroll-print-table{font-size:7px}.payroll-print-table th{padding:4px 2px}.payroll-print-table td{padding:3px 2px}.payroll-print-footer{break-inside:avoid}}";
     function re(e) {
       const t = (function () {
         let e = document.getElementById("payrollInlinePrintStyle");
@@ -18546,7 +18638,7 @@ async function init() {
             t.dataset.payrollMonth || p(),
             t.value,
           );
-          Q();
+          updatePayrollPrepaidRow(t);
         },
         !0,
       ),
@@ -35542,6 +35634,11 @@ async function init() {
             <label class="full-field national-address-attachment"><span>إرفاق العنوان الوطني</span><div class="attachment-line v94-attachment-line"><strong id="nationalAddressFileName">${escape(data.nationalAddressFileName || "لم يتم إرفاق ملف")}</strong><div class="attachment-actions"><label class="secondary-btn">اختيار ملف<input type="file" name="nationalAddressFile" accept="application/pdf,image/png,image/jpeg,image/webp" hidden></label>${data.nationalAddressFileDataUrl ? `<button type="button" class="secondary-btn v94-download-address" data-download-national-address="1"><span data-icon="download"></span> تنزيل</button>` : ""}</div></div></label>
           </div>
         </div>
+        <div class="company-logo-upload company-logo-upload-real company-stamp-upload-card v204-company-stamp-card" data-v191-company-stamp="1">
+          <div class="company-logo-preview company-stamp-preview" id="companyStampPreview"><span>ختم</span></div>
+          <div class="company-logo-copy"><strong>ختم المنشأة</strong><span>ختم مستقل عن شعار المنشأة، ويظهر أسفل الجداول في التقارير والخطابات المطبوعة.</span><small id="companyStampFileName">${escape(data.stampFileName || (data.stampAttachmentId ? "تم إرفاق ختم المنشأة" : "لم يتم إرفاق ختم"))}</small></div>
+          <div class="v204-stamp-actions"><label class="secondary-btn company-logo-btn">اختيار الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>${data.stampAttachmentId ? `<button type="button" class="attachment-view-btn" data-view-attachment="${escape(data.stampAttachmentId)}" data-attachment-id="${escape(data.stampAttachmentId)}" title="عرض ختم المنشأة"><span data-icon="eye"></span></button>` : ""}</div>
+        </div>
         <div class="form-actions"><button type="button" class="secondary-btn" id="resetCompanySettingsBtn">إلغاء التغييرات</button><button type="submit" class="primary-btn">حفظ بيانات المنشأة</button></div>
       </form>`;
     const form = section.querySelector("form");
@@ -35610,6 +35707,7 @@ async function init() {
     try {
       if (typeof hydrateIcons === "function") hydrateIcons(section);
     } catch (_) {}
+    setTimeout(() => window.nawahV191?.companyStampControl?.(), 40);
     loadSaudiGuide().then((full) => {
       if (
         section.isConnected &&
@@ -41630,7 +41728,9 @@ async function init() {
 	            "لا توجد بيانات موظفين ضمن الاختيار الحالي",
 	            printedAt,
 	          ) +
-	          '<table class="print-report-table"><tbody><tr><td>لا توجد بيانات للعرض</td></tr></tbody></table></section>';
+	          '<table class="print-report-table"><tbody><tr><td>لا توجد بيانات للعرض</td></tr></tbody></table>' +
+	          reportStampHtml(stampUrl) +
+	          "</section>";
 	      } else {
 	        sections = detailedEmployees
 	          .map(function (emp) {
@@ -41670,6 +41770,7 @@ async function init() {
 	                printedAt,
 	              ) +
 	              monthBlocks +
+	              reportStampHtml(stampUrl) +
 	              "</section>"
 	            );
 	          })
@@ -41689,15 +41790,15 @@ async function init() {
 	              printedAt,
 	            ) +
 	            attendancePrintSummaryTable(ym, employeeId) +
+	            reportStampHtml(stampUrl) +
 	            "</section>"
 	          );
 	        })
 	        .join("");
 	    }
 	    var html =
-	      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حضور الموظف</title><style>@page{size:A4 landscape;margin:12mm 10mm 18mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.attendance-print-month,.attendance-print-employee{break-before:page;page-break-before:always;padding-bottom:28mm}.attendance-print-month:first-child,.attendance-print-employee:first-child{break-before:auto;page-break-before:auto}.attendance-detail-month{break-inside:avoid-page;page-break-inside:avoid;margin-top:10px}.attendance-detail-month h3{margin:0 0 6px;padding:7px 10px;border-radius:9px;background:#eff8fb;color:#0f5968;font-size:13px;font-weight:900}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.attendance-print-employee-strip{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:6px 0 7px;padding:7px 10px;border:1px solid #dbeafe;border-radius:10px;background:#fbfdff;color:#334155;font-size:9.5px}.attendance-print-employee-strip strong{color:#0f172a;font-size:10.5px}.attendance-print-employee-strip span{white-space:nowrap}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.4px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:4px 5px;text-align:right;vertical-align:middle;line-height:1.32}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-report-attendance-table th:nth-child(1),.print-report-attendance-table td:nth-child(1){width:9%}.print-report-attendance-table th:nth-child(2),.print-report-attendance-table td:nth-child(2){width:24%;white-space:nowrap}.print-report-attendance-detail th:nth-child(1),.print-report-attendance-detail td:nth-child(1){width:9%}.print-report-attendance-detail th:nth-child(2),.print-report-attendance-detail td:nth-child(2){width:7%}.print-report-attendance-detail th:nth-child(3),.print-report-attendance-detail td:nth-child(3){width:22%}.print-report-attendance-detail th:nth-child(4),.print-report-attendance-detail td:nth-child(4){width:10%}.print-report-attendance-detail th:nth-child(5),.print-report-attendance-detail td:nth-child(5){width:22%}.print-report-attendance-detail th:nth-child(6),.print-report-attendance-detail td:nth-child(6){width:10%}.print-report-attendance-detail th:nth-child(7),.print-report-attendance-detail td:nth-child(7){width:9%}.print-report-attendance-detail th:nth-child(8),.print-report-attendance-detail td:nth-child(8){width:12%}.attendance-period-lines{display:grid;gap:2px;line-height:1.35}.attendance-period-lines span{display:block;white-space:normal}.attendance-period-lines b{color:#0f5968}.attendance-period-cell{display:grid;gap:2px;line-height:1.32}.attendance-period-cell strong{color:#0f5968;font-size:8.6px}.attendance-period-cell span{display:block;white-space:nowrap;color:#475569;font-size:8px}.report-stamp-fixed{position:fixed;left:50%;bottom:11mm;transform:translateX(-50%);min-width:86px;text-align:center;color:#0f5968;font-size:9px;font-weight:900;line-height:1.25;z-index:5}.report-stamp-fixed strong{display:block;margin-bottom:2px}.report-stamp-fixed img{display:block;max-width:86px;max-height:45px;object-fit:contain;margin:0 auto}.report-stamp-fixed span{display:block;color:#94a3b8;font-size:8px}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>' +
+	      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير حضور الموظف</title><style>@page{size:A4 landscape;margin:12mm 10mm 18mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.attendance-print-month,.attendance-print-employee{break-before:page;page-break-before:always;padding-bottom:28mm}.attendance-print-month:first-child,.attendance-print-employee:first-child{break-before:auto;page-break-before:auto}.attendance-detail-month{break-inside:avoid-page;page-break-inside:avoid;margin-top:10px}.attendance-detail-month h3{margin:0 0 6px;padding:7px 10px;border-radius:9px;background:#eff8fb;color:#0f5968;font-size:13px;font-weight:900}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.attendance-print-employee-strip{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:6px 0 7px;padding:7px 10px;border:1px solid #dbeafe;border-radius:10px;background:#fbfdff;color:#334155;font-size:9.5px}.attendance-print-employee-strip strong{color:#0f172a;font-size:10.5px}.attendance-print-employee-strip span{white-space:nowrap}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.4px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:4px 5px;text-align:right;vertical-align:middle;line-height:1.32}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-report-attendance-table th:nth-child(1),.print-report-attendance-table td:nth-child(1){width:9%}.print-report-attendance-table th:nth-child(2),.print-report-attendance-table td:nth-child(2){width:24%;white-space:nowrap}.print-report-attendance-detail th:nth-child(1),.print-report-attendance-detail td:nth-child(1){width:9%}.print-report-attendance-detail th:nth-child(2),.print-report-attendance-detail td:nth-child(2){width:7%}.print-report-attendance-detail th:nth-child(3),.print-report-attendance-detail td:nth-child(3){width:22%}.print-report-attendance-detail th:nth-child(4),.print-report-attendance-detail td:nth-child(4){width:10%}.print-report-attendance-detail th:nth-child(5),.print-report-attendance-detail td:nth-child(5){width:22%}.print-report-attendance-detail th:nth-child(6),.print-report-attendance-detail td:nth-child(6){width:10%}.print-report-attendance-detail th:nth-child(7),.print-report-attendance-detail td:nth-child(7){width:9%}.print-report-attendance-detail th:nth-child(8),.print-report-attendance-detail td:nth-child(8){width:12%}.attendance-period-lines{display:grid;gap:2px;line-height:1.35}.attendance-period-lines span{display:block;white-space:normal}.attendance-period-lines b{color:#0f5968}.attendance-period-cell{display:grid;gap:2px;line-height:1.32}.attendance-period-cell strong{color:#0f5968;font-size:8.6px}.attendance-period-cell span{display:block;white-space:nowrap;color:#475569;font-size:8px}.report-stamp-fixed{margin:14px auto 0;padding-top:8px;border-top:1px solid #dbe3ef;min-width:86px;text-align:center;color:#0f5968;font-size:9px;font-weight:900;line-height:1.25;break-inside:avoid}.report-stamp-fixed strong{display:block;margin-bottom:2px}.report-stamp-fixed img{display:block;max-width:86px;max-height:45px;object-fit:contain;margin:0 auto}.report-stamp-fixed span{display:block;color:#94a3b8;font-size:8px}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>' +
 	      sections +
-	      reportStampHtml(stampUrl) +
 	      '<footer class="report-footer"><span>تمت طباعة هذا التقرير من نظام إدارة الموظفين</span><span class="pages"></span><span>' +
 	      esc(printedAt) +
 	      "</span></footer></body></html>";
@@ -41748,7 +41849,7 @@ async function init() {
     var html =
       '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
       esc(title) +
-      '</title><style>@page{size:A4 landscape;margin:12mm 10mm 18mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 30mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10.5px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:6px 7px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-banking-table{table-layout:fixed}.print-report-banking-table th:nth-child(1),.print-report-banking-table td:nth-child(1){width:10%}.print-report-banking-table th:nth-child(2),.print-report-banking-table td:nth-child(2){width:20%}.print-report-banking-table th:nth-child(3),.print-report-banking-table td:nth-child(3){width:12%}.print-report-banking-table th:nth-child(4),.print-report-banking-table td:nth-child(4){width:16%}.print-report-banking-table th:nth-child(5),.print-report-banking-table td:nth-child(5){width:20%}.print-report-banking-table th:nth-child(6),.print-report-banking-table td:nth-child(6){width:22%}.report-period-cell{display:flex;flex-direction:column;gap:2px;line-height:1.45;text-align:center;font-weight:800;color:#172033}.report-period-cell div{display:block;white-space:nowrap}.bank-account-print{white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;direction:ltr;text-align:left!important;font-size:9px;letter-spacing:-.2px}.grouped-report-table tbody td{border-bottom:0!important}.grouped-report-table tbody tr.employee-group-start td{border-top:1px solid #cfd8e3}.grouped-report-table tbody tr.employee-group-start:first-child td{border-top:0}.print-report-table.grouped-report-table tbody tr.employee-group-detail td{border-top:0!important;border-bottom:0!important}.print-report-table.grouped-report-table tbody tr.employee-group-start td{border-bottom:0!important}.print-report-advances-table th:nth-child(1),.print-report-advances-table td:nth-child(1){width:9%}.print-report-advances-table th:nth-child(2),.print-report-advances-table td:nth-child(2){width:17%}.print-report-advances-table th:nth-child(3),.print-report-advances-table td:nth-child(3){width:9%}.print-report-advances-table th:nth-child(4),.print-report-advances-table td:nth-child(4){width:12%}.print-report-advances-table th:nth-child(5),.print-report-advances-table td:nth-child(5){width:11%}.print-report-advances-table th:nth-child(6),.print-report-advances-table td:nth-child(6){width:11%}.print-report-advances-table th:nth-child(7),.print-report-advances-table td:nth-child(7){width:10%}.print-report-advances-table th:nth-child(8),.print-report-advances-table td:nth-child(8){width:11%}.print-report-advances-table th:nth-child(9),.print-report-advances-table td:nth-child(9){width:10%}.print-report-leave-travel-table{font-size:8.6px}.print-report-leave-travel-table th:nth-child(1),.print-report-leave-travel-table td:nth-child(1){width:7%}.print-report-leave-travel-table th:nth-child(2),.print-report-leave-travel-table td:nth-child(2){width:19%;white-space:nowrap}.print-report-leave-travel-table th:nth-child(3),.print-report-leave-travel-table td:nth-child(3){width:7%}.print-report-leave-travel-table th:nth-child(4),.print-report-leave-travel-table td:nth-child(4){width:11%}.print-report-leave-travel-table th:nth-child(5),.print-report-leave-travel-table td:nth-child(5){width:8%}.print-report-leave-travel-table th:nth-child(6),.print-report-leave-travel-table td:nth-child(6){width:8%}.print-report-leave-travel-table th:nth-child(7),.print-report-leave-travel-table td:nth-child(7){width:15%}.print-report-leave-travel-table th:nth-child(8),.print-report-leave-travel-table td:nth-child(8){width:9%}.print-report-leave-travel-table th:nth-child(9),.print-report-leave-travel-table td:nth-child(9){width:9%}.print-report-leave-travel-table th:nth-child(10),.print-report-leave-travel-table td:nth-child(10){width:9%}.print-payroll-run-table{border-collapse:separate;border-spacing:0;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden;font-size:8px}.print-payroll-run-table th{text-align:center;background:#f3f8f8;color:#0f5f59}.print-payroll-run-table td{text-align:center;padding:4px 3px}.print-payroll-run-table th:first-child,.print-payroll-run-table td:first-child{text-align:right;width:15%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}.report-reserved-balance{color:#dc2626!important;font-weight:900}.report-stamp-fixed{position:fixed;left:50%;bottom:11mm;transform:translateX(-50%);min-width:86px;text-align:center;color:#0f5968;font-size:9px;font-weight:900;line-height:1.25;z-index:5}.report-stamp-fixed strong{display:block;margin-bottom:2px}.report-stamp-fixed img{display:block;max-width:86px;max-height:45px;object-fit:contain;margin:0 auto}.report-stamp-fixed span{display:block;color:#94a3b8;font-size:8px}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.report-page{page-break-inside:auto}.print-report-table{page-break-inside:auto}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
+      '</title><style>@page{size:A4 landscape;margin:12mm 10mm 18mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 30mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10.5px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:6px 7px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-banking-table{table-layout:fixed}.print-report-banking-table th:nth-child(1),.print-report-banking-table td:nth-child(1){width:10%}.print-report-banking-table th:nth-child(2),.print-report-banking-table td:nth-child(2){width:20%}.print-report-banking-table th:nth-child(3),.print-report-banking-table td:nth-child(3){width:12%}.print-report-banking-table th:nth-child(4),.print-report-banking-table td:nth-child(4){width:16%}.print-report-banking-table th:nth-child(5),.print-report-banking-table td:nth-child(5){width:20%}.print-report-banking-table th:nth-child(6),.print-report-banking-table td:nth-child(6){width:22%}.report-period-cell{display:flex;flex-direction:column;gap:2px;line-height:1.45;text-align:center;font-weight:800;color:#172033}.report-period-cell div{display:block;white-space:nowrap}.bank-account-print{white-space:nowrap!important;overflow-wrap:normal!important;word-break:keep-all!important;direction:ltr;text-align:left!important;font-size:9px;letter-spacing:-.2px}.grouped-report-table tbody td{border-bottom:0!important}.grouped-report-table tbody tr.employee-group-start td{border-top:1px solid #cfd8e3}.grouped-report-table tbody tr.employee-group-start:first-child td{border-top:0}.print-report-table.grouped-report-table tbody tr.employee-group-detail td{border-top:0!important;border-bottom:0!important}.print-report-table.grouped-report-table tbody tr.employee-group-start td{border-bottom:0!important}.print-report-advances-table th:nth-child(1),.print-report-advances-table td:nth-child(1){width:9%}.print-report-advances-table th:nth-child(2),.print-report-advances-table td:nth-child(2){width:17%}.print-report-advances-table th:nth-child(3),.print-report-advances-table td:nth-child(3){width:9%}.print-report-advances-table th:nth-child(4),.print-report-advances-table td:nth-child(4){width:12%}.print-report-advances-table th:nth-child(5),.print-report-advances-table td:nth-child(5){width:11%}.print-report-advances-table th:nth-child(6),.print-report-advances-table td:nth-child(6){width:11%}.print-report-advances-table th:nth-child(7),.print-report-advances-table td:nth-child(7){width:10%}.print-report-advances-table th:nth-child(8),.print-report-advances-table td:nth-child(8){width:11%}.print-report-advances-table th:nth-child(9),.print-report-advances-table td:nth-child(9){width:10%}.print-report-leave-travel-table{font-size:8.6px}.print-report-leave-travel-table th:nth-child(1),.print-report-leave-travel-table td:nth-child(1){width:7%}.print-report-leave-travel-table th:nth-child(2),.print-report-leave-travel-table td:nth-child(2){width:19%;white-space:nowrap}.print-report-leave-travel-table th:nth-child(3),.print-report-leave-travel-table td:nth-child(3){width:7%}.print-report-leave-travel-table th:nth-child(4),.print-report-leave-travel-table td:nth-child(4){width:11%}.print-report-leave-travel-table th:nth-child(5),.print-report-leave-travel-table td:nth-child(5){width:8%}.print-report-leave-travel-table th:nth-child(6),.print-report-leave-travel-table td:nth-child(6){width:8%}.print-report-leave-travel-table th:nth-child(7),.print-report-leave-travel-table td:nth-child(7){width:15%}.print-report-leave-travel-table th:nth-child(8),.print-report-leave-travel-table td:nth-child(8){width:9%}.print-report-leave-travel-table th:nth-child(9),.print-report-leave-travel-table td:nth-child(9){width:9%}.print-report-leave-travel-table th:nth-child(10),.print-report-leave-travel-table td:nth-child(10){width:9%}.print-payroll-run-table{border-collapse:separate;border-spacing:0;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden;font-size:8px}.print-payroll-run-table th{text-align:center;background:#f3f8f8;color:#0f5f59}.print-payroll-run-table td{text-align:center;padding:4px 3px}.print-payroll-run-table th:first-child,.print-payroll-run-table td:first-child{text-align:right;width:15%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.contract-state-green{color:#15803d;font-weight:900}.contract-state-yellow{color:#b45309;font-weight:900}.contract-state-red{color:#dc2626;font-weight:900}.report-reserved-balance{color:#dc2626!important;font-weight:900}.report-stamp-fixed{margin:14px auto 0;padding-top:8px;border-top:1px solid #dbe3ef;min-width:86px;text-align:center;color:#0f5968;font-size:9px;font-weight:900;line-height:1.25;break-inside:avoid}.report-stamp-fixed strong{display:block;margin-bottom:2px}.report-stamp-fixed img{display:block;max-width:86px;max-height:45px;object-fit:contain;margin:0 auto}.report-stamp-fixed span{display:block;color:#94a3b8;font-size:8px}.report-footer{position:fixed;left:10mm;right:10mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.report-page{page-break-inside:auto}.print-report-table{page-break-inside:auto}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
       esc(logo) +
       '" alt="شعار المنشأة"><div class="company-title"><h1>' +
       esc(company.name) +
@@ -41762,8 +41863,8 @@ async function init() {
       esc(printedAt) +
       "</div></section>" +
       reportTableHtml(tab) +
-      '</main>' +
       reportStampHtml(stampUrl) +
+      '</main>' +
       '<footer class="report-footer"><span>تمت طباعة هذا التقرير من نظام إدارة الموظفين</span><span class="pages"></span><span>' +
       esc(printedAt) +
       "</span></footer></body></html>";
@@ -59330,7 +59431,7 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
           .join("")
       : "<span>بيانات المنشأة غير مكتملة</span>";
     const html =
-      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير رصيد الإجازات</title><style>@page{size:A4 landscape;margin:10mm 8mm 18mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 30mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.8px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:5px 5px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-leave-balance-table th:nth-child(1),.print-leave-balance-table td:nth-child(1){width:8%}.print-leave-balance-table th:nth-child(2),.print-leave-balance-table td:nth-child(2){width:16%}.print-leave-balance-table th:nth-child(3),.print-leave-balance-table td:nth-child(3){width:8%}.print-leave-balance-table th:nth-child(4),.print-leave-balance-table td:nth-child(4){width:11%}.print-leave-balance-table th:nth-child(5),.print-leave-balance-table td:nth-child(5){width:12%}.print-leave-balance-table th:nth-child(6),.print-leave-balance-table td:nth-child(6),.print-leave-balance-table th:nth-child(7),.print-leave-balance-table td:nth-child(7),.print-leave-balance-table th:nth-child(8),.print-leave-balance-table td:nth-child(8){width:10%}.print-leave-balance-table th:nth-child(9),.print-leave-balance-table td:nth-child(9),.print-leave-balance-table th:nth-child(10),.print-leave-balance-table td:nth-child(10){width:7.5%;font-weight:900;color:#08758a}.leave-balance-negative{color:#dc2626!important;font-weight:900}.report-stamp-fixed{position:fixed;left:50%;bottom:11mm;transform:translateX(-50%);min-width:86px;text-align:center;color:#0f5968;font-size:9px;font-weight:900;line-height:1.25;z-index:5}.report-stamp-fixed strong{display:block;margin-bottom:2px}.report-stamp-fixed img{display:block;max-width:86px;max-height:45px;object-fit:contain;margin:0 auto}.report-stamp-fixed span{display:block;color:#94a3b8;font-size:8px}.report-footer{position:fixed;left:8mm;right:8mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
+      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير رصيد الإجازات</title><style>@page{size:A4 landscape;margin:10mm 8mm 18mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-page{width:100%;padding:0 0 30mm}.report-header{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px;margin-bottom:10px}.report-logo{width:60px;height:60px;border-radius:14px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:20px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:6px;color:#475569;font-size:10px;line-height:1.55}.report-name{margin:10px 0 8px;padding:8px 10px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:12px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:16px;font-weight:900}.report-name p{margin:3px 0 0;color:#64748b;font-size:10.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:10.5px}.print-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.8px;margin-top:8px}.print-report-table th,.print-report-table td{border:0;border-bottom:1px solid #cfd8e3;padding:5px 5px;text-align:right;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.35}.print-report-table th{background:#eff8fb;color:#0f5968;font-weight:900;border-top:1px solid #cfd8e3}.print-report-table tbody tr:nth-child(even) td{background:#fbfdff}.print-leave-balance-table th:nth-child(1),.print-leave-balance-table td:nth-child(1){width:8%}.print-leave-balance-table th:nth-child(2),.print-leave-balance-table td:nth-child(2){width:16%}.print-leave-balance-table th:nth-child(3),.print-leave-balance-table td:nth-child(3){width:8%}.print-leave-balance-table th:nth-child(4),.print-leave-balance-table td:nth-child(4){width:11%}.print-leave-balance-table th:nth-child(5),.print-leave-balance-table td:nth-child(5){width:12%}.print-leave-balance-table th:nth-child(6),.print-leave-balance-table td:nth-child(6),.print-leave-balance-table th:nth-child(7),.print-leave-balance-table td:nth-child(7),.print-leave-balance-table th:nth-child(8),.print-leave-balance-table td:nth-child(8){width:10%}.print-leave-balance-table th:nth-child(9),.print-leave-balance-table td:nth-child(9),.print-leave-balance-table th:nth-child(10),.print-leave-balance-table td:nth-child(10){width:7.5%;font-weight:900;color:#08758a}.leave-balance-negative{color:#dc2626!important;font-weight:900}.report-stamp-fixed{margin:14px auto 0;padding-top:8px;border-top:1px solid #dbe3ef;min-width:86px;text-align:center;color:#0f5968;font-size:9px;font-weight:900;line-height:1.25;break-inside:avoid}.report-stamp-fixed strong{display:block;margin-bottom:2px}.report-stamp-fixed img{display:block;max-width:86px;max-height:45px;object-fit:contain;margin:0 auto}.report-stamp-fixed span{display:block;color:#94a3b8;font-size:8px}.report-footer{position:fixed;left:8mm;right:8mm;bottom:5mm;border-top:1px solid #dbe3ef;padding-top:5px;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:10px}.report-footer .pages:after{content:"الصفحة 1 من 1"}@media print{body{overflow:visible}.print-report-table tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body><main class="report-page"><header class="report-header"><img class="report-logo" src="' +
       esc(logo) +
       '" alt="شعار المنشأة"><div class="company-title"><h1>' +
       esc(company.name) +
@@ -59342,8 +59443,8 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
       esc(printedAt) +
       "</div></section>" +
       printTableHtml(printDate) +
-      '</main>' +
       stampHtml(stamp) +
+      '</main>' +
       '<footer class="report-footer"><span>تمت طباعة هذا التقرير من نظام إدارة الموظفين</span><span class="pages"></span><span>' +
       esc(printedAt) +
       "</span></footer></body></html>";
@@ -60094,7 +60195,9 @@ window.nawahLeaveBalanceReportV185 = {
     applySiteFavicon();
   }
   function companyStampControl() {
-    const form = q('#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"]');
+    const form =
+      q("#settingsForm .national-address-card")?.closest("#settingsForm") ||
+      q('#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"],#settingsForm.company-settings-real-form');
     if (!form) return;
     companyFaviconControl(form);
     const company = readCompany();
@@ -60103,7 +60206,7 @@ window.nawahLeaveBalanceReportV185 = {
     if (!stamp) {
       stamp = document.createElement("div");
       stamp.className =
-        "company-logo-upload company-logo-upload-real v191-company-stamp v192-company-stamp-card";
+        "company-logo-upload company-logo-upload-real company-stamp-upload-card v191-company-stamp v192-company-stamp-card";
       stamp.dataset.v191CompanyStamp = "1";
     }
     stamp.innerHTML =
@@ -60128,6 +60231,7 @@ window.nawahLeaveBalanceReportV185 = {
       else if (actions) actions.insertAdjacentElement("beforebegin", stamp);
       else form.appendChild(stamp);
     }
+    stamp.classList.add("v204-company-stamp-card");
     reorderCompanyMediaControls(form);
     if (attachmentId) {
       imageUrl(attachmentId).then(function (url) {
@@ -60672,6 +60776,7 @@ window.nawahLeaveBalanceReportV185 = {
 	    updateTravelApprovalTicketBox,
 	    renderManagers,
 	    refreshTransactionSelects,
+	    companyStampControl,
 	  };
 	  window.nawahUpdateTravelApprovalTicketBox = updateTravelApprovalTicketBox;
 })();
