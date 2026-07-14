@@ -17781,68 +17781,218 @@ html.has-initial-login-bg .auth-gate,
   white-space: nowrap;
 }
 
+.advance-amount-red {
+  color: #be123c !important;
+  font-weight: 900;
+}
+
+.advance-paid-green {
+  color: #047857 !important;
+  font-weight: 900;
+}
+
+.report-advance-nested-table .advance-amount-red,
+.report-advance-nested-table .advance-paid-green,
+.finance-advances-table .advance-amount-red,
+.finance-advances-table .advance-paid-green {
+  display: inline-block;
+}
+
 .advance-payment-modal {
-  width: min(560px, calc(100vw - 32px));
+  width: min(620px, calc(100vw - 32px));
+  border: 1px solid rgba(15, 89, 104, .18);
+  border-radius: 24px;
+  box-shadow: 0 26px 80px rgba(15, 23, 42, .24);
+}
+
+.advance-payment-modal .advance-modal-head {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #effdff, #ffffff);
+  border-bottom: 1px solid rgba(19, 163, 183, .14);
+}
+
+.advance-payment-title-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #0f5968;
+  background: #e6fbff;
+  border: 1px solid rgba(19, 163, 183, .22);
 }
 
 .advance-payment-body {
   display: grid;
   gap: 14px;
+  padding-top: 14px;
 }
 
-.advance-payment-summary,
-.advance-payment-preview {
+.advance-payment-summary {
   display: grid;
-  grid-template-columns: minmax(90px, auto) 1fr;
-  gap: 8px 12px;
-  align-items: center;
+  grid-template-columns: 1.35fr .9fr;
+  gap: 10px;
+}
+
+.advance-payment-summary > div,
+.advance-payment-preview {
   border: 1px solid rgba(19, 163, 183, .16);
-  border-radius: 16px;
+  border-radius: 18px;
   background: linear-gradient(135deg, #f7fdff, #fff);
-  padding: 12px 14px;
+  padding: 13px 14px;
+  min-width: 0;
 }
 
 .advance-payment-summary span,
-.advance-payment-preview span {
+.advance-payment-preview span,
+.advance-payment-grid label span {
+  display: block;
   color: #64748b;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 850;
+  margin-bottom: 5px;
 }
 
 .advance-payment-summary strong,
 .advance-payment-preview strong {
+  display: block;
   color: #0f5968;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 950;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .advance-payment-options {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  border: 1px solid rgba(203, 213, 225, .9);
-  border-radius: 16px;
-  padding: 12px 14px;
+  border: 0;
+  padding: 0;
+  margin: 0;
 }
 
 .advance-payment-options legend {
-  padding: 0 8px;
+  grid-column: 1 / -1;
   color: #0f5968;
   font-size: 12px;
   font-weight: 900;
+  padding: 0;
 }
 
 .advance-payment-options label {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   margin: 0;
+  min-height: 44px;
+  border: 1px solid rgba(203, 213, 225, .9);
+  border-radius: 15px;
+  background: #fff;
+  padding: 10px 12px;
   color: #172033;
-  font-weight: 800;
+  font-weight: 850;
+}
+
+.advance-payment-options input {
+  accent-color: #0f8da3;
+}
+
+.advance-payment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.advance-payment-grid label {
+  margin: 0;
+}
+
+.advance-payment-grid input {
+  width: 100%;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(203, 213, 225, .9);
+  background: #fff;
+  color: #172033;
+  font-weight: 850;
+  padding: 0 12px;
 }
 
 .advance-payment-partial-field[hidden] {
   display: none !important;
+}
+
+.advance-payment-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(135deg, #ecfdf5, #ffffff);
+}
+
+.advance-payment-actions {
+  border-top: 1px solid rgba(226, 232, 240, .9);
+}
+
+.establishment-absence-policy-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.establishment-absence-policy-toolbar p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.establishment-absence-rule-list {
+  display: grid;
+  gap: 10px;
+}
+
+.establishment-absence-rule-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1.2fr) minmax(160px, .8fr) 36px;
+  align-items: end;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(203, 213, 225, .75);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.establishment-absence-rule-number {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e6fbff;
+  color: #0f5968;
+  font-weight: 950;
+}
+
+.establishment-absence-rule-row label {
+  margin: 0;
+}
+
+.establishment-absence-rule-row input {
+  width: 100%;
+  min-height: 38px;
+}
+
+.establishment-absence-rule-delete {
+  color: #dc2626 !important;
 }
 
 .report-absence-nested-table th,
@@ -17871,5 +18021,17 @@ html.has-initial-login-bg .auth-gate,
   #settingsForm .v204-stamp-actions,
   #settingsForm .v204-company-stamp-card .v192-media-actions {
     justify-content: center !important;
+  }
+
+  .advance-payment-summary,
+  .advance-payment-options,
+  .advance-payment-grid,
+  .establishment-absence-rule-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .establishment-absence-policy-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

@@ -43,7 +43,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=205" />
+    <link rel="stylesheet" href="style.css?v=206" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -504,10 +504,10 @@
                   <div class="panel-head">
                     <div>
                       <h3>السلفيات</h3>
-                      <p>عرض السلفيات المعتمدة لهذا الشهر من شاشة الرواتب.</p>
+                      <p>عرض السلفيات القائمة غير المسددة لهذا الشهر.</p>
                     </div>
                   </div>
-                  <div class="table-wrap payroll-advances-table-wrap finance-advances-table-wrap"><table class="payroll-advances-table finance-advances-table"><thead><tr><th>الموظف</th><th>إجمالي السلفيات</th></tr></thead><tbody id="financeAdvancesTableBody"><tr><td colspan="2">لا توجد سلفيات لهذا الشهر</td></tr></tbody></table></div>
+                  <div class="table-wrap payroll-advances-table-wrap finance-advances-table-wrap"><table class="payroll-advances-table finance-advances-table"><thead><tr><th>الموظف</th><th>إجمالي المتبقي</th></tr></thead><tbody id="financeAdvancesTableBody"><tr><td colspan="2">لا توجد سلفيات قائمة لهذا الشهر</td></tr></tbody></table></div>
                 </section>
               </div>
             </div>
@@ -844,12 +844,12 @@
                       </div>
                       <div class="absence-policy-column establishment-policy-card absence-establishment-wide">
                         <h5>سياسة المنشأة في الغياب</h5>
-                        <div class="form-grid one-column">
-                          <label><span>غياب الفترة الأولى يخصم</span><input type="number" min="0" step="0.5" data-absence-policy="firstPeriodDeductionDays" /></label>
-                          <label><span>غياب الفترة الثانية يخصم</span><input type="number" min="0" step="0.5" data-absence-policy="secondPeriodDeductionDays" /></label>
-                          <label><span>غياب اليوم الكامل يخصم</span><input type="number" min="0" step="0.5" data-absence-policy="fullDayDeductionDays" /></label>
+                        <div class="establishment-absence-policy-toolbar">
+                          <p>أضف أنواع الغياب التي تظهر عند تسجيل الغياب وحدد عدد أيام الخصم من الراتب الأساسي.</p>
+                          <button type="button" class="secondary-btn small-btn" data-add-establishment-absence-rule><span data-icon="plus"></span>إضافة سياسة غياب</button>
                         </div>
-                        <div class="absence-policy-note"><span data-icon="info"></span><p>حسب السياسة الحالية: غياب الفترة الأولى يعتبر غياب يوم كامل مع خصم يومين، وغياب الفترة الثانية يخصم يومًا واحدًا.</p></div>
+                        <div class="establishment-absence-rule-list" id="establishmentAbsenceRuleList"></div>
+                        <div class="absence-policy-note"><span data-icon="info"></span><p>تظهر هذه السياسات في شاشة تسجيل الغياب، ويتم احتساب الحسم حسب عدد أيام الخصم المسجلة لكل سياسة.</p></div>
                       </div>
                     </div>
                     <div class="form-actions"><button type="submit" class="primary-btn">حفظ قاعدة بيانات الغياب</button></div>
@@ -1109,7 +1109,7 @@
               <label><span>إلى تاريخ</span><input type="date" name="to" required /></label>
             </div>
             <label><span>نوع الغياب</span><select name="type" required><option value="unexcused">غياب بدون عذر</option><option value="excused">غياب بعذر مقبول</option><option value="authorized">غياب بإذن مكتوب</option></select></label>
-            <label id="absencePeriodSegmentField"><span>الفترة الغائبة</span><select name="periodSegment" required><option value="fullDay">كامل اليوم</option><option value="first">الفترة الأولى</option><option value="second">الفترة الثانية</option></select></label>
+            <label id="absencePeriodSegmentField"><span>سياسة الغياب</span><select name="establishmentRuleId" required></select></label>
             <label><span>سبب أو ملاحظة</span><textarea name="reason" rows="3" placeholder="اكتب سبب الغياب أو الملاحظة المرتبطة به"></textarea></label>
             <div class="absence-modal-note"><span data-icon="info"></span><p>عند اختيار غياب بدون عذر سيتم إنشاء محضر غياب مبدئي داخل الملاحظات والمحاضر للموظف.</p></div>
           </div>
@@ -1219,6 +1219,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=205"></script>
+    <script src="app.js?v=206"></script>
   </body>
 </html>

@@ -268,6 +268,26 @@ const ICONS = {
     firstPeriodDeductionDays: 2,
     secondPeriodDeductionDays: 1,
     fullDayDeductionDays: 1,
+    establishmentRules: [
+      {
+        id: "est-absence-first",
+        name: "غياب الفترة الأولى",
+        deductionDays: 2,
+        legacySegment: "first",
+      },
+      {
+        id: "est-absence-second",
+        name: "غياب الفترة الثانية",
+        deductionDays: 1,
+        legacySegment: "second",
+      },
+      {
+        id: "est-absence-full-day",
+        name: "غياب اليوم الكامل",
+        deductionDays: 1,
+        legacySegment: "fullDay",
+      },
+    ],
     laborRules: [
       {
         title: "غياب يوم واحد خلال السنة العقدية",
@@ -1815,28 +1835,91 @@ function removeMinuteField(e, t) {
     ((n.fields = n.fields.filter((e) => e.id !== t)),
     renderMinuteTemplateSettings());
 }
+function absencePolicyNumber(e, t = 0) {
+  const n = Number(e);
+  return Number.isFinite(n) && n >= 0 ? n : t;
+}
+function legacyAbsenceRulesFromSettings(e = DEFAULT_ABSENCE_POLICY_SETTINGS) {
+  return [
+    {
+      id: "est-absence-first",
+      name: "غياب الفترة الأولى",
+      deductionDays: absencePolicyNumber(
+        e.firstPeriodDeductionDays,
+        DEFAULT_ABSENCE_POLICY_SETTINGS.firstPeriodDeductionDays,
+      ),
+      legacySegment: "first",
+    },
+    {
+      id: "est-absence-second",
+      name: "غياب الفترة الثانية",
+      deductionDays: absencePolicyNumber(
+        e.secondPeriodDeductionDays,
+        DEFAULT_ABSENCE_POLICY_SETTINGS.secondPeriodDeductionDays,
+      ),
+      legacySegment: "second",
+    },
+    {
+      id: "est-absence-full-day",
+      name: "غياب اليوم الكامل",
+      deductionDays: absencePolicyNumber(
+        e.fullDayDeductionDays,
+        DEFAULT_ABSENCE_POLICY_SETTINGS.fullDayDeductionDays,
+      ),
+      legacySegment: "fullDay",
+    },
+  ];
+}
+function normalizeEstablishmentAbsenceRule(e = {}, t = 0) {
+  const n = String(e.id || "").trim() || `est-absence-rule-${Date.now()}-${t}`,
+    a =
+      String(e.name || e.title || "").trim() ||
+      (0 === t ? "غياب اليوم الكامل" : `سياسة غياب ${arabicNumber(t + 1)}`),
+    o = ["first", "second", "fullDay"].includes(e.legacySegment)
+      ? e.legacySegment
+      : "";
+  return {
+    id: n,
+    name: a,
+    deductionDays: absencePolicyNumber(e.deductionDays, 0),
+    legacySegment: o,
+  };
+}
+function getEstablishmentAbsenceRules(e = absencePolicySettings) {
+  return normalizeAbsencePolicySettings(e).establishmentRules;
+}
+function getEstablishmentAbsenceRule(e, t = absencePolicySettings) {
+  const n = getEstablishmentAbsenceRules(t),
+    a = String(e || "").trim();
+  return (
+    n.find((e) => String(e.id) === a) ||
+    n.find((e) => String(e.legacySegment || "") === a) ||
+    n[0] ||
+    null
+  );
+}
 function normalizeAbsencePolicySettings(e = DEFAULT_ABSENCE_POLICY_SETTINGS) {
   const t = structuredClone(DEFAULT_ABSENCE_POLICY_SETTINGS),
     n = e && "object" == typeof e ? structuredClone(e) : t,
-    a = (e, t) => {
-      const n = Number(e);
-      return Number.isFinite(n) && n >= 0 ? n : t;
-    },
     o =
       n.activePolicy ||
       (!1 === n.establishmentPolicyEnabled ? "labor" : "establishment");
+  let r = Array.isArray(n.establishmentRules)
+    ? n.establishmentRules
+        .map((e, t) => normalizeEstablishmentAbsenceRule(e, t))
+        .filter((e) => e.name)
+    : [];
+  r.length || (r = legacyAbsenceRulesFromSettings(n));
+  const i = (e, t) =>
+    r.find((t) => t.legacySegment === e)?.deductionDays ??
+    absencePolicyNumber(n[t], DEFAULT_ABSENCE_POLICY_SETTINGS[t]);
   return {
     activePolicy: "labor" === o ? "labor" : "establishment",
     establishmentPolicyEnabled: "labor" !== o,
-    firstPeriodDeductionDays: a(
-      n.firstPeriodDeductionDays,
-      t.firstPeriodDeductionDays,
-    ),
-    secondPeriodDeductionDays: a(
-      n.secondPeriodDeductionDays,
-      t.secondPeriodDeductionDays,
-    ),
-    fullDayDeductionDays: a(n.fullDayDeductionDays, t.fullDayDeductionDays),
+    firstPeriodDeductionDays: i("first", "firstPeriodDeductionDays"),
+    secondPeriodDeductionDays: i("second", "secondPeriodDeductionDays"),
+    fullDayDeductionDays: i("fullDay", "fullDayDeductionDays"),
+    establishmentRules: r,
     laborRules:
       Array.isArray(n.laborRules) && n.laborRules.length
         ? n.laborRules
@@ -1867,6 +1950,12 @@ function calculateAbsenceDeductionDays(e = "unexcused", t = "fullDay") {
   const n = normalizeAbsencePolicySettings(absencePolicySettings);
   if ("establishment" !== n.activePolicy)
     return calculateDays(arguments[2]?.from, arguments[2]?.to);
+  const o = arguments[2] || {},
+    r = getEstablishmentAbsenceRule(
+      o.establishmentRuleId || t || o.periodSegment,
+      n,
+    );
+  if (r) return Number(r.deductionDays) || 0;
   const a = absencePeriodMeta(t);
   return Number(n[a.key] ?? n.fullDayDeductionDays ?? 1) || 0;
 }
@@ -1951,17 +2040,20 @@ function absencePenaltyDetails(e) {
       ),
       showPeriod: !1,
     };
-  const n = absencePeriodMeta(e.periodSegment || "fullDay"),
-    a = Number(t[n.key] ?? t.fullDayDeductionDays ?? 1) || 0,
+  const n =
+      getEstablishmentAbsenceRule(e.establishmentRuleId, t) ||
+      getEstablishmentAbsenceRule(e.periodSegment || "fullDay", t),
+    a = Number(n?.deductionDays ?? t.fullDayDeductionDays ?? 1) || 0,
     o = Number(e?.deductionDays),
     r = Number.isFinite(o) && o > 0 ? o : a;
   return {
     policy: "سياسة المنشأة",
     deductionDays: r,
     label: formatDeductionDays(r),
-    text: `${n.label}: ${formatDeductionDays(r)} حسب سياسة المنشأة.`,
+    text: `${n?.name || "غياب اليوم الكامل"}: ${formatDeductionDays(r)} حسب سياسة المنشأة.`,
     showPeriod: !0,
-    periodLabel: n.label,
+    periodLabel: n?.name || absencePeriodMeta(e.periodSegment || "fullDay").label,
+    establishmentRuleName: n?.name || "",
   };
 }
 function formatDeductionDays(e) {
@@ -1983,7 +2075,8 @@ function employeeGrossSalary(e) {
   );
 }
 function employeeDailyWage(e) {
-  return employeeGrossSalary(e) / 30;
+  const t = Number(e?.baseSalary || e?.salary || 0);
+  return (t > 0 ? t : employeeGrossSalary(e)) / 30;
 }
 function absenceDeductionAmount(e) {
   const t = getEmployee(e?.employeeId);
@@ -2060,6 +2153,66 @@ function renderWorkdayList() {
       return `\n      <div class="workday-row ${a.enabled ? "is-enabled" : "is-disabled"}" data-workday="${n}">\n        <div class="workday-row-head">\n          <label class="workday-enable"><input type="checkbox" data-workday-enabled="${n}" ${a.enabled ? "checked" : ""} /><span>${e}</span></label>\n          <div class="workday-hours workday-total-hours"><span>إجمالي ساعات اليوم</span><strong>${a.enabled ? formatWorkMinutes(o) : "إجازة"}</strong></div>\n          <button type="button" class="secondary-btn small-btn" data-add-day-shift="${n}"><span data-icon="plus"></span>إضافة فترة لليوم</button>\n        </div>\n        <div class="workday-shifts">\n          ${a.shifts.map((e, t) => workdayShiftLineHtml(n, a, e, t)).join("")}\n        </div>\n      </div>\n    `;
     }).join("")));
 }
+function renderEstablishmentAbsenceRuleList() {
+  const e = document.querySelector("#establishmentAbsenceRuleList");
+  if (!e) return;
+  const t = getEstablishmentAbsenceRules(absencePolicySettings);
+  e.innerHTML = t
+    .map(
+      (n, a) => `\n      <div class="establishment-absence-rule-row" data-establishment-absence-rule="${escapeHtml(n.id)}">\n        <div class="establishment-absence-rule-number">${arabicNumber(a + 1)}</div>\n        <label><span>اسم الغياب</span><input data-establishment-absence-rule-name="${escapeHtml(n.id)}" value="${escapeHtml(n.name)}" /></label>\n        <label><span>أيام الخصم من الراتب الأساسي</span><input type="number" min="0" step="0.5" data-establishment-absence-rule-days="${escapeHtml(n.id)}" value="${escapeHtml(n.deductionDays)}" /></label>\n        <button type="button" class="quick-view-btn establishment-absence-rule-delete" data-remove-establishment-absence-rule="${escapeHtml(n.id)}" ${t.length <= 1 ? "disabled" : ""} title="حذف سياسة الغياب">${iconSvg("trash")}</button>\n      </div>\n    `,
+    )
+    .join("");
+}
+function readEstablishmentAbsenceRulesFromForm() {
+  const e = Array.from(
+    document.querySelectorAll("[data-establishment-absence-rule]"),
+  )
+    .map((e, t) => {
+      const n = e.dataset.establishmentAbsenceRule || "",
+        a = e.querySelector("[data-establishment-absence-rule-name]")?.value?.trim(),
+        o = e.querySelector("[data-establishment-absence-rule-days]")?.value,
+        r = getEstablishmentAbsenceRule(n, absencePolicySettings);
+      return normalizeEstablishmentAbsenceRule(
+        {
+          id: n,
+          name: a,
+          deductionDays: o,
+          legacySegment: r?.legacySegment || "",
+        },
+        t,
+      );
+    })
+    .filter((e) => e.name);
+  return e.length ? e : legacyAbsenceRulesFromSettings(absencePolicySettings);
+}
+function addEstablishmentAbsenceRule() {
+  const e = normalizeAbsencePolicySettings(absencePolicySettings);
+  e.establishmentRules = [
+    ...readEstablishmentAbsenceRulesFromForm(),
+    normalizeEstablishmentAbsenceRule(
+      {
+        id: `est-absence-custom-${Date.now()}`,
+        name: "سياسة غياب جديدة",
+        deductionDays: 1,
+      },
+      e.establishmentRules.length,
+    ),
+  ];
+  ((absencePolicySettings = normalizeAbsencePolicySettings(e)),
+    renderAbsencePolicySettings(),
+    saveLocalMeta());
+}
+function removeEstablishmentAbsenceRule(e) {
+  const t = normalizeAbsencePolicySettings(absencePolicySettings),
+    n = String(e || "");
+  if (t.establishmentRules.length <= 1) return;
+  ((t.establishmentRules = t.establishmentRules.filter(
+    (e) => String(e.id) !== n,
+  )),
+    (absencePolicySettings = normalizeAbsencePolicySettings(t)),
+    renderAbsencePolicySettings(),
+    saveLocalMeta());
+}
 function renderAbsencePolicySettings() {
   absencePolicySettings = normalizeAbsencePolicySettings(absencePolicySettings);
   const e = absencePolicySettings;
@@ -2068,18 +2221,6 @@ function renderAbsencePolicySettings() {
     .forEach((t) => {
       t.checked = t.value === e.activePolicy;
     });
-  const t = document.querySelector(
-    '[data-absence-policy="firstPeriodDeductionDays"]',
-  );
-  t && (t.value = e.firstPeriodDeductionDays);
-  const n = document.querySelector(
-    '[data-absence-policy="secondPeriodDeductionDays"]',
-  );
-  n && (n.value = e.secondPeriodDeductionDays);
-  const a = document.querySelector(
-    '[data-absence-policy="fullDayDeductionDays"]',
-  );
-  a && (a.value = e.fullDayDeductionDays);
   const o = document.querySelector("#absencePolicySummary");
   o &&
     (o.innerHTML = `\n      <div><span>القاعدة المفعلة</span><strong>${"establishment" === e.activePolicy ? "سياسة المنشأة" : "قاعدة مكتب العمل"}</strong></div>\n      <div><span>غياب الفترة الأولى</span><strong>${formatDeductionDays(e.firstPeriodDeductionDays)}</strong></div>\n      <div><span>غياب الفترة الثانية</span><strong>${formatDeductionDays(e.secondPeriodDeductionDays)}</strong></div>\n      <div><span>غياب كامل اليوم</span><strong>${formatDeductionDays(e.fullDayDeductionDays)}</strong></div>\n    `);
@@ -2095,40 +2236,33 @@ function renderAbsencePolicySettings() {
     s = document.querySelector("#laborPolicyCard");
   (i && i.classList.toggle("is-active", "establishment" === e.activePolicy),
     s && s.classList.toggle("is-active", "labor" === e.activePolicy),
+    renderEstablishmentAbsenceRuleList(),
     updateAbsencePeriodVisibility());
 }
 function updateAbsencePolicyFromForm() {
   const e = normalizeAbsencePolicySettings(absencePolicySettings),
-    t = document.querySelector('[data-absence-policy="activePolicy"]:checked'),
-    n = document.querySelector(
-      '[data-absence-policy="firstPeriodDeductionDays"]',
-    ),
-    a = document.querySelector(
-      '[data-absence-policy="secondPeriodDeductionDays"]',
-    ),
-    o = document.querySelector('[data-absence-policy="fullDayDeductionDays"]');
+    t = document.querySelector('[data-absence-policy="activePolicy"]:checked');
   ((e.activePolicy = "labor" === t?.value ? "labor" : "establishment"),
     (e.establishmentPolicyEnabled = "establishment" === e.activePolicy),
-    (e.firstPeriodDeductionDays = Math.max(
-      0,
-      Number(n?.value || e.firstPeriodDeductionDays),
-    )),
-    (e.secondPeriodDeductionDays = Math.max(
-      0,
-      Number(a?.value || e.secondPeriodDeductionDays),
-    )),
-    (e.fullDayDeductionDays = Math.max(
-      0,
-      Number(o?.value || e.fullDayDeductionDays),
-    )),
+    (e.establishmentRules = readEstablishmentAbsenceRulesFromForm()),
     (absencePolicySettings = normalizeAbsencePolicySettings(e)),
     renderAbsencePolicySettings());
 }
 function updateAbsencePeriodVisibility() {
   const e = document.querySelector("#absencePeriodSegmentField"),
-    t = document.querySelector('#absenceForm [name="periodSegment"]'),
+    t = document.querySelector('#absenceForm [name="establishmentRuleId"]'),
     n = isEstablishmentAbsencePolicyActive();
-  (e && (e.hidden = !n), t && ((t.disabled = !n), n || (t.value = "fullDay")));
+  if (t && n) {
+    const e = t.value,
+      a = getEstablishmentAbsenceRules(absencePolicySettings);
+    t.innerHTML = a
+      .map(
+        (t) =>
+          `<option value="${escapeHtml(t.id)}" ${t.id === e ? "selected" : ""}>${escapeHtml(t.name)} - ${escapeHtml(formatDeductionDays(t.deductionDays))}</option>`,
+      )
+      .join("");
+  }
+  (e && (e.hidden = !n), t && ((t.disabled = !n), !n && (t.value = "")));
 }
 function renderWorkSettings() {
   ((workSettings = normalizeWorkSettings(workSettings)),
@@ -2849,7 +2983,7 @@ function renderAbsenceRecords() {
             n = absenceTypeMeta(e.type),
             a = selectedAttendanceDate,
             o = absencePenaltyDetails(e),
-            r = absenceSegmentDisplayLabel(e.periodSegment),
+            r = absencePolicyDisplayLabel(e),
             i = absenceDeductionAmount(e);
           return `<tr><td>${t ? employeeCell(t) : "موظف محذوف"}</td><td>${escapeHtml(dayNameForDateValue(a) || "—")}</td><td>${formatDate(a)}</td><td>${escapeHtml(r)}</td><td><span class="status-badge ${n.className}">${n.label}</span></td><td><span class="status-badge absence-penalty-badge">${escapeHtml(o.text)}</span></td><td><strong class="absence-money-deduction">${formatCurrencyEn(i)}</strong></td><td>${escapeHtml(e.reason || "—")}</td><td><button class="quick-view-btn delete-absence-btn" data-delete-absence="${e.id}" title="حذف الغياب">${iconSvg("trash")}</button></td></tr>`;
         })
@@ -3107,6 +3241,14 @@ function absenceSegmentDisplayLabel(segment) {
   if (value === "second") return "الفترة الثانية";
   return "اليوم بأكمله";
 }
+function absencePolicyDisplayLabel(record) {
+  return (
+    record?.establishmentRuleName ||
+    record?.periodLabel ||
+    absencePenaltyDetails(record).periodLabel ||
+    absenceSegmentDisplayLabel(record?.periodSegment)
+  );
+}
 function absenceTypeDisplayLabel(record) {
   try {
     return absenceTypeMeta(record?.type).label || record?.type || "غياب";
@@ -3262,7 +3404,7 @@ function renderAdvancesPage() {
                   remaining > 0
                     ? `<button type="button" class="quick-view-btn" data-pay-payroll-advance="${escapeHtml(e.id)}" title="تسديد السلفة">${iconSvg("wallet")}</button>`
                     : '<span class="status-badge status-paid">مسددة</span>';
-              return `<tr><td>${escapeHtml(e.dayName || dayNameForDateValue(e.date) || "")}</td><td>${formatDateEn(e.date)}</td><td><strong>${formatCurrencyEn(payrollAdvanceAmountValue(e))}</strong></td><td><strong>${formatCurrencyEn(paid)}</strong></td><td><strong>${formatCurrencyEn(remaining)}</strong></td><td>${escapeHtml(payrollAdvancePaymentSourceLabel(e))}</td><td><span class="advance-action-buttons">${payAction}<button type="button" class="quick-view-btn danger-inline-btn payroll-delete-advance-btn" data-delete-payroll-advance="${escapeHtml(e.id)}" title="حذف السلفة">${iconSvg("trash")}</button></span></td></tr>`;
+              return `<tr><td>${escapeHtml(e.dayName || dayNameForDateValue(e.date) || "")}</td><td>${formatDateEn(e.date)}</td><td><strong class="advance-amount-red">${formatCurrencyEn(payrollAdvanceAmountValue(e))}</strong></td><td><strong class="advance-paid-green">${formatCurrencyEn(paid)}</strong></td><td><strong>${formatCurrencyEn(remaining)}</strong></td><td>${escapeHtml(payrollAdvancePaymentSourceLabel(e))}</td><td><span class="advance-action-buttons">${payAction}<button type="button" class="quick-view-btn danger-inline-btn payroll-delete-advance-btn" data-delete-payroll-advance="${escapeHtml(e.id)}" title="حذف السلفة">${iconSvg("trash")}</button></span></td></tr>`;
             })
             .join("")}</tbody></table></div></td></tr>`;
         })
@@ -5119,6 +5261,9 @@ async function handleAbsenceSubmit(e) {
       e.employeeId === n.employeeId && dateRangesOverlap(e.from, e.to, a, o),
   );
   if (r) return void showToast("يوجد غياب مسجل لهذا الموظف ضمن نفس الفترة");
+  const l = isEstablishmentAbsencePolicyActive()
+    ? getEstablishmentAbsenceRule(n.establishmentRuleId)
+    : null;
   const i = {
       id: `absence-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       employeeId: n.employeeId,
@@ -5126,8 +5271,9 @@ async function handleAbsenceSubmit(e) {
       to: o,
       type: n.type || "unexcused",
       policy: activeAbsencePolicyLabel(),
-      periodSegment:
-        (isEstablishmentAbsencePolicyActive() && n.periodSegment) || "fullDay",
+      establishmentRuleId: l?.id || "",
+      establishmentRuleName: l?.name || "",
+      periodSegment: l?.legacySegment || "fullDay",
       deductionDays: 0,
       reason: n.reason?.trim() || "",
       createdAt: new Date().toISOString(),
@@ -6482,13 +6628,30 @@ function setupEvents() {
     document
       .querySelector("#absencePolicyForm")
       ?.addEventListener("change", (e) => {
-        e.target.closest("[data-absence-policy]") &&
+        e.target.closest(
+          "[data-absence-policy], [data-establishment-absence-rule-name], [data-establishment-absence-rule-days]",
+        ) &&
           updateAbsencePolicyFromForm();
+      }),
+    document
+      .querySelector("#absencePolicyForm")
+      ?.addEventListener("click", (e) => {
+        const t = e.target.closest("[data-add-establishment-absence-rule]"),
+          n = e.target.closest("[data-remove-establishment-absence-rule]");
+        (t &&
+          (e.preventDefault(), e.stopPropagation(), addEstablishmentAbsenceRule()),
+          n &&
+            (e.preventDefault(),
+            e.stopPropagation(),
+            removeEstablishmentAbsenceRule(
+              n.dataset.removeEstablishmentAbsenceRule,
+            )));
       }),
     document
       .querySelector("#absencePolicyForm")
       ?.addEventListener("submit", (e) => {
         (e.preventDefault(),
+          updateAbsencePolicyFromForm(),
           (absencePolicySettings = normalizeAbsencePolicySettings(
             absencePolicySettings,
           )),
@@ -15110,7 +15273,7 @@ async function init() {
                   o = absenceTypeMeta(e.type),
                   r = selectedAttendanceDate,
                   i = absencePenaltyDetails(e),
-                  l = absenceSegmentDisplayLabel(e.periodSegment),
+                  l = absencePolicyDisplayLabel(e),
                   c = absenceDeductionAmount(e),
                   d = s("attendance.deleteAbsence")
                     ? `<button class="quick-view-btn delete-absence-btn" data-delete-absence="${t(e.id)}" title="حذف الغياب">${n("trash")}</button>`
@@ -17657,7 +17820,7 @@ async function init() {
         (e.id = "advancePaymentModal"),
         (e.className = "modal small-modal advance-payment-modal"),
         (e.innerHTML =
-          '<form id="advancePaymentForm" method="dialog"><div class="modal-head advance-modal-head"><div><h2>تسديد السلفة</h2><p id="advancePaymentSubtitle">مصدر السداد اليدوي: نقدي</p></div><button type="button" class="icon-btn" data-close-advance-payment><span data-icon="x"></span></button></div><div class="modal-body advance-payment-body"><div class="advance-payment-summary"><span>الموظف</span><strong id="advancePaymentEmployee">—</strong><span>المتبقي الحالي</span><strong id="advancePaymentCurrentRemaining">—</strong></div><fieldset class="advance-payment-options"><legend>طريقة السداد</legend><label><input type="radio" name="advancePaymentMode" value="full" checked> كامل المبلغ</label><label><input type="radio" name="advancePaymentMode" value="partial"> جزء من السلفة</label></fieldset><label class="advance-payment-partial-field" hidden><span>المبلغ المسدد</span><input id="advancePaymentAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label><label><span>تاريخ السداد</span><input id="advancePaymentDate" type="date" required></label><div class="advance-payment-preview"><span>المتبقي بعد السداد</span><strong id="advancePaymentRemainingPreview">—</strong></div></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-advance-payment>إلغاء</button><button type="submit" class="primary-btn">حفظ السداد</button></div></form>'),
+          '<form id="advancePaymentForm" method="dialog"><div class="modal-head advance-modal-head"><div class="advance-payment-title-icon"><span data-icon="wallet"></span></div><div><h2>تسديد السلفة</h2><p id="advancePaymentSubtitle">السداد اليدوي يسجل كمصدر نقدي ويحدث المالية والرواتب مباشرة.</p></div><button type="button" class="icon-btn" data-close-advance-payment><span data-icon="x"></span></button></div><div class="modal-body advance-payment-body"><div class="advance-payment-summary"><div><span>الموظف</span><strong id="advancePaymentEmployee">—</strong></div><div><span>المتبقي الحالي</span><strong id="advancePaymentCurrentRemaining">—</strong></div></div><fieldset class="advance-payment-options"><legend>طريقة السداد</legend><label><input type="radio" name="advancePaymentMode" value="full" checked><span>كامل المبلغ</span></label><label><input type="radio" name="advancePaymentMode" value="partial"><span>جزء من السلفة</span></label></fieldset><div class="advance-payment-grid"><label class="advance-payment-partial-field" hidden><span>المبلغ المسدد</span><input id="advancePaymentAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label><label class="advance-payment-date-field"><span>تاريخ السداد</span><input id="advancePaymentDate" type="date" required></label></div><div class="advance-payment-preview"><span>المتبقي بعد السداد</span><strong id="advancePaymentRemainingPreview">—</strong></div></div><div class="modal-actions advance-payment-actions"><button type="button" class="secondary-btn" data-close-advance-payment>إلغاء</button><button type="submit" class="primary-btn"><span data-icon="check"></span>حفظ السداد</button></div></form>'),
         document.body.appendChild(e),
         e
           .querySelectorAll("[data-close-advance-payment]")
@@ -18867,12 +19030,64 @@ async function init() {
       })(n, e);
     }
     async function printAdvancesPage() {
-      const e = document.querySelector("#advancesView .advances-page-panel");
-      if (!e) return;
-      const n = new Date().toISOString(),
-        o = `السلفيات - ${payrollMonthLabel(selectedAdvancesMonthKey())}`,
-        t = `<main class="payroll-print-sheet">${await payrollCompanyHeader(o, "سجل السلفيات المعتمدة للشهر المحدد", te(n))}${e.querySelector(".table-wrap")?.innerHTML || ""}${await payrollStampHtml()}</main>`;
-      re(t);
+      const e = selectedAdvancesMonthKey(),
+        t = C()
+          .filter((t) => {
+            const n = t.monthKey || String(t.date || "").slice(0, 7);
+            return (
+              t &&
+              String(t.status || "approved") === "approved" &&
+              String(n || "") === String(e || "")
+            );
+          })
+          .sort(
+            (e, t) =>
+              String(M(e.employeeId)?.name || e.employeeName || "").localeCompare(
+                String(M(t.employeeId)?.name || t.employeeName || ""),
+                "ar",
+              ) || String(e.date || "").localeCompare(String(t.date || "")),
+          ),
+        n = new Map();
+      t.forEach((e) => {
+        const t = M(e.employeeId),
+          a = String(e.employeeId || e.employeeName || "employee"),
+          o =
+            n.get(a) || {
+              employee: t || { name: e.employeeName || "موظف" },
+              records: [],
+            };
+        (o.records.push(e), n.set(a, o));
+      });
+      const r = Array.from(n.values()),
+        i = r.length
+          ? r
+              .map((e) => {
+                const t = e.employee || {},
+                  n = e.records || [];
+                return (
+                  `<tr class="employee-group-start advances-print-employee"><td>${a(t.employeeNumber || t.id || "")}</td><td>${a(t.name || "موظف")}</td><td>${a(t.nationality || "")}</td><td>${a(t.identityNumber || t.nationalId || "")}</td><td colspan="6">${a(n.length + " سلفة")}</td></tr>` +
+                  n
+                    .map((e) => {
+                      const t = payrollAdvanceAmountValue(e),
+                        n = payrollAdvancePaidAmount(e),
+                        r = payrollAdvanceRemainingAmount(e);
+                      return `<tr class="employee-group-detail advances-print-detail"><td></td><td></td><td></td><td></td><td>${a(e.dayName || f(e.date) || "")}</td><td>${a(
+                        "function" == typeof formatDateEn
+                          ? formatDateEn(e.date)
+                          : e.date || "",
+                      )}</td><td class="advance-amount-red">${o(t)}</td><td class="advance-paid-green">${o(n)}</td><td>${o(r)}</td><td>${a(payrollAdvancePaymentSourceLabel(e))}</td></tr>`;
+                    })
+                    .join("")
+                );
+              })
+              .join("")
+          : '<tr><td colspan="10">لا توجد سلفيات مسجلة لهذا الشهر</td></tr>',
+        s = new Date().toISOString(),
+        l = `السلفيات - ${payrollMonthLabel(e)}`,
+        c = `<table class="payroll-print-table advances-print-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>اليوم</th><th>التاريخ</th><th>قيمة السلفة</th><th>المسدد</th><th>المتبقي</th><th>مصدر السداد</th></tr></thead><tbody>${i}</tbody></table>`;
+      re(
+        `<main class="payroll-print-sheet">${await payrollCompanyHeader(l, "تقرير تفصيلي للسلفيات حسب الموظف والشهر المحدد", te(s))}${c}${await payrollStampHtml()}</main>`,
+      );
     }
     ((window.openPayrollReport = ie),
       (window.printAdvancesPage = printAdvancesPage),
@@ -20892,8 +21107,14 @@ async function init() {
           return Array.isArray(t)
             ? t
                 .filter((t) => {
-                  if (!t || "approved" !== t.status) return !1;
+                  if (!t || "approved" !== String(t.status || "approved"))
+                    return !1;
                   if ((t.monthKey || String(t.date || "").slice(0, 7)) !== e)
+                    return !1;
+                  if (
+                    "function" == typeof payrollAdvanceRemainingAmount &&
+                    !(payrollAdvanceRemainingAmount(t) > 0)
+                  )
                     return !1;
                   try {
                     if (
@@ -20915,14 +21136,19 @@ async function init() {
       })();
       if (!t.length)
         return void (e.innerHTML =
-          '<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات معتمدة لهذا الشهر</strong></div></td></tr>');
+          '<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات قائمة غير مسددة لهذا الشهر</strong></div></td></tr>');
       const n = new Map();
       (t.forEach((e) => {
         const t = String(
             e.employeeId || e.employeeName || e.employee?.name || "employee",
           ),
           a = n.get(t) || { key: t, employeeSample: e, total: 0, items: [] };
-        ((a.total += o(e.amount)), a.items.push(e), n.set(t, a));
+        ((a.total +=
+          "function" == typeof payrollAdvanceRemainingAmount
+            ? payrollAdvanceRemainingAmount(e)
+            : o(e.amount)),
+          a.items.push(e),
+          n.set(t, a));
       }),
         (e.innerHTML = Array.from(n.values())
           .map((e, t) => {
@@ -20933,34 +21159,49 @@ async function init() {
                 .sort((e, t) =>
                   String(e.date || "").localeCompare(String(t.date || "")),
                 )
-                .map(
-                  (e) =>
-                    `<tr><td>${A(
+                .map((e) => {
+                  const t =
+                      "function" == typeof payrollAdvanceAmountValue
+                        ? payrollAdvanceAmountValue(e)
+                        : o(e.amount),
+                    n =
+                      "function" == typeof payrollAdvancePaidAmount
+                        ? payrollAdvancePaidAmount(e)
+                        : o(e.paidAmount || e.paid || 0),
+                    a =
+                      "function" == typeof payrollAdvanceRemainingAmount
+                        ? payrollAdvanceRemainingAmount(e)
+                        : Math.max(0, t - n),
+                    r =
+                      "function" == typeof payrollAdvancePaymentSourceLabel
+                        ? payrollAdvancePaymentSourceLabel(e)
+                        : e.paymentSourceLabel || e.sourceLabel || "—";
+                  return `<tr><td>${A(
+                    e.dayName ||
                       (function (e) {
                         if (!e) return "";
                         try {
-                          const t = f(String(e).slice(0, 10));
-                          return new Intl.DateTimeFormat("ar-SA", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          }).format(t);
-                        } catch (t) {
-                          return String(e || "");
+                          return v(String(e).slice(0, 10)).dayName;
+                        } catch (e) {
+                          return "";
                         }
                       })(e.date),
-                    )}</td><td>${A(
-                      e.dayName ||
-                        (function (e) {
-                          if (!e) return "";
-                          try {
-                            return v(String(e).slice(0, 10)).dayName;
-                          } catch (e) {
-                            return "";
-                          }
-                        })(e.date),
-                    )}</td><td><strong>${S(e.amount)}</strong></td></tr>`,
-                )
+                  )}</td><td>${A(
+                    (function (e) {
+                      if (!e) return "";
+                      try {
+                        const t = f(String(e).slice(0, 10));
+                        return new Intl.DateTimeFormat("ar-SA", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        }).format(t);
+                      } catch (t) {
+                        return String(e || "");
+                      }
+                    })(e.date),
+                  )}</td><td><strong class="advance-amount-red">${S(t)}</strong></td><td><strong class="advance-paid-green">${S(n)}</strong></td><td><strong>${S(a)}</strong></td><td>${A(r)}</td></tr>`;
+                })
                 .join("");
             return `<tr class="advance-summary-row finance-advance-summary-row" data-toggle-finance-advance-details="${n}"><td class="advance-employee-cell"><button type="button" class="advance-toggle-btn" aria-expanded="false" aria-label="عرض تفاصيل السلفيات"><span class="advance-arrow">▾</span></button><div class="advance-employee-compact">${(function (
               e,
@@ -20979,7 +21220,7 @@ async function init() {
               return A(E(e));
             })(
               e.employeeSample,
-            )}</div></td><td class="advance-total-cell"><strong>${S(e.total)}</strong></td></tr><tr class="advance-detail-row finance-advance-detail-row" id="${a}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>التاريخ</th><th>اليوم</th><th>المبلغ</th></tr></thead><tbody>${o}</tbody></table></div></td></tr>`;
+            )}</div></td><td class="advance-total-cell"><strong>${S(e.total)}</strong></td></tr><tr class="advance-detail-row finance-advance-detail-row" id="${a}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>اليوم</th><th>التاريخ</th><th>قيمة السلفة</th><th>المسدد</th><th>المتبقي</th><th>مصدر السداد</th></tr></thead><tbody>${o}</tbody></table></div></td></tr>`;
           })
           .join("")),
         e
@@ -21037,7 +21278,8 @@ async function init() {
             );
             return Array.isArray(t)
               ? t.reduce((t, n) => {
-                  if (!n || "approved" !== n.status) return t;
+                  if (!n || "approved" !== String(n.status || "approved"))
+                    return t;
                   if ((n.monthKey || String(n.date || "").slice(0, 7)) !== e)
                     return t;
                   try {
@@ -21048,7 +21290,12 @@ async function init() {
                     )
                       return t;
                   } catch (e) {}
-                  return t + o(n.amount);
+                  return (
+                    t +
+                    ("function" == typeof payrollAdvanceRemainingAmount
+                      ? payrollAdvanceRemainingAmount(n)
+                      : o(n.amount))
+                  );
                 }, 0)
               : 0;
           } catch (e) {
@@ -40129,7 +40376,7 @@ async function init() {
   }
   function reportAbsencePeriod(x) {
     try {
-      return absenceSegmentDisplayLabel(x && x.periodSegment);
+      return absencePolicyDisplayLabel(x);
     } catch (_) {
       return "اليوم بأكمله";
     }
@@ -41123,9 +41370,13 @@ async function init() {
                   "</td><td>" +
                   esc(fmt(r.date)) +
                   "</td><td>" +
+                  '<span class="advance-amount-red">' +
                   esc(r.amount || "") +
+                  "</span>" +
                   "</td><td>" +
+                  '<span class="advance-paid-green">' +
                   esc(r.paid || "") +
+                  "</span>" +
                   "</td><td>" +
                   esc(r.remaining || "") +
                   "</td><td>" +
@@ -41627,16 +41878,16 @@ async function init() {
             return (g.records || [])
               .map(function (r, idx) {
                 var cells = [
-                  idx === 0 ? empNo(g.employee) || "" : "",
-                  idx === 0 ? g.employee.name || "" : "",
-                  idx === 0 ? empNationality(g.employee) : "",
-                  idx === 0 ? empIdentity(g.employee) : "",
-                  r.day || "",
-                  fmt(r.date),
-                  r.amount || "",
-                  r.paid || "",
-                  r.remaining || "",
-                  r.source || "",
+                  { text: idx === 0 ? empNo(g.employee) || "" : "" },
+                  { text: idx === 0 ? g.employee.name || "" : "" },
+                  { text: idx === 0 ? empNationality(g.employee) : "" },
+                  { text: idx === 0 ? empIdentity(g.employee) : "" },
+                  { text: r.day || "" },
+                  { text: fmt(r.date) },
+                  { text: r.amount || "", cls: "advance-amount-red" },
+                  { text: r.paid || "", cls: "advance-paid-green" },
+                  { text: r.remaining || "" },
+                  { text: r.source || "" },
                 ];
                 return (
                   '<tr class="' +
@@ -41646,7 +41897,20 @@ async function init() {
                   '">' +
                   cells
                     .map(function (c) {
-                      return "<td>" + esc(c) + "</td>";
+                      var style =
+                        c.cls === "advance-amount-red"
+                          ? ' style="color:#be123c;font-weight:900"'
+                          : c.cls === "advance-paid-green"
+                            ? ' style="color:#047857;font-weight:900"'
+                            : "";
+                      return (
+                        "<td" +
+                        (c.cls ? ' class="' + c.cls + '"' : "") +
+                        style +
+                        ">" +
+                        esc(c.text || "") +
+                        "</td>"
+                      );
                     })
                     .join("") +
                   "</tr>"
