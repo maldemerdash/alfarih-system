@@ -17963,12 +17963,12 @@ html.has-initial-login-bg .auth-gate,
 .establishment-absence-rule-row {
   display: grid;
   grid-template-columns: 34px minmax(0, 1.2fr) minmax(160px, .8fr) 36px;
-  align-items: end;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid rgba(203, 213, 225, .75);
-  border-radius: 16px;
-  background: #fff;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(19, 163, 183, .14);
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffffff, #f8fdff);
 }
 
 .establishment-absence-rule-number {
@@ -17983,16 +17983,49 @@ html.has-initial-login-bg .auth-gate,
 }
 
 .establishment-absence-rule-row label {
+  display: grid;
+  gap: 6px;
   margin: 0;
+}
+
+.establishment-absence-rule-row label span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .establishment-absence-rule-row input {
   width: 100%;
-  min-height: 38px;
+  min-height: 40px;
+  border: 1px solid rgba(203, 213, 225, .9);
+  border-radius: 13px;
+  background: #fff;
+  color: #172033;
+  font-weight: 850;
+  box-shadow: none;
 }
 
 .establishment-absence-rule-delete {
   color: #dc2626 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+.establishment-absence-rule-delete:hover {
+  color: #b91c1c !important;
+  background: transparent !important;
+  transform: none !important;
+}
+
+.establishment-absence-rule-delete:disabled {
+  color: #cbd5e1 !important;
+  opacity: .75;
 }
 
 .report-absence-nested-table th,

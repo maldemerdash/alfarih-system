@@ -40427,32 +40427,6 @@ async function init() {
         });
       });
     });
-    empList().forEach(function (e) {
-      (Array.isArray(e.minutes) ? e.minutes : []).forEach(function (m) {
-        var d = String(m.absenceDate || m.date || m.createdAt || "").slice(
-          0,
-          10,
-        );
-        var n = String(m.name || m.type || m.templateName || "");
-        var isAbsence =
-          n.indexOf("غياب") > -1 ||
-          String(m.templateId || "")
-            .toLowerCase()
-            .indexOf("absence") > -1;
-        if (!isAbsence) return;
-        if (reportRecordYm(d) !== ym) return;
-        out.push({
-          employee: e,
-          date: d,
-          type: n || "غياب",
-          day: reportDayName(d),
-          period: reportAbsencePeriod(m),
-          penalty: m.penalty || m.penaltyText || "—",
-          deduction: money(m.deductionAmount || m.deduction || 0),
-          note: m.absenceReason || m.details || m.note || "",
-        });
-      });
-    });
     out.sort(function (a, b) {
       return (
         String(a.employee.name || "").localeCompare(
