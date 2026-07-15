@@ -1041,15 +1041,17 @@ async function attachmentUrl(e) {
     const e = URL.createObjectURL(t.blob);
     return (objectUrls.add(e), e);
   }
-  if (t.fileUrl) return t.fileUrl;
-  if (t.storagePath && supabaseClient) {
-    const [e, ...n] = String(t.storagePath).split("/"),
-      a = n.join("/");
-    if (e && a)
+  const n = t.fileUrl || t.file_url || t.url || "",
+    a = t.storagePath || t.storage_path || t.file_path || t.path || "";
+  if (n) return n;
+  if (a && supabaseClient) {
+    const [o, ...r] = String(a).split("/"),
+      i = r.join("/");
+    if (o && i)
       try {
         const { data: t, error: n } = await supabaseClient.storage
-          .from(e)
-          .createSignedUrl(a, 3600);
+          .from(o)
+          .createSignedUrl(i, 3600);
         if (n) throw n;
         return t?.signedUrl || "";
       } catch (e) {
@@ -1225,9 +1227,22 @@ function normalizeEmployee(e, t = 0) {
     identityExpiryGregorian: e.identityExpiryGregorian || "",
     identityExpiryHijri: e.identityExpiryHijri || "",
     hijriCorrection: Number(e.hijriCorrection || 0),
-    identityAttachmentId: e.identityAttachmentId || "",
-    photoAttachmentId: e.photoAttachmentId || "",
-    legacyPhoto: e.legacyPhoto || e.photo || "",
+    identityAttachmentId: e.identityAttachmentId || e.identity_attachment_id || "",
+    photoAttachmentId:
+      e.photoAttachmentId ||
+      e.photo_attachment_id ||
+      e.employeePhotoAttachmentId ||
+      e.employee_photo_attachment_id ||
+      "",
+    legacyPhoto:
+      e.legacyPhoto ||
+      e.legacy_photo ||
+      e.photo ||
+      e.photoUrl ||
+      e.photo_url ||
+      e.imageUrl ||
+      e.image_url ||
+      "",
     status: "remote" === e.status ? "active" : e.status || "active",
     department: e.department || "",
     section: e.section || "",
@@ -59151,21 +59166,38 @@ window.ensureStableCommissionModeFieldV183 = ensureCommissionModeField;
     const cached = cachedUrl(cacheKey);
     if (cached) return cached;
     try {
-      let result = await supabaseClient
-        .from("attachments")
-        .select("id, related_table, storage_path, file_url, created_at")
-        .eq("related_table", "employees:" + number + ":employee-photo")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!result?.data?.id) {
+      let result = null;
+      const exactTables = [
+        "employees:" + number + ":employee-photo",
+        "employees:" + number + ":photoAttachmentId",
+        "employees:" + number + ":employeePhoto",
+      ];
+      for (const table of exactTables) {
         result = await supabaseClient
           .from("attachments")
           .select("id, related_table, storage_path, file_url, created_at")
-          .like("storage_path", "%/employees/" + number + "/employee-photo/%")
+          .eq("related_table", table)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+        if (result?.data?.id) break;
+      }
+      if (!result?.data?.id) {
+        const paths = [
+          "%/employees/" + number + "/employee-photo/%",
+          "%/employees/" + number + "/photoAttachmentId/%",
+          "%/employees/" + number + "/employeePhoto/%",
+        ];
+        for (const path of paths) {
+          result = await supabaseClient
+            .from("attachments")
+            .select("id, related_table, storage_path, file_url, created_at")
+            .like("storage_path", path)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (result?.data?.id) break;
+        }
       }
       const id = clean(result?.data?.id);
       if (!id) return "";
