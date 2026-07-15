@@ -18068,3 +18068,45 @@ html.has-initial-login-bg .auth-gate,
     flex-direction: column;
   }
 }
+
+/* v208 - keep the employee edit sidebar from being clipped by bottom actions */
+#employeeModal.employee-profile-modal form {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+#employeeModal.employee-profile-modal .employee-workspace {
+  flex: 1 1 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+#employeeModal.employee-profile-modal .employee-form-sidebar {
+  align-self: stretch !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  padding-bottom: 18px !important;
+}
+
+#employeeModal.employee-profile-modal .employee-section-nav {
+  flex: 0 0 auto !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  padding-bottom: 4px !important;
+}
+
+#employeeModal.employee-profile-modal .employee-section-nav button {
+  flex: 0 0 38px !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  overflow: visible !important;
+}
+
+#employeeModal.employee-profile-modal .employee-section-nav button.active {
+  flex-basis: 38px !important;
+}
