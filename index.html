@@ -43,7 +43,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=210" />
+    <link rel="stylesheet" href="style.css?v=211" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -1154,18 +1154,18 @@
       <div class="modal-actions"><button type="button" class="secondary-btn cancel-action-btn" data-close-modal="leaveCommissionModal">إلغاء</button><button type="button" class="secondary-btn" id="approveLeaveOnlyBtn">لا، اعتماد دون تجميد العمولة</button><button type="button" class="primary-btn" id="confirmLeaveCommissionBtn">نعم، اعتماد وتجميد العمولة</button></div>
     </dialog>
 
-    <dialog class="modal small-modal" id="endServiceConfirmModal">
-      <div class="modal-head">
-        <div><h2>إنهاء خدمات الموظف</h2><p>إجراء حساس سيغير حالة الموظف إلى منتهي الخدمات.</p></div>
+    <dialog class="modal end-service-modal" id="endServiceConfirmModal">
+      <div class="modal-head end-service-modal-head">
+        <div><h2>إنهاء خدمات الموظف</h2><p>مراجعة إدارية ومالية قبل تغيير حالة الموظف إلى منتهي الخدمات.</p></div>
         <button type="button" class="icon-btn" data-close-modal="endServiceConfirmModal"><span data-icon="x"></span></button>
       </div>
-      <div class="modal-body">
-        <div class="end-service-warning">
-          <strong>هل أنت متأكد من إنهاء خدمات هذا الموظف؟</strong>
-          <p>سيتم لاحقًا ربط هذه الخطوة بالسلف والمبالغ المعلقة والعهد والمخالصات ونهاية الخدمة. حاليًا سيتم تغيير حالة الموظف فقط إلى: تم إنهاء خدماته.</p>
-        </div>
+      <div class="end-service-progress" id="endServiceProgress"></div>
+      <div class="modal-body end-service-body" id="endServiceWizardContent"></div>
+      <div class="modal-actions end-service-actions">
+        <button type="button" class="secondary-btn" id="endServicePrevBtn"><span data-icon="arrow-right"></span>السابق</button>
+        <button type="button" class="primary-btn" id="endServiceNextBtn">التالي<span data-icon="arrow-left"></span></button>
+        <button type="button" class="danger-btn" id="confirmEndServiceBtn"><span data-icon="user-x"></span>اعتماد إنهاء الخدمات</button>
       </div>
-      <div class="modal-actions"><button type="button" class="secondary-btn cancel-action-btn" data-close-modal="endServiceConfirmModal">إلغاء</button><button type="button" class="danger-btn" id="confirmEndServiceBtn">تأكيد إنهاء الخدمات</button></div>
     </dialog>
 
     <dialog class="modal small-modal" id="leaveReturnModal">
@@ -1219,6 +1219,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=210"></script>
+    <script src="app.js?v=211"></script>
   </body>
 </html>

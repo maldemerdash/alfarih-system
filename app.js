@@ -30327,6 +30327,1234 @@ async function init() {
   }, 250);
 })();
 
+/* v211 - structured employee end-of-service workflow */
+(function () {
+  if (window.__endServiceWizardV211) return;
+  window.__endServiceWizardV211 = true;
+
+  const STEPS = [
+    "بيانات الإنهاء",
+    "الصلاحيات والإدارات",
+    "السلفيات",
+    "العهد والمحاضر",
+    "المستحقات",
+    "رصيد الإجازات",
+    "نهاية الخدمة",
+    "المخالصة",
+  ];
+  const REASON_LABELS = {
+    contract_end: "انتهاء العقد",
+    resignation: "استقالة",
+    mutual: "اتفاق الطرفين",
+    article80: "إنهاء وفق حالة نظامية خاصة",
+    probation: "فترة التجربة",
+    other: "أخرى",
+  };
+  const state = {
+    employeeId: "",
+    step: 0,
+    terminationDate: "",
+    reason: "contract_end",
+    note: "",
+    disableLinkedUser: true,
+  };
+
+  function q(selector, root) {
+    return (root || document).querySelector(selector);
+  }
+
+  function qa(selector, root) {
+    return Array.from((root || document).querySelectorAll(selector));
+  }
+
+  function txt(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function esc(value) {
+    try {
+      return typeof escapeHtml === "function"
+        ? escapeHtml(value == null ? "" : value)
+        : String(value == null ? "" : value).replace(
+            /[&<>"']/g,
+            (ch) =>
+              ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;",
+              })[ch],
+          );
+    } catch (_) {
+      return String(value == null ? "" : value);
+    }
+  }
+
+  function icon(name) {
+    try {
+      return typeof iconSvg === "function" ? iconSvg(name) : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") showToast(message);
+    } catch (_) {}
+  }
+
+  function todayIso() {
+    try {
+      return typeof formatInputDate === "function"
+        ? formatInputDate(typeof todayAtNoon === "function" ? todayAtNoon() : new Date())
+        : new Date().toISOString().slice(0, 10);
+    } catch (_) {
+      return new Date().toISOString().slice(0, 10);
+    }
+  }
+
+  function parse(value) {
+    try {
+      if (typeof parseDate === "function") return parseDate(value);
+    } catch (_) {}
+    const date = new Date(String(value || "") + "T12:00:00");
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function dateLabel(value) {
+    try {
+      return typeof formatDate === "function" ? formatDate(value) : txt(value) || "—";
+    } catch (_) {
+      return txt(value) || "—";
+    }
+  }
+
+  function money(value) {
+    try {
+      return typeof formatCurrencyEn === "function"
+        ? formatCurrencyEn(Number(value || 0))
+        : Number(value || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }) + " ر.س";
+    } catch (_) {
+      return String(value || 0) + " ر.س";
+    }
+  }
+
+  function numberLabel(value, digits) {
+    const n = Number(value || 0);
+    return n.toLocaleString("en-US", {
+      minimumFractionDigits: digits || 0,
+      maximumFractionDigits: digits || 0,
+    });
+  }
+
+  function employeeById(id) {
+    try {
+      if (typeof getEmployee === "function") return getEmployee(id);
+    } catch (_) {}
+    try {
+      return Array.isArray(employees)
+        ? employees.find((employee) => String(employee.id) === String(id))
+        : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function activeEmployee() {
+    const id =
+      q("#employeeForm")?.elements?.employeeId?.value ||
+      state.employeeId ||
+      "";
+    return id ? employeeById(id) : null;
+  }
+
+  function grossSalary(employee) {
+    try {
+      if (typeof employeeGrossSalary === "function") {
+        return Number(employeeGrossSalary(employee) || 0);
+      }
+    } catch (_) {}
+    return (
+      Number(employee?.baseSalary || 0) +
+      Number(employee?.housingAllowance || 0) +
+      Number(employee?.transportAllowance || 0) +
+      Number(employee?.otherAllowances || 0)
+    );
+  }
+
+  function monthKey(dateValue) {
+    const date = parse(dateValue) || new Date();
+    return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+  }
+
+  function monthDays(dateValue) {
+    const date = parse(dateValue) || new Date();
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  }
+
+  function serviceStart(employee) {
+    return (
+      employee?.workStartDate ||
+      employee?.commissionAccrualStartDate ||
+      employee?.contractStartDate ||
+      employee?.joinDate ||
+      ""
+    );
+  }
+
+  function serviceInfo(employee, endDateValue) {
+    const start = parse(serviceStart(employee));
+    const end = parse(endDateValue);
+    if (!start || !end || end < start) {
+      return { start: serviceStart(employee), days: 0, years: 0, label: "غير محدد" };
+    }
+    const days = Math.max(0, Math.round((end - start) / 864e5) + 1);
+    let label = numberLabel(days) + " يوم";
+    try {
+      if (typeof durationParts === "function" && typeof formatDuration === "function") {
+        label = formatDuration(durationParts(start, end), true) || label;
+      }
+    } catch (_) {}
+    return { start: serviceStart(employee), days, years: days / 365.2425, label };
+  }
+
+  function readJson(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw);
+      return parsed == null ? fallback : parsed;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function readAdvances() {
+    try {
+      if (typeof readPayrollAdvances === "function") return readPayrollAdvances();
+    } catch (_) {}
+    const list = readJson("nawah-payroll-advances", []);
+    return Array.isArray(list) ? list.filter(Boolean) : [];
+  }
+
+  function advanceAmount(advance) {
+    try {
+      if (typeof payrollAdvanceAmountValue === "function") {
+        return Number(payrollAdvanceAmountValue(advance) || 0);
+      }
+    } catch (_) {}
+    return Number(advance?.amount || advance?.value || advance?.advanceAmount || 0) || 0;
+  }
+
+  function advancePaid(advance) {
+    try {
+      if (typeof payrollAdvancePaidAmount === "function") {
+        return Number(payrollAdvancePaidAmount(advance) || 0);
+      }
+    } catch (_) {}
+    return Number(advance?.paidAmount || advance?.paid || advance?.settledAmount || 0) || 0;
+  }
+
+  function advanceRemaining(advance) {
+    try {
+      if (typeof payrollAdvanceRemainingAmount === "function") {
+        return Number(payrollAdvanceRemainingAmount(advance) || 0);
+      }
+    } catch (_) {}
+    return Math.max(0, advanceAmount(advance) - advancePaid(advance));
+  }
+
+  function employeeAdvances(employee) {
+    return readAdvances().filter(
+      (advance) =>
+        String(advance?.employeeId || advance?.employee_id || "") ===
+          String(employee?.id || "") &&
+        String(advance?.status || "approved") === "approved" &&
+        advanceRemaining(advance) > 0,
+    );
+  }
+
+  function prepaidDeduction(employee, endDateValue) {
+    const store = readJson("nawah-payroll-prepaid-deductions", {});
+    return Number(store?.[monthKey(endDateValue)]?.[employee?.id] || 0) || 0;
+  }
+
+  function absenceDeduction(employee, endDateValue) {
+    const end = parse(endDateValue);
+    if (!end) return 0;
+    try {
+      const start = new Date(end.getFullYear(), end.getMonth(), 1, 12);
+      const from = typeof formatInputDate === "function" ? formatInputDate(start) : monthKey(endDateValue) + "-01";
+      const to = typeof formatInputDate === "function" ? formatInputDate(end) : endDateValue;
+      const list = Array.isArray(attendanceExceptions) ? attendanceExceptions : [];
+      return list
+        .filter(
+          (record) =>
+            String(record?.employeeId || "") === String(employee?.id || "") &&
+            record?.type === "unexcused" &&
+            (!record.from || !record.to ||
+              (typeof dateRangesOverlap === "function"
+                ? dateRangesOverlap(record.from, record.to, from, to)
+                : true)),
+        )
+        .reduce((sum, record) => {
+          try {
+            return (
+              sum +
+              (typeof absenceDeductionAmount === "function"
+                ? Number(absenceDeductionAmount(record) || 0)
+                : 0)
+            );
+          } catch (_) {
+            return sum;
+          }
+        }, 0);
+    } catch (_) {}
+    try {
+      return typeof absenceDeductionForEmployeeInMonth === "function"
+        ? Number(absenceDeductionForEmployeeInMonth(employee?.id, end) || 0)
+        : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  function leaveBalance(employee, endDateValue) {
+    try {
+      if (window.leaveBalanceV49 && typeof window.leaveBalanceV49.leaveBalance === "function") {
+        const details = window.leaveBalanceV49.leaveBalance(employee, endDateValue, {});
+        if (details && typeof details === "object") {
+          return {
+            original: Number(details.original ?? details.accrued ?? details.total ?? 0) || 0,
+            deducted: Number(details.deducted ?? details.used ?? 0) || 0,
+            remaining: Number(details.remaining ?? 0) || 0,
+            reserved: Number(details.reserved ?? 0) || 0,
+          };
+        }
+        return { original: Number(details || 0), deducted: 0, remaining: Number(details || 0), reserved: 0 };
+      }
+    } catch (_) {}
+    const remaining = Number(
+      employee?.remainingLeaveBalance ||
+        employee?.leaveBalanceAfter ||
+        employee?.leaveBalance ||
+        employee?.leaveBalanceOpening ||
+        0,
+    ) || 0;
+    return { original: remaining, deducted: 0, remaining, reserved: 0 };
+  }
+
+  function orgAssignments(employee) {
+    const values = new Set(
+      [
+        employee?.id,
+        employee?.employeeNumber,
+        employee?.name,
+        employee?.email,
+        employee?.phone,
+      ]
+        .map(txt)
+        .filter(Boolean),
+    );
+    let org = { departments: [], sections: [] };
+    try {
+      org = typeof getOrgStructure === "function" ? getOrgStructure() : org;
+    } catch (_) {}
+    const matches = (value) => values.has(txt(value));
+    const departments = (org.departments || [])
+      .filter((item) => matches(item.manager) || matches(item.managerId) || matches(item.managerEmployeeId))
+      .map((item) => ({
+        type: "department",
+        id: item.id,
+        title: item.name,
+        label: "إدارة",
+        manager: item.manager || employee?.name || "",
+      }));
+    const sections = (org.sections || [])
+      .filter((item) => matches(item.manager) || matches(item.managerId) || matches(item.managerEmployeeId))
+      .map((item) => ({
+        type: "section",
+        id: item.id,
+        title: item.name,
+        label: "قسم",
+        manager: item.manager || employee?.name || "",
+      }));
+    return departments.concat(sections);
+  }
+
+  function detachOrgAssignments(employee, type, id) {
+    if (!employee) return 0;
+    let org;
+    try {
+      org = typeof getOrgStructure === "function" ? getOrgStructure() : null;
+    } catch (_) {
+      org = null;
+    }
+    if (!org) return 0;
+    const assignments = orgAssignments(employee);
+    const departmentIds = new Set(
+      assignments.filter((item) => item.type === "department").map((item) => String(item.id)),
+    );
+    const sectionIds = new Set(
+      assignments.filter((item) => item.type === "section").map((item) => String(item.id)),
+    );
+    let changed = 0;
+    const clear = (item) => {
+      ["manager", "managerId", "managerEmployeeId", "directManager"].forEach((key) => {
+        if (item[key]) {
+          item[key] = "";
+          changed += 1;
+        }
+      });
+    };
+    if (!type || type === "department") {
+      (org.departments || []).forEach((item) => {
+        if (id ? String(item.id) === String(id) : departmentIds.has(String(item.id))) clear(item);
+      });
+    }
+    if (!type || type === "section") {
+      (org.sections || []).forEach((item) => {
+        if (id ? String(item.id) === String(id) : sectionIds.has(String(item.id))) clear(item);
+      });
+    }
+    if (changed) {
+      try {
+        if (typeof setOrgStructure === "function") setOrgStructure(org);
+        else localStorage.setItem("nawah-org-structure", JSON.stringify(org));
+      } catch (_) {}
+      try {
+        if (typeof saveLocalMeta === "function") saveLocalMeta();
+      } catch (_) {}
+      try {
+        if (typeof renderSettings === "function") renderSettings();
+      } catch (_) {}
+    }
+    return changed;
+  }
+
+  function linkedAccountSummary(employee) {
+    let profile = null;
+    try {
+      profile =
+        typeof authProfile !== "undefined" && authProfile
+          ? authProfile
+          : window.authProfile || null;
+    } catch (_) {
+      profile = window.authProfile || null;
+    }
+    const linked =
+      profile &&
+      [
+        profile.employee_id,
+        profile.employeeId,
+        profile.linked_employee_id,
+        profile.linkedEmployeeId,
+      ].some((id) => txt(id) && txt(id) === txt(employee?.id));
+    if (linked) {
+      return {
+        found: true,
+        currentProfile: true,
+        label: profile.full_name || profile.email || "حساب المستخدم الحالي",
+        email: profile.email || "",
+        active: profile.is_active !== false,
+      };
+    }
+    if (employee?.email) {
+      return {
+        found: true,
+        currentProfile: false,
+        label: employee.email,
+        email: employee.email,
+        active: true,
+      };
+    }
+    return { found: false, currentProfile: false, label: "لا يوجد حساب مرتبط ظاهر", email: "", active: false };
+  }
+
+  function assetRows(employee) {
+    const direct = []
+      .concat(employee?.custodies || [])
+      .concat(employee?.assets || [])
+      .concat(employee?.employeeAssets || [])
+      .concat(employee?.equipment || [])
+      .filter(Boolean);
+    return direct.map((item, index) => ({
+      id: item.id || index,
+      name: item.name || item.title || item.assetName || "عهدة",
+      value: Number(item.value || item.amount || 0) || 0,
+      status: item.status || "مسجلة",
+    }));
+  }
+
+  function minuteRows(employee) {
+    return []
+      .concat(employee?.minutes || [])
+      .concat(employee?.warnings || [])
+      .filter(Boolean)
+      .map((item, index) => ({
+        id: item.id || index,
+        title: item.templateName || item.type || item.title || "محضر/ملاحظة",
+        penalty: item.penalty || item.penaltyText || item.action || "—",
+        deduction: Number(item.deductionAmount || item.deduction || 0) || 0,
+        date: item.createdAt || item.date || item.updatedAt || "",
+      }));
+  }
+
+  function eosAward(employee, endDateValue, reason) {
+    const service = serviceInfo(employee, endDateValue);
+    const monthly = grossSalary(employee);
+    const firstYears = Math.min(service.years, 5);
+    const nextYears = Math.max(0, service.years - 5);
+    const fullAward = monthly * 0.5 * firstYears + monthly * nextYears;
+    let ratio = 1;
+    let note = "احتساب عام: نصف شهر عن كل سنة من أول خمس سنوات، وشهر عن كل سنة بعدها.";
+    if (reason === "resignation") {
+      if (service.years < 2) ratio = 0;
+      else if (service.years < 5) ratio = 1 / 3;
+      else if (service.years < 10) ratio = 2 / 3;
+      else ratio = 1;
+      note = "الاستقالة تطبق شرائح الاستحقاق حسب مدة الخدمة.";
+    } else if (reason === "article80" || reason === "probation") {
+      ratio = 0;
+      note = "هذه الحالة تحتاج مراجعة نظامية قبل اعتماد مبلغ نهاية الخدمة.";
+    }
+    return {
+      fullAward,
+      ratio,
+      amount: Math.max(0, fullAward * ratio),
+      service,
+      note,
+    };
+  }
+
+  function buildReview(employee) {
+    const endDate = state.terminationDate || todayIso();
+    const monthly = grossSalary(employee);
+    const daily = monthly / 30;
+    const date = parse(endDate) || new Date();
+    const earnedSalary = (monthly / monthDays(endDate)) * Math.min(date.getDate(), monthDays(endDate));
+    const absence = absenceDeduction(employee, endDate);
+    const prepaid = prepaidDeduction(employee, endDate);
+    const advances = employeeAdvances(employee);
+    const advanceTotal = advances.reduce((sum, item) => sum + advanceRemaining(item), 0);
+    const leave = leaveBalance(employee, endDate);
+    const leavePayoutDays = Math.max(0, Number(leave.remaining || 0));
+    const leavePayout = leavePayoutDays * daily;
+    const eos = eosAward(employee, endDate, state.reason);
+    const assets = assetRows(employee);
+    const assetValue = assets.reduce((sum, item) => sum + Number(item.value || 0), 0);
+    const minutes = minuteRows(employee);
+    const salaryNet = Math.max(0, earnedSalary - absence - prepaid);
+    const payableBeforeDebts = salaryNet + leavePayout + eos.amount;
+    const finalDue = payableBeforeDebts - advanceTotal - assetValue;
+    return {
+      employee,
+      endDate,
+      monthly,
+      daily,
+      earnedSalary,
+      absence,
+      prepaid,
+      salaryNet,
+      advances,
+      advanceTotal,
+      leave,
+      leavePayoutDays,
+      leavePayout,
+      eos,
+      assets,
+      assetValue,
+      minutes,
+      org: orgAssignments(employee),
+      account: linkedAccountSummary(employee),
+      payableBeforeDebts,
+      finalDue,
+    };
+  }
+
+  function summaryCards(review) {
+    return (
+      '<div class="end-service-summary-grid">' +
+      [
+        ["الموظف", review.employee.name || "—"],
+        ["رقم الموظف", review.employee.employeeNumber || "—"],
+        ["تاريخ الإنهاء", dateLabel(review.endDate)],
+        ["مدة الخدمة", review.eos.service.label],
+        ["الأجر الشهري", money(review.monthly)],
+        ["الصافي المتوقع", money(review.finalDue)],
+      ]
+        .map(
+          ([label, value]) =>
+            '<article><span>' + esc(label) + "</span><strong>" + esc(value) + "</strong></article>",
+        )
+        .join("") +
+      "</div>"
+    );
+  }
+
+  function rowsTable(heads, rows, emptyText) {
+    if (!rows.length) {
+      return '<div class="end-service-empty">' + esc(emptyText || "لا توجد بيانات") + "</div>";
+    }
+    return (
+      '<div class="table-wrap end-service-table-wrap"><table class="compact-data-table end-service-table"><thead><tr>' +
+      heads.map((head) => "<th>" + esc(head) + "</th>").join("") +
+      "</tr></thead><tbody>" +
+      rows.join("") +
+      "</tbody></table></div>"
+    );
+  }
+
+  function renderStep(review) {
+    switch (state.step) {
+      case 0:
+        return (
+          summaryCards(review) +
+          '<div class="form-grid end-service-form-grid">' +
+          '<label><span>تاريخ الإنهاء</span><input type="date" id="endServiceDateInput" value="' +
+          esc(state.terminationDate) +
+          '"></label>' +
+          '<label><span>سبب الإنهاء</span><select id="endServiceReasonSelect">' +
+          Object.keys(REASON_LABELS)
+            .map(
+              (key) =>
+                '<option value="' +
+                esc(key) +
+                '"' +
+                (key === state.reason ? " selected" : "") +
+                ">" +
+                esc(REASON_LABELS[key]) +
+                "</option>",
+            )
+            .join("") +
+          "</select></label>" +
+          '<label class="span-all"><span>ملاحظة الإنهاء</span><textarea id="endServiceNoteInput" rows="3" placeholder="اكتب سببًا تفصيليًا أو ملاحظات التسوية">' +
+          esc(state.note) +
+          "</textarea></label>" +
+          '<label class="end-service-switch span-all"><input type="checkbox" id="endServiceDisableUserCheck"' +
+          (state.disableLinkedUser ? " checked" : "") +
+          "><span>تعطيل حساب المستخدم المرتبط عند الاعتماد إذا وجد، مع عدم تعطيل حساب المستخدم الحالي منعًا لقفل الدخول.</span></label>" +
+          "</div>"
+        );
+      case 1:
+        return (
+          summaryCards(review) +
+          '<div class="end-service-two-col">' +
+          '<article class="end-service-review-card"><h3>الحساب والصلاحيات</h3><div class="end-service-account-state ' +
+          (review.account.found ? "is-found" : "") +
+          '"><strong>' +
+          esc(review.account.label) +
+          "</strong><span>" +
+          esc(
+            review.account.found
+              ? review.account.currentProfile
+                ? "حساب مرتبط بالمستخدم الحالي، لن يتم تعطيله تلقائيًا."
+                : "سيتم تسجيل مراجعته ضمن إنهاء الخدمات."
+              : "لا يظهر حساب مستخدم مرتبط بهذا الموظف.",
+          ) +
+          "</span></div></article>" +
+          '<article class="end-service-review-card"><h3>الإدارات والأقسام التي يرأسها</h3>' +
+          rowsTable(
+            ["النوع", "الاسم", "الإجراء"],
+            review.org.map(
+              (item) =>
+                '<tr><td>' +
+                esc(item.label) +
+                "</td><td>" +
+                esc(item.title) +
+                '</td><td><button type="button" class="end-service-icon-action" data-end-service-detach="' +
+                esc(item.type) +
+                '" data-id="' +
+                esc(item.id) +
+                '" title="فصل الارتباط">' +
+                icon("user-x") +
+                "</button></td></tr>",
+            ),
+            "لا يرأس هذا الموظف أي إدارة أو قسم.",
+          ) +
+          (review.org.length
+            ? '<button type="button" class="secondary-btn end-service-detach-all" data-end-service-detach-all><span data-icon="user-x"></span>فصل كل الارتباطات الإدارية</button>'
+            : "") +
+          "</article></div>"
+        );
+      case 2:
+        return (
+          summaryCards(review) +
+          '<div class="end-service-step-head"><h3>السلفيات والمديونيات</h3><p>تخصم السلفيات غير المسددة من المخالصة النهائية.</p></div>' +
+          rowsTable(
+            ["التاريخ", "قيمة السلفة", "المسدد", "المتبقي", "مصدر آخر سداد"],
+            review.advances.map(
+              (item) =>
+                "<tr><td>" +
+                esc(dateLabel(item.date || item.createdAt)) +
+                '</td><td class="amount-danger">' +
+                esc(money(advanceAmount(item))) +
+                '</td><td class="amount-success">' +
+                esc(money(advancePaid(item))) +
+                "</td><td><strong>" +
+                esc(money(advanceRemaining(item))) +
+                "</strong></td><td>" +
+                esc(
+                  typeof payrollAdvancePaymentSourceLabel === "function"
+                    ? payrollAdvancePaymentSourceLabel(item)
+                    : item.paymentSourceLabel || "—",
+                ) +
+                "</td></tr>",
+            ),
+            "لا توجد سلفيات غير مسددة.",
+          ) +
+          (!review.advances.length
+            ? '<button type="button" class="secondary-btn end-service-print-clear" data-end-service-print="nodebt"><span data-icon="printer"></span>طباعة مخالصة عدم مديونية</button>'
+            : "")
+        );
+      case 3:
+        return (
+          summaryCards(review) +
+          '<div class="end-service-two-col">' +
+          '<article class="end-service-review-card"><h3>العهد المسجلة</h3>' +
+          rowsTable(
+            ["العهدة", "القيمة", "الحالة"],
+            review.assets.map(
+              (item) =>
+                "<tr><td>" +
+                esc(item.name) +
+                "</td><td>" +
+                esc(money(item.value)) +
+                "</td><td>" +
+                esc(item.status) +
+                "</td></tr>",
+            ),
+            "لا توجد عهد مسجلة في ملف الموظف.",
+          ) +
+          "</article>" +
+          '<article class="end-service-review-card"><h3>الملاحظات والمحاضر</h3>' +
+          rowsTable(
+            ["التاريخ", "النوع", "الجزاء", "الحسم"],
+            review.minutes.map(
+              (item) =>
+                "<tr><td>" +
+                esc(dateLabel(item.date)) +
+                "</td><td>" +
+                esc(item.title) +
+                "</td><td>" +
+                esc(item.penalty) +
+                "</td><td>" +
+                esc(money(item.deduction)) +
+                "</td></tr>",
+            ),
+            "لا توجد محاضر أو ملاحظات مؤثرة.",
+          ) +
+          "</article></div>"
+        );
+      case 4:
+        return (
+          summaryCards(review) +
+          '<div class="end-service-calculation-grid">' +
+          calcCard("أجر الشهر حتى تاريخ الإنهاء", review.earnedSalary, "يحسب نسبيًا من بداية الشهر حتى تاريخ الإنهاء.") +
+          calcCard("خصم الغياب", review.absence, "غيابات الشهر حتى تاريخ الإنهاء.") +
+          calcCard("خصم مسبق للرواتب", review.prepaid, "أي خصم مسبق محفوظ في مسير الشهر.") +
+          calcCard("صافي مستحقات الشهر", review.salaryNet, "بعد الخصومات المسجلة.") +
+          "</div>"
+        );
+      case 5:
+        return (
+          summaryCards(review) +
+          '<div class="end-service-calculation-grid">' +
+          calcCard("رصيد الإجازات", review.leave.original, "رصيد الاستحقاق الأصلي حتى تاريخ الإنهاء.", "day") +
+          calcCard("الأيام المستخدمة", review.leave.deducted, "إجازات وسفريات مستقطعة من الرصيد.", "day") +
+          calcCard("الرصيد المتبقي", review.leave.remaining, "الأيام القابلة للتصفية.", "day", "success") +
+          calcCard("قيمة الرصيد المتبقي", review.leavePayout, "تسوية نقدية على الأجر اليومي.") +
+          (review.leave.reserved > 0
+            ? calcCard("الرصيد المحجوز من الرصيد القادم", review.leave.reserved, "يظهر للتنبيه ولا يضاف كمستحق.", "day", "danger")
+            : "") +
+          "</div>"
+        );
+      case 6:
+        return (
+          summaryCards(review) +
+          '<div class="end-service-calculation-grid">' +
+          calcCard("مدة الخدمة", review.eos.service.years, review.eos.service.label, "year") +
+          calcCard("مكافأة نهاية الخدمة الكاملة", review.eos.fullAward, review.eos.note) +
+          calcCard("نسبة الاستحقاق", review.eos.ratio * 100, "حسب سبب الإنهاء.", "percent") +
+          calcCard("مبلغ نهاية الخدمة", review.eos.amount, "القيمة الداخلة في المخالصة.", null, "success") +
+          "</div>" +
+          '<div class="end-service-legal-note">الاحتساب مبني على القاعدة العامة لمكافأة نهاية الخدمة، ويجب مراجعة الحالات الخاصة قبل الصرف النهائي.</div>'
+        );
+      default:
+        return (
+          summaryCards(review) +
+          '<div class="end-service-final-card ' +
+          (review.finalDue < 0 ? "is-negative" : "is-positive") +
+          '"><span>صافي المخالصة النهائي</span><strong>' +
+          esc(money(review.finalDue)) +
+          "</strong><p>" +
+          esc(
+            review.finalDue >= 0
+              ? "مستحق للموظف بعد خصم المديونيات."
+              : "مبلغ مستحق على الموظف بعد خصم المديونيات.",
+          ) +
+          "</p></div>" +
+          '<div class="end-service-final-breakdown">' +
+          finalLine("صافي مستحقات الشهر", review.salaryNet) +
+          finalLine("قيمة رصيد الإجازات", review.leavePayout) +
+          finalLine("مكافأة نهاية الخدمة", review.eos.amount) +
+          finalLine("السلفيات غير المسددة", -review.advanceTotal) +
+          finalLine("العهد المالية", -review.assetValue) +
+          "</div>" +
+          '<button type="button" class="secondary-btn" data-end-service-print="clearance"><span data-icon="printer"></span>طباعة مسودة المخالصة</button>'
+        );
+    }
+  }
+
+  function calcCard(label, value, hint, type, tone) {
+    let rendered = money(value);
+    if (type === "day") rendered = numberLabel(value) + " يوم";
+    if (type === "year") rendered = numberLabel(value, 2) + " سنة";
+    if (type === "percent") rendered = numberLabel(value, 0) + "%";
+    return (
+      '<article class="' +
+      (tone ? "is-" + tone : "") +
+      '"><span>' +
+      esc(label) +
+      "</span><strong>" +
+      esc(rendered) +
+      "</strong><small>" +
+      esc(hint || "") +
+      "</small></article>"
+    );
+  }
+
+  function finalLine(label, value) {
+    return (
+      '<div><span>' +
+      esc(label) +
+      '</span><strong class="' +
+      (Number(value || 0) < 0 ? "amount-danger" : "amount-success") +
+      '">' +
+      esc(money(value)) +
+      "</strong></div>"
+    );
+  }
+
+  function ensureModal() {
+    let modal = q("#endServiceConfirmModal");
+    if (!modal) {
+      modal = document.createElement("dialog");
+      modal.id = "endServiceConfirmModal";
+      document.body.appendChild(modal);
+    }
+    if (modal.dataset.endServiceWizardReady === "1") return modal;
+    modal.className = "modal end-service-modal";
+    modal.innerHTML =
+      '<div class="modal-head end-service-modal-head"><div><h2>إنهاء خدمات الموظف</h2><p>مراجعة إدارية ومالية قبل تغيير حالة الموظف إلى منتهي الخدمات.</p></div><button type="button" class="icon-btn" data-close-modal="endServiceConfirmModal"><span data-icon="x"></span></button></div>' +
+      '<div class="end-service-progress" id="endServiceProgress"></div>' +
+      '<div class="modal-body end-service-body" id="endServiceWizardContent"></div>' +
+      '<div class="modal-actions end-service-actions"><button type="button" class="secondary-btn" id="endServicePrevBtn"><span data-icon="arrow-right"></span>السابق</button><button type="button" class="primary-btn" id="endServiceNextBtn">التالي<span data-icon="arrow-left"></span></button><button type="button" class="danger-btn" id="confirmEndServiceBtn"><span data-icon="user-x"></span>اعتماد إنهاء الخدمات</button></div>';
+    modal.dataset.endServiceWizardReady = "1";
+    modal.addEventListener("click", onModalClick, true);
+    modal.addEventListener("change", onModalChange, true);
+    modal.addEventListener("input", onModalInput, true);
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(modal);
+    } catch (_) {}
+    return modal;
+  }
+
+  function renderWizard() {
+    const employee = employeeById(state.employeeId);
+    if (!employee) return;
+    const modal = ensureModal();
+    const review = buildReview(employee);
+    const progress = q("#endServiceProgress", modal);
+    const content = q("#endServiceWizardContent", modal);
+    if (progress) {
+      progress.innerHTML = STEPS.map(
+        (step, index) =>
+          '<button type="button" class="' +
+          (index === state.step ? "active" : index < state.step ? "done" : "") +
+          '" data-end-service-step="' +
+          index +
+          '"><span>' +
+          esc(index + 1) +
+          "</span><strong>" +
+          esc(step) +
+          "</strong></button>",
+      ).join("");
+    }
+    if (content) content.innerHTML = renderStep(review);
+    const prev = q("#endServicePrevBtn", modal);
+    const next = q("#endServiceNextBtn", modal);
+    const confirm = q("#confirmEndServiceBtn", modal);
+    if (prev) prev.disabled = state.step === 0;
+    if (next) next.hidden = state.step === STEPS.length - 1;
+    if (confirm) confirm.hidden = state.step !== STEPS.length - 1;
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(modal);
+    } catch (_) {}
+  }
+
+  function onModalInput(event) {
+    const target = event.target;
+    if (!target) return;
+    if (target.id === "endServiceNoteInput") state.note = target.value || "";
+  }
+
+  function onModalChange(event) {
+    const target = event.target;
+    if (!target) return;
+    if (target.id === "endServiceDateInput") {
+      state.terminationDate = target.value || todayIso();
+      renderWizard();
+    } else if (target.id === "endServiceReasonSelect") {
+      state.reason = target.value || "contract_end";
+      renderWizard();
+    } else if (target.id === "endServiceDisableUserCheck") {
+      state.disableLinkedUser = Boolean(target.checked);
+    }
+  }
+
+  function onModalClick(event) {
+    const target = event.target?.closest?.("button");
+    if (!target) return;
+    if (target.id === "endServicePrevBtn") {
+      event.preventDefault();
+      state.step = Math.max(0, state.step - 1);
+      renderWizard();
+      return;
+    }
+    if (target.id === "endServiceNextBtn") {
+      event.preventDefault();
+      state.step = Math.min(STEPS.length - 1, state.step + 1);
+      renderWizard();
+      return;
+    }
+    if (target.id === "confirmEndServiceBtn") {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      finalizeEndService(target);
+      return;
+    }
+    const step = target.getAttribute("data-end-service-step");
+    if (step != null) {
+      event.preventDefault();
+      state.step = Math.max(0, Math.min(STEPS.length - 1, Number(step) || 0));
+      renderWizard();
+      return;
+    }
+    const detach = target.getAttribute("data-end-service-detach");
+    if (detach) {
+      event.preventDefault();
+      const employee = employeeById(state.employeeId);
+      detachOrgAssignments(employee, detach, target.getAttribute("data-id"));
+      renderWizard();
+      notify("تم فصل الارتباط الإداري");
+      return;
+    }
+    if (target.hasAttribute("data-end-service-detach-all")) {
+      event.preventDefault();
+      const employee = employeeById(state.employeeId);
+      detachOrgAssignments(employee);
+      renderWizard();
+      notify("تم فصل كل الارتباطات الإدارية");
+      return;
+    }
+    const printType = target.getAttribute("data-end-service-print");
+    if (printType) {
+      event.preventDefault();
+      printEndServiceDocument(printType);
+    }
+  }
+
+  function openWizard() {
+    const employee = activeEmployee();
+    if (!employee?.id) {
+      notify("احفظ بيانات الموظف أولًا قبل إنهاء الخدمات");
+      return;
+    }
+    if (employee.status === "terminated") {
+      notify("تم إنهاء خدمات هذا الموظف مسبقًا");
+      return;
+    }
+    state.employeeId = employee.id;
+    state.step = 0;
+    state.terminationDate = employee.endServiceDate || employee.terminationDate || todayIso();
+    state.reason = employee.terminationReason || employee.endServiceReason || "contract_end";
+    state.note = employee.terminationNote || employee.endServiceNote || "";
+    state.disableLinkedUser = true;
+    const modal = ensureModal();
+    renderWizard();
+    try {
+      modal.open || modal.showModal();
+    } catch (_) {
+      modal.setAttribute("open", "open");
+    }
+  }
+
+  async function disableLinkedUser(employee, review) {
+    if (!state.disableLinkedUser || !review.account.found || review.account.currentProfile) {
+      return { attempted: false, disabled: false, skipped: review.account.currentProfile };
+    }
+    let client = null;
+    try {
+      client = typeof supabaseClient !== "undefined" ? supabaseClient : window.supabaseClient;
+    } catch (_) {
+      client = window.supabaseClient || null;
+    }
+    if (!client?.from) return { attempted: false, disabled: false };
+    const updates = [];
+    const payload = { is_active: false, updated_at: new Date().toISOString() };
+    const id = txt(employee.id);
+    const email = txt(employee.email || review.account.email);
+    for (const field of ["employee_id", "linked_employee_id"]) {
+      if (!id) continue;
+      try {
+        const result = await client.from("app_user_profiles").update(payload).eq(field, id);
+        updates.push(!result.error);
+      } catch (_) {
+        updates.push(false);
+      }
+    }
+    if (email) {
+      try {
+        const result = await client.from("app_user_profiles").update(payload).eq("email", email);
+        updates.push(!result.error);
+      } catch (_) {
+        updates.push(false);
+      }
+    }
+    return { attempted: true, disabled: updates.some(Boolean) };
+  }
+
+  async function finalizeEndService(button) {
+    const employee = employeeById(state.employeeId);
+    if (!employee) return notify("تعذر العثور على الموظف");
+    const review = buildReview(employee);
+    button.disabled = true;
+    button.classList.add("is-loading");
+    button.innerHTML = '<span class="spinner"></span>جاري الاعتماد';
+    try {
+      detachOrgAssignments(employee);
+      const accountResult = await disableLinkedUser(employee, review);
+      const settlement = {
+        version: 211,
+        terminationDate: state.terminationDate,
+        reason: state.reason,
+        reasonLabel: REASON_LABELS[state.reason] || state.reason,
+        note: state.note,
+        serviceStartDate: review.eos.service.start,
+        serviceDays: review.eos.service.days,
+        serviceYears: review.eos.service.years,
+        monthlyWage: review.monthly,
+        dailyWage: review.daily,
+        earnedSalary: review.earnedSalary,
+        absenceDeduction: review.absence,
+        prepaidDeduction: review.prepaid,
+        salaryNet: review.salaryNet,
+        advancesRemaining: review.advanceTotal,
+        assetsValue: review.assetValue,
+        leaveBalance: review.leave,
+        leavePayout: review.leavePayout,
+        eosAward: review.eos,
+        finalDue: review.finalDue,
+        accountResult,
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: currentUserName(),
+      };
+      const updated = {
+        ...employee,
+        status: "terminated",
+        attendance: null,
+        endServiceDate: state.terminationDate,
+        terminationDate: state.terminationDate,
+        endServiceReason: state.reason,
+        terminationReason: state.reason,
+        endServiceNote: state.note,
+        terminationNote: state.note,
+        endServiceSettlement: settlement,
+        endServiceReviews: {
+          orgAssignments: review.org,
+          account: review.account,
+          advances: review.advances,
+          assets: review.assets,
+          minutes: review.minutes,
+        },
+        endServiceRequestedAt: new Date().toISOString(),
+        endServiceRequestedBy: currentUserName(),
+      };
+      let saved = updated;
+      if (typeof persistEmployeeRecord === "function") saved = await persistEmployeeRecord(updated);
+      else {
+        try {
+          if (Array.isArray(employees)) {
+            employees = employees.map((item) => (String(item.id) === String(updated.id) ? updated : item));
+          }
+        } catch (_) {}
+        if (typeof dbSaveEmployee === "function") await dbSaveEmployee(updated);
+      }
+      try {
+        const form = q("#employeeForm");
+        if (form?.elements?.status) form.elements.status.value = "terminated";
+      } catch (_) {}
+      try {
+        const endButton = q("#endEmployeeServiceBtn");
+        if (endButton) {
+          endButton.disabled = true;
+          endButton.classList.add("is-disabled");
+          endButton.title = "تم إنهاء خدمات الموظف";
+        }
+      } catch (_) {}
+      try {
+        if (typeof saveCloudStateNow === "function") await saveCloudStateNow({ force: true, allowEmptyOverwrite: true });
+      } catch (_) {}
+      try {
+        if (typeof renderAll === "function") renderAll();
+      } catch (_) {}
+      try {
+        q("#endServiceConfirmModal")?.close();
+      } catch (_) {}
+      printEndServiceDocument("clearance", saved || updated, settlement);
+      notify("تم اعتماد إنهاء الخدمات وحفظ المخالصة في ملف الموظف");
+    } catch (error) {
+      console.error("end service finalize failed", error);
+      notify("تعذر اعتماد إنهاء الخدمات، راجع البيانات ثم حاول مرة أخرى");
+    } finally {
+      button.disabled = false;
+      button.classList.remove("is-loading");
+      button.innerHTML = '<span data-icon="user-x"></span>اعتماد إنهاء الخدمات';
+      try {
+        if (typeof hydrateIcons === "function") hydrateIcons(button);
+      } catch (_) {}
+    }
+  }
+
+  function currentUserName() {
+    try {
+      if (txt(currentUser)) return txt(currentUser);
+    } catch (_) {}
+    try {
+      const profile =
+        typeof authProfile !== "undefined" && authProfile ? authProfile : window.authProfile;
+      return txt(profile?.full_name || profile?.email || "النظام") || "النظام";
+    } catch (_) {
+      return "النظام";
+    }
+  }
+
+  async function companyLogo() {
+    const company = readJson("nawah-company-settings-v92", {});
+    if (company.logoDataUrl || company.logo) return company.logoDataUrl || company.logo;
+    if (company.logoAttachmentId) {
+      try {
+        if (typeof attachmentUrl === "function") {
+          const url = await attachmentUrl(company.logoAttachmentId);
+          if (url) return url;
+        }
+      } catch (_) {}
+    }
+    return "sar-symbol.png";
+  }
+
+  async function printEndServiceDocument(type, fixedEmployee, fixedSettlement) {
+    const employee = fixedEmployee || employeeById(state.employeeId);
+    if (!employee) return;
+    const review = fixedSettlement
+      ? { ...buildReview(employee), finalDue: fixedSettlement.finalDue || 0 }
+      : buildReview(employee);
+    const company = readJson("nawah-company-settings-v92", {});
+    const logo = await companyLogo();
+    const title = type === "nodebt" ? "مخالصة عدم مديونية" : "مخالصة إنهاء خدمات";
+    const rows =
+      type === "nodebt"
+        ? [
+            ["الموظف", employee.name],
+            ["رقم الموظف", employee.employeeNumber],
+            ["تاريخ الإصدار", dateLabel(todayIso())],
+            ["حالة السلفيات", "لا توجد سلفيات غير مسددة"],
+          ]
+        : [
+            ["الموظف", employee.name],
+            ["رقم الموظف", employee.employeeNumber],
+            ["تاريخ الإنهاء", dateLabel(state.terminationDate || employee.endServiceDate)],
+            ["سبب الإنهاء", REASON_LABELS[state.reason] || state.reason],
+            ["صافي مستحقات الشهر", money(review.salaryNet)],
+            ["قيمة رصيد الإجازات", money(review.leavePayout)],
+            ["مكافأة نهاية الخدمة", money(review.eos.amount)],
+            ["السلفيات غير المسددة", money(review.advanceTotal)],
+            ["الصافي النهائي", money(review.finalDue)],
+          ];
+    const html =
+      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
+      esc(title) +
+      '</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#fff;color:#172033;font-family:Arial,Tahoma,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{border:1px solid #dbe7ef;min-height:267mm;padding:13mm}.head{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:10px}.head img{width:64px;height:64px;object-fit:contain;border-radius:14px}.head h1{margin:0;color:#08758a;font-size:20px}.head p{margin:5px 0 0;color:#64748b;font-size:11px}.title{text-align:center;font-size:21px;margin:22px 0 16px}.text{border:1px solid #ccfbf1;background:#f0fdfa;border-radius:12px;padding:13px;line-height:2;font-weight:800}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:16px}.cell{border:1px solid #e3edf3;border-radius:10px;background:#fbfdff;padding:9px}.cell span{display:block;color:#64748b;font-size:11px}.cell strong{display:block;margin-top:4px;font-size:13px}.sign{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px;text-align:center}.sig{border-top:1px solid #94a3b8;padding-top:10px;min-height:80px}.sig strong,.sig span{display:block}.sig span{margin-top:8px;font-weight:900}.footer{margin-top:26px;border-top:1px solid #dbe3ef;padding-top:7px;color:#64748b;font-size:10px;text-align:center}</style></head><body><main class="page"><header class="head"><img src="' +
+      esc(logo) +
+      '"><div><h1>' +
+      esc(company.company || company.name || "المنشأة") +
+      "</h1><p>" +
+      esc([company.unifiedNumber && "الرقم الموحد: " + company.unifiedNumber, company.phone && "هاتف: " + company.phone, company.email && "البريد: " + company.email].filter(Boolean).join(" | ")) +
+      '</p></div></header><h2 class="title">' +
+      esc(title) +
+      '</h2><p class="text">' +
+      esc(
+        type === "nodebt"
+          ? "تفيد المنشأة بعدم وجود سلفيات غير مسددة مسجلة على الموظف حتى تاريخ إصدار هذه المخالصة."
+          : "تمت مراجعة ملف الموظف إداريًا وماليًا، وتظهر أدناه ملخص المخالصة النهائية قبل الصرف أو التسوية.",
+      ) +
+      '</p><section class="grid">' +
+      rows
+        .map(
+          ([label, value]) =>
+            '<div class="cell"><span>' +
+            esc(label) +
+            "</span><strong>" +
+            esc(value) +
+            "</strong></div>",
+        )
+        .join("") +
+      '</section><section class="sign"><div class="sig"><strong>الموظف</strong><span>' +
+      esc(employee.name || "—") +
+      '</span></div><div class="sig"><strong>ختم المنشأة</strong><span></span></div><div class="sig"><strong>المدير</strong><span>' +
+      esc(employee.directManager || "—") +
+      '</span></div></section><p class="footer">تم إنشاء المستند من نظام إدارة الموظفين بتاريخ ' +
+      esc(dateLabel(todayIso())) +
+      '</p></main><script>window.addEventListener("load",function(){setTimeout(function(){window.print();},250);});<\/script></body></html>';
+    const frame = document.createElement("iframe");
+    frame.className = "report-print-frame";
+    frame.style.cssText = "position:fixed;inset:auto 0 0 auto;width:0;height:0;border:0;opacity:0";
+    document.body.appendChild(frame);
+    const doc = frame.contentWindow && frame.contentWindow.document;
+    if (!doc) return notify("تعذر تجهيز الطباعة");
+    doc.open();
+    doc.write(html);
+    doc.close();
+    setTimeout(() => {
+      try {
+        frame.remove();
+      } catch (_) {}
+    }, 4000);
+  }
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const target = event.target?.closest?.("#endEmployeeServiceBtn");
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      openWizard();
+    },
+    true,
+  );
+
+  window.openEndServiceWizardV211 = openWizard;
+})();
+
 /* v60 finance layout polish: move close-day to header, remove duplicate pending card, move fund card under new carried */
 (function () {
   if (window.__v60FinanceLayoutPolish) return;
