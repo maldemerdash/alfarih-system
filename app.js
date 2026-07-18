@@ -11918,10 +11918,9 @@ async function init() {
               const o = v(e.typeId, t),
                 r = e.categoryId || o?.categoryId || "",
                 i = e.authorityId || o?.authorityId || "",
-                s = e.attachmentData
-                  ? `<button type="button" class="doc-icon-action est-doc-table-eye" data-branch-open-doc-attachment="${n(e.id)}" title="عرض المرفق">${a("eye")}</button>`
-                  : e.attachmentId
-                    ? `<button type="button" class="doc-icon-action est-doc-table-eye" data-view-attachment="${n(e.attachmentId)}" title="عرض المرفق">${a("eye")}</button>`
+                s =
+                  e.attachmentData || e.attachmentId
+                    ? `<button type="button" class="doc-icon-action est-doc-table-eye" data-branch-open-doc-attachment="${n(e.id)}" data-attachment-id="${n(e.attachmentId || "")}" title="عرض المرفق">${a("eye")}</button>`
                     : '<span class="muted-cell">—</span>',
                 l = j(e);
               return `<tr><td>${n(e.branchId ? p(e.branchId) : "المنشأة الرئيسية")}</td><td>${n(g(r, t))}</td><td>${n(b(i, t) || e.authority || "—")}</td><td>${n(o?.name || "—")}</td><td>${n(e.number || "—")}</td><td>${n(A(e.startDate))}</td><td>${n(A(l))}</td><td>${(function (
@@ -11950,12 +11949,16 @@ async function init() {
         q(),
         L(),
         M(),
-        setTimeout(() => {
-          document
-            .getElementById("establishmentDocumentsView")
-            ?.classList.contains("active") && B();
-        }, 80));
+        document
+          .getElementById("establishmentDocumentsView")
+          ?.classList.contains("active") && B());
     }
+    try {
+      renderEstablishmentDocuments = B;
+      window.renderEstablishmentDocuments = B;
+      renderEstablishmentDocumentsFinal = B;
+      window.renderEstablishmentDocumentsFinal = B;
+    } catch (e) {}
     (document.addEventListener(
       "click",
       (e) => {
@@ -12069,11 +12072,20 @@ async function init() {
           );
         }
         const branchCurrentPreview = e.target.closest("[data-branch-current-doc-preview]");
-        if (branchCurrentPreview && !branchCurrentPreview.dataset.viewAttachment) {
+        if (branchCurrentPreview) {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           const t = document.getElementById("branchEstDocForm"),
-            n = t?.elements?.attachmentData?.value || "";
-          return void (n ? window.open(n, "_blank") : o("لا يوجد مرفق للعرض"));
+            n = t?.elements?.attachmentData?.value || "",
+            a = t?.elements?.attachmentId?.value || branchCurrentPreview.dataset.viewAttachment || "";
+          return void (
+            n || a
+              ? "function" == typeof openAttachment
+                ? openAttachment(n || a)
+                : window.open(n || a, "_blank")
+              : o("لا يوجد مرفق للعرض")
+          );
         }
         if (e.target.closest("[data-close-branch-estdoc]"))
           return (
@@ -12083,9 +12095,15 @@ async function init() {
         const s = e.target.closest("[data-branch-open-doc-attachment]");
         if (s) {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           const t = f().find((e) => e.id === s.dataset.branchOpenDocAttachment);
           return void (
-            t?.attachmentData && window.open(t.attachmentData, "_blank")
+            t?.attachmentData || t?.attachmentId || s.dataset.attachmentId
+              ? "function" == typeof openAttachment
+                ? openAttachment(t?.attachmentData || t?.attachmentId || s.dataset.attachmentId)
+                : window.open(t?.attachmentData || t?.attachmentId || s.dataset.attachmentId, "_blank")
+              : o("لا يوجد مرفق محفوظ")
           );
         }
       },
@@ -30487,6 +30505,11 @@ async function init() {
         renderFinance();
       else if (name === "payroll" && typeof renderPayroll === "function")
         renderPayroll();
+      else if (
+        name === "establishmentDocuments" &&
+        typeof renderEstablishmentDocuments === "function"
+      )
+        renderEstablishmentDocuments();
       else if (name === "settings" && typeof renderSettings === "function")
         renderSettings();
       else if (name === "users") {
@@ -58074,8 +58097,9 @@ window.nawahV169Fixes = {
       delete button.dataset.hardOpenAttachment;
     }
     if (button.dataset.branchOpenDocAttachment) {
-      button.dataset.viewAttachment = button.dataset.branchOpenDocAttachment;
-      delete button.dataset.branchOpenDocAttachment;
+      if (button.dataset.attachmentId)
+        button.dataset.viewAttachment = button.dataset.attachmentId;
+      return text(button.dataset.attachmentId || button.dataset.viewAttachment || "");
     }
     return text(
       button.dataset.viewAttachment ||
@@ -58267,6 +58291,27 @@ window.nawahV169Fixes = {
         showToast("لا يوجد مرفق محفوظ");
       } catch (_) {}
       return false;
+    }
+    if (/^(data:|blob:|https?:\/\/)/i.test(key)) {
+      const dialog = ensurePreviewModal();
+      const mime = key.startsWith("data:")
+        ? key.slice(5, key.indexOf(";") > 5 ? key.indexOf(";") : undefined)
+        : "";
+      previewDownloadHandler = function () {
+        downloadUrl(key, "attachment");
+      };
+      try {
+        dialog.open || dialog.showModal();
+      } catch (_) {
+        dialog.setAttribute("open", "open");
+      }
+      renderPreviewSource(dialog, {
+        url: key,
+        name: "مرفق الوثيقة",
+        type: mime,
+        size: 0,
+      });
+      return true;
     }
     const dialog = ensurePreviewModal();
     dialog.dataset.attachmentId = key;
