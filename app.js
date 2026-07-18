@@ -11170,6 +11170,15 @@ async function init() {
         number: i(e.number),
         startDate: e.startDate || e.issueDate || "",
         expiryDate: e.expiryDate || e.endDate || "",
+        extensions: Array.isArray(e.extensions)
+          ? e.extensions
+              .map((e, t) => ({
+                id: e.id || r(`est-doc-ext-${t}`),
+                newExpiryDate: e.newExpiryDate || e.expiryDate || e.date || "",
+                createdAt: e.createdAt || e.updatedAt || new Date().toISOString(),
+              }))
+              .filter((e) => e.newExpiryDate)
+          : [],
         attachmentId: e.attachmentId || "",
         attachmentName: e.attachmentName || "",
         attachmentData: e.attachmentData || "",
@@ -11177,7 +11186,10 @@ async function init() {
       }));
     }
     function h(e) {
-      l(t, e || []);
+      (l(t, e || []),
+        "function" == typeof queueCloudStateSave && queueCloudStateSave(),
+        "function" == typeof saveCloudStateNow &&
+          saveCloudStateNow({ force: !0, allowEmptyOverwrite: !0 }));
     }
     function v(e, t = y()) {
       return t.types.find((t) => t.id === e) || null;
@@ -11223,6 +11235,102 @@ async function init() {
         : o <= 30
           ? { state: "warning", text: `باقي ${o} يوم !` }
           : { state: "valid", text: `باقي ${o} يوم` };
+    }
+    function j(e = {}) {
+      const t = Array.isArray(e.extensions) ? e.extensions : [],
+        n = t
+          .map((e) => e?.newExpiryDate || e?.expiryDate || e?.date || "")
+          .filter(Boolean)
+          .sort();
+      return n.length ? n[n.length - 1] : e.expiryDate || "";
+    }
+    function R(e) {
+      return new Promise((t) => {
+        const n = new FileReader();
+        ((n.onload = () => t(n.result || "")),
+          (n.onerror = () => t("")),
+          n.readAsDataURL(e));
+      });
+    }
+    function U(e) {
+      if (!e?.elements?.extensionsData) return [];
+      try {
+        const t = JSON.parse(e.elements.extensionsData.value || "[]");
+        return Array.isArray(t)
+          ? t
+              .map((e, t) => ({
+                id: e.id || r(`est-doc-ext-${t}`),
+                newExpiryDate: e.newExpiryDate || e.expiryDate || e.date || "",
+                createdAt: e.createdAt || new Date().toISOString(),
+              }))
+              .filter((e) => e.newExpiryDate)
+          : [];
+      } catch {
+        return [];
+      }
+    }
+    function W(e) {
+      if (!e?.elements?.remaining) return;
+      e.elements.remaining.value = E(
+        j({ expiryDate: e.elements.expiryDate?.value || "", extensions: U(e) }),
+      ).text;
+    }
+    function X(e, t = []) {
+      if (!e?.elements?.extensionsData) return;
+      ((e.elements.extensionsData.value = JSON.stringify(
+        (Array.isArray(t) ? t : [])
+          .map((e, t) => ({
+            id: e.id || r(`est-doc-ext-${t}`),
+            newExpiryDate: e.newExpiryDate || "",
+            createdAt: e.createdAt || new Date().toISOString(),
+          }))
+          .filter((e) => e.newExpiryDate),
+      )),
+        Y(e),
+        W(e));
+    }
+    function Y(e) {
+      const t = e?.querySelector("[data-est-doc-extension-body]");
+      if (!t) return;
+      const o = U(e);
+      t.innerHTML = o.length
+        ? o
+            .map(
+              (e, t) =>
+                `<tr><td>${n(A(e.newExpiryDate))}</td><td>${n(A(String(e.createdAt || "").slice(0, 10)))}</td><td class="doc-extension-actions"><button type="button" class="doc-icon-action" data-edit-est-doc-extension="${n(e.id)}" title="تعديل">${a("edit")}</button><button type="button" class="doc-icon-action danger" data-delete-est-doc-extension="${n(e.id)}" title="حذف">${a("trash")}</button></td></tr>`,
+            )
+            .join("")
+        : '<tr><td colspan="3"><div class="empty-state mini-empty-state">لا توجد تمديدات محفوظة.</div></td></tr>';
+      "function" == typeof hydrateIcons && hydrateIcons(t);
+    }
+    function Z(e, t = null) {
+      const n = e?.querySelector("[data-est-doc-extension-editor]");
+      if (!n) return;
+      ((n.hidden = !1),
+        (n.dataset.editExtensionId = t?.id || ""),
+        (n.querySelector("[data-est-doc-extension-date]").value =
+          t?.newExpiryDate || e.elements.expiryDate?.value || ""));
+    }
+    function ee(e) {
+      const t = e?.querySelector("[data-est-doc-extension-editor]");
+      t &&
+        ((t.hidden = !0),
+        (t.dataset.editExtensionId = ""),
+        (t.querySelector("[data-est-doc-extension-date]").value = ""));
+    }
+    function te(e) {
+      const t = e?.querySelector("[data-branch-file-label]"),
+        n = e?.querySelector("[data-branch-current-doc-preview]"),
+        a = e?.elements?.attachmentName?.value || "",
+        o = e?.elements?.attachmentData?.value || "",
+        r = e?.elements?.attachmentId?.value || "";
+      (t && (t.textContent = a || (o || r ? "تم إرفاق الوثيقة" : "إرفاق الوثيقة")),
+        n &&
+          ((n.hidden = !(o || r)),
+          n.toggleAttribute("data-view-attachment", Boolean(r && !o)),
+          r && !o
+            ? (n.dataset.viewAttachment = r)
+            : delete n.dataset.viewAttachment));
     }
     function I() {
       const e = document.getElementById("settingsNav");
@@ -11437,8 +11545,12 @@ async function init() {
       if (!t) return;
       const a = y(),
         o = t.elements.categoryId.value,
-        r = D(a).filter((e) => !o || e.categoryId === o);
-      t.elements.typeId.innerHTML = `<option value="">اختر النوع</option>${r.map((t) => `<option value="${n(t.id)}"${t.id === e ? " selected" : ""}>${n(t.name)}</option>`).join("")}`;
+        r = t.elements.authorityId?.value || "",
+        i = D(a).filter(
+          (e) =>
+            (!o || e.categoryId === o) && (!r || e.authorityId === r),
+        );
+      t.elements.typeId.innerHTML = `<option value="">${r ? "اختر نوع الوثيقة" : "اختر الجهة أولًا"}</option>${i.map((t) => `<option value="${n(t.id)}"${t.id === e ? " selected" : ""}>${n(t.name)}</option>`).join("")}${r && !i.length ? '<option value="" disabled>لا توجد أنواع لهذه الجهة</option>' : ""}`;
     }
     function O(e = "") {
       const t = document.getElementById("branchEstDocForm");
@@ -11453,29 +11565,33 @@ async function init() {
         if (document.getElementById("branchEstDocModal")) return;
         (document.body.insertAdjacentHTML(
           "beforeend",
-          '<dialog class="modal establishment-document-hard-modal" id="branchEstDocModal"><form id="branchEstDocForm"><div class="modal-head"><div><h2>إضافة وثيقة منشأة</h2><p>اربط الوثيقة بالفرع والتصنيف والنوع والجهة.</p></div><button type="button" class="icon-btn" data-close-branch-estdoc><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2"><label><span>الفرع</span><select name="branchId"></select></label><label><span>تصنيف الوثيقة</span><select name="categoryId" required></select></label><label><span>نوع الوثيقة</span><select name="typeId" required></select></label><label><span>الجهة التابعة لها</span><select name="authorityId" required></select></label><label><span>مسمى الوثيقة</span><input name="title" placeholder="مثال: سجل تجاري فرع الرياض" /></label><label><span>رقم الوثيقة</span><input name="number" /></label><label><span>تاريخ البداية</span><input type="date" name="startDate" /></label><label><span>تاريخ النهاية</span><input type="date" name="expiryDate" /></label><label><span>مرفق الوثيقة</span><span class="compact-file-control hard-file-control"><span data-icon="file"></span><span data-branch-file-label>إرفاق الوثيقة</span><input type="file" name="attachmentFile" accept="image/*,.pdf" /></span></label><label><span>المدة المتبقية</span><input name="remaining" readonly class="calculated-field" /></label><label class="span-all"><span>ملاحظات</span><textarea name="note" rows="3"></textarea></label><input type="hidden" name="id" /><input type="hidden" name="attachmentData" /><input type="hidden" name="attachmentName" /><input type="hidden" name="attachmentId" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-branch-estdoc>إلغاء</button><button type="submit" class="primary-btn">حفظ الوثيقة</button></div></form></dialog>',
+          '<dialog class="modal establishment-document-hard-modal est-doc-entry-modal-v215" id="branchEstDocModal"><form id="branchEstDocForm"><div class="modal-head"><div><h2>إضافة وثيقة منشأة</h2><p>اربط الوثيقة بالفرع والتصنيف والجهة ثم نوع الوثيقة.</p></div><button type="button" class="icon-btn" data-close-branch-estdoc><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2 est-doc-entry-grid"><label><span>الفرع</span><select name="branchId"></select></label><label><span>تصنيف الوثيقة</span><select name="categoryId" required></select></label><label><span>الجهة التابعة لها</span><select name="authorityId" required></select></label><label><span>نوع الوثيقة</span><select name="typeId" required></select></label><label><span>رقم الوثيقة</span><input name="number" /></label><label><span>تاريخ البداية</span><input type="date" name="startDate" /></label><label><span>تاريخ النهاية</span><input type="date" name="expiryDate" /></label><label><span>مرفق الوثيقة</span><span class="est-doc-file-line"><span class="compact-file-control hard-file-control"><span data-icon="file"></span><span data-branch-file-label>إرفاق الوثيقة</span><input type="file" name="attachmentFile" accept="image/*,.pdf" /></span><button type="button" class="doc-icon-action est-doc-preview-action" data-branch-current-doc-preview hidden title="عرض المرفق"><span data-icon="eye"></span></button></span></label><label><span>المدة المتبقية</span><input name="remaining" readonly class="calculated-field" /></label><label class="span-all"><span>ملاحظات</span><textarea name="note" rows="3"></textarea></label><div class="span-all est-doc-extension-panel"><div class="est-doc-extension-head"><div><strong>جدول التمديد</strong><small>آخر تاريخ تمديد محفوظ يعتمد في حساب المدة المتبقية.</small></div><button type="button" class="primary-btn compact-primary-btn" data-add-est-doc-extension><span data-icon="plus"></span>إضافة تمديد</button></div><div class="est-doc-extension-editor" data-est-doc-extension-editor hidden><label><span>التاريخ الجديد لنهاية الوثيقة</span><input type="date" data-est-doc-extension-date /></label><div class="est-doc-extension-editor-actions"><button type="button" class="primary-btn" data-save-est-doc-extension>حفظ التمديد</button><button type="button" class="secondary-btn" data-cancel-est-doc-extension>إلغاء</button></div></div><div class="table-wrap est-doc-extension-table-wrap"><table class="compact-data-table est-doc-extension-table"><thead><tr><th>نهاية الوثيقة الجديدة</th><th>تاريخ الإضافة</th><th>الإجراءات</th></tr></thead><tbody data-est-doc-extension-body></tbody></table></div></div><input type="hidden" name="id" /><input type="hidden" name="attachmentData" /><input type="hidden" name="attachmentName" /><input type="hidden" name="attachmentId" /><input type="hidden" name="extensionsData" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-branch-estdoc>إلغاء</button><button type="submit" class="primary-btn">حفظ الوثيقة</button></div></form></dialog>',
         ),
           "function" == typeof hydrateIcons &&
             hydrateIcons(document.getElementById("branchEstDocModal")));
         const e = document.getElementById("branchEstDocForm");
         (e.elements.categoryId.addEventListener("change", () => {
-          (k(), O(), (e.elements.typeId.value = ""));
+          ((e.elements.authorityId.value = ""),
+            (e.elements.typeId.value = ""),
+            O(),
+            k());
         }),
-          e.elements.typeId.addEventListener("change", () => {
-            const t = v(e.elements.typeId.value);
-            t?.authorityId && (O(t.authorityId), (e.elements.authorityId.value = t.authorityId));
+          e.elements.authorityId.addEventListener("change", () => {
+            ((e.elements.typeId.value = ""), k());
           }),
           e.elements.expiryDate.addEventListener(
             "input",
-            () =>
-              (e.elements.remaining.value = E(
-                e.elements.expiryDate.value,
-              ).text),
+            () => W(e),
           ),
-          e.elements.attachmentFile.addEventListener("change", () => {
+          e.elements.attachmentFile.addEventListener("change", async () => {
             const t = e.elements.attachmentFile.files?.[0],
               n = e.querySelector("[data-branch-file-label]");
-            n && (n.textContent = t?.name || "إرفاق الوثيقة");
+            if (!t) return (te(e), void 0);
+            (n && (n.textContent = "جاري تجهيز المرفق..."),
+              (e.elements.attachmentName.value = t.name),
+              (e.elements.attachmentData.value = await R(t)),
+              (e.elements.attachmentId.value = ""),
+              te(e));
           }),
           e.addEventListener("submit", F));
       })();
@@ -11494,6 +11610,7 @@ async function init() {
           attachmentData: "",
           attachmentName: "",
           attachmentId: "",
+          extensions: [],
           note: "",
         },
         r = v(o.typeId, a);
@@ -11522,19 +11639,19 @@ async function init() {
             )
             .join("")}`;
         })(o.categoryId || r?.categoryId || ""),
-        k(o.typeId || ""),
         O(o.authorityId || r?.authorityId || ""),
         (t.elements.branchId.value = o.branchId || ""),
         (t.elements.categoryId.value = o.categoryId || r?.categoryId || ""),
-        k(o.typeId || ""),
         O(o.authorityId || r?.authorityId || ""),
-        (t.elements.typeId.value = o.typeId || ""),
         (t.elements.authorityId.value = o.authorityId || r?.authorityId || ""),
-        (t.elements.title.value = o.title || ""),
+        k(o.typeId || ""),
+        (t.elements.typeId.value = o.typeId || ""),
         (t.elements.number.value = o.number || ""),
         (t.elements.startDate.value = o.startDate || ""),
         (t.elements.expiryDate.value = o.expiryDate || ""),
-        (t.elements.remaining.value = E(o.expiryDate).text),
+        (t.elements.extensionsData.value = JSON.stringify(o.extensions || [])),
+        Y(t),
+        W(t),
         (t.elements.attachmentData.value = o.attachmentData || ""),
         (t.elements.attachmentName.value = o.attachmentName || ""),
         (t.elements.attachmentId.value = o.attachmentId || ""),
@@ -11544,13 +11661,15 @@ async function init() {
         (i.textContent =
           o.attachmentName ||
           (o.attachmentId ? "تم الإرفاق" : "إرفاق الوثيقة")),
+        te(t),
+        ee(t),
         document.getElementById("branchEstDocModal").showModal());
     }
     async function F(e) {
       e.preventDefault();
       const t = e.currentTarget,
         n = y();
-      v(t.elements.typeId.value, n);
+      const selectedType = v(t.elements.typeId.value, n);
       if (!t.elements.categoryId.value) return o("اختر تصنيف الوثيقة");
       if (!t.elements.typeId.value) return o("اختر نوع الوثيقة");
       if (!t.elements.authorityId.value) return o("اختر الجهة التابعة");
@@ -11562,6 +11681,12 @@ async function init() {
         selectedAuthority.categoryId !== t.elements.categoryId.value
       )
         return o("اختر جهة تابعة للتصنيف المحدد");
+      if (
+        !selectedType ||
+        selectedType.categoryId !== t.elements.categoryId.value ||
+        selectedType.authorityId !== t.elements.authorityId.value
+      )
+        return o("اختر نوع وثيقة تابعًا للجهة المحددة");
       let a = t.elements.attachmentData.value || "",
         s = t.elements.attachmentName.value || "",
         l = t.elements.attachmentId.value || "";
@@ -11588,10 +11713,11 @@ async function init() {
           typeId: t.elements.typeId.value,
           authorityId: t.elements.authorityId.value,
           authority: b(t.elements.authorityId.value, n),
-          title: i(t.elements.title.value),
+          title: "",
           number: i(t.elements.number.value),
           startDate: t.elements.startDate.value,
           expiryDate: t.elements.expiryDate.value,
+          extensions: U(t),
           attachmentId: l,
           attachmentName: s,
           attachmentData: a,
@@ -11620,22 +11746,24 @@ async function init() {
       if (!e || !e.classList.contains("active")) return;
       const t = y(),
         o = _(),
-        filterTypes = D(t).filter(
-          (e) => "all" === o.categoryId || e.categoryId === o.categoryId,
-        ),
         filterAuthorities = w(t, "all" === o.categoryId ? "" : o.categoryId);
-      if (
-        "all" !== o.categoryId &&
-        "all" !== o.typeId &&
-        !filterTypes.some((e) => e.id === o.typeId)
-      )
-        o.typeId = "all";
       if (
         "all" !== o.categoryId &&
         "all" !== o.authorityId &&
         !filterAuthorities.some((e) => e.id === o.authorityId)
       )
         o.authorityId = "all";
+      const filterTypes = D(t).filter(
+        (e) =>
+          ("all" === o.categoryId || e.categoryId === o.categoryId) &&
+          ("all" === o.authorityId || e.authorityId === o.authorityId),
+      );
+      if (
+        ("all" !== o.categoryId || "all" !== o.authorityId) &&
+        "all" !== o.typeId &&
+        !filterTypes.some((e) => e.id === o.typeId)
+      )
+        o.typeId = "all";
       e.innerHTML = `<div class="section-toolbar"><div><h2 class="section-title">وثائق المنشأة</h2><p class="section-description">إدارة وثائق المنشأة حسب الفرع والتصنيف والنوع والجهة.</p></div><button type="button" class="primary-btn" id="branchAddEstDocBtn"><span data-icon="plus"></span>إضافة وثيقة</button></div>\n      <article class="panel est-doc-filter-panel"><div class="form-grid form-grid-5"><label><span>الفرع</span><select id="estDocBranchFilter" data-branch-filter><option value="all">كل الفروع</option><option value="main">المنشأة الرئيسية</option>${m()
         .map(
           (e) =>
@@ -11652,13 +11780,6 @@ async function init() {
         )
         .join(
           "",
-        )}</select></label><label><span>نوع الوثيقة</span><select id="estDocTypeFilter"><option value="all">كل الأنواع</option>${filterTypes
-        .map(
-          (e) =>
-            `<option value="${n(e.id)}"${o.typeId === e.id ? " selected" : ""}>${n(e.name)}</option>`,
-        )
-        .join(
-          "",
         )}</select></label><label><span>الجهة</span><select id="estDocAuthorityFilter"><option value="all">كل الجهات</option>${filterAuthorities
         .map(
           (e) =>
@@ -11666,7 +11787,14 @@ async function init() {
         )
         .join(
           "",
-        )}</select></label><label><span>مسمى الوثيقة / الرقم</span><input id="estDocNameSearch" value="${n(o.search)}" placeholder="ابحث باسم الوثيقة أو رقمها" /></label></div></article>\n      <article class="panel"><div class="table-wrap"><table class="compact-data-table establishment-docs-table"><thead><tr><th>الفرع</th><th>التصنيف</th><th>نوع الوثيقة</th><th>مسمى الوثيقة</th><th>رقم الوثيقة</th><th>الجهة</th><th>البداية</th><th>النهاية</th><th>المتبقي</th><th>المرفق</th><th>الإجراءات</th></tr></thead><tbody id="branchEstDocBody"></tbody></table></div></article>`;
+        )}</select></label><label><span>نوع الوثيقة</span><select id="estDocTypeFilter"><option value="all">كل الأنواع</option>${filterTypes
+        .map(
+          (e) =>
+            `<option value="${n(e.id)}"${o.typeId === e.id ? " selected" : ""}>${n(e.name)}</option>`,
+        )
+        .join(
+          "",
+        )}</select></label><label><span>نوع الوثيقة / الرقم</span><input id="estDocNameSearch" value="${n(o.search)}" placeholder="ابحث بنوع الوثيقة أو رقمها" /></label></div></article>\n      <article class="panel"><div class="table-wrap"><table class="compact-data-table establishment-docs-table"><thead><tr><th>الفرع</th><th>التصنيف</th><th>الجهة</th><th>نوع الوثيقة</th><th>رقم الوثيقة</th><th>البداية</th><th>النهاية المعتمدة</th><th>المتبقي</th><th>المرفق</th><th>الإجراءات</th></tr></thead><tbody id="branchEstDocBody"></tbody></table></div></article>`;
       const r = (function () {
         const e = y(),
           t = _();
@@ -11696,21 +11824,22 @@ async function init() {
                 r = e.categoryId || o?.categoryId || "",
                 i = e.authorityId || o?.authorityId || "",
                 s = e.attachmentData
-                  ? `<button type="button" class="attachment-view-btn" data-branch-open-doc-attachment="${n(e.id)}">عرض</button>`
+                  ? `<button type="button" class="doc-icon-action est-doc-table-eye" data-branch-open-doc-attachment="${n(e.id)}" title="عرض المرفق">${a("eye")}</button>`
                   : e.attachmentId
-                    ? `<button type="button" class="attachment-view-btn" data-view-attachment="${n(e.attachmentId)}">عرض</button>`
-                    : "—";
-              return `<tr><td>${n(e.branchId ? p(e.branchId) : "المنشأة الرئيسية")}</td><td>${n(g(r, t))}</td><td>${n(o?.name || "—")}</td><td>${n(e.title || "—")}</td><td>${n(e.number || "—")}</td><td>${n(b(i, t) || e.authority || "—")}</td><td>${n(A(e.startDate))}</td><td>${n(A(e.expiryDate))}</td><td>${(function (
+                    ? `<button type="button" class="doc-icon-action est-doc-table-eye" data-view-attachment="${n(e.attachmentId)}" title="عرض المرفق">${a("eye")}</button>`
+                    : '<span class="muted-cell">—</span>',
+                l = j(e);
+              return `<tr><td>${n(e.branchId ? p(e.branchId) : "المنشأة الرئيسية")}</td><td>${n(g(r, t))}</td><td>${n(b(i, t) || e.authority || "—")}</td><td>${n(o?.name || "—")}</td><td>${n(e.number || "—")}</td><td>${n(A(e.startDate))}</td><td>${n(A(l))}</td><td>${(function (
                 e,
               ) {
                 const t = E(e);
                 return `<span class="est-doc-status ${t.state}">${n(t.text)}</span>`;
               })(
-                e.expiryDate,
+                l,
               )}</td><td>${s}</td><td class="action-cell"><button type="button" class="quick-view-btn" data-branch-edit-est-doc="${n(e.id)}" title="تعديل">${a("edit")}</button><button type="button" class="quick-view-btn danger-inline-btn" data-branch-delete-est-doc="${n(e.id)}" title="حذف">${a("trash")}</button></td></tr>`;
             })
             .join("")
-        : '<tr><td colspan="11"><div class="empty-state"><strong>لا توجد وثائق منشأة</strong><p>أضف وثيقة أو غيّر الفلاتر الحالية.</p></div></td></tr>'),
+        : '<tr><td colspan="10"><div class="empty-state"><strong>لا توجد وثائق منشأة</strong><p>أضف وثيقة أو غيّر الفلاتر الحالية.</p></div></td></tr>'),
         "function" == typeof hydrateIcons && hydrateIcons(e));
     }
     function H() {
@@ -11789,6 +11918,68 @@ async function init() {
             h(f().filter((e) => e.id !== i.dataset.branchDeleteEstDoc)),
             void B()
           );
+        const extensionAdd = e.target.closest("[data-add-est-doc-extension]");
+        if (extensionAdd) {
+          e.preventDefault();
+          const t = document.getElementById("branchEstDocForm");
+          return void Z(t);
+        }
+        const extensionSave = e.target.closest("[data-save-est-doc-extension]");
+        if (extensionSave) {
+          e.preventDefault();
+          const t = document.getElementById("branchEstDocForm"),
+            n = t?.querySelector("[data-est-doc-extension-editor]"),
+            a = t?.querySelector("[data-est-doc-extension-date]")?.value || "";
+          if (!t || !a) return void o("أدخل تاريخ نهاية الوثيقة الجديد");
+          const i = n?.dataset.editExtensionId || "",
+            s = U(t),
+            l = i ? s.findIndex((e) => e.id === i) : -1,
+            c = {
+              id: i || r("est-doc-ext"),
+              newExpiryDate: a,
+              createdAt:
+                l >= 0 ? s[l].createdAt || new Date().toISOString() : new Date().toISOString(),
+            };
+          return (
+            l >= 0 ? (s[l] = c) : s.push(c),
+            X(
+              t,
+              s.sort((e, t) =>
+                String(e.newExpiryDate).localeCompare(String(t.newExpiryDate)),
+              ),
+            ),
+            ee(t),
+            void o("تم حفظ تمديد الوثيقة")
+          );
+        }
+        const extensionCancel = e.target.closest("[data-cancel-est-doc-extension]");
+        if (extensionCancel) {
+          e.preventDefault();
+          return void ee(document.getElementById("branchEstDocForm"));
+        }
+        const extensionEdit = e.target.closest("[data-edit-est-doc-extension]");
+        if (extensionEdit) {
+          e.preventDefault();
+          const t = document.getElementById("branchEstDocForm"),
+            n = U(t).find((e) => e.id === extensionEdit.dataset.editEstDocExtension);
+          return void Z(t, n || null);
+        }
+        const extensionDelete = e.target.closest("[data-delete-est-doc-extension]");
+        if (extensionDelete) {
+          e.preventDefault();
+          const t = document.getElementById("branchEstDocForm");
+          return void X(
+            t,
+            U(t).filter((e) => e.id !== extensionDelete.dataset.deleteEstDocExtension),
+          );
+        }
+        const branchCurrentPreview = e.target.closest("[data-branch-current-doc-preview]");
+        if (branchCurrentPreview && !branchCurrentPreview.dataset.viewAttachment) {
+          e.preventDefault();
+          const t = document.getElementById("branchEstDocForm"),
+            n = t?.elements?.attachmentData?.value || "";
+          return void (n ? window.open(n, "_blank") : o("لا يوجد مرفق للعرض"));
+        }
         if (e.target.closest("[data-close-branch-estdoc]"))
           return (
             e.preventDefault(),

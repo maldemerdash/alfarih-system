@@ -18781,3 +18781,186 @@ html.has-initial-login-bg .auth-gate,
     table-layout: auto !important;
   }
 }
+
+/* v215 - establishment document entry hierarchy, preview, and extensions */
+.est-doc-entry-modal-v215 {
+  width: min(980px, calc(100vw - 44px)) !important;
+}
+
+.est-doc-entry-modal-v215 .modal-body {
+  max-height: calc(100vh - 210px) !important;
+  overflow: auto !important;
+  padding: 20px 24px 22px !important;
+}
+
+.est-doc-entry-modal-v215 .est-doc-entry-grid {
+  gap: 14px 16px !important;
+}
+
+.est-doc-entry-modal-v215 label {
+  min-width: 0 !important;
+}
+
+.est-doc-entry-modal-v215 label > span {
+  color: #334155 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+
+.est-doc-entry-modal-v215 input,
+.est-doc-entry-modal-v215 select,
+.est-doc-entry-modal-v215 textarea {
+  border: 1px solid #dbe5ec !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.est-doc-entry-modal-v215 textarea {
+  min-height: 76px !important;
+  resize: vertical !important;
+}
+
+.est-doc-file-line {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 32px !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.est-doc-file-line .hard-file-control {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.est-doc-preview-action,
+.est-doc-table-eye {
+  color: #0f8ca1 !important;
+}
+
+.est-doc-extension-panel {
+  display: grid !important;
+  gap: 12px !important;
+  padding: 14px !important;
+  border: 1px solid #dbe7ef !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #ffffff, #f8fcfd) !important;
+}
+
+.est-doc-extension-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  border-bottom: 1px solid #e5edf3 !important;
+  padding-bottom: 10px !important;
+}
+
+.est-doc-extension-head strong {
+  color: #172033 !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+}
+
+.est-doc-extension-head small {
+  display: block !important;
+  margin-top: 4px !important;
+  color: #64748b !important;
+  font-size: 10px !important;
+}
+
+.compact-primary-btn {
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  border-radius: 11px !important;
+  white-space: nowrap !important;
+}
+
+.est-doc-extension-editor {
+  display: grid !important;
+  grid-template-columns: minmax(180px, 1fr) auto !important;
+  gap: 10px !important;
+  align-items: end !important;
+  padding: 12px !important;
+  border: 1px solid rgba(15, 140, 161, 0.14) !important;
+  border-radius: 12px !important;
+  background: #eefbfc !important;
+}
+
+.est-doc-extension-editor[hidden] {
+  display: none !important;
+}
+
+.est-doc-extension-editor-actions {
+  display: inline-flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+.est-doc-extension-editor-actions .primary-btn,
+.est-doc-extension-editor-actions .secondary-btn {
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 11px !important;
+}
+
+.est-doc-extension-table-wrap {
+  margin: 0 !important;
+  border: 1px solid #e2eaf1 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  background: #fff !important;
+}
+
+.est-doc-extension-table {
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+
+.est-doc-extension-table th,
+.est-doc-extension-table td {
+  padding: 10px 12px !important;
+  white-space: nowrap !important;
+  vertical-align: middle !important;
+}
+
+.doc-extension-actions {
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+.mini-empty-state {
+  padding: 10px !important;
+  color: #64748b !important;
+  font-size: 11px !important;
+}
+
+.establishment-docs-table th,
+.establishment-docs-table td {
+  vertical-align: middle !important;
+}
+
+.establishment-docs-table .doc-icon-action {
+  margin-inline: auto !important;
+}
+
+@media (max-width: 760px) {
+  .est-doc-entry-modal-v215 .modal-body {
+    max-height: calc(100vh - 180px) !important;
+    padding: 16px !important;
+  }
+
+  .est-doc-extension-head,
+  .est-doc-extension-editor {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+
+  .est-doc-extension-head {
+    display: grid !important;
+  }
+
+  .est-doc-extension-editor-actions {
+    justify-content: flex-start !important;
+  }
+}
