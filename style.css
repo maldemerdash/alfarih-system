@@ -19028,6 +19028,74 @@ html.has-initial-login-bg .auth-gate,
   margin-inline: auto !important;
 }
 
+/* v220 - establishment document tables use bare icons without button chrome */
+#establishmentDocumentsView .establishment-docs-table .action-cell,
+#branchEstDocModal .est-doc-extension-table .doc-extension-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+}
+
+#establishmentDocumentsView .establishment-docs-table .doc-icon-action,
+#establishmentDocumentsView .establishment-docs-table .quick-view-btn,
+#establishmentDocumentsView .establishment-docs-table .attachment-view-btn,
+#branchEstDocModal .est-doc-extension-table .doc-icon-action,
+#branchEstDocModal .est-doc-preview-action {
+  display: inline-grid !important;
+  place-items: center !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+#establishmentDocumentsView .establishment-docs-table .doc-icon-action svg,
+#establishmentDocumentsView .establishment-docs-table .quick-view-btn svg,
+#establishmentDocumentsView .establishment-docs-table .attachment-view-btn svg,
+#branchEstDocModal .est-doc-extension-table .doc-icon-action svg,
+#branchEstDocModal .est-doc-preview-action svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+#establishmentDocumentsView .establishment-docs-table .est-doc-table-eye,
+#branchEstDocModal .est-doc-extension-table .est-doc-table-eye,
+#branchEstDocModal .est-doc-preview-action {
+  color: #0f8ca1 !important;
+}
+
+#establishmentDocumentsView .establishment-docs-table .quick-view-btn:not(.danger-inline-btn),
+#branchEstDocModal .est-doc-extension-table .doc-icon-action:not(.danger) {
+  color: #64748b !important;
+}
+
+#establishmentDocumentsView .establishment-docs-table .danger-inline-btn,
+#branchEstDocModal .est-doc-extension-table .doc-icon-action.danger {
+  color: #dc2626 !important;
+}
+
+#establishmentDocumentsView .establishment-docs-table .doc-icon-action:hover,
+#establishmentDocumentsView .establishment-docs-table .quick-view-btn:hover,
+#establishmentDocumentsView .establishment-docs-table .attachment-view-btn:hover,
+#branchEstDocModal .est-doc-extension-table .doc-icon-action:hover,
+#branchEstDocModal .est-doc-preview-action:hover {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  opacity: 0.78 !important;
+}
+
 @media (max-width: 760px) {
   .est-doc-entry-modal-v215 .modal-body {
     max-height: calc(100vh - 180px) !important;
