@@ -18569,7 +18569,7 @@ html.has-initial-login-bg .auth-gate,
   }
 }
 
-/* v213 - clean document settings tables and actions */
+/* v214 - hierarchical document settings tables and actions */
 .document-settings-head {
   margin-bottom: 14px !important;
 }
@@ -18675,6 +18675,21 @@ html.has-initial-login-bg .auth-gate,
 .doc-types-table th:nth-child(4),
 .doc-types-table td:nth-child(4) {
   width: 12% !important;
+}
+
+.doc-authorities-table th:nth-child(1),
+.doc-authorities-table td:nth-child(1) {
+  width: 38% !important;
+}
+
+.doc-authorities-table th:nth-child(2),
+.doc-authorities-table td:nth-child(2) {
+  width: 24% !important;
+}
+
+.doc-authorities-table th:nth-child(3),
+.doc-authorities-table td:nth-child(3) {
+  width: 14% !important;
 }
 
 .doc-settings-actions {

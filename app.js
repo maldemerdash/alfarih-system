@@ -10331,6 +10331,7 @@ async function init() {
             name: o(
               e.name || e.authority || e.agency || e.entity || e.issuer || "",
             ),
+            categoryId: e.categoryId || "",
             visible: !1 !== e.visible,
           }))
           .filter((e) => e.name),
@@ -10489,7 +10490,7 @@ async function init() {
       if (!e) return;
       const t = u();
       e.innerHTML =
-        '\n      <div class="panel-head"><div><h3>أنواع الوثائق</h3><p>أضف التصنيفات والجهات التابعة ثم اربط كل نوع وثيقة بتصنيف وجهة.</p></div></div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>تصنيفات الوثائق</h4><p>لا توجد تصنيفات افتراضية.</p></div><button type="button" class="primary-btn" id="hardAddDocCategoryBtn"><span data-icon="plus"></span>إضافة تصنيف</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم التصنيف</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocCategoryBody"></tbody></table></div>\n      </div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>الجهات التابعة</h4><p>أدخل الجهات يدويًا مثل وزارة التجارة أو البلدية أو الدفاع المدني.</p></div><button type="button" class="primary-btn" id="hardAddDocAuthorityBtn"><span data-icon="plus"></span>إضافة جهة</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم الجهة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocAuthorityBody"></tbody></table></div>\n      </div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>أنواع الوثائق</h4><p>كل نوع وثيقة يتبع تصنيفًا وجهة تابعة محفوظة.</p></div><button type="button" class="primary-btn" id="hardAddDocTypeBtn"><span data-icon="plus"></span>إضافة نوع وثيقة</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم النوع</th><th>التصنيف</th><th>الجهة التابعة لها</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocTypeBody"></tbody></table></div>\n      </div>';
+        '\n      <div class="panel-head"><div><h3>أنواع الوثائق</h3><p>أضف التصنيفات والجهات التابعة ثم اربط كل نوع وثيقة بتصنيف وجهة.</p></div></div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>تصنيفات الوثائق</h4><p>لا توجد تصنيفات افتراضية.</p></div><button type="button" class="primary-btn" id="hardAddDocCategoryBtn"><span data-icon="plus"></span>إضافة تصنيف</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم التصنيف</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocCategoryBody"></tbody></table></div>\n      </div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>الجهات التابعة</h4><p>كل جهة ترتبط بتصنيف واحد حتى تظهر ضمنه فقط.</p></div><button type="button" class="primary-btn" id="hardAddDocAuthorityBtn"><span data-icon="plus"></span>إضافة جهة</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم الجهة</th><th>التصنيف</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocAuthorityBody"></tbody></table></div>\n      </div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>أنواع الوثائق</h4><p>كل نوع وثيقة يتبع تصنيفًا وجهة تابعة محفوظة.</p></div><button type="button" class="primary-btn" id="hardAddDocTypeBtn"><span data-icon="plus"></span>إضافة نوع وثيقة</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم النوع</th><th>التصنيف</th><th>الجهة التابعة لها</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocTypeBody"></tbody></table></div>\n      </div>';
       document.getElementById("hardDocCategoryBody").innerHTML = t.categories
         .length
         ? t.categories
@@ -10505,10 +10506,10 @@ async function init() {
           ? t.authorities
               .map(
                 (e) =>
-                  `\n        <tr><td>${n(e.name)}</td><td>${e.visible ? "ظاهر" : "مخفي"}</td><td class="action-cell">\n          <button type="button" class="quick-view-btn" data-hard-edit-authority="${n(e.id)}">${r("edit")}</button>\n          <button type="button" class="quick-view-btn" data-hard-toggle-authority="${n(e.id)}">${r(e.visible ? "eye-off" : "eye")}</button>\n          <button type="button" class="quick-view-btn danger-inline-btn" data-hard-delete-authority="${n(e.id)}">${r("trash")}</button>\n        </td></tr>`,
+                  `\n        <tr><td>${n(e.name)}</td><td>${n(f(e.categoryId, t))}</td><td>${e.visible ? "ظاهر" : "مخفي"}</td><td class="action-cell">\n          <button type="button" class="quick-view-btn" data-hard-edit-authority="${n(e.id)}">${r("edit")}</button>\n          <button type="button" class="quick-view-btn" data-hard-toggle-authority="${n(e.id)}">${r(e.visible ? "eye-off" : "eye")}</button>\n          <button type="button" class="quick-view-btn danger-inline-btn" data-hard-delete-authority="${n(e.id)}">${r("trash")}</button>\n        </td></tr>`,
               )
               .join("")
-          : '<tr><td colspan="3"><div class="empty-state"><strong>لا توجد جهات تابعة</strong><p>أضف الجهات يدويًا ثم اربطها بأنواع الوثائق.</p></div></td></tr>');
+          : '<tr><td colspan="4"><div class="empty-state"><strong>لا توجد جهات تابعة</strong><p>أضف الجهات يدويًا ثم اربطها بأنواع الوثائق.</p></div></td></tr>');
       ((document.getElementById("hardDocTypeBody").innerHTML = t.types.length
         ? t.types
             .map(
@@ -10564,7 +10565,7 @@ async function init() {
         document.getElementById("hardDocAuthorityModal") ||
           document.body.insertAdjacentHTML(
             "beforeend",
-            '<dialog class="modal small-modal settings-entry-modal doc-authority-modal" id="hardDocAuthorityModal"><form id="hardDocAuthorityForm"><div class="modal-head"><div><h2>جهة تابعة</h2><p>أضف أو عدّل جهة تتبع لها الوثائق.</p></div><button type="button" class="icon-btn" data-hard-close="hardDocAuthorityModal"><span data-icon="x"></span></button></div><div class="modal-body authority-modal-body"><label class="site-field"><span>اسم الجهة</span><input name="name" required placeholder="مثال: وزارة التجارة" /></label><label class="site-toggle"><input type="checkbox" name="visible" checked /><span>إظهار الجهة</span></label><input type="hidden" name="id" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-hard-close="hardDocAuthorityModal">إلغاء</button><button type="submit" class="primary-btn">حفظ الجهة</button></div></form></dialog>',
+            '<dialog class="modal small-modal settings-entry-modal doc-authority-modal" id="hardDocAuthorityModal"><form id="hardDocAuthorityForm"><div class="modal-head"><div><h2>جهة تابعة</h2><p>أضف أو عدّل جهة تتبع تصنيفًا محددًا.</p></div><button type="button" class="icon-btn" data-hard-close="hardDocAuthorityModal"><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2 authority-modal-body"><label class="site-field"><span>اسم الجهة</span><input name="name" required placeholder="مثال: وزارة التجارة" /></label><label class="site-field"><span>التصنيف</span><select name="categoryId" required></select></label><label class="site-toggle span-all"><input type="checkbox" name="visible" checked /><span>إظهار الجهة</span></label><input type="hidden" name="id" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-hard-close="hardDocAuthorityModal">إلغاء</button><button type="submit" class="primary-btn">حفظ الجهة</button></div></form></dialog>',
           ),
         document.getElementById("hardDocTypeModal") ||
           document.body.insertAdjacentHTML(
@@ -10592,6 +10593,13 @@ async function init() {
         (n.elements.visible.checked = !1 !== t.visible),
         document.getElementById("hardDocCategoryModal").showModal());
     }
+    function R(e, t = "") {
+      if (!e?.elements?.authorityId) return;
+      const a = u(),
+        o = e.elements.categoryId.value,
+        r = g(a).filter((e) => e.categoryId === o);
+      e.elements.authorityId.innerHTML = `<option value="">${o ? "اختر الجهة" : "اختر التصنيف أولًا"}</option>${r.map((e) => `<option value="${n(e.id)}"${e.id === t ? " selected" : ""}>${n(e.name)}</option>`).join("")}${o && !r.length ? '<option value="" disabled>لا توجد جهات لهذا التصنيف</option>' : ""}`;
+    }
     function M(e = "") {
       $();
       const t = u(),
@@ -10609,11 +10617,7 @@ async function init() {
         (o.elements.name.value = a.name || ""),
         (o.elements.categoryId.innerHTML = `<option value="">اختر التصنيف</option>${t.categories.map((e) => `<option value="${n(e.id)}">${n(e.name)}</option>`).join("")}`),
         (o.elements.categoryId.value = a.categoryId || ""),
-        (o.elements.authorityId.innerHTML = `<option value="">اختر الجهة</option>${g(
-          t,
-        )
-          .map((e) => `<option value="${n(e.id)}">${n(e.name)}</option>`)
-          .join("")}`),
+        R(o, a.authorityId || ""),
         (o.elements.authorityId.value = a.authorityId || ""),
         (o.elements.visible.checked = !1 !== a.visible),
         document.getElementById("hardDocTypeModal").showModal());
@@ -10623,13 +10627,16 @@ async function init() {
       const t = u().authorities.find((t) => t.id === e) || {
           id: "",
           name: "",
+          categoryId: "",
           visible: !0,
         },
-        n = document.getElementById("hardDocAuthorityForm");
-      (n.reset(),
-        (n.elements.id.value = t.id || ""),
-        (n.elements.name.value = t.name || ""),
-        (n.elements.visible.checked = !1 !== t.visible),
+        form = document.getElementById("hardDocAuthorityForm");
+      (form.reset(),
+        (form.elements.id.value = t.id || ""),
+        (form.elements.name.value = t.name || ""),
+        (form.elements.categoryId.innerHTML = `<option value="">اختر التصنيف</option>${u().categories.map((e) => `<option value="${n(e.id)}">${n(e.name)}</option>`).join("")}`),
+        (form.elements.categoryId.value = t.categoryId || ""),
+        (form.elements.visible.checked = !1 !== t.visible),
         document.getElementById("hardDocAuthorityModal").showModal());
     }
     function C(e, t = "") {
@@ -10645,6 +10652,7 @@ async function init() {
         ((e.elements.authorityId.innerHTML = `<option value="">اختر الجهة</option>${g(
           a,
         )
+          .filter((e) => !o || e.categoryId === o)
           .map((e) => `<option value="${n(e.id)}">${n(e.name)}</option>`)
           .join("")}`),
         (e.elements.authorityId.value = i?.authorityId || ""));
@@ -10688,13 +10696,7 @@ async function init() {
         (o.elements.startDate.value = a.startDate || ""),
         (o.elements.expiryDate.value = a.expiryDate || ""),
         o.elements.authorityId &&
-          ((o.elements.authorityId.innerHTML = `<option value="">اختر الجهة</option>${g(
-            t,
-          )
-            .map((e) => `<option value="${n(e.id)}">${n(e.name)}</option>`)
-            .join("")}`),
-          (o.elements.authorityId.value =
-            a.authorityId || r?.authorityId || "")),
+          (o.elements.authorityId.value = a.authorityId || r?.authorityId || ""),
         (o.elements.attachmentId.value = a.attachmentId || ""),
         (o.elements.attachmentName.value = a.attachmentName || ""),
         (o.elements.attachmentData.value = a.attachmentData || ""),
@@ -10713,6 +10715,15 @@ async function init() {
         o = h(t.elements.typeId.value, n);
       if (!t.elements.categoryId.value) return i("اختر تصنيف الوثيقة");
       if (!t.elements.typeId.value) return i("اختر نوع الوثيقة");
+      if (!t.elements.authorityId?.value) return i("اختر الجهة التابعة");
+      const selectedAuthority = n.authorities.find(
+        (e) => e.id === t.elements.authorityId.value,
+      );
+      if (
+        !selectedAuthority ||
+        selectedAuthority.categoryId !== t.elements.categoryId.value
+      )
+        return i("اختر جهة تابعة للتصنيف المحدد");
       const r = p(),
         s = t.elements.id.value || a("est-doc");
       let l = t.elements.attachmentId.value || "",
@@ -10964,11 +10975,18 @@ async function init() {
                 s = {
                   id: r,
                   name: o(t.elements.name.value),
+                  categoryId: t.elements.categoryId.value,
                   visible: t.elements.visible.checked,
                 };
               if (!s.name) return i("اكتب اسم الجهة");
+              if (!s.categoryId) return i("اختر التصنيف");
               const l = n.authorities.findIndex((e) => e.id === r);
               (l >= 0 ? (n.authorities[l] = s) : n.authorities.push(s),
+                (n.types = n.types.map((e) =>
+                  e.authorityId === r
+                    ? { ...e, categoryId: s.categoryId, authority: s.name }
+                    : e,
+                )),
                 m(n),
                 document.getElementById("hardDocAuthorityModal")?.close(),
                 E(),
@@ -10994,6 +11012,9 @@ async function init() {
               if (!s.name) return i("اكتب اسم نوع الوثيقة");
               if (!s.categoryId) return i("اختر تصنيف الوثيقة");
               if (!s.authorityId) return i("اختر الجهة التابعة");
+              const c = n.authorities.find((e) => e.id === s.authorityId);
+              if (!c || c.categoryId !== s.categoryId)
+                return i("اختر جهة تابعة للتصنيف المحدد");
               const l = n.types.findIndex((e) => e.id === r);
               (l >= 0 ? (n.types[l] = s) : n.types.push(s),
                 m(n),
@@ -11002,6 +11023,10 @@ async function init() {
                 I(),
                 i("تم حفظ نوع الوثيقة"));
             }));
+          n &&
+            n.dataset.hardTypeCategoryWired !== "1" &&
+            ((n.dataset.hardTypeCategoryWired = "1"),
+            n.elements.categoryId.addEventListener("change", () => R(n, "")));
           const r = document.getElementById("hardEstDocForm");
           r &&
             !r.dataset.hardWired &&
@@ -11110,6 +11135,7 @@ async function init() {
             .map((e, t) => ({
               id: e.id || r(`doc-authority-${t}`),
               name: i(e.name),
+              categoryId: e.categoryId || "",
               visible: !1 !== e.visible,
             }))
             .filter((e) => e.name),
@@ -11173,8 +11199,10 @@ async function init() {
     function S(e = y()) {
       return e.categories.filter((e) => !1 !== e.visible);
     }
-    function w(e = y()) {
-      return e.authorities.filter((e) => !1 !== e.visible);
+    function w(e = y(), t = "") {
+      return e.authorities.filter(
+        (e) => !1 !== e.visible && (!t || e.categoryId === t),
+      );
     }
     function D(e = y()) {
       return e.types.filter((e) => !1 !== e.visible);
@@ -11412,6 +11440,14 @@ async function init() {
         r = D(a).filter((e) => !o || e.categoryId === o);
       t.elements.typeId.innerHTML = `<option value="">اختر النوع</option>${r.map((t) => `<option value="${n(t.id)}"${t.id === e ? " selected" : ""}>${n(t.name)}</option>`).join("")}`;
     }
+    function O(e = "") {
+      const t = document.getElementById("branchEstDocForm");
+      if (!t || !t.elements.authorityId) return;
+      const a = y(),
+        o = t.elements.categoryId.value,
+        r = w(a, o);
+      t.elements.authorityId.innerHTML = `<option value="">${o ? "اختر الجهة" : "اختر التصنيف أولًا"}</option>${r.map((t) => `<option value="${n(t.id)}"${t.id === e ? " selected" : ""}>${n(t.name)}</option>`).join("")}${o && !r.length ? '<option value="" disabled>لا توجد جهات لهذا التصنيف</option>' : ""}`;
+    }
     function N(e = "") {
       !(function () {
         if (document.getElementById("branchEstDocModal")) return;
@@ -11423,11 +11459,11 @@ async function init() {
             hydrateIcons(document.getElementById("branchEstDocModal")));
         const e = document.getElementById("branchEstDocForm");
         (e.elements.categoryId.addEventListener("change", () => {
-          (k(), (e.elements.typeId.value = ""));
+          (k(), O(), (e.elements.typeId.value = ""));
         }),
           e.elements.typeId.addEventListener("change", () => {
             const t = v(e.elements.typeId.value);
-            t?.authorityId && (e.elements.authorityId.value = t.authorityId);
+            t?.authorityId && (O(t.authorityId), (e.elements.authorityId.value = t.authorityId));
           }),
           e.elements.expiryDate.addEventListener(
             "input",
@@ -11486,23 +11522,12 @@ async function init() {
             )
             .join("")}`;
         })(o.categoryId || r?.categoryId || ""),
-        (function (e = "") {
-          const t = document.getElementById("branchEstDocForm");
-          if (!t) return;
-          const a = y();
-          t.elements.authorityId.innerHTML = `<option value="">اختر الجهة</option>${w(
-            a,
-          )
-            .map(
-              (t) =>
-                `<option value="${n(t.id)}"${t.id === e ? " selected" : ""}>${n(t.name)}</option>`,
-            )
-            .join("")}`;
-        })(o.authorityId || r?.authorityId || ""),
         k(o.typeId || ""),
+        O(o.authorityId || r?.authorityId || ""),
         (t.elements.branchId.value = o.branchId || ""),
         (t.elements.categoryId.value = o.categoryId || r?.categoryId || ""),
         k(o.typeId || ""),
+        O(o.authorityId || r?.authorityId || ""),
         (t.elements.typeId.value = o.typeId || ""),
         (t.elements.authorityId.value = o.authorityId || r?.authorityId || ""),
         (t.elements.title.value = o.title || ""),
@@ -11529,6 +11554,14 @@ async function init() {
       if (!t.elements.categoryId.value) return o("اختر تصنيف الوثيقة");
       if (!t.elements.typeId.value) return o("اختر نوع الوثيقة");
       if (!t.elements.authorityId.value) return o("اختر الجهة التابعة");
+      const selectedAuthority = n.authorities.find(
+        (e) => e.id === t.elements.authorityId.value,
+      );
+      if (
+        !selectedAuthority ||
+        selectedAuthority.categoryId !== t.elements.categoryId.value
+      )
+        return o("اختر جهة تابعة للتصنيف المحدد");
       let a = t.elements.attachmentData.value || "",
         s = t.elements.attachmentName.value || "",
         l = t.elements.attachmentId.value || "";
@@ -11586,7 +11619,23 @@ async function init() {
       const e = document.getElementById("establishmentDocumentsView");
       if (!e || !e.classList.contains("active")) return;
       const t = y(),
-        o = _();
+        o = _(),
+        filterTypes = D(t).filter(
+          (e) => "all" === o.categoryId || e.categoryId === o.categoryId,
+        ),
+        filterAuthorities = w(t, "all" === o.categoryId ? "" : o.categoryId);
+      if (
+        "all" !== o.categoryId &&
+        "all" !== o.typeId &&
+        !filterTypes.some((e) => e.id === o.typeId)
+      )
+        o.typeId = "all";
+      if (
+        "all" !== o.categoryId &&
+        "all" !== o.authorityId &&
+        !filterAuthorities.some((e) => e.id === o.authorityId)
+      )
+        o.authorityId = "all";
       e.innerHTML = `<div class="section-toolbar"><div><h2 class="section-title">وثائق المنشأة</h2><p class="section-description">إدارة وثائق المنشأة حسب الفرع والتصنيف والنوع والجهة.</p></div><button type="button" class="primary-btn" id="branchAddEstDocBtn"><span data-icon="plus"></span>إضافة وثيقة</button></div>\n      <article class="panel est-doc-filter-panel"><div class="form-grid form-grid-5"><label><span>الفرع</span><select id="estDocBranchFilter" data-branch-filter><option value="all">كل الفروع</option><option value="main">المنشأة الرئيسية</option>${m()
         .map(
           (e) =>
@@ -11603,18 +11652,14 @@ async function init() {
         )
         .join(
           "",
-        )}</select></label><label><span>نوع الوثيقة</span><select id="estDocTypeFilter"><option value="all">كل الأنواع</option>${D(
-        t,
-      )
+        )}</select></label><label><span>نوع الوثيقة</span><select id="estDocTypeFilter"><option value="all">كل الأنواع</option>${filterTypes
         .map(
           (e) =>
             `<option value="${n(e.id)}"${o.typeId === e.id ? " selected" : ""}>${n(e.name)}</option>`,
         )
         .join(
           "",
-        )}</select></label><label><span>الجهة</span><select id="estDocAuthorityFilter"><option value="all">كل الجهات</option>${w(
-        t,
-      )
+        )}</select></label><label><span>الجهة</span><select id="estDocAuthorityFilter"><option value="all">كل الجهات</option>${filterAuthorities
         .map(
           (e) =>
             `<option value="${n(e.id)}"${o.authorityId === e.id ? " selected" : ""}>${n(e.name)}</option>`,
@@ -51775,6 +51820,14 @@ async function init() {
       .filter(function (c) {
         return c.name;
       });
+    function categoryIdFrom(input) {
+      var raw = String(input || "").trim();
+      if (!raw) return "";
+      var category = categories.find(function (c) {
+        return c.id === raw || c.name === raw;
+      });
+      return category ? category.id : "";
+    }
     var authorities = (
       Array.isArray(value.authorities) ? value.authorities : []
     )
@@ -51782,20 +51835,38 @@ async function init() {
         return {
           id: a.id || uid("doc-auth-" + i),
           name: String(a.name || "").trim(),
+          categoryId: categoryIdFrom(
+            a.categoryId || a.category || a.classification || a.categoryName,
+          ),
           visible: a.visible !== false,
         };
       })
       .filter(function (a) {
         return a.name;
       });
-    function ensureAuthorityId(name) {
+    function ensureAuthorityId(name, categoryId) {
       name = String(name || "").trim();
       if (!name) return "";
+      categoryId = categoryId || "";
       var existing = authorities.find(function (a) {
-        return a.name === name;
+        return a.name === name && (a.categoryId || "") === categoryId;
       });
       if (existing) return existing.id;
-      existing = { id: uid("doc-auth"), name: name, visible: true };
+      if (categoryId) {
+        existing = authorities.find(function (a) {
+          return a.name === name && !a.categoryId;
+        });
+        if (existing) {
+          existing.categoryId = categoryId;
+          return existing.id;
+        }
+      }
+      existing = {
+        id: uid("doc-auth"),
+        name: name,
+        categoryId: categoryId,
+        visible: true,
+      };
       authorities.push(existing);
       return existing.id;
     }
@@ -51804,18 +51875,55 @@ async function init() {
         var legacyAuthority = String(
           t.authority || t.agency || t.entity || t.issuer || "",
         ).trim();
+        var categoryId = categoryIdFrom(
+          t.categoryId || t.category || t.classification || t.categoryName,
+        );
+        var authorityId =
+          t.authorityId || ensureAuthorityId(legacyAuthority, categoryId);
+        var authority = authorities.find(function (a) {
+          return a.id === authorityId;
+        });
+        if (authority && categoryId && !authority.categoryId)
+          authority.categoryId = categoryId;
+        if (!categoryId && authority && authority.categoryId)
+          categoryId = authority.categoryId;
         return {
           id: t.id || uid("doc-type-" + i),
           name: String(t.name || "").trim(),
-          categoryId: t.categoryId || "",
-          authorityId: t.authorityId || ensureAuthorityId(legacyAuthority),
-          authority: legacyAuthority,
+          categoryId: categoryId,
+          authorityId: authorityId,
+          authority: authority ? authority.name : legacyAuthority,
           visible: t.visible !== false,
         };
       })
       .filter(function (t) {
         return t.name;
       });
+    var authorityUsage = {};
+    types.forEach(function (t) {
+      if (!t.authorityId || !t.categoryId) return;
+      if (!authorityUsage[t.authorityId]) authorityUsage[t.authorityId] = {};
+      authorityUsage[t.authorityId][t.categoryId] = true;
+    });
+    authorities.forEach(function (a) {
+      if (a.categoryId) return;
+      var usedCategories = Object.keys(authorityUsage[a.id] || {});
+      if (usedCategories.length === 1) a.categoryId = usedCategories[0];
+    });
+    types = types.map(function (t) {
+      var authority = authorities.find(function (a) {
+        return a.id === t.authorityId;
+      });
+      if (!authority) return t;
+      if (!t.categoryId && authority.categoryId)
+        return Object.assign({}, t, {
+          categoryId: authority.categoryId,
+          authority: authority.name,
+        });
+      if (t.categoryId && authority.categoryId && t.categoryId !== authority.categoryId)
+        return Object.assign({}, t, { authorityId: "", authority: "" });
+      return Object.assign({}, t, { authority: authority.name });
+    });
     return { categories: categories, authorities: authorities, types: types };
   }
   function getDocSettings() {
@@ -52012,14 +52120,16 @@ async function init() {
             .join("")
         : '<tr><td colspan="3"><div class="empty-state"><strong>لا توجد تصنيفات</strong><p>أضف التصنيفات يدويًا حسب احتياج المنشأة.</p></div></td></tr>') +
       "</tbody></table></div></section>" +
-      '<section class="work-settings-block doc-settings-card"><div class="section-title-with-action"><div><h4>الجهات</h4><p>الجهة التابعة لها مثل وزارة التجارة أو البلدية.</p></div><button type="button" class="primary-btn" id="v212AddDocAuthorityBtn"><span data-icon="plus"></span>إضافة جهة</button></div><div class="table-wrap"><table class="compact-data-table doc-settings-table"><thead><tr><th>اسم الجهة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="documentAuthorityBodyV2">' +
+      '<section class="work-settings-block doc-settings-card"><div class="section-title-with-action"><div><h4>الجهات</h4><p>كل جهة يجب أن تتبع تصنيفًا واحدًا حتى تظهر في موضعها الصحيح.</p></div><button type="button" class="primary-btn" id="v212AddDocAuthorityBtn"><span data-icon="plus"></span>إضافة جهة</button></div><div class="table-wrap"><table class="compact-data-table doc-settings-table doc-authorities-table"><thead><tr><th>اسم الجهة</th><th>التصنيف</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="documentAuthorityBodyV2">' +
       (data.authorities.length
         ? data.authorities
             .map(function (a) {
               return (
                 "<tr><td><strong>" +
                 esc(a.name) +
-                '</strong></td><td><span class="status-badge ' +
+                "</strong></td><td>" +
+                esc(catName(a.categoryId)) +
+                '</td><td><span class="status-badge ' +
                 (a.visible ? "status-active" : "status-suspended") +
                 '">' +
                 (a.visible ? "ظاهر" : "مخفي") +
@@ -52043,7 +52153,7 @@ async function init() {
               );
             })
             .join("")
-        : '<tr><td colspan="3"><div class="empty-state"><strong>لا توجد جهات</strong><p>أضف الجهات ثم اخترها عند إنشاء نوع الوثيقة.</p></div></td></tr>') +
+        : '<tr><td colspan="4"><div class="empty-state"><strong>لا توجد جهات</strong><p>أضف الجهات ثم اخترها عند إنشاء نوع الوثيقة.</p></div></td></tr>') +
       "</tbody></table></div></section>" +
       '<section class="work-settings-block doc-settings-card"><div class="section-title-with-action"><div><h4>أنواع الوثائق</h4><p>كل نوع وثيقة يرتبط بتصنيف وجهة من القوائم أعلاه.</p></div><button type="button" class="primary-btn" id="v212AddDocTypeBtn"><span data-icon="plus"></span>إضافة نوع جديد</button></div><div class="table-wrap"><table class="compact-data-table doc-settings-table doc-types-table"><thead><tr><th>اسم النوع</th><th>التصنيف</th><th>الجهة التابعة لها</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="documentTypeBodyV2">' +
       (data.types.length
@@ -52091,12 +52201,6 @@ async function init() {
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
     }
-    function authorityName(data, id) {
-      var item = data.authorities.find(function (a) {
-        return a.id === id;
-      });
-      return item ? item.name : "";
-    }
     function options(rows, value, emptyLabel) {
       var current = String(value || "");
       return (
@@ -52122,9 +52226,38 @@ async function init() {
           .join("")
       );
     }
+    function authorityOptions(data, categoryId, value) {
+      var current = String(value || "");
+      var rows = (data.authorities || []).filter(function (row) {
+        return row.visible !== false && row.categoryId === categoryId;
+      });
+      return (
+        '<option value="">' +
+        esc(categoryId ? "اختر الجهة" : "اختر التصنيف أولًا") +
+        "</option>" +
+        (rows.length
+          ? rows
+              .map(function (row) {
+                return (
+                  '<option value="' +
+                  esc(row.id) +
+                  '"' +
+                  (row.id === current ? " selected" : "") +
+                  ">" +
+                  esc(row.name) +
+                  "</option>"
+                );
+              })
+              .join("")
+          : categoryId
+            ? '<option value="" disabled>لا توجد جهات لهذا التصنيف</option>'
+            : "")
+      );
+    }
     function openEntry(kind, id) {
       var data = getDocSettings();
       var isType = kind === "type";
+      var isAuthority = kind === "authority";
       var title =
         kind === "category"
           ? "تصنيف وثائق"
@@ -52141,8 +52274,10 @@ async function init() {
                 return row.id === id;
               })
             : data.types.find(function (row) {
-                return row.id === id;
-              });
+              return row.id === id;
+            });
+      if (isAuthority && !data.categories.length)
+        return toast("أضف تصنيف وثيقة أولًا");
       if (isType && !data.categories.length)
         return toast("أضف تصنيف وثيقة أولًا");
       if (isType && !data.authorities.length) return toast("أضف جهة أولًا");
@@ -52165,7 +52300,7 @@ async function init() {
         ) +
         '</p></div><button type="button" class="icon-btn" data-v212-close-doc-entry><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2">' +
         '<label class="' +
-        (isType ? "" : "span-all") +
+        (isType || isAuthority ? "" : "span-all") +
         '"><span>' +
         esc(kind === "category" ? "اسم التصنيف" : kind === "authority" ? "اسم الجهة" : "اسم نوع الوثيقة") +
         '</span><input name="name" required value="' +
@@ -52173,15 +52308,16 @@ async function init() {
         '" placeholder="' +
         esc(kind === "authority" ? "مثال: وزارة التجارة" : "") +
         '"></label>' +
+        (isAuthority
+          ? '<label><span>التصنيف</span><select name="categoryId" required>' +
+            options(data.categories, item?.categoryId || "", "اختر التصنيف") +
+            "</select></label>"
+          : "") +
         (isType
           ? '<label><span>تصنيف الوثيقة</span><select name="categoryId" required>' +
             options(data.categories, item?.categoryId || "", "اختر التصنيف") +
             '</select></label><label class="span-all"><span>الجهة التابعة لها</span><select name="authorityId" required>' +
-            options(
-              data.authorities,
-              item?.authorityId || "",
-              "اختر الجهة",
-            ) +
+            authorityOptions(data, item?.categoryId || "", item?.authorityId || "") +
             "</select></label>"
           : "") +
         '<label class="toggle-line span-all"><input type="checkbox" name="visible"' +
@@ -52193,6 +52329,30 @@ async function init() {
         esc(kind) +
         '"></div><div class="modal-actions"><button type="button" class="secondary-btn" data-v212-close-doc-entry>إلغاء</button><button type="submit" class="primary-btn">حفظ</button></div></form>';
       var form = modal.querySelector("#v212DocSettingsEntryForm");
+      function refreshAuthoritySelect(preserveCurrent) {
+        if (!isType || !form.elements.authorityId) return;
+        var current = preserveCurrent ? form.elements.authorityId.value : "";
+        form.elements.authorityId.innerHTML = authorityOptions(
+          getDocSettings(),
+          form.elements.categoryId.value,
+          current,
+        );
+        if (
+          current &&
+          Array.prototype.some.call(form.elements.authorityId.options, function (
+            option,
+          ) {
+            return option.value === current;
+          })
+        )
+          form.elements.authorityId.value = current;
+      }
+      if (isType && form.elements.categoryId) {
+        form.elements.categoryId.addEventListener("change", function () {
+          refreshAuthoritySelect(false);
+        });
+        refreshAuthoritySelect(true);
+      }
       form.onsubmit = function (event) {
         event.preventDefault();
         var latest = getDocSettings();
@@ -52213,19 +52373,32 @@ async function init() {
           var authIndex = latest.authorities.findIndex(function (row) {
             return row.id === entryId;
           });
+          entry.categoryId = form.elements.categoryId.value;
+          if (!entry.categoryId) return toast("اختر التصنيف");
           if (authIndex >= 0) latest.authorities[authIndex] = entry;
           else latest.authorities.push(entry);
           latest.types = latest.types.map(function (type) {
             return type.authorityId === entryId
-              ? Object.assign({}, type, { authority: entry.name })
+              ? Object.assign({}, type, {
+                  categoryId: entry.categoryId,
+                  authority: entry.name,
+                })
               : type;
           });
         } else {
           entry.categoryId = form.elements.categoryId.value;
           entry.authorityId = form.elements.authorityId.value;
-          entry.authority = authorityName(latest, entry.authorityId);
           if (!entry.categoryId) return toast("اختر تصنيف الوثيقة");
           if (!entry.authorityId) return toast("اختر الجهة التابعة");
+          var selectedAuthority = latest.authorities.find(function (row) {
+            return row.id === entry.authorityId;
+          });
+          if (
+            !selectedAuthority ||
+            selectedAuthority.categoryId !== entry.categoryId
+          )
+            return toast("اختر جهة تابعة للتصنيف المحدد");
+          entry.authority = selectedAuthority.name;
           var typeIndex = latest.types.findIndex(function (row) {
             return row.id === entryId;
           });
@@ -52310,12 +52483,22 @@ async function init() {
       return (
         handled(),
         updateData(function (data) {
+          var deletedCategoryId = delCat.dataset.v212DeleteDocCategory;
           data.categories = data.categories.filter(function (row) {
-            return row.id !== delCat.dataset.v212DeleteDocCategory;
+            return row.id !== deletedCategoryId;
+          });
+          data.authorities = data.authorities.map(function (row) {
+            return row.categoryId === deletedCategoryId
+              ? Object.assign({}, row, { categoryId: "" })
+              : row;
           });
           data.types = data.types.map(function (row) {
-            return row.categoryId === delCat.dataset.v212DeleteDocCategory
-              ? Object.assign({}, row, { categoryId: "" })
+            return row.categoryId === deletedCategoryId
+              ? Object.assign({}, row, {
+                  categoryId: "",
+                  authorityId: "",
+                  authority: "",
+                })
               : row;
           });
         })
