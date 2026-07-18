@@ -54,6 +54,7 @@ const ICONS = {
     notes: '<path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>',
     eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    "eye-off": '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>',
     printer:
       '<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/>',
   },
@@ -51993,10 +51994,14 @@ async function init() {
                 esc(c.id) +
                 '" title="تعديل">' +
                 iconSafe("edit") +
-                '</button><button type="button" class="doc-icon-action" data-v212-toggle-doc-category="' +
+                '</button><button type="button" class="doc-icon-action doc-visibility-action ' +
+                (c.visible ? "is-visible" : "is-hidden") +
+                '" data-v212-toggle-doc-category="' +
                 esc(c.id) +
-                '" title="إخفاء/إظهار">' +
-                iconSafe(c.visible ? "eye-off" : "eye") +
+                '" title="' +
+                (c.visible ? "إخفاء" : "إظهار - مخفي") +
+                '">' +
+                iconSafe("eye") +
                 '</button><button type="button" class="doc-icon-action danger" data-v212-delete-doc-category="' +
                 esc(c.id) +
                 '" title="حذف">' +
@@ -52022,10 +52027,14 @@ async function init() {
                 esc(a.id) +
                 '" title="تعديل">' +
                 iconSafe("edit") +
-                '</button><button type="button" class="doc-icon-action" data-v212-toggle-doc-authority="' +
+                '</button><button type="button" class="doc-icon-action doc-visibility-action ' +
+                (a.visible ? "is-visible" : "is-hidden") +
+                '" data-v212-toggle-doc-authority="' +
                 esc(a.id) +
-                '" title="إخفاء/إظهار">' +
-                iconSafe(a.visible ? "eye-off" : "eye") +
+                '" title="' +
+                (a.visible ? "إخفاء" : "إظهار - مخفي") +
+                '">' +
+                iconSafe("eye") +
                 '</button><button type="button" class="doc-icon-action danger" data-v212-delete-doc-authority="' +
                 esc(a.id) +
                 '" title="حذف">' +
@@ -52055,10 +52064,14 @@ async function init() {
                 esc(t.id) +
                 '" title="تعديل">' +
                 iconSafe("edit") +
-                '</button><button type="button" class="doc-icon-action" data-v212-toggle-doc-type="' +
+                '</button><button type="button" class="doc-icon-action doc-visibility-action ' +
+                (t.visible ? "is-visible" : "is-hidden") +
+                '" data-v212-toggle-doc-type="' +
                 esc(t.id) +
-                '" title="إخفاء/إظهار">' +
-                iconSafe(t.visible ? "eye-off" : "eye") +
+                '" title="' +
+                (t.visible ? "إخفاء" : "إظهار - مخفي") +
+                '">' +
+                iconSafe("eye") +
                 '</button><button type="button" class="doc-icon-action danger" data-v212-delete-doc-type="' +
                 esc(t.id) +
                 '" title="حذف">' +
