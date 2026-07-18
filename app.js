@@ -8029,11 +8029,11 @@ async function init() {
     function f() {
       (y(
         "documentCategoryModal",
-        '\n      <form id="documentCategoryForm">\n        <div class="modal-head"><div><h2>تصنيف وثائق</h2><p>أضف أو عدّل تصنيفًا تستخدمه لتنظيم أنواع الوثائق.</p></div><button type="button" class="icon-btn" data-close-modal="documentCategoryModal"><span data-icon="x"></span></button></div>\n        <div class="modal-body"><label><span>اسم التصنيف</span><input name="name" placeholder="مثال: الأوراق الحكومية" /></label><label class="toggle-line"><input type="checkbox" name="visible" checked />إظهار التصنيف</label><input type="hidden" name="id" /></div>\n        <div class="modal-actions"><button type="button" class="secondary-btn" data-close-modal="documentCategoryModal">إلغاء</button><button type="submit" class="primary-btn">حفظ التصنيف</button></div>\n      </form>',
+        '\n      <form id="documentCategoryForm">\n        <div class="modal-head"><div><h2>تصنيف وثائق</h2><p>أضف أو عدّل تصنيفًا تستخدمه لتنظيم أنواع الوثائق.</p></div><button type="button" class="icon-btn" data-close-modal="documentCategoryModal"><span data-icon="x"></span></button></div>\n        <div class="modal-body"><label><span>اسم التصنيف</span><input name="name" placeholder="مثال: الأوراق الحكومية" /></label><label class="toggle-line"><input type="checkbox" name="visible" checked /><span>إظهار التصنيف</span></label><input type="hidden" name="id" /></div>\n        <div class="modal-actions"><button type="button" class="secondary-btn" data-close-modal="documentCategoryModal">إلغاء</button><button type="submit" class="primary-btn">حفظ التصنيف</button></div>\n      </form>',
       ),
         y(
           "documentTypeModal",
-          '\n      <form id="documentTypeForm">\n        <div class="modal-head"><div><h2>نوع وثيقة</h2><p>أضف نوعًا واحدًا واربطه بتصنيف محدد.</p></div><button type="button" class="icon-btn" data-close-modal="documentTypeModal"><span data-icon="x"></span></button></div>\n        <div class="modal-body"><label><span>اسم نوع الوثيقة</span><input name="name" placeholder="اسم نوع الوثيقة" /></label><label><span>تصنيف الوثيقة</span><select name="categoryId"></select></label><label class="toggle-line"><input type="checkbox" name="visible" checked />إظهار النوع</label><input type="hidden" name="id" /></div>\n        <div class="modal-actions"><button type="button" class="secondary-btn" data-close-modal="documentTypeModal">إلغاء</button><button type="submit" class="primary-btn">حفظ نوع الوثيقة</button></div>\n      </form>',
+          '\n      <form id="documentTypeForm">\n        <div class="modal-head"><div><h2>نوع وثيقة</h2><p>أضف نوعًا واحدًا واربطه بتصنيف محدد.</p></div><button type="button" class="icon-btn" data-close-modal="documentTypeModal"><span data-icon="x"></span></button></div>\n        <div class="modal-body"><label><span>اسم نوع الوثيقة</span><input name="name" placeholder="اسم نوع الوثيقة" /></label><label><span>تصنيف الوثيقة</span><select name="categoryId"></select></label><label class="toggle-line"><input type="checkbox" name="visible" checked /><span>إظهار النوع</span></label><input type="hidden" name="id" /></div>\n        <div class="modal-actions"><button type="button" class="secondary-btn" data-close-modal="documentTypeModal">إلغاء</button><button type="submit" class="primary-btn">حفظ نوع الوثيقة</button></div>\n      </form>',
         ),
         y(
           "establishmentDocumentModal",
@@ -10587,7 +10587,7 @@ async function init() {
       (document.getElementById("hardDocCategoryModal") ||
         document.body.insertAdjacentHTML(
           "beforeend",
-          '<dialog class="modal small-modal" id="hardDocCategoryModal"><form id="hardDocCategoryForm"><div class="modal-head"><div><h2>تصنيف وثيقة</h2><p>أضف أو عدّل تصنيفًا للوثائق وحدد المستفيد منه.</p></div><button type="button" class="icon-btn" data-hard-close="hardDocCategoryModal"><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2"><label><span>اسم التصنيف</span><input name="name" required /></label><label><span>المستفيد من الوثيقة</span><select name="beneficiary" required><option value="establishment">المنشأة</option><option value="employee">الموظف</option></select></label><label class="toggle-line span-all"><input type="checkbox" name="visible" checked />إظهار التصنيف</label><input type="hidden" name="id" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-hard-close="hardDocCategoryModal">إلغاء</button><button type="submit" class="primary-btn">حفظ التصنيف</button></div></form></dialog>',
+          '<dialog class="modal small-modal" id="hardDocCategoryModal"><form id="hardDocCategoryForm"><div class="modal-head"><div><h2>تصنيف وثيقة</h2><p>أضف أو عدّل تصنيفًا للوثائق وحدد المستفيد منه.</p></div><button type="button" class="icon-btn" data-hard-close="hardDocCategoryModal"><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2"><label><span>اسم التصنيف</span><input name="name" required /></label><label><span>المستفيد من الوثيقة</span><select name="beneficiary" required><option value="establishment">المنشأة</option><option value="employee">الموظف</option></select></label><label class="toggle-line span-all"><input type="checkbox" name="visible" checked /><span>إظهار التصنيف</span></label><input type="hidden" name="id" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-hard-close="hardDocCategoryModal">إلغاء</button><button type="submit" class="primary-btn">حفظ التصنيف</button></div></form></dialog>',
         ),
         document.getElementById("hardDocAuthorityModal") ||
           document.body.insertAdjacentHTML(
@@ -10597,7 +10597,7 @@ async function init() {
         document.getElementById("hardDocTypeModal") ||
           document.body.insertAdjacentHTML(
             "beforeend",
-            '<dialog class="modal small-modal" id="hardDocTypeModal"><form id="hardDocTypeForm"><div class="modal-head"><div><h2>نوع وثيقة</h2><p>اربط نوع الوثيقة بتصنيف وجهة تابعة محفوظة.</p></div><button type="button" class="icon-btn" data-hard-close="hardDocTypeModal"><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2"><label><span>اسم نوع الوثيقة</span><input name="name" required /></label><label><span>تصنيف الوثيقة</span><select name="categoryId" required></select></label><label class="span-all"><span>الجهة التابعة لها</span><select name="authorityId" required></select></label><label class="toggle-line span-all"><input type="checkbox" name="visible" checked />إظهار النوع</label><input type="hidden" name="id" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-hard-close="hardDocTypeModal">إلغاء</button><button type="submit" class="primary-btn">حفظ نوع الوثيقة</button></div></form></dialog>',
+            '<dialog class="modal small-modal" id="hardDocTypeModal"><form id="hardDocTypeForm"><div class="modal-head"><div><h2>نوع وثيقة</h2><p>اربط نوع الوثيقة بتصنيف وجهة تابعة محفوظة.</p></div><button type="button" class="icon-btn" data-hard-close="hardDocTypeModal"><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2"><label><span>اسم نوع الوثيقة</span><input name="name" required /></label><label><span>تصنيف الوثيقة</span><select name="categoryId" required></select></label><label class="span-all"><span>الجهة التابعة لها</span><select name="authorityId" required></select></label><label class="toggle-line span-all"><input type="checkbox" name="visible" checked /><span>إظهار النوع</span></label><input type="hidden" name="id" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-hard-close="hardDocTypeModal">إلغاء</button><button type="submit" class="primary-btn">حفظ نوع الوثيقة</button></div></form></dialog>',
           ),
         document.getElementById("hardEstDocModal") ||
           document.body.insertAdjacentHTML(
@@ -52639,7 +52639,9 @@ async function init() {
           : "") +
         '<label class="toggle-line span-all"><input type="checkbox" name="visible"' +
         (item?.visible === false ? "" : " checked") +
-        ">إظهار</label>" +
+        "><span>" +
+        esc(kind === "category" ? "إظهار التصنيف" : kind === "authority" ? "إظهار الجهة" : "إظهار النوع") +
+        "</span></label>" +
         '<input type="hidden" name="id" value="' +
         esc(item?.id || "") +
         '"><input type="hidden" name="kind" value="' +

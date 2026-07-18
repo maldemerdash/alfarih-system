@@ -18766,6 +18766,71 @@ html.has-initial-login-bg .auth-gate,
   font-weight: 900 !important;
 }
 
+/* v217 - keep document visibility toggles compact inside settings modals */
+#documentCategoryModal .toggle-line,
+#documentTypeModal .toggle-line,
+#hardDocCategoryModal .toggle-line,
+#hardDocTypeModal .toggle-line,
+.v212-doc-entry-modal .toggle-line {
+  display: flex !important;
+  flex-direction: row-reverse !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  min-height: 46px !important;
+  padding: 10px 12px !important;
+  border: 1px solid #dbe5ec !important;
+  border-radius: 12px !important;
+  background: #f8fbfc !important;
+  box-shadow: none !important;
+  color: #172033 !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.4 !important;
+}
+
+#documentCategoryModal .toggle-line.span-all,
+#documentTypeModal .toggle-line.span-all,
+#hardDocCategoryModal .toggle-line.span-all,
+#hardDocTypeModal .toggle-line.span-all,
+.v212-doc-entry-modal .toggle-line.span-all {
+  grid-column: 1 / -1 !important;
+}
+
+#documentCategoryModal .toggle-line > input[type="checkbox"],
+#documentTypeModal .toggle-line > input[type="checkbox"],
+#hardDocCategoryModal .toggle-line > input[type="checkbox"],
+#hardDocTypeModal .toggle-line > input[type="checkbox"],
+.v212-doc-entry-modal .toggle-line > input[type="checkbox"] {
+  -webkit-appearance: checkbox !important;
+  appearance: auto !important;
+  display: inline-block !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  max-width: 18px !important;
+  max-height: 18px !important;
+  flex: 0 0 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 4px !important;
+  background: initial !important;
+  box-shadow: none !important;
+  accent-color: var(--primary) !important;
+}
+
+#documentCategoryModal .toggle-line > span,
+#documentTypeModal .toggle-line > span,
+#hardDocCategoryModal .toggle-line > span,
+#hardDocTypeModal .toggle-line > span,
+.v212-doc-entry-modal .toggle-line > span {
+  color: #172033 !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.5 !important;
+}
+
 @media (max-width: 720px) {
   .doc-settings-card {
     padding: 14px !important;
