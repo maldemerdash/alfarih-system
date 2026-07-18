@@ -8662,6 +8662,13 @@ async function init() {
             .map((e, t) => ({
               id: e.id || o(`doc-cat-${t}`),
               name: String(e.name || "").trim(),
+              beneficiary: /^(employee|employees|staff|موظف|الموظف|موظفين|الموظفين)$/.test(
+                String(e.beneficiary || e.target || e.scope || "")
+                  .trim()
+                  .toLowerCase(),
+              )
+                ? "employee"
+                : "establishment",
               visible: !1 !== e.visible,
             }))
             .filter((e) => e.name),
@@ -8803,7 +8810,20 @@ async function init() {
         function () {
           const e = document.querySelector("#documentsList");
           if (!e) return;
-          const t = v().types.filter((e) => !1 !== e.visible),
+          const docSettings = v(),
+            employeeCategoryIds = new Set(
+              docSettings.categories
+                .filter(
+                  (e) => !1 !== e.visible && "employee" === e.beneficiary,
+                )
+                .map((e) => e.id),
+            ),
+            t = docSettings.types.filter(
+              (e) =>
+                !1 !== e.visible &&
+                e.categoryId &&
+                employeeCategoryIds.has(e.categoryId),
+            ),
             n = `<option value="">اختر نوع الوثيقة</option>${t.map((e) => `<option value="${a(e.id)}">${a(e.name)}</option>`).join("")}`;
           ((e.innerHTML = employeeFormState.documents.length
             ? employeeFormState.documents
@@ -10351,6 +10371,13 @@ async function init() {
           .map((e) => ({
             id: e.id || a("doc-cat"),
             name: o(e.name),
+            beneficiary: /^(employee|employees|staff|موظف|الموظف|موظفين|الموظفين)$/.test(
+              String(e.beneficiary || e.target || e.scope || "")
+                .trim()
+                .toLowerCase(),
+            )
+              ? "employee"
+              : "establishment",
             visible: !1 !== e.visible,
           }))
           .filter((e) => e.name),
@@ -10490,16 +10517,16 @@ async function init() {
       if (!e) return;
       const t = u();
       e.innerHTML =
-        '\n      <div class="panel-head"><div><h3>أنواع الوثائق</h3><p>أضف التصنيفات والجهات التابعة ثم اربط كل نوع وثيقة بتصنيف وجهة.</p></div></div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>تصنيفات الوثائق</h4><p>لا توجد تصنيفات افتراضية.</p></div><button type="button" class="primary-btn" id="hardAddDocCategoryBtn"><span data-icon="plus"></span>إضافة تصنيف</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم التصنيف</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocCategoryBody"></tbody></table></div>\n      </div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>الجهات التابعة</h4><p>كل جهة ترتبط بتصنيف واحد حتى تظهر ضمنه فقط.</p></div><button type="button" class="primary-btn" id="hardAddDocAuthorityBtn"><span data-icon="plus"></span>إضافة جهة</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم الجهة</th><th>التصنيف</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocAuthorityBody"></tbody></table></div>\n      </div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>أنواع الوثائق</h4><p>كل نوع وثيقة يتبع تصنيفًا وجهة تابعة محفوظة.</p></div><button type="button" class="primary-btn" id="hardAddDocTypeBtn"><span data-icon="plus"></span>إضافة نوع وثيقة</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم النوع</th><th>التصنيف</th><th>الجهة التابعة لها</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocTypeBody"></tbody></table></div>\n      </div>';
+        '\n      <div class="panel-head"><div><h3>أنواع الوثائق</h3><p>أضف التصنيفات والجهات التابعة ثم اربط كل نوع وثيقة بتصنيف وجهة.</p></div></div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>تصنيفات الوثائق</h4><p>حدد المستفيد من كل تصنيف: المنشأة أو الموظف.</p></div><button type="button" class="primary-btn" id="hardAddDocCategoryBtn"><span data-icon="plus"></span>إضافة تصنيف</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم التصنيف</th><th>المستفيد</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocCategoryBody"></tbody></table></div>\n      </div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>الجهات التابعة</h4><p>كل جهة ترتبط بتصنيف واحد حتى تظهر ضمنه فقط.</p></div><button type="button" class="primary-btn" id="hardAddDocAuthorityBtn"><span data-icon="plus"></span>إضافة جهة</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم الجهة</th><th>التصنيف</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocAuthorityBody"></tbody></table></div>\n      </div>\n      <div class="work-settings-block">\n        <div class="section-title-with-action"><div><h4>أنواع الوثائق</h4><p>كل نوع وثيقة يتبع تصنيفًا وجهة تابعة محفوظة.</p></div><button type="button" class="primary-btn" id="hardAddDocTypeBtn"><span data-icon="plus"></span>إضافة نوع وثيقة</button></div>\n        <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>اسم النوع</th><th>التصنيف</th><th>الجهة التابعة لها</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="hardDocTypeBody"></tbody></table></div>\n      </div>';
       document.getElementById("hardDocCategoryBody").innerHTML = t.categories
         .length
         ? t.categories
             .map(
               (e) =>
-                `\n      <tr><td>${n(e.name)}</td><td>${e.visible ? "ظاهر" : "مخفي"}</td><td class="action-cell">\n        <button type="button" class="quick-view-btn" data-hard-edit-cat="${n(e.id)}">${r("edit")}</button>\n        <button type="button" class="quick-view-btn" data-hard-toggle-cat="${n(e.id)}">${r(e.visible ? "eye-off" : "eye")}</button>\n        <button type="button" class="quick-view-btn danger-inline-btn" data-hard-delete-cat="${n(e.id)}">${r("trash")}</button>\n      </td></tr>`,
+                `\n      <tr><td>${n(e.name)}</td><td>${n("employee" === e.beneficiary ? "الموظف" : "المنشأة")}</td><td>${e.visible ? "ظاهر" : "مخفي"}</td><td class="action-cell">\n        <button type="button" class="quick-view-btn" data-hard-edit-cat="${n(e.id)}">${r("edit")}</button>\n        <button type="button" class="quick-view-btn" data-hard-toggle-cat="${n(e.id)}">${r(e.visible ? "eye-off" : "eye")}</button>\n        <button type="button" class="quick-view-btn danger-inline-btn" data-hard-delete-cat="${n(e.id)}">${r("trash")}</button>\n      </td></tr>`,
             )
             .join("")
-        : '<tr><td colspan="3"><div class="empty-state"><strong>لا توجد تصنيفات</strong><p>أضف التصنيفات يدويًا.</p></div></td></tr>';
+        : '<tr><td colspan="4"><div class="empty-state"><strong>لا توجد تصنيفات</strong><p>أضف التصنيفات يدويًا.</p></div></td></tr>';
       const a = document.getElementById("hardDocAuthorityBody");
       a &&
         (a.innerHTML = t.authorities.length
@@ -10560,7 +10587,7 @@ async function init() {
       (document.getElementById("hardDocCategoryModal") ||
         document.body.insertAdjacentHTML(
           "beforeend",
-          '<dialog class="modal small-modal" id="hardDocCategoryModal"><form id="hardDocCategoryForm"><div class="modal-head"><div><h2>تصنيف وثيقة</h2><p>أضف أو عدّل تصنيفًا للوثائق.</p></div><button type="button" class="icon-btn" data-hard-close="hardDocCategoryModal"><span data-icon="x"></span></button></div><div class="modal-body"><label><span>اسم التصنيف</span><input name="name" required /></label><label class="toggle-line"><input type="checkbox" name="visible" checked />إظهار التصنيف</label><input type="hidden" name="id" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-hard-close="hardDocCategoryModal">إلغاء</button><button type="submit" class="primary-btn">حفظ التصنيف</button></div></form></dialog>',
+          '<dialog class="modal small-modal" id="hardDocCategoryModal"><form id="hardDocCategoryForm"><div class="modal-head"><div><h2>تصنيف وثيقة</h2><p>أضف أو عدّل تصنيفًا للوثائق وحدد المستفيد منه.</p></div><button type="button" class="icon-btn" data-hard-close="hardDocCategoryModal"><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2"><label><span>اسم التصنيف</span><input name="name" required /></label><label><span>المستفيد من الوثيقة</span><select name="beneficiary" required><option value="establishment">المنشأة</option><option value="employee">الموظف</option></select></label><label class="toggle-line span-all"><input type="checkbox" name="visible" checked />إظهار التصنيف</label><input type="hidden" name="id" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-hard-close="hardDocCategoryModal">إلغاء</button><button type="submit" class="primary-btn">حفظ التصنيف</button></div></form></dialog>',
         ),
         document.getElementById("hardDocAuthorityModal") ||
           document.body.insertAdjacentHTML(
@@ -10584,12 +10611,15 @@ async function init() {
       const t = u().categories.find((t) => t.id === e) || {
           id: "",
           name: "",
+          beneficiary: "establishment",
           visible: !0,
         },
         n = document.getElementById("hardDocCategoryForm");
       (n.reset(),
         (n.elements.id.value = t.id || ""),
         (n.elements.name.value = t.name || ""),
+        (n.elements.beneficiary.value =
+          "employee" === t.beneficiary ? "employee" : "establishment"),
         (n.elements.visible.checked = !1 !== t.visible),
         document.getElementById("hardDocCategoryModal").showModal());
     }
@@ -10642,20 +10672,36 @@ async function init() {
     function C(e, t = "") {
       const a = u(),
         o = e.elements.categoryId.value,
-        r = (function (e = u()) {
-          return e.types.filter((e) => !1 !== e.visible);
-        })(a).filter((e) => e.categoryId === o);
+        selectedType = h(t || e.elements.typeId?.value, a),
+        selectedAuthorityId =
+          e.elements.authorityId?.value || selectedType?.authorityId || "",
+        authorityIds = new Set(
+          a.types
+            .filter(
+              (e) =>
+                !1 !== e.visible &&
+                e.authorityId &&
+                (!o || e.categoryId === o),
+            )
+            .map((e) => e.authorityId),
+        ),
+        authorities = g(a).filter(
+          (e) => !o || e.categoryId === o || (!e.categoryId && authorityIds.has(e.id)),
+        ),
+        r = selectedAuthorityId
+          ? (function (e = u()) {
+              return e.types.filter((e) => !1 !== e.visible);
+            })(a).filter(
+              (e) => e.categoryId === o && e.authorityId === selectedAuthorityId,
+            )
+          : [];
+      e.elements.authorityId &&
+        ((e.elements.authorityId.innerHTML = `<option value="">${o ? "اختر الجهة" : "اختر التصنيف أولًا"}</option>${authorities.map((e) => `<option value="${n(e.id)}">${n(e.name)}</option>`).join("")}${o && !authorities.length ? '<option value="" disabled>لا توجد جهات لهذا التصنيف</option>' : ""}`),
+        selectedAuthorityId &&
+          authorities.some((e) => e.id === selectedAuthorityId) &&
+          (e.elements.authorityId.value = selectedAuthorityId));
       ((e.elements.typeId.innerHTML = `<option value="">اختر نوع الوثيقة</option>${r.map((e) => `<option value="${n(e.id)}">${n(e.name)}</option>`).join("")}`),
         t && r.some((e) => e.id === t) && (e.elements.typeId.value = t));
-      const i = h(e.elements.typeId.value, a);
-      e.elements.authorityId &&
-        ((e.elements.authorityId.innerHTML = `<option value="">اختر الجهة</option>${g(
-          a,
-        )
-          .filter((e) => !o || e.categoryId === o)
-          .map((e) => `<option value="${n(e.id)}">${n(e.name)}</option>`)
-          .join("")}`),
-        (e.elements.authorityId.value = i?.authorityId || ""));
     }
     function P(e) {
       const t = S(e.elements.expiryDate.value);
@@ -10685,7 +10731,9 @@ async function init() {
       ((o.elements.categoryId.innerHTML = `<option value="">اختر التصنيف</option>${(function (
         e = u(),
       ) {
-        return e.categories.filter((e) => !1 !== e.visible);
+        return e.categories.filter(
+          (e) => !1 !== e.visible && "employee" !== e.beneficiary,
+        );
       })(t)
         .map((e) => `<option value="${n(e.id)}">${n(e.name)}</option>`)
         .join("")}`),
@@ -10721,9 +10769,16 @@ async function init() {
       );
       if (
         !selectedAuthority ||
-        selectedAuthority.categoryId !== t.elements.categoryId.value
+        (selectedAuthority.categoryId &&
+          selectedAuthority.categoryId !== t.elements.categoryId.value)
       )
         return i("اختر جهة تابعة للتصنيف المحدد");
+      if (
+        !o ||
+        o.categoryId !== t.elements.categoryId.value ||
+        o.authorityId !== t.elements.authorityId.value
+      )
+        return i("اختر نوع وثيقة تابعًا للجهة المحددة");
       const r = p(),
         s = t.elements.id.value || a("est-doc");
       let l = t.elements.attachmentId.value || "",
@@ -10953,6 +11008,10 @@ async function init() {
                 s = {
                   id: r,
                   name: o(t.elements.name.value),
+                  beneficiary:
+                    t.elements.beneficiary?.value === "employee"
+                      ? "employee"
+                      : "establishment",
                   visible: t.elements.visible.checked,
                 };
               if (!s.name) return i("اكتب اسم التصنيف");
@@ -11033,6 +11092,11 @@ async function init() {
             ((r.dataset.hardWired = "1"),
             r.addEventListener("submit", L),
             r.elements.categoryId.addEventListener("change", () => {
+              (r.elements.authorityId && (r.elements.authorityId.value = ""),
+                (r.elements.typeId.value = ""),
+                C(r));
+            }),
+            r.elements.authorityId?.addEventListener("change", () => {
               ((r.elements.typeId.value = ""), C(r));
             }),
             r.elements.typeId.addEventListener("change", () => {
@@ -11128,6 +11192,13 @@ async function init() {
             .map((e, t) => ({
               id: e.id || r(`doc-cat-${t}`),
               name: i(e.name),
+              beneficiary: /^(employee|employees|staff|موظف|الموظف|موظفين|الموظفين)$/.test(
+                String(e.beneficiary || e.target || e.scope || "")
+                  .trim()
+                  .toLowerCase(),
+              )
+                ? "employee"
+                : "establishment",
               visible: !1 !== e.visible,
             }))
             .filter((e) => e.name),
@@ -11209,15 +11280,30 @@ async function init() {
       );
     }
     function S(e = y()) {
-      return e.categories.filter((e) => !1 !== e.visible);
+      return e.categories.filter(
+        (e) => !1 !== e.visible && "employee" !== e.beneficiary,
+      );
     }
     function w(e = y(), t = "") {
+      const n = new Set(
+        e.types
+          .filter(
+            (e) =>
+              !1 !== e.visible &&
+              e.authorityId &&
+              (!t || e.categoryId === t),
+          )
+          .map((e) => e.authorityId),
+      );
       return e.authorities.filter(
-        (e) => !1 !== e.visible && (!t || e.categoryId === t),
+        (e) =>
+          !1 !== e.visible &&
+          (!t || e.categoryId === t || (!e.categoryId && n.has(e.id))),
       );
     }
     function D(e = y()) {
-      return e.types.filter((e) => !1 !== e.visible);
+      const t = new Set(S(e).map((e) => e.id));
+      return e.types.filter((e) => !1 !== e.visible && t.has(e.categoryId));
     }
     function A(e) {
       return e ? ("function" == typeof formatDate ? formatDate(e) : e) : "—";
@@ -11546,10 +11632,11 @@ async function init() {
       const a = y(),
         o = t.elements.categoryId.value,
         r = t.elements.authorityId?.value || "",
-        i = D(a).filter(
-          (e) =>
-            (!o || e.categoryId === o) && (!r || e.authorityId === r),
-        );
+        i = r
+          ? D(a).filter(
+              (e) => (!o || e.categoryId === o) && e.authorityId === r,
+            )
+          : [];
       t.elements.typeId.innerHTML = `<option value="">${r ? "اختر نوع الوثيقة" : "اختر الجهة أولًا"}</option>${i.map((t) => `<option value="${n(t.id)}"${t.id === e ? " selected" : ""}>${n(t.name)}</option>`).join("")}${r && !i.length ? '<option value="" disabled>لا توجد أنواع لهذه الجهة</option>' : ""}`;
     }
     function O(e = "") {
@@ -11671,6 +11758,11 @@ async function init() {
         n = y();
       const selectedType = v(t.elements.typeId.value, n);
       if (!t.elements.categoryId.value) return o("اختر تصنيف الوثيقة");
+      const selectedCategory = n.categories.find(
+        (e) => e.id === t.elements.categoryId.value,
+      );
+      if (!selectedCategory || "employee" === selectedCategory.beneficiary)
+        return o("اختر تصنيفًا مخصصًا للمنشأة");
       if (!t.elements.typeId.value) return o("اختر نوع الوثيقة");
       if (!t.elements.authorityId.value) return o("اختر الجهة التابعة");
       const selectedAuthority = n.authorities.find(
@@ -11678,7 +11770,8 @@ async function init() {
       );
       if (
         !selectedAuthority ||
-        selectedAuthority.categoryId !== t.elements.categoryId.value
+        (selectedAuthority.categoryId &&
+          selectedAuthority.categoryId !== t.elements.categoryId.value)
       )
         return o("اختر جهة تابعة للتصنيف المحدد");
       if (
@@ -11797,21 +11890,23 @@ async function init() {
         )}</select></label><label><span>نوع الوثيقة / الرقم</span><input id="estDocNameSearch" value="${n(o.search)}" placeholder="ابحث بنوع الوثيقة أو رقمها" /></label></div></article>\n      <article class="panel"><div class="table-wrap"><table class="compact-data-table establishment-docs-table"><thead><tr><th>الفرع</th><th>التصنيف</th><th>الجهة</th><th>نوع الوثيقة</th><th>رقم الوثيقة</th><th>البداية</th><th>النهاية المعتمدة</th><th>المتبقي</th><th>المرفق</th><th>الإجراءات</th></tr></thead><tbody id="branchEstDocBody"></tbody></table></div></article>`;
       const r = (function () {
         const e = y(),
-          t = _();
-        return f().filter((n) => {
-          const a = v(n.typeId, e),
-            o = n.categoryId || a?.categoryId || "",
-            r = n.authorityId || a?.authorityId || "",
-            i = [n.title, n.number, a?.name, g(o, e), b(r, e), p(n.branchId)]
+          t = _(),
+          allowedCategories = new Set(S(e).map((e) => e.id));
+        return f().filter((doc) => {
+          const a = v(doc.typeId, e),
+            o = doc.categoryId || a?.categoryId || "",
+            r = doc.authorityId || a?.authorityId || "",
+            i = [doc.title, doc.number, a?.name, g(o, e), b(r, e), p(doc.branchId)]
               .join(" ")
               .toLowerCase();
           return (
             ("all" === t.branchId ||
               ("main" === t.branchId
-                ? !n.branchId
-                : n.branchId === t.branchId)) &&
+                ? !doc.branchId
+                : doc.branchId === t.branchId)) &&
+            allowedCategories.has(o) &&
             ("all" === t.categoryId || o === t.categoryId) &&
-            ("all" === t.typeId || n.typeId === t.typeId) &&
+            ("all" === t.typeId || doc.typeId === t.typeId) &&
             ("all" === t.authorityId || r === t.authorityId) &&
             (!t.search || i.includes(t.search))
           );
@@ -52000,11 +52095,26 @@ async function init() {
 
   function normalizeDocSettings(value) {
     value = value && typeof value === "object" ? value : {};
+    function normalizeBeneficiary(input) {
+      var raw = String(input || "").trim().toLowerCase();
+      return raw === "employee" ||
+        raw === "employees" ||
+        raw === "staff" ||
+        raw === "موظف" ||
+        raw === "الموظف" ||
+        raw === "موظفين" ||
+        raw === "الموظفين"
+        ? "employee"
+        : "establishment";
+    }
     var categories = (Array.isArray(value.categories) ? value.categories : [])
       .map(function (c, i) {
         return {
           id: c.id || uid("doc-cat-" + i),
           name: String(c.name || "").trim(),
+          beneficiary: normalizeBeneficiary(
+            c.beneficiary || c.target || c.scope || c.owner || c.audience,
+          ),
           visible: c.visible !== false,
         };
       })
@@ -52275,17 +52385,22 @@ async function init() {
       });
       return a ? a.name : t.authority || "—";
     }
+    function beneficiaryLabel(value) {
+      return value === "employee" ? "الموظف" : "المنشأة";
+    }
     p.innerHTML =
       '<div class="panel-head document-settings-head"><div><h3>أنواع الوثائق</h3><p>إعداد التصنيفات والجهات ثم ربط كل نوع وثيقة بهما.</p></div></div>' +
       '<div class="doc-settings-grid">' +
-      '<section class="work-settings-block doc-settings-card"><div class="section-title-with-action"><div><h4>تصنيفات الوثائق</h4><p>التصنيف العام للوثيقة مثل حكومي أو هندسي.</p></div><button type="button" class="primary-btn" id="v212AddDocCategoryBtn"><span data-icon="plus"></span>إضافة تصنيف</button></div><div class="table-wrap"><table class="compact-data-table doc-settings-table"><thead><tr><th>اسم التصنيف</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="documentCategoryBodyV2">' +
+      '<section class="work-settings-block doc-settings-card"><div class="section-title-with-action"><div><h4>تصنيفات الوثائق</h4><p>التصنيف العام للوثيقة مع تحديد المستفيد: المنشأة أو الموظف.</p></div><button type="button" class="primary-btn" id="v212AddDocCategoryBtn"><span data-icon="plus"></span>إضافة تصنيف</button></div><div class="table-wrap"><table class="compact-data-table doc-settings-table"><thead><tr><th>اسم التصنيف</th><th>المستفيد</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="documentCategoryBodyV2">' +
       (data.categories.length
         ? data.categories
             .map(function (c) {
               return (
                 "<tr><td><strong>" +
                 esc(c.name) +
-                '</strong></td><td><span class="status-badge ' +
+                "</strong></td><td>" +
+                esc(beneficiaryLabel(c.beneficiary)) +
+                '</td><td><span class="status-badge ' +
                 (c.visible ? "status-active" : "status-suspended") +
                 '">' +
                 (c.visible ? "ظاهر" : "مخفي") +
@@ -52309,7 +52424,7 @@ async function init() {
               );
             })
             .join("")
-        : '<tr><td colspan="3"><div class="empty-state"><strong>لا توجد تصنيفات</strong><p>أضف التصنيفات يدويًا حسب احتياج المنشأة.</p></div></td></tr>') +
+        : '<tr><td colspan="4"><div class="empty-state"><strong>لا توجد تصنيفات</strong><p>أضف التصنيفات يدويًا حسب احتياج المنشأة.</p></div></td></tr>') +
       "</tbody></table></div></section>" +
       '<section class="work-settings-block doc-settings-card"><div class="section-title-with-action"><div><h4>الجهات</h4><p>كل جهة يجب أن تتبع تصنيفًا واحدًا حتى تظهر في موضعها الصحيح.</p></div><button type="button" class="primary-btn" id="v212AddDocAuthorityBtn"><span data-icon="plus"></span>إضافة جهة</button></div><div class="table-wrap"><table class="compact-data-table doc-settings-table doc-authorities-table"><thead><tr><th>اسم الجهة</th><th>التصنيف</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody id="documentAuthorityBodyV2">' +
       (data.authorities.length
@@ -52410,6 +52525,10 @@ async function init() {
               (row.id === current ? " selected" : "") +
               ">" +
               esc(row.name) +
+              (row.beneficiary
+                ? " - " +
+                  esc(row.beneficiary === "employee" ? "الموظف" : "المنشأة")
+                : "") +
               (row.visible === false ? " - مخفي" : "") +
               "</option>"
             );
@@ -52491,7 +52610,7 @@ async function init() {
         ) +
         '</p></div><button type="button" class="icon-btn" data-v212-close-doc-entry><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2">' +
         '<label class="' +
-        (isType || isAuthority ? "" : "span-all") +
+        (isType || isAuthority ? "" : "") +
         '"><span>' +
         esc(kind === "category" ? "اسم التصنيف" : kind === "authority" ? "اسم الجهة" : "اسم نوع الوثيقة") +
         '</span><input name="name" required value="' +
@@ -52499,6 +52618,13 @@ async function init() {
         '" placeholder="' +
         esc(kind === "authority" ? "مثال: وزارة التجارة" : "") +
         '"></label>' +
+        (kind === "category"
+          ? '<label><span>المستفيد من الوثيقة</span><select name="beneficiary" required><option value="establishment"' +
+            ((item?.beneficiary || "establishment") === "employee" ? "" : " selected") +
+            '>المنشأة</option><option value="employee"' +
+            ((item?.beneficiary || "establishment") === "employee" ? " selected" : "") +
+            ">الموظف</option></select></label>"
+          : "") +
         (isAuthority
           ? '<label><span>التصنيف</span><select name="categoryId" required>' +
             options(data.categories, item?.categoryId || "", "اختر التصنيف") +
@@ -52555,6 +52681,10 @@ async function init() {
         };
         if (!entry.name) return toast("اكتب الاسم");
         if (kind === "category") {
+          entry.beneficiary =
+            form.elements.beneficiary.value === "employee"
+              ? "employee"
+              : "establishment";
           var catIndex = latest.categories.findIndex(function (row) {
             return row.id === entryId;
           });
