@@ -18943,7 +18943,7 @@ html.has-initial-login-bg .auth-gate,
 
 .est-doc-extension-editor {
   display: grid !important;
-  grid-template-columns: minmax(180px, 1fr) auto !important;
+  grid-template-columns: minmax(160px, 0.9fr) minmax(240px, 1.2fr) auto !important;
   gap: 10px !important;
   align-items: end !important;
   padding: 12px !important;
@@ -18980,6 +18980,25 @@ html.has-initial-login-bg .auth-gate,
 .est-doc-extension-table {
   min-width: 0 !important;
   table-layout: fixed !important;
+}
+
+.est-doc-extension-table th:nth-child(1),
+.est-doc-extension-table td:nth-child(1) {
+  width: 18% !important;
+}
+
+.est-doc-extension-table th:nth-child(2),
+.est-doc-extension-table td:nth-child(2),
+.est-doc-extension-table th:nth-child(3),
+.est-doc-extension-table td:nth-child(3),
+.est-doc-extension-table th:nth-child(4),
+.est-doc-extension-table td:nth-child(4) {
+  width: 20% !important;
+}
+
+.est-doc-extension-table th:nth-child(5),
+.est-doc-extension-table td:nth-child(5) {
+  width: 22% !important;
 }
 
 .est-doc-extension-table th,

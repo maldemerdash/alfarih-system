@@ -11247,6 +11247,10 @@ async function init() {
                 id: e.id || r(`est-doc-ext-${t}`),
                 newExpiryDate: e.newExpiryDate || e.expiryDate || e.date || "",
                 createdAt: e.createdAt || e.updatedAt || new Date().toISOString(),
+                kind: e.kind || e.type || "",
+                attachmentId: e.attachmentId || "",
+                attachmentName: e.attachmentName || e.fileName || e.name || "",
+                attachmentData: e.attachmentData || e.dataUrl || "",
               }))
               .filter((e) => e.newExpiryDate)
           : [],
@@ -11338,17 +11342,93 @@ async function init() {
           n.readAsDataURL(e));
       });
     }
+    function newExtensionId() {
+      return r("est-doc-ext");
+    }
+    function normalizeExtension(e = {}, t = 0) {
+      return {
+        id: e.id || r(`est-doc-ext-${t}`),
+        newExpiryDate: e.newExpiryDate || e.expiryDate || e.date || "",
+        createdAt: e.createdAt || e.updatedAt || new Date().toISOString(),
+        kind: e.kind || e.type || "",
+        attachmentId: e.attachmentId || "",
+        attachmentName: i(e.attachmentName || e.fileName || e.name || ""),
+        attachmentData: e.attachmentData || e.dataUrl || "",
+      };
+    }
+    function sortExtensions(e = []) {
+      return (Array.isArray(e) ? e : [])
+        .map(normalizeExtension)
+        .filter((e) => e.newExpiryDate)
+        .sort((e, t) => {
+          const n = String(e.newExpiryDate || "").localeCompare(
+            String(t.newExpiryDate || ""),
+          );
+          return n || String(e.createdAt || "").localeCompare(String(t.createdAt || ""));
+        });
+    }
+    function extensionAttachment(e = {}) {
+      return {
+        id: e.attachmentId || "",
+        data: e.attachmentData || "",
+        name: e.attachmentName || "مرفق الوثيقة",
+      };
+    }
+    function latestDocumentAttachment(e = {}) {
+      const t = [];
+      (e.attachmentData || e.attachmentId) &&
+        t.push({
+          date: e.expiryDate || "",
+          createdAt: "",
+          ...extensionAttachment(e),
+        });
+      sortExtensions(e.extensions).forEach((e) => {
+        (e.attachmentData || e.attachmentId) &&
+          t.push({
+            date: e.newExpiryDate || "",
+            createdAt: e.createdAt || "",
+            ...extensionAttachment(e),
+          });
+      });
+      return t.sort((e, t) => {
+        const n = String(e.date || "").localeCompare(String(t.date || ""));
+        return n || String(e.createdAt || "").localeCompare(String(t.createdAt || ""));
+      })[t.length - 1] || { id: "", data: "", name: "" };
+    }
+    function dataUrlToFile(e = "", t = "attachment") {
+      if (!/^data:/i.test(e)) return null;
+      const n = e.match(/^data:([^;,]+)?(;base64)?,(.*)$/);
+      if (!n) return null;
+      const a = n[1] || "application/octet-stream",
+        o = n[2] ? atob(n[3] || "") : decodeURIComponent(n[3] || ""),
+        r = new Uint8Array(o.length);
+      for (let e = 0; e < o.length; e += 1) r[e] = o.charCodeAt(e);
+      return new File([r], t || "attachment", { type: a });
+    }
+    async function persistExtensionAttachments(e = []) {
+      const t = [];
+      for (const n of sortExtensions(e)) {
+        const e = { ...n };
+        if (e.attachmentData && !e.attachmentId && "function" == typeof saveAttachment) {
+          try {
+            const t = dataUrlToFile(
+              e.attachmentData,
+              e.attachmentName || "establishment-document-extension",
+            );
+            t && (e.attachmentId = await saveAttachment(t, "establishment-document-extension"));
+          } catch {}
+        }
+        t.push(e);
+      }
+      return t;
+    }
     function U(e) {
       if (!e?.elements?.extensionsData) return [];
       try {
         const t = JSON.parse(e.elements.extensionsData.value || "[]");
         return Array.isArray(t)
           ? t
-              .map((e, t) => ({
-                id: e.id || r(`est-doc-ext-${t}`),
-                newExpiryDate: e.newExpiryDate || e.expiryDate || e.date || "",
-                createdAt: e.createdAt || new Date().toISOString(),
-              }))
+              .map(normalizeExtension)
               .filter((e) => e.newExpiryDate)
           : [];
       } catch {
@@ -11364,13 +11444,7 @@ async function init() {
     function X(e, t = []) {
       if (!e?.elements?.extensionsData) return;
       ((e.elements.extensionsData.value = JSON.stringify(
-        (Array.isArray(t) ? t : [])
-          .map((e, t) => ({
-            id: e.id || r(`est-doc-ext-${t}`),
-            newExpiryDate: e.newExpiryDate || "",
-            createdAt: e.createdAt || new Date().toISOString(),
-          }))
-          .filter((e) => e.newExpiryDate),
+        sortExtensions(t),
       )),
         Y(e),
         W(e));
@@ -11382,12 +11456,34 @@ async function init() {
       t.innerHTML = o.length
         ? o
             .map(
-              (e, t) =>
-                `<tr><td>${n(A(e.newExpiryDate))}</td><td>${n(A(String(e.createdAt || "").slice(0, 10)))}</td><td class="doc-extension-actions"><button type="button" class="doc-icon-action" data-edit-est-doc-extension="${n(e.id)}" title="تعديل">${a("edit")}</button><button type="button" class="doc-icon-action danger" data-delete-est-doc-extension="${n(e.id)}" title="حذف">${a("trash")}</button></td></tr>`,
+              (e) => {
+                const t = extensionAttachment(e),
+                  o =
+                    t.data || t.id
+                      ? `<button type="button" class="doc-icon-action est-doc-table-eye" data-view-est-doc-extension-attachment="${n(e.id)}" title="عرض مرفق التمديد">${a("eye")}</button>`
+                      : '<span class="muted-cell">—</span>',
+                  r = "original" === e.kind ? "الوثيقة الأصلية" : "تمديد";
+                return `<tr><td>${n(r)}</td><td>${n(A(e.newExpiryDate))}</td><td>${o}</td><td>${n(A(String(e.createdAt || "").slice(0, 10)))}</td><td class="doc-extension-actions"><button type="button" class="doc-icon-action" data-edit-est-doc-extension="${n(e.id)}" title="تعديل">${a("edit")}</button><button type="button" class="doc-icon-action danger" data-delete-est-doc-extension="${n(e.id)}" title="حذف">${a("trash")}</button></td></tr>`;
+              },
             )
             .join("")
-        : '<tr><td colspan="3"><div class="empty-state mini-empty-state">لا توجد تمديدات محفوظة.</div></td></tr>';
+        : '<tr><td colspan="5"><div class="empty-state mini-empty-state">لا توجد تمديدات محفوظة.</div></td></tr>';
       "function" == typeof hydrateIcons && hydrateIcons(t);
+    }
+    function updateExtensionAttachmentEditor(e) {
+      const t = e?.querySelector("[data-est-doc-extension-editor]");
+      if (!t) return;
+      const n = t.querySelector("[data-est-doc-extension-file-label]"),
+        a = t.querySelector("[data-est-doc-extension-preview]"),
+        o = t.querySelector("[data-est-doc-extension-attachment-name]")?.value || "",
+        r = t.querySelector("[data-est-doc-extension-attachment-data]")?.value || "",
+        i = t.querySelector("[data-est-doc-extension-attachment-id]")?.value || "";
+      (n && (n.textContent = o || (r || i ? "تم إرفاق وثيقة التمديد" : "إرفاق وثيقة التمديد")),
+        a &&
+          ((a.hidden = !(r || i)),
+          i && !r
+            ? ((a.dataset.viewAttachment = i), (a.dataset.attachmentId = i))
+            : (delete a.dataset.viewAttachment, delete a.dataset.attachmentId)));
     }
     function Z(e, t = null) {
       const n = e?.querySelector("[data-est-doc-extension-editor]");
@@ -11395,14 +11491,27 @@ async function init() {
       ((n.hidden = !1),
         (n.dataset.editExtensionId = t?.id || ""),
         (n.querySelector("[data-est-doc-extension-date]").value =
-          t?.newExpiryDate || e.elements.expiryDate?.value || ""));
+          t?.newExpiryDate || e.elements.expiryDate?.value || ""),
+        (n.querySelector("[data-est-doc-extension-attachment-id]").value =
+          t?.attachmentId || ""),
+        (n.querySelector("[data-est-doc-extension-attachment-name]").value =
+          t?.attachmentName || ""),
+        (n.querySelector("[data-est-doc-extension-attachment-data]").value =
+          t?.attachmentData || ""),
+        (n.querySelector("[data-est-doc-extension-file]").value = ""),
+        updateExtensionAttachmentEditor(e));
     }
     function ee(e) {
       const t = e?.querySelector("[data-est-doc-extension-editor]");
       t &&
         ((t.hidden = !0),
         (t.dataset.editExtensionId = ""),
-        (t.querySelector("[data-est-doc-extension-date]").value = ""));
+        (t.querySelector("[data-est-doc-extension-date]").value = ""),
+        (t.querySelector("[data-est-doc-extension-attachment-id]").value = ""),
+        (t.querySelector("[data-est-doc-extension-attachment-name]").value = ""),
+        (t.querySelector("[data-est-doc-extension-attachment-data]").value = ""),
+        (t.querySelector("[data-est-doc-extension-file]").value = ""),
+        updateExtensionAttachmentEditor(e));
     }
     function te(e) {
       const t = e?.querySelector("[data-branch-file-label]"),
@@ -11652,7 +11761,7 @@ async function init() {
         if (document.getElementById("branchEstDocModal")) return;
         (document.body.insertAdjacentHTML(
           "beforeend",
-          '<dialog class="modal establishment-document-hard-modal est-doc-entry-modal-v215" id="branchEstDocModal"><form id="branchEstDocForm"><div class="modal-head"><div><h2>إضافة وثيقة منشأة</h2><p>اربط الوثيقة بالفرع والتصنيف والجهة ثم نوع الوثيقة.</p></div><button type="button" class="icon-btn" data-close-branch-estdoc><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2 est-doc-entry-grid"><label><span>الفرع</span><select name="branchId"></select></label><label><span>تصنيف الوثيقة</span><select name="categoryId" required></select></label><label><span>الجهة التابعة لها</span><select name="authorityId" required></select></label><label><span>نوع الوثيقة</span><select name="typeId" required></select></label><label><span>رقم الوثيقة</span><input name="number" /></label><label><span>تاريخ البداية</span><input type="date" name="startDate" /></label><label><span>تاريخ النهاية</span><input type="date" name="expiryDate" /></label><label><span>مرفق الوثيقة</span><span class="est-doc-file-line"><span class="compact-file-control hard-file-control"><span data-icon="file"></span><span data-branch-file-label>إرفاق الوثيقة</span><input type="file" name="attachmentFile" accept="image/*,.pdf" /></span><button type="button" class="doc-icon-action est-doc-preview-action" data-branch-current-doc-preview hidden title="عرض المرفق"><span data-icon="eye"></span></button></span></label><label><span>المدة المتبقية</span><input name="remaining" readonly class="calculated-field" /></label><label class="span-all"><span>ملاحظات</span><textarea name="note" rows="3"></textarea></label><div class="span-all est-doc-extension-panel"><div class="est-doc-extension-head"><div><strong>جدول التمديد</strong><small>آخر تاريخ تمديد محفوظ يعتمد في حساب المدة المتبقية.</small></div><button type="button" class="primary-btn compact-primary-btn" data-add-est-doc-extension><span data-icon="plus"></span>إضافة تمديد</button></div><div class="est-doc-extension-editor" data-est-doc-extension-editor hidden><label><span>التاريخ الجديد لنهاية الوثيقة</span><input type="date" data-est-doc-extension-date /></label><div class="est-doc-extension-editor-actions"><button type="button" class="primary-btn" data-save-est-doc-extension>حفظ التمديد</button><button type="button" class="secondary-btn" data-cancel-est-doc-extension>إلغاء</button></div></div><div class="table-wrap est-doc-extension-table-wrap"><table class="compact-data-table est-doc-extension-table"><thead><tr><th>نهاية الوثيقة الجديدة</th><th>تاريخ الإضافة</th><th>الإجراءات</th></tr></thead><tbody data-est-doc-extension-body></tbody></table></div></div><input type="hidden" name="id" /><input type="hidden" name="attachmentData" /><input type="hidden" name="attachmentName" /><input type="hidden" name="attachmentId" /><input type="hidden" name="extensionsData" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-branch-estdoc>إلغاء</button><button type="submit" class="primary-btn">حفظ الوثيقة</button></div></form></dialog>',
+          '<dialog class="modal establishment-document-hard-modal est-doc-entry-modal-v215" id="branchEstDocModal"><form id="branchEstDocForm"><div class="modal-head"><div><h2>إضافة وثيقة منشأة</h2><p>اربط الوثيقة بالفرع والتصنيف والجهة ثم نوع الوثيقة.</p></div><button type="button" class="icon-btn" data-close-branch-estdoc><span data-icon="x"></span></button></div><div class="modal-body form-grid form-grid-2 est-doc-entry-grid"><label><span>الفرع</span><select name="branchId"></select></label><label><span>تصنيف الوثيقة</span><select name="categoryId" required></select></label><label><span>الجهة التابعة لها</span><select name="authorityId" required></select></label><label><span>نوع الوثيقة</span><select name="typeId" required></select></label><label><span>رقم الوثيقة</span><input name="number" /></label><label><span>تاريخ البداية</span><input type="date" name="startDate" /></label><label><span>تاريخ النهاية</span><input type="date" name="expiryDate" /></label><label><span>مرفق الوثيقة</span><span class="est-doc-file-line"><span class="compact-file-control hard-file-control"><span data-icon="file"></span><span data-branch-file-label>إرفاق الوثيقة</span><input type="file" name="attachmentFile" accept="image/*,.pdf" /></span><button type="button" class="doc-icon-action est-doc-preview-action" data-branch-current-doc-preview hidden title="عرض المرفق"><span data-icon="eye"></span></button></span></label><label><span>المدة المتبقية</span><input name="remaining" readonly class="calculated-field" /></label><label class="span-all"><span>ملاحظات</span><textarea name="note" rows="3"></textarea></label><div class="span-all est-doc-extension-panel"><div class="est-doc-extension-head"><div><strong>جدول التمديد</strong><small>آخر تاريخ تمديد محفوظ يعتمد في حساب المدة المتبقية والمرفق الأحدث.</small></div><button type="button" class="primary-btn compact-primary-btn" data-add-est-doc-extension><span data-icon="plus"></span>إضافة تمديد</button></div><div class="est-doc-extension-editor" data-est-doc-extension-editor hidden><label><span>التاريخ الجديد لنهاية الوثيقة</span><input type="date" data-est-doc-extension-date /></label><label><span>مرفق وثيقة التمديد</span><span class="est-doc-file-line"><span class="compact-file-control hard-file-control"><span data-icon="file"></span><span data-est-doc-extension-file-label>إرفاق وثيقة التمديد</span><input type="file" data-est-doc-extension-file accept="image/*,.pdf" /></span><button type="button" class="doc-icon-action est-doc-preview-action" data-est-doc-extension-preview hidden title="عرض مرفق التمديد"><span data-icon="eye"></span></button></span></label><input type="hidden" data-est-doc-extension-attachment-id /><input type="hidden" data-est-doc-extension-attachment-name /><input type="hidden" data-est-doc-extension-attachment-data /><div class="est-doc-extension-editor-actions"><button type="button" class="primary-btn" data-save-est-doc-extension>حفظ التمديد</button><button type="button" class="secondary-btn" data-cancel-est-doc-extension>إلغاء</button></div></div><div class="table-wrap est-doc-extension-table-wrap"><table class="compact-data-table est-doc-extension-table"><thead><tr><th>البيان</th><th>نهاية الوثيقة</th><th>المرفق</th><th>تاريخ الإضافة</th><th>الإجراءات</th></tr></thead><tbody data-est-doc-extension-body></tbody></table></div></div><input type="hidden" name="id" /><input type="hidden" name="attachmentData" /><input type="hidden" name="attachmentName" /><input type="hidden" name="attachmentId" /><input type="hidden" name="extensionsData" /></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-branch-estdoc>إلغاء</button><button type="submit" class="primary-btn">حفظ الوثيقة</button></div></form></dialog>',
         ),
           "function" == typeof hydrateIcons &&
             hydrateIcons(document.getElementById("branchEstDocModal")));
@@ -11680,6 +11789,21 @@ async function init() {
               (e.elements.attachmentId.value = ""),
               te(e));
           }),
+          e
+            .querySelector("[data-est-doc-extension-file]")
+            ?.addEventListener("change", async () => {
+              const t = e.querySelector("[data-est-doc-extension-file]")?.files?.[0],
+                n = e.querySelector("[data-est-doc-extension-file-label]");
+              if (!t) return (updateExtensionAttachmentEditor(e), void 0);
+              (n && (n.textContent = "جاري تجهيز المرفق..."),
+                (e.querySelector("[data-est-doc-extension-attachment-name]").value =
+                  t.name),
+                (e.querySelector("[data-est-doc-extension-attachment-data]").value =
+                  await R(t)),
+                (e.querySelector("[data-est-doc-extension-attachment-id]").value =
+                  ""),
+                updateExtensionAttachmentEditor(e));
+            }),
           e.addEventListener("submit", F));
       })();
       const t = document.getElementById("branchEstDocForm"),
@@ -11799,6 +11923,7 @@ async function init() {
             (l = await saveAttachment(c, "establishment-document"));
         } catch {}
       }
+      const persistedExtensions = await persistExtensionAttachments(U(t));
       const d = {
           id: t.elements.id.value || r("est-doc"),
           branchId: t.elements.branchId.value || "",
@@ -11810,7 +11935,7 @@ async function init() {
           number: i(t.elements.number.value),
           startDate: t.elements.startDate.value,
           expiryDate: t.elements.expiryDate.value,
-          extensions: U(t),
+          extensions: persistedExtensions,
           attachmentId: l,
           attachmentName: s,
           attachmentData: a,
@@ -11918,9 +12043,10 @@ async function init() {
               const o = v(e.typeId, t),
                 r = e.categoryId || o?.categoryId || "",
                 i = e.authorityId || o?.authorityId || "",
+                latestAttachment = latestDocumentAttachment(e),
                 s =
-                  e.attachmentData || e.attachmentId
-                    ? `<button type="button" class="doc-icon-action est-doc-table-eye" data-branch-open-doc-attachment="${n(e.id)}" data-attachment-id="${n(e.attachmentId || "")}" title="عرض المرفق">${a("eye")}</button>`
+                  latestAttachment.data || latestAttachment.id
+                    ? `<button type="button" class="doc-icon-action est-doc-table-eye" data-branch-open-doc-attachment="${n(e.id)}" data-attachment-id="${n(latestAttachment.id || "")}" title="عرض آخر مرفق">${a("eye")}</button>`
                     : '<span class="muted-cell">—</span>',
                 l = j(e);
               return `<tr><td>${n(e.branchId ? p(e.branchId) : "المنشأة الرئيسية")}</td><td>${n(g(r, t))}</td><td>${n(b(i, t) || e.authority || "—")}</td><td>${n(o?.name || "—")}</td><td>${n(e.number || "—")}</td><td>${n(A(e.startDate))}</td><td>${n(A(l))}</td><td>${(function (
@@ -12025,30 +12151,77 @@ async function init() {
         const extensionSave = e.target.closest("[data-save-est-doc-extension]");
         if (extensionSave) {
           e.preventDefault();
-          const t = document.getElementById("branchEstDocForm"),
-            n = t?.querySelector("[data-est-doc-extension-editor]"),
-            a = t?.querySelector("[data-est-doc-extension-date]")?.value || "";
-          if (!t || !a) return void o("أدخل تاريخ نهاية الوثيقة الجديد");
-          const i = n?.dataset.editExtensionId || "",
-            s = U(t),
-            l = i ? s.findIndex((e) => e.id === i) : -1,
-            c = {
-              id: i || r("est-doc-ext"),
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return void (async () => {
+            const t = document.getElementById("branchEstDocForm"),
+              n = t?.querySelector("[data-est-doc-extension-editor]"),
+              a = t?.querySelector("[data-est-doc-extension-date]")?.value || "";
+            if (!t || !n || !a) return void o("أدخل تاريخ نهاية الوثيقة الجديد");
+            const i = n.dataset.editExtensionId || "",
+              s = U(t),
+              l = i ? s.findIndex((e) => e.id === i) : -1,
+              c = l >= 0 ? s[l] : null,
+              d = n.querySelector("[data-est-doc-extension-file]"),
+              u = d?.files?.[0] || null;
+            let m =
+                n.querySelector("[data-est-doc-extension-attachment-id]")?.value ||
+                c?.attachmentId ||
+                "",
+              p =
+                n.querySelector("[data-est-doc-extension-attachment-name]")?.value ||
+                c?.attachmentName ||
+                "",
+              y =
+                n.querySelector("[data-est-doc-extension-attachment-data]")?.value ||
+                c?.attachmentData ||
+                "";
+            if (u) {
+              const e = n.querySelector("[data-est-doc-extension-file-label]");
+              e && (e.textContent = "جاري رفع المرفق...");
+              p = u.name;
+              y = await R(u);
+              try {
+                "function" == typeof saveAttachment &&
+                  (m = await saveAttachment(u, "establishment-document-extension"));
+              } catch {}
+            }
+            if (!m && !y) return void o("أرفق وثيقة التمديد الجديدة");
+            const b = [...s];
+            if (!i && !b.length) {
+              const e = t.elements.expiryDate?.value || a,
+                n = t.elements.attachmentId?.value || "",
+                o = t.elements.attachmentName?.value || "",
+                r = t.elements.attachmentData?.value || "";
+              e &&
+                b.push({
+                  id: newExtensionId(),
+                  newExpiryDate: e,
+                  createdAt:
+                    (t.elements.startDate?.value
+                      ? `${t.elements.startDate.value}T00:00:00`
+                      : "") || new Date().toISOString(),
+                  kind: "original",
+                  attachmentId: n,
+                  attachmentName: o || (n || r ? "مرفق الوثيقة الأصلية" : ""),
+                  attachmentData: r,
+                });
+            }
+            const S = {
+              id: i || newExtensionId(),
               newExpiryDate: a,
               createdAt:
-                l >= 0 ? s[l].createdAt || new Date().toISOString() : new Date().toISOString(),
+                l >= 0
+                  ? c?.createdAt || new Date().toISOString()
+                  : new Date().toISOString(),
+              kind: c?.kind || "extension",
+              attachmentId: m,
+              attachmentName: p,
+              attachmentData: y,
             };
-          return (
-            l >= 0 ? (s[l] = c) : s.push(c),
-            X(
-              t,
-              s.sort((e, t) =>
-                String(e.newExpiryDate).localeCompare(String(t.newExpiryDate)),
-              ),
-            ),
-            ee(t),
-            void o("تم حفظ تمديد الوثيقة")
-          );
+            l >= 0 ? (b[l] = S) : b.push(S);
+            (X(t, b), ee(t), o("تم حفظ تمديد الوثيقة"));
+          })();
         }
         const extensionCancel = e.target.closest("[data-cancel-est-doc-extension]");
         if (extensionCancel) {
@@ -12069,6 +12242,44 @@ async function init() {
           return void X(
             t,
             U(t).filter((e) => e.id !== extensionDelete.dataset.deleteEstDocExtension),
+          );
+        }
+        const extensionPreview = e.target.closest(
+          "[data-view-est-doc-extension-attachment]",
+        );
+        if (extensionPreview) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const t = document.getElementById("branchEstDocForm"),
+            n = U(t).find(
+              (e) => e.id === extensionPreview.dataset.viewEstDocExtensionAttachment,
+            ),
+            a = n?.attachmentData || n?.attachmentId || "";
+          return void (
+            a
+              ? "function" == typeof openAttachment
+                ? openAttachment(a)
+                : window.open(a, "_blank")
+              : o("لا يوجد مرفق لهذا التمديد")
+          );
+        }
+        const extensionEditorPreview = e.target.closest("[data-est-doc-extension-preview]");
+        if (extensionEditorPreview) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const t = document.getElementById("branchEstDocForm"),
+            n =
+              t?.querySelector("[data-est-doc-extension-attachment-data]")?.value ||
+              t?.querySelector("[data-est-doc-extension-attachment-id]")?.value ||
+              "";
+          return void (
+            n
+              ? "function" == typeof openAttachment
+                ? openAttachment(n)
+                : window.open(n, "_blank")
+              : o("لا يوجد مرفق للعرض")
           );
         }
         const branchCurrentPreview = e.target.closest("[data-branch-current-doc-preview]");
@@ -12097,12 +12308,14 @@ async function init() {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          const t = f().find((e) => e.id === s.dataset.branchOpenDocAttachment);
+          const t = f().find((e) => e.id === s.dataset.branchOpenDocAttachment),
+            n = latestDocumentAttachment(t || {}),
+            a = n.data || n.id || t?.attachmentData || t?.attachmentId || s.dataset.attachmentId;
           return void (
-            t?.attachmentData || t?.attachmentId || s.dataset.attachmentId
+            a
               ? "function" == typeof openAttachment
-                ? openAttachment(t?.attachmentData || t?.attachmentId || s.dataset.attachmentId)
-                : window.open(t?.attachmentData || t?.attachmentId || s.dataset.attachmentId, "_blank")
+                ? openAttachment(a)
+                : window.open(a, "_blank")
               : o("لا يوجد مرفق محفوظ")
           );
         }
