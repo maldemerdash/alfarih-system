@@ -19117,7 +19117,7 @@ html.has-initial-login-bg .auth-gate,
   }
 }
 
-/* v230 - final no-flash guards for auth, leaves and settings */
+/* v231 - final no-flash guards for auth, leaves and settings */
 html.app-booting body,
 html.app-booting .app-boot-screen {
   background: #ffffff !important;
@@ -19150,7 +19150,14 @@ html.has-initial-login-bg .auth-gate,
   background-image: none !important;
 }
 
+#settingsView.active:not(.v228-ready) .settings-panel,
 #settingsView.active.v228-stabilizing .settings-panel {
+  visibility: hidden !important;
+}
+
+#leavesView.active:not(.v228-ready) > *,
+#leavesView.active:not(:has(.v78-leave-page)) > *,
+#leavesView.active.v228-stabilizing > :not(.v78-leave-page) {
   visibility: hidden !important;
 }
 

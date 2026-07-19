@@ -30899,6 +30899,325 @@ async function init() {
   }, 250);
 })();
 
+/* v231 - final single-pass settings/leaves paint guard, no legacy flash */
+(function () {
+  return;
+  if (window.__v231FinalNoLegacyPaint) return;
+  window.__v231FinalNoLegacyPaint = true;
+
+  const COMPANY_KEY = "nawah-company-settings-v92";
+  const previousPanelRenderer =
+    typeof window.__stableSettingsRenderPanel === "function"
+      ? window.__stableSettingsRenderPanel
+      : null;
+
+  function q(selector, root) {
+    return (root || document).querySelector(selector);
+  }
+
+  function qa(selector, root) {
+    return Array.from((root || document).querySelectorAll(selector));
+  }
+
+  function esc(value) {
+    try {
+      if (typeof escapeHtml === "function") return escapeHtml(value == null ? "" : value);
+    } catch (_) {}
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch] || ch;
+    });
+  }
+
+  function icon(name) {
+    try {
+      if (typeof iconSvg === "function") return iconSvg(name);
+    } catch (_) {}
+    return '<span data-icon="' + esc(name) + '"></span>';
+  }
+
+  function readCompany() {
+    try {
+      return JSON.parse(localStorage.getItem(COMPANY_KEY) || "{}") || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function writeCompany(patch) {
+    const next = Object.assign({}, readCompany(), patch || {});
+    if (next.logoAttachmentId) next.logoDataUrl = "";
+    if (next.loginBackgroundAttachmentId) next.loginBackgroundDataUrl = "";
+    if (next.nationalAddressAttachmentId) next.nationalAddressFileDataUrl = "";
+    try {
+      localStorage.setItem(COMPANY_KEY, JSON.stringify(next));
+    } catch (_) {}
+    try {
+      if (typeof saveCloudStateNow === "function") saveCloudStateNow({ force: true });
+      else if (typeof queueCloudStateSave === "function") queueCloudStateSave();
+    } catch (_) {}
+    return next;
+  }
+
+  async function attachmentSrc(id) {
+    if (!id) return "";
+    try {
+      return typeof attachmentUrl === "function" ? (await attachmentUrl(id)) || "" : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function activeSettingsKey() {
+    return (
+      q("#settingsNav [data-settings-section].active")?.dataset.settingsSection ||
+      q("#settingsView [data-settings-panel].active")?.dataset.settingsPanel ||
+      "company"
+    );
+  }
+
+  function setSettingsActive(key) {
+    qa("#settingsNav [data-settings-section]").forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.settingsSection === key);
+    });
+    qa("#settingsView [data-settings-panel]").forEach(function (panel) {
+      const on = panel.dataset.settingsPanel === key;
+      panel.classList.toggle("active", on);
+      panel.hidden = !on;
+      panel.style.display = on ? "block" : "none";
+    });
+  }
+
+  function markSettingsBusy() {
+    const view = q("#settingsView");
+    if (!view) return;
+    view.classList.add("v228-stabilizing");
+    view.classList.remove("v228-ready");
+  }
+
+  function markSettingsReady() {
+    const view = q("#settingsView");
+    if (!view) return;
+    view.classList.remove("v228-stabilizing");
+    view.classList.add("v228-ready");
+  }
+
+  function ensureLoginBackgroundControl() {
+    const form = q('#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"],#settingsForm.company-settings-real-form');
+    if (!form) return null;
+    const company = readCompany();
+    let card = q("[data-v96-login-bg-control]", form);
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "company-logo-upload company-logo-upload-real v96-login-bg-upload v146-login-bg-card";
+      card.dataset.v96LoginBgControl = "1";
+      const logo =
+        q("[data-v192-site-favicon-control]", form) ||
+        q(".v94-logo-upload", form) ||
+        q(".company-logo-upload-real", form) ||
+        form.firstElementChild;
+      if (logo && logo.parentNode) logo.insertAdjacentElement("afterend", card);
+      else form.insertAdjacentElement("afterbegin", card);
+    }
+    const hasBg = Boolean(company.loginBackgroundAttachmentId || company.loginBackgroundDataUrl);
+    card.innerHTML =
+      '<div class="login-bg-preview" id="loginBgPreview"><span>خلفية</span></div>' +
+      '<div class="company-logo-copy"><strong>خلفية شاشة تسجيل الدخول</strong><span>هذه الصورة تكون خلفية شاشة الدخول كاملة، وتحفظ كمرفق حقيقي حتى تظهر على كل الأجهزة.</span><small>' +
+      esc(company.loginBackgroundFileName || (hasBg ? "تم إرفاق خلفية تسجيل الدخول" : "لم يتم إرفاق خلفية")) +
+      '</small></div><div class="v96-bg-actions v192-media-actions"><label class="secondary-btn company-logo-btn">تغيير الخلفية<input type="file" name="loginBackgroundFile" accept="image/png,image/jpeg,image/webp" hidden></label>' +
+      (hasBg ? '<button type="button" class="light-btn" id="removeLoginBackgroundBtn" data-v146-remove-login-bg="1">حذف الخلفية</button>' : "") +
+      "</div>";
+    return card;
+  }
+
+  async function refreshLoginBackgroundPreview(card) {
+    if (!card) return;
+    const company = readCompany();
+    const url =
+      (company.loginBackgroundAttachmentId ? await attachmentSrc(company.loginBackgroundAttachmentId) : "") ||
+      company.loginBackgroundDataUrl ||
+      "";
+    const preview = q("#loginBgPreview,.login-bg-preview", card);
+    if (preview) {
+      preview.innerHTML = url
+        ? '<img src="' + esc(url) + '" alt="خلفية تسجيل الدخول" loading="lazy" decoding="async">'
+        : "<span>خلفية</span>";
+    }
+  }
+
+  function polishNationalAddressControl() {
+    const form = q("#settingsForm");
+    if (!form) return;
+    const company = readCompany();
+    const fileName = q("#nationalAddressFileName", form);
+    if (fileName) {
+      fileName.textContent =
+        company.nationalAddressFileName ||
+        (company.nationalAddressAttachmentId ? "تم إرفاق العنوان الوطني" : "لم يتم إرفاق ملف");
+    }
+    const line = q(".national-address-attachment .attachment-line", form);
+    if (!line) return;
+    line.classList.add("v94-attachment-line", "v230-national-address-line");
+    qa("[data-download-national-address],[data-v101-download-national],[data-v230-national-address-eye]", line).forEach(function (old) {
+      old.remove();
+    });
+    let actions = q(".attachment-actions", line);
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "attachment-actions";
+      const picker = q('label.secondary-btn,input[name="nationalAddressFile"]', line)?.closest("label");
+      if (picker) actions.appendChild(picker);
+      line.appendChild(actions);
+    }
+    if (company.nationalAddressAttachmentId) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "attachment-view-btn attachment-preview-btn";
+      button.dataset.v230NationalAddressEye = "1";
+      button.dataset.viewAttachment = company.nationalAddressAttachmentId;
+      button.dataset.attachmentId = company.nationalAddressAttachmentId;
+      button.title = "معاينة العنوان الوطني";
+      button.setAttribute("aria-label", "معاينة العنوان الوطني");
+      button.innerHTML = icon("eye");
+      actions.appendChild(button);
+    }
+  }
+
+  async function refreshCompanyPanelFinal() {
+    const form = q("#settingsForm");
+    if (!form) return;
+    const bgCard = ensureLoginBackgroundControl();
+    try {
+      if (window.nawahV191 && typeof window.nawahV191.companyStampControl === "function")
+        window.nawahV191.companyStampControl();
+    } catch (_) {}
+    try {
+      if (typeof window.refreshLoginBackgroundCardV146 === "function")
+        await window.refreshLoginBackgroundCardV146();
+    } catch (_) {}
+    await refreshLoginBackgroundPreview(bgCard || q("[data-v96-login-bg-control]", form));
+    polishNationalAddressControl();
+    try {
+      if (window.nawahV177LoginBackground && typeof window.nawahV177LoginBackground.apply === "function")
+        await window.nawahV177LoginBackground.apply({ allowCachedFallback: true });
+    } catch (_) {}
+    try {
+      if (typeof window.applyCompanyMediaV101 === "function") await window.applyCompanyMediaV101();
+    } catch (_) {}
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(form);
+    } catch (_) {}
+  }
+
+  async function renderFinalPanel(key) {
+    key = key || activeSettingsKey();
+    setSettingsActive(key);
+    if (
+      previousPanelRenderer &&
+      previousPanelRenderer !== renderFinalPanel &&
+      !previousPanelRenderer.__v231FinalNoLegacyPaint
+    ) {
+      const result = previousPanelRenderer(key);
+      if (result && typeof result.then === "function") await result;
+    } else if (key === "company" && typeof renderCompanySettingsV94 === "function") {
+      renderCompanySettingsV94();
+    }
+
+    if (key === "company") {
+      await refreshCompanyPanelFinal();
+      setTimeout(refreshCompanyPanelFinal, 120);
+    } else if (key === "account" && window.v136Settings?.renderAccountPanel) {
+      await window.v136Settings.renderAccountPanel();
+    } else if (key === "notifications" && window.v136Settings?.renderNotificationsPanel) {
+      await window.v136Settings.renderNotificationsPanel();
+    } else if (key === "permissions" && typeof window.v134RenderCanonicalEmployeePermissions === "function") {
+      await window.v134RenderCanonicalEmployeePermissions();
+    }
+
+    try {
+      const panel = q('#settingsView [data-settings-panel="' + key + '"]') || q("#settingsView");
+      if (typeof hydrateIcons === "function") hydrateIcons(panel);
+    } catch (_) {}
+  }
+  renderFinalPanel.__v231FinalNoLegacyPaint = true;
+
+  let renderToken = 0;
+  async function activateFinalSettings(key) {
+    key = key || activeSettingsKey();
+    const token = ++renderToken;
+    markSettingsBusy();
+    try {
+      await renderFinalPanel(key);
+    } catch (error) {
+      console.warn("v231: تعذر رسم تبويب الإعدادات النهائي.", error);
+    }
+    if (token === renderToken) {
+      requestAnimationFrame(function () {
+        markSettingsReady();
+      });
+    }
+  }
+  activateFinalSettings.__v231FinalNoLegacyPaint = true;
+
+  function renderFinalSettings() {
+    activateFinalSettings(activeSettingsKey());
+  }
+  renderFinalSettings.__v231FinalNoLegacyPaint = true;
+
+  window.__stableSettingsRenderPanel = renderFinalPanel;
+  window.__stableActivateSettingsSection = activateFinalSettings;
+  window.switchSettingsSection = activateFinalSettings;
+  window.v155ActivateSettingsSection = activateFinalSettings;
+  try {
+    switchSettingsSection = activateFinalSettings;
+  } catch (_) {}
+  try {
+    renderSettings = renderFinalSettings;
+  } catch (_) {}
+  window.renderSettings = renderFinalSettings;
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const btn = event.target?.closest?.("#settingsNav [data-settings-section]");
+      if (!btn) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+      activateFinalSettings(btn.dataset.settingsSection);
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (!event.target?.closest?.('#removeLoginBackgroundBtn,[data-v146-remove-login-bg]')) return;
+      const company = writeCompany({
+        loginBackgroundAttachmentId: "",
+        loginBackgroundFileName: "",
+        loginBackgroundDataUrl: "",
+      });
+      const card = q("[data-v96-login-bg-control]");
+      if (card) card.remove();
+      try {
+        if (window.nawahV177LoginBackground?.set) window.nawahV177LoginBackground.set("");
+      } catch (_) {}
+      setTimeout(refreshCompanyPanelFinal, 0);
+      return company;
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+      const settings = q("#settingsView");
+      if (settings?.classList.contains("active")) activateFinalSettings(activeSettingsKey());
+    },
+    { once: true },
+  );
+})();
+
 /* v221 - unified cloud persistence guard and legacy attachment migration */
 (function v221CloudPersistenceIntegrity() {
   if (window.__v221CloudPersistenceIntegrity) return;
@@ -66482,10 +66801,6 @@ window.nawahLeaveBalanceReportV185 = {
         const key = activeSettingsKey();
         const panelResult = runStableSettingsPanel(key);
         if (panelResult && typeof panelResult.then === "function") await panelResult;
-        if (typeof baseSettingsRenderer === "function") {
-          const result = baseSettingsRenderer();
-          if (result && typeof result.then === "function") await result;
-        }
         if (key === "account" && window.v136Settings?.renderAccountPanel) {
           await window.v136Settings.renderAccountPanel();
         } else if (
@@ -66591,7 +66906,8 @@ window.nawahLeaveBalanceReportV185 = {
       if (normalized === "settings") {
         const view = q("#settingsView");
         if (view) {
-          view.classList.remove("v228-stabilizing");
+          view.classList.add("v228-stabilizing");
+          view.classList.remove("v228-ready");
         }
       }
       const result = previousSwitchView.apply(this, arguments);
@@ -66650,7 +66966,10 @@ window.nawahLeaveBalanceReportV185 = {
       }
       if (viewName === "settings") {
         const view = q("#settingsView");
-        if (view) view.classList.remove("v228-stabilizing");
+        if (view) {
+          view.classList.add("v228-stabilizing");
+          view.classList.remove("v228-ready");
+        }
       }
     },
     true,
@@ -66670,4 +66989,268 @@ window.nawahLeaveBalanceReportV185 = {
       stabilizeSettings(true);
     }, 0);
   }
+})();
+
+/* v231 tail - final authority for settings/leaves paint order */
+(function () {
+  if (window.__v231TailFinalNoLegacyPaint) return;
+  window.__v231TailFinalNoLegacyPaint = true;
+
+  const COMPANY_KEY = "nawah-company-settings-v92";
+  const previousPanelRenderer =
+    typeof window.__stableSettingsRenderPanel === "function"
+      ? window.__stableSettingsRenderPanel
+      : null;
+
+  function q(selector, root) {
+    return (root || document).querySelector(selector);
+  }
+  function qa(selector, root) {
+    return Array.from((root || document).querySelectorAll(selector));
+  }
+  function esc(value) {
+    try {
+      if (typeof escapeHtml === "function") return escapeHtml(value == null ? "" : value);
+    } catch (_) {}
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch] || ch;
+    });
+  }
+  function icon(name) {
+    try {
+      if (typeof iconSvg === "function") return iconSvg(name);
+    } catch (_) {}
+    return '<span data-icon="' + esc(name) + '"></span>';
+  }
+  function readCompany() {
+    try {
+      return JSON.parse(localStorage.getItem(COMPANY_KEY) || "{}") || {};
+    } catch (_) {
+      return {};
+    }
+  }
+  async function attachmentSrc(id) {
+    if (!id) return "";
+    try {
+      return typeof attachmentUrl === "function" ? (await attachmentUrl(id)) || "" : "";
+    } catch (_) {
+      return "";
+    }
+  }
+  function activeSettingsKey() {
+    return (
+      q("#settingsNav [data-settings-section].active")?.dataset.settingsSection ||
+      q("#settingsView [data-settings-panel].active")?.dataset.settingsPanel ||
+      "company"
+    );
+  }
+  function setSettingsActive(key) {
+    qa("#settingsNav [data-settings-section]").forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.settingsSection === key);
+    });
+    qa("#settingsView [data-settings-panel]").forEach(function (panel) {
+      const on = panel.dataset.settingsPanel === key;
+      panel.classList.toggle("active", on);
+      panel.hidden = !on;
+      panel.style.display = on ? "block" : "none";
+    });
+  }
+  function busy() {
+    const view = q("#settingsView");
+    if (!view) return;
+    view.classList.add("v228-stabilizing");
+    view.classList.remove("v228-ready");
+  }
+  function ready() {
+    const view = q("#settingsView");
+    if (!view) return;
+    view.classList.remove("v228-stabilizing");
+    view.classList.add("v228-ready");
+  }
+
+  function ensureLoginBackgroundControl() {
+    const form = q('#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"],#settingsForm.company-settings-real-form');
+    if (!form) return null;
+    const company = readCompany();
+    let card = q("[data-v96-login-bg-control]", form);
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "company-logo-upload company-logo-upload-real v96-login-bg-upload v146-login-bg-card";
+      card.dataset.v96LoginBgControl = "1";
+      const anchor =
+        q("[data-v192-site-favicon-control]", form) ||
+        q(".v94-logo-upload", form) ||
+        q(".company-logo-upload-real", form) ||
+        form.firstElementChild;
+      if (anchor && anchor.parentNode) anchor.insertAdjacentElement("afterend", card);
+      else form.insertAdjacentElement("afterbegin", card);
+    }
+    const hasBg = Boolean(company.loginBackgroundAttachmentId || company.loginBackgroundDataUrl);
+    card.innerHTML =
+      '<div class="login-bg-preview" id="loginBgPreview"><span>خلفية</span></div>' +
+      '<div class="company-logo-copy"><strong>خلفية شاشة تسجيل الدخول</strong><span>تحفظ كمرفق حقيقي وتظهر مباشرة في شاشة الدخول على كل الأجهزة.</span><small>' +
+      esc(company.loginBackgroundFileName || (hasBg ? "تم إرفاق خلفية تسجيل الدخول" : "لم يتم إرفاق خلفية")) +
+      '</small></div><div class="v96-bg-actions v192-media-actions"><label class="secondary-btn company-logo-btn">تغيير الخلفية<input type="file" name="loginBackgroundFile" accept="image/png,image/jpeg,image/webp" hidden></label>' +
+      (hasBg ? '<button type="button" class="light-btn" id="removeLoginBackgroundBtn" data-v146-remove-login-bg="1">حذف الخلفية</button>' : "") +
+      "</div>";
+    return card;
+  }
+  async function refreshLoginBackgroundPreview(card) {
+    if (!card) return;
+    const company = readCompany();
+    const url =
+      (company.loginBackgroundAttachmentId ? await attachmentSrc(company.loginBackgroundAttachmentId) : "") ||
+      company.loginBackgroundDataUrl ||
+      "";
+    const preview = q("#loginBgPreview,.login-bg-preview", card);
+    if (preview) {
+      preview.innerHTML = url
+        ? '<img src="' + esc(url) + '" alt="خلفية تسجيل الدخول" loading="lazy" decoding="async">'
+        : "<span>خلفية</span>";
+    }
+  }
+  function polishNationalAddressControl() {
+    const form = q("#settingsForm");
+    if (!form) return;
+    const company = readCompany();
+    const fileName = q("#nationalAddressFileName", form);
+    if (fileName) {
+      fileName.textContent =
+        company.nationalAddressFileName ||
+        (company.nationalAddressAttachmentId ? "تم إرفاق العنوان الوطني" : "لم يتم إرفاق ملف");
+    }
+    const line = q(".national-address-attachment .attachment-line", form);
+    if (!line) return;
+    line.classList.add("v94-attachment-line", "v230-national-address-line");
+    qa("[data-download-national-address],[data-v101-download-national],[data-v230-national-address-eye]", line).forEach(function (old) {
+      old.remove();
+    });
+    let actions = q(".attachment-actions", line);
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "attachment-actions";
+      const picker = q('label.secondary-btn,input[name="nationalAddressFile"]', line)?.closest("label");
+      if (picker) actions.appendChild(picker);
+      line.appendChild(actions);
+    }
+    if (company.nationalAddressAttachmentId) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "attachment-view-btn attachment-preview-btn";
+      button.dataset.v230NationalAddressEye = "1";
+      button.dataset.viewAttachment = company.nationalAddressAttachmentId;
+      button.dataset.attachmentId = company.nationalAddressAttachmentId;
+      button.title = "معاينة العنوان الوطني";
+      button.setAttribute("aria-label", "معاينة العنوان الوطني");
+      button.innerHTML = icon("eye");
+      actions.appendChild(button);
+    }
+  }
+  async function refreshCompanyPanel() {
+    const form = q("#settingsForm");
+    if (!form) return;
+    const bgCard = ensureLoginBackgroundControl();
+    try {
+      if (window.nawahV191?.companyStampControl) window.nawahV191.companyStampControl();
+    } catch (_) {}
+    try {
+      if (window.refreshLoginBackgroundCardV146) await window.refreshLoginBackgroundCardV146();
+    } catch (_) {}
+    await refreshLoginBackgroundPreview(bgCard || q("[data-v96-login-bg-control]", form));
+    polishNationalAddressControl();
+    try {
+      if (window.nawahV177LoginBackground?.apply)
+        await window.nawahV177LoginBackground.apply({ allowCachedFallback: true });
+    } catch (_) {}
+    try {
+      if (window.applyCompanyMediaV101) await window.applyCompanyMediaV101();
+    } catch (_) {}
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(form);
+    } catch (_) {}
+  }
+
+  async function renderPanel(key) {
+    key = key || activeSettingsKey();
+    setSettingsActive(key);
+    if (
+      previousPanelRenderer &&
+      previousPanelRenderer !== renderPanel &&
+      !previousPanelRenderer.__v231TailFinalNoLegacyPaint
+    ) {
+      const result = previousPanelRenderer(key);
+      if (result && typeof result.then === "function") await result;
+    } else if (key === "company" && typeof renderCompanySettingsV94 === "function") {
+      renderCompanySettingsV94();
+    }
+
+    if (key === "company") {
+      await refreshCompanyPanel();
+      setTimeout(refreshCompanyPanel, 120);
+    } else if (key === "account" && window.v136Settings?.renderAccountPanel) {
+      await window.v136Settings.renderAccountPanel();
+    } else if (key === "notifications" && window.v136Settings?.renderNotificationsPanel) {
+      await window.v136Settings.renderNotificationsPanel();
+    } else if (key === "permissions" && typeof window.v134RenderCanonicalEmployeePermissions === "function") {
+      await window.v134RenderCanonicalEmployeePermissions();
+    }
+
+    try {
+      const panel = q('#settingsView [data-settings-panel="' + key + '"]') || q("#settingsView");
+      if (typeof hydrateIcons === "function") hydrateIcons(panel);
+    } catch (_) {}
+  }
+  renderPanel.__v231TailFinalNoLegacyPaint = true;
+
+  let token = 0;
+  async function activateSettings(key) {
+    key = key || activeSettingsKey();
+    const current = ++token;
+    busy();
+    try {
+      await renderPanel(key);
+    } catch (error) {
+      console.warn("v231: تعذر رسم الإعدادات النهائية.", error);
+    }
+    if (current === token) {
+      requestAnimationFrame(function () {
+        ready();
+      });
+    }
+  }
+  activateSettings.__v231TailFinalNoLegacyPaint = true;
+
+  function renderSettingsFinal() {
+    activateSettings(activeSettingsKey());
+  }
+  renderSettingsFinal.__v231TailFinalNoLegacyPaint = true;
+
+  window.__stableSettingsRenderPanel = renderPanel;
+  window.__stableActivateSettingsSection = activateSettings;
+  window.switchSettingsSection = activateSettings;
+  window.v155ActivateSettingsSection = activateSettings;
+  try {
+    switchSettingsSection = activateSettings;
+  } catch (_) {}
+  try {
+    renderSettings = renderSettingsFinal;
+  } catch (_) {}
+  window.renderSettings = renderSettingsFinal;
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const btn = event.target?.closest?.("#settingsNav [data-settings-section]");
+      if (!btn) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+      activateSettings(btn.dataset.settingsSection);
+    },
+    true,
+  );
+
+  document.addEventListener("DOMContentLoaded", function () {
+    if (q("#settingsView")?.classList.contains("active")) activateSettings(activeSettingsKey());
+  });
 })();
