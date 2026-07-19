@@ -52994,6 +52994,7 @@ async function init() {
       });
     renderForKey(key);
     setTimeout(function () {
+      if (window.__v155SettingsLogicLoader) return;
       renderForKey(key);
     }, 80);
   }
@@ -53010,13 +53011,17 @@ async function init() {
       "company";
     activate(active);
   }
+  function scheduleLegacyBind(delay) {
+    setTimeout(function () {
+      if (window.__v155SettingsLogicLoader) return;
+      bind();
+    }, delay);
+  }
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", function () {
-      setTimeout(bind, 60);
+      scheduleLegacyBind(60);
     });
-  else setTimeout(bind, 60);
-  setTimeout(bind, 400);
-  setTimeout(bind, 1200);
+  else scheduleLegacyBind(60);
 })();
 
 /* v155 - إصلاح تحميل منطق تبويبات الإعدادات وربط بياناتها بسرعة */
@@ -66157,13 +66162,6 @@ window.nawahLeaveBalanceReportV185 = {
       #leavesView.active.v228-stabilizing > :not(.v78-leave-page) {
         visibility: hidden !important;
       }
-      #settingsView.active.v228-stabilizing > *,
-      #settingsView.active:not(.v228-ready) > * {
-        visibility: hidden !important;
-      }
-      #settingsView.active.v228-ready > * {
-        visibility: visible !important;
-      }
     `;
     document.head.appendChild(style);
   }
@@ -66399,8 +66397,7 @@ window.nawahLeaveBalanceReportV185 = {
     const view = activeSettingsView();
     if (!view) return;
     clearTimeout(settingsTimer);
-    view.classList.add("v228-stabilizing");
-    view.classList.remove("v228-ready");
+    view.classList.remove("v228-stabilizing");
     settingsTimer = setTimeout(async function () {
       if (settingsRendering) return;
       const digest = settingsDigest();
@@ -66409,11 +66406,6 @@ window.nawahLeaveBalanceReportV185 = {
         return;
       }
       settingsRendering = true;
-      try {
-        if (baseSettingsRenderer) baseSettingsRenderer();
-      } catch (error) {
-        console.warn("v228: تعذر تشغيل راسم الإعدادات الأساسي.", error);
-      }
       try {
         const result = runStableSettingsPanel(activeSettingsKey());
         if (result && typeof result.then === "function") await result;
@@ -66434,7 +66426,7 @@ window.nawahLeaveBalanceReportV185 = {
   stableLeavesRenderer.__v228StableLeavesSettingsPaint = true;
 
   function stableSettingsRenderer() {
-    stabilizeSettings(true);
+    stabilizeSettings(false);
   }
   stableSettingsRenderer.__v228StableLeavesSettingsPaint = true;
 
@@ -66468,8 +66460,7 @@ window.nawahLeaveBalanceReportV185 = {
       if (normalized === "settings") {
         const view = q("#settingsView");
         if (view) {
-          view.classList.add("v228-stabilizing");
-          view.classList.remove("v228-ready");
+          view.classList.remove("v228-stabilizing");
         }
       }
       const result = previousSwitchView.apply(this, arguments);
@@ -66499,18 +66490,11 @@ window.nawahLeaveBalanceReportV185 = {
       });
     }
     const settingsView = q("#settingsView");
-    if (settingsView && !settingsView.__v228StableObserver) {
-      settingsView.__v228StableObserver = new MutationObserver(function () {
-        const view = activeSettingsView();
-        if (!view || settingsRendering) return;
-        view.classList.add("v228-stabilizing");
-        view.classList.remove("v228-ready");
-        stabilizeSettings(true);
-      });
-      settingsView.__v228StableObserver.observe(settingsView, {
-        childList: true,
-        subtree: true,
-      });
+    if (settingsView && settingsView.__v228StableObserver) {
+      try {
+        settingsView.__v228StableObserver.disconnect();
+      } catch (_) {}
+      settingsView.__v228StableObserver = null;
     }
   }
 
@@ -66535,7 +66519,7 @@ window.nawahLeaveBalanceReportV185 = {
       }
       if (viewName === "settings") {
         const view = q("#settingsView");
-        if (view) view.classList.add("v228-stabilizing");
+        if (view) view.classList.remove("v228-stabilizing");
       }
     },
     true,
