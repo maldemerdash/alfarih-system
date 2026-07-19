@@ -31461,11 +31461,10 @@ async function init() {
         return false;
 
       const migrationStats = await migrateImportantLocalState();
-      if (migrationStats.unmigratedDataUrls) {
+      if (migrationStats.unmigratedDataUrls || migrationStats.unmigratedLegacyIds) {
         warnOnce(
-          "يوجد مرفق محفوظ كبيانات محلية ولم يتم رفعه للسحابة؛ تم إيقاف الحفظ العالمي حتى لا تضيع المرفقات.",
+          "يوجد مرفقات محلية قديمة تحتاج ترحيل، لكن لن يتم منع حفظ بيانات الموظفين والحذف في قاعدة البيانات.",
         );
-        return false;
       }
       const state =
         typeof buildCloudState === "function"
@@ -65115,4 +65114,412 @@ window.nawahLeaveBalanceReportV185 = {
   setTimeout(function () {
     scheduleOrgDecorate();
   }, 300);
+})();
+
+/* v222 - verified employee delete persistence */
+(function v222VerifiedEmployeeDeletePersistence() {
+  if (window.__v222VerifiedEmployeeDeletePersistence) return;
+  window.__v222VerifiedEmployeeDeletePersistence = true;
+
+  const VERSION = "v222";
+  const TOMBSTONE_KEY = "nawah-employee-delete-tombstones-v222";
+  const CLOUD_KEY =
+    typeof CLOUD_STATE_KEY !== "undefined" && CLOUD_STATE_KEY
+      ? CLOUD_STATE_KEY
+      : "app_state";
+
+  function text(value) {
+    return value == null ? "" : String(value);
+  }
+
+  function parseJson(raw, fallback) {
+    try {
+      if (raw == null || raw === "") return fallback;
+      return JSON.parse(raw);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function writeJson(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (_) {}
+  }
+
+  function notify(message, options) {
+    try {
+      if (typeof showToast === "function") showToast(message, options || {});
+    } catch (_) {}
+  }
+
+  function normalizeList(list) {
+    return (Array.isArray(list) ? list : [])
+      .filter(Boolean)
+      .map(function (employee, index) {
+        try {
+          return typeof normalizeEmployee === "function"
+            ? normalizeEmployee(employee, index)
+            : employee;
+        } catch (_) {
+          return employee;
+        }
+      });
+  }
+
+  function currentEmployees() {
+    return normalizeList(typeof employees !== "undefined" ? employees : []);
+  }
+
+  function setEmployees(list) {
+    employees = normalizeList(list);
+    try {
+      window.employees = employees;
+    } catch (_) {}
+    writeJson("nawah-employees", employees);
+  }
+
+  function readTombstones() {
+    const list = parseJson(localStorage.getItem(TOMBSTONE_KEY), []);
+    return Array.isArray(list) ? list.filter((item) => item && item.id) : [];
+  }
+
+  function writeTombstones(list) {
+    const unique = new Map();
+    (Array.isArray(list) ? list : []).forEach(function (item) {
+      if (!item || !item.id) return;
+      unique.set(text(item.id), {
+        id: text(item.id),
+        deletedAt: item.deletedAt || new Date().toISOString(),
+        reason: item.reason || "employee-delete",
+      });
+    });
+    writeJson(TOMBSTONE_KEY, Array.from(unique.values()).slice(-500));
+  }
+
+  function rememberDeletedEmployee(id) {
+    const list = readTombstones();
+    list.push({
+      id: text(id),
+      deletedAt: new Date().toISOString(),
+      reason: "employee-delete",
+    });
+    writeTombstones(list);
+  }
+
+  function tombstoneIdsFromState(state) {
+    const ids = new Set(readTombstones().map((item) => text(item.id)));
+    if (Array.isArray(state?.deletedEmployeesV222)) {
+      state.deletedEmployeesV222.forEach(function (item) {
+        if (item && item.id) ids.add(text(item.id));
+      });
+    }
+    return ids;
+  }
+
+  function filterDeletedEmployeesFromState(state) {
+    if (!state || typeof state !== "object") return state;
+    const ids = tombstoneIdsFromState(state);
+    if (!ids.size) return state;
+    const copy = { ...state };
+    if (Array.isArray(copy.employees)) {
+      copy.employees = copy.employees.filter(function (employee) {
+        return !ids.has(text(employee?.id));
+      });
+    }
+    if (copy.localStorageStateV221 && typeof copy.localStorageStateV221 === "object") {
+      copy.localStorageStateV221 = { ...copy.localStorageStateV221 };
+      const localEmployees = copy.localStorageStateV221["nawah-employees"];
+      if (Array.isArray(localEmployees)) {
+        copy.localStorageStateV221["nawah-employees"] = localEmployees.filter(
+          function (employee) {
+            return !ids.has(text(employee?.id));
+          },
+        );
+      }
+    }
+    if (Array.isArray(copy.deletedEmployeesV222)) {
+      writeTombstones(readTombstones().concat(copy.deletedEmployeesV222));
+    }
+    return copy;
+  }
+
+  const previousApplyCloudState =
+    typeof applyCloudState === "function" ? applyCloudState : null;
+  if (previousApplyCloudState && !previousApplyCloudState.__v222DeleteTombstones) {
+    const wrappedApplyCloudState = function wrappedApplyCloudState(state) {
+      const filtered = filterDeletedEmployeesFromState(state);
+      const result = previousApplyCloudState.call(this, filtered);
+      if (filtered && filtered !== state && Array.isArray(filtered.employees)) {
+        setEmployees(filtered.employees);
+      }
+      return result;
+    };
+    wrappedApplyCloudState.__v222DeleteTombstones = true;
+    try {
+      applyCloudState = wrappedApplyCloudState;
+    } catch (_) {}
+    window.applyCloudState = wrappedApplyCloudState;
+  }
+
+  function ensureSupabase() {
+    try {
+      if (
+        (!supabaseClient || !supabaseClient.from) &&
+        typeof initSupabaseClient === "function"
+      ) {
+        initSupabaseClient();
+      }
+    } catch (_) {}
+    return typeof supabaseClient !== "undefined" && supabaseClient
+      ? supabaseClient
+      : null;
+  }
+
+  async function ensureDbReady() {
+    try {
+      if (!db && typeof openDatabase === "function") db = await openDatabase();
+    } catch (_) {}
+    return typeof db !== "undefined" && db ? db : null;
+  }
+
+  async function syncIndexedDbEmployees(list) {
+    try {
+      await ensureDbReady();
+      if (
+        !db ||
+        typeof dbGetAllEmployees !== "function" ||
+        typeof dbStore !== "function" ||
+        typeof requestResult !== "function"
+      )
+        return;
+      const current = await dbGetAllEmployees();
+      const nextIds = new Set(list.map((employee) => text(employee.id)));
+      await Promise.all(
+        current
+          .filter((employee) => !nextIds.has(text(employee.id)))
+          .map((employee) =>
+            requestResult(dbStore("employees", "readwrite").delete(employee.id)),
+          ),
+      );
+      await Promise.all(
+        list.map((employee) =>
+          requestResult(dbStore("employees", "readwrite").put(employee)),
+        ),
+      );
+    } catch (error) {
+      console.warn("v222: تعذر مزامنة IndexedDB للموظفين.", error);
+    }
+  }
+
+  function buildVerifiedState(reason) {
+    const now = new Date().toISOString();
+    const state =
+      typeof buildCloudState === "function"
+        ? buildCloudState()
+        : { version: 1, savedAt: now };
+    const list = currentEmployees();
+    state.employees = list;
+    state.leaves = Array.isArray(leaves) ? leaves : [];
+    state.attendanceExceptions = Array.isArray(attendanceExceptions)
+      ? attendanceExceptions
+      : [];
+    state.localStorageStateV221 =
+      state.localStorageStateV221 && typeof state.localStorageStateV221 === "object"
+        ? state.localStorageStateV221
+        : {};
+    state.localStorageStateV221["nawah-employees"] = list;
+    state.localStorageStateV221["nawah-leaves"] = state.leaves;
+    state.localStorageStateV221["nawah-attendance-exceptions"] =
+      state.attendanceExceptions;
+    state.deletedEmployeesV222 = readTombstones();
+    state.persistenceVersion = VERSION;
+    state.persistenceReason = reason || "employee-save";
+    state.savedAt = now;
+    state.updatedAt = now;
+    return state;
+  }
+
+  async function readRemoteState(client) {
+    const response = await client
+      .from("app_settings")
+      .select("setting_value,updated_at")
+      .eq("setting_key", CLOUD_KEY)
+      .maybeSingle();
+    if (response.error) throw response.error;
+    return response.data?.setting_value || null;
+  }
+
+  async function saveEmployeeSnapshotNow(reason, options) {
+    const opts = options || {};
+    setEmployees(currentEmployees());
+    writeJson("nawah-leaves", Array.isArray(leaves) ? leaves : []);
+    writeJson(
+      "nawah-attendance-exceptions",
+      Array.isArray(attendanceExceptions) ? attendanceExceptions : [],
+    );
+    await syncIndexedDbEmployees(employees);
+    try {
+      if (typeof saveLocalMeta === "function") saveLocalMeta();
+    } catch (_) {}
+
+    const client = ensureSupabase();
+    if (!client || !client.from) {
+      throw new Error("Supabase غير جاهز، لم يتم تأكيد الحفظ الحقيقي.");
+    }
+    try {
+      cloudReady = true;
+      cloudLoadAttempted = true;
+      cloudSaveAllowed = true;
+    } catch (_) {}
+
+    const state = buildVerifiedState(reason);
+    const response = await client.from("app_settings").upsert(
+      {
+        setting_key: CLOUD_KEY,
+        setting_value: state,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "setting_key" },
+    );
+    if (response.error) throw response.error;
+
+    if (opts.deletedEmployeeId) {
+      const remote = await readRemoteState(client);
+      const exists = Array.isArray(remote?.employees)
+        ? remote.employees.some(
+            (employee) => text(employee?.id) === text(opts.deletedEmployeeId),
+          )
+        : false;
+      if (exists) {
+        throw new Error("فشل التحقق من حذف الموظف في قاعدة البيانات.");
+      }
+    }
+    return true;
+  }
+
+  window.nawahSaveEmployeeSnapshotNow = saveEmployeeSnapshotNow;
+
+  window.persistEmployeeStateV179 = async function persistEmployeeStateV222(reason) {
+    await saveEmployeeSnapshotNow(reason || "employee-persist-v222");
+    return true;
+  };
+
+  function deleteGuard(employeeId) {
+    const pendingLeave = (Array.isArray(leaves) ? leaves : []).some(
+      (leave) =>
+        text(leave.employeeId) === text(employeeId) && leave.status === "pending",
+    );
+    const activeLeave = (Array.isArray(leaves) ? leaves : []).some(
+      (leave) =>
+        text(leave.employeeId) === text(employeeId) &&
+        leave.status === "approved" &&
+        !leave.returnDate,
+    );
+    const travel =
+      typeof window.employeeTravelDeleteGuard === "function"
+        ? window.employeeTravelDeleteGuard(employeeId)
+        : { pending: false, active: false };
+    if (pendingLeave || travel.pending) {
+      return {
+        blocked: true,
+        reason: "لا يمكن حذف الموظف لوجود طلبات إجازة أو سفر بانتظار الموافقة",
+      };
+    }
+    if (activeLeave || travel.active) {
+      return {
+        blocked: true,
+        reason: "لا يمكن حذف الموظف لأنه حاليًا في إجازة أو مسافر ولم تتم مباشرة العمل",
+      };
+    }
+    return { blocked: false, reason: "" };
+  }
+
+  function closeDeleteModal() {
+    try {
+      document.querySelector("#confirmModal")?.close?.();
+    } catch (_) {}
+  }
+
+  async function runVerifiedEmployeeDelete() {
+    const employeeId = typeof deleteTargetId !== "undefined" ? deleteTargetId : null;
+    if (!employeeId) return false;
+    const guard = deleteGuard(employeeId);
+    if (guard.blocked) {
+      closeDeleteModal();
+      deleteTargetId = null;
+      notify(guard.reason);
+      return true;
+    }
+
+    const before = currentEmployees();
+    const exists = before.some((employee) => text(employee.id) === text(employeeId));
+    if (!exists) {
+      closeDeleteModal();
+      deleteTargetId = null;
+      notify("الموظف غير موجود في القائمة الحالية.");
+      return true;
+    }
+
+    const button = document.querySelector("#confirmDeleteBtn");
+    const originalText = button ? button.textContent : "";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "جاري الحذف...";
+    }
+
+    try {
+      setEmployees(
+        before.filter((employee) => text(employee.id) !== text(employeeId)),
+      );
+      leaves = (Array.isArray(leaves) ? leaves : []).filter(
+        (leave) => text(leave.employeeId) !== text(employeeId),
+      );
+      attendanceExceptions = (
+        Array.isArray(attendanceExceptions) ? attendanceExceptions : []
+      ).filter((item) => text(item.employeeId) !== text(employeeId));
+      try {
+        if (typeof window.cleanupEmployeePayrollAdvances === "function") {
+          await window.cleanupEmployeePayrollAdvances(employeeId);
+        }
+      } catch (error) {
+        console.warn("v222: تعذر تنظيف سلفيات الموظف المحذوف.", error);
+      }
+      rememberDeletedEmployee(employeeId);
+      await saveEmployeeSnapshotNow("employee-delete-v222", {
+        deletedEmployeeId: employeeId,
+      });
+      closeDeleteModal();
+      deleteTargetId = null;
+      try {
+        if (typeof renderAll === "function") renderAll();
+      } catch (_) {}
+      notify("تم حذف الموظف وحفظ الحذف في قاعدة البيانات.");
+    } catch (error) {
+      console.error("v222: فشل حذف الموظف بشكل مؤكد.", error);
+      notify(
+        "لم يتم تأكيد حذف الموظف في قاعدة البيانات. راجع اتصال Supabase وملف SQL ثم أعد المحاولة.",
+        { duration: 5200 },
+      );
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalText || "حذف";
+      }
+    }
+    return true;
+  }
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const button = event.target?.closest?.("#confirmDeleteBtn");
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      runVerifiedEmployeeDelete();
+    },
+    true,
+  );
 })();
