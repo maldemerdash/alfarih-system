@@ -65522,6 +65522,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   let lastAppliedCloudStamp = "";
   let cloudRefreshInFlight = null;
+  let lastAppliedCloudDigest = "";
 
   function cloudStateStamp(row, state) {
     return [
@@ -65535,10 +65536,140 @@ window.nawahLeaveBalanceReportV185 = {
     ].join("|");
   }
 
+  function listDigest(list, fields) {
+    return (Array.isArray(list) ? list : [])
+      .map(function (item) {
+        return fields
+          .map(function (field) {
+            return text(item && item[field]);
+          })
+          .join(":");
+      })
+      .join("~");
+  }
+
+  function readLocalArray(key) {
+    const value = parseJson(localStorage.getItem(key), []);
+    return Array.isArray(value) ? value : [];
+  }
+
+  function stateDigest(state) {
+    if (!state || typeof state !== "object") return "";
+    const local =
+      state.localStorageStateV221 && typeof state.localStorageStateV221 === "object"
+        ? state.localStorageStateV221
+        : {};
+    return [
+      listDigest(state.employees, [
+        "id",
+        "employeeNumber",
+        "name",
+        "status",
+        "updatedAt",
+        "photoAttachmentId",
+      ]),
+      listDigest(state.leaves, [
+        "id",
+        "employeeId",
+        "status",
+        "startDate",
+        "returnDate",
+        "updatedAt",
+      ]),
+      listDigest(state.attendanceExceptions, [
+        "id",
+        "employeeId",
+        "date",
+        "type",
+        "updatedAt",
+      ]),
+      listDigest(state.travelRequests || local["nawah-travel-requests"], [
+        "id",
+        "employeeId",
+        "status",
+        "travelDate",
+        "returnDate",
+        "resumeDate",
+        "updatedAt",
+      ]),
+      listDigest(
+        state.deletedEmployeesV222,
+        ["id", "deletedAt"],
+      ),
+    ].join("||");
+  }
+
+  function currentCloudDigest() {
+    return stateDigest({
+      employees,
+      leaves,
+      attendanceExceptions,
+      travelRequests: readLocalArray("nawah-travel-requests"),
+      deletedEmployeesV222: readTombstones(),
+    });
+  }
+
+  function activeViewId() {
+    return document.querySelector(".view.active")?.id || "";
+  }
+
+  function renderActiveCloudChange(employeeDataChanged) {
+    try {
+      const count = document.querySelector("#sidebarEmployeeCount");
+      if (count && typeof arabicNumber === "function")
+        count.textContent = arabicNumber(Array.isArray(employees) ? employees.length : 0);
+    } catch (_) {}
+    try {
+      if (employeeDataChanged && typeof populateFormOptions === "function")
+        populateFormOptions();
+    } catch (_) {}
+    const view = activeViewId();
+    try {
+      if (view === "dashboardView" && typeof renderDashboard === "function")
+        renderDashboard();
+      else if (view === "employeesView" && typeof renderEmployees === "function")
+        renderEmployees();
+      else if (view === "attendanceView" && typeof renderAttendance === "function")
+        renderAttendance();
+      else if (view === "leavesView" && typeof renderLeaves === "function")
+        renderLeaves();
+      else if (view === "payrollView" && typeof renderPayroll === "function")
+        renderPayroll();
+      else if (view === "advancesView" && typeof renderAdvancesPage === "function")
+        renderAdvancesPage();
+      else if (view === "settingsView" && typeof renderSettings === "function")
+        renderSettings();
+      else if (view === "usersView" && typeof renderUsersManagement === "function")
+        renderUsersManagement();
+    } catch (error) {
+      console.warn("v222: تعذر تحديث القسم الحالي بعد مزامنة السحابة.", error);
+    }
+    try {
+      const root = document.querySelector(".view.active") || document;
+      if (typeof hydrateIcons === "function") hydrateIcons(root);
+      if (typeof hydrateAttachmentImages === "function") hydrateAttachmentImages(root);
+    } catch (_) {}
+  }
+
   function applyAuthoritativeCloudState(state, stamp) {
     if (!state || typeof state !== "object" || !Array.isArray(state.employees))
       return false;
     const filtered = filterDeletedEmployeesFromState(state);
+    const nextDigest = stateDigest(filtered);
+    const currentDigest = currentCloudDigest();
+    if (nextDigest && nextDigest === currentDigest) {
+      if (stamp) lastAppliedCloudStamp = stamp;
+      lastAppliedCloudDigest = nextDigest;
+      return true;
+    }
+    const previousEmployeeDigest = listDigest(employees, [
+      "id",
+      "employeeNumber",
+      "name",
+      "status",
+      "updatedAt",
+      "photoAttachmentId",
+    ]);
     try {
       if (typeof applyCloudState === "function") applyCloudState(filtered);
       else setEmployees(filtered.employees);
@@ -65562,12 +65693,18 @@ window.nawahLeaveBalanceReportV185 = {
       cloudSaveAllowed = true;
     } catch (_) {}
     if (stamp) lastAppliedCloudStamp = stamp;
-    try {
-      if (typeof renderAll === "function") renderAll();
-    } catch (_) {}
-    try {
-      if (typeof hydrateIcons === "function") hydrateIcons(document);
-    } catch (_) {}
+    lastAppliedCloudDigest = nextDigest;
+    const employeeDataChanged =
+      previousEmployeeDigest !==
+      listDigest(employees, [
+        "id",
+        "employeeNumber",
+        "name",
+        "status",
+        "updatedAt",
+        "photoAttachmentId",
+      ]);
+    renderActiveCloudChange(employeeDataChanged);
     return true;
   }
 
@@ -65586,7 +65723,12 @@ window.nawahLeaveBalanceReportV185 = {
         const state = response.data?.setting_value;
         if (!state || !Array.isArray(state.employees)) return false;
         const stamp = cloudStateStamp(response.data, state);
-        if (!force && stamp && stamp === lastAppliedCloudStamp) return true;
+        if (stamp && stamp === lastAppliedCloudStamp) return true;
+        const nextDigest = stateDigest(filterDeletedEmployeesFromState(state));
+        if (nextDigest && nextDigest === lastAppliedCloudDigest) {
+          if (stamp) lastAppliedCloudStamp = stamp;
+          return true;
+        }
         return applyAuthoritativeCloudState(state, stamp);
       } catch (error) {
         console.warn("v222: تعذر مزامنة حالة الموظفين من Supabase.", error);
@@ -65640,4 +65782,117 @@ window.nawahLeaveBalanceReportV185 = {
 
   window.nawahRefreshCloudStateNow = refreshCloudState;
   setTimeout(startCloudStateSync, 1200);
+})();
+
+/* v224 - skip unchanged dashboard paints to remove card flicker */
+(function v224StableDashboardPaint() {
+  if (window.__v224StableDashboardPaint) return;
+  window.__v224StableDashboardPaint = true;
+
+  const previousRenderDashboard =
+    typeof window.renderDashboard === "function"
+      ? window.renderDashboard
+      : typeof renderDashboard === "function"
+        ? renderDashboard
+        : null;
+  if (!previousRenderDashboard || previousRenderDashboard.__v224StableDashboardPaint)
+    return;
+
+  let lastDashboardDigest = "";
+
+  function readJsonArray(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(value) ? value : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function itemDigest(list, fields) {
+    return (Array.isArray(list) ? list : [])
+      .map(function (item) {
+        return fields
+          .map(function (field) {
+            return String((item && item[field]) || "");
+          })
+          .join(":");
+      })
+      .join("~");
+  }
+
+  function dashboardDigest() {
+    const today =
+      typeof formatInputDate === "function" && typeof todayAtNoon === "function"
+        ? formatInputDate(todayAtNoon())
+        : new Date().toISOString().slice(0, 10);
+    return [
+      today,
+      itemDigest(employees, [
+        "id",
+        "employeeNumber",
+        "name",
+        "status",
+        "department",
+        "role",
+        "updatedAt",
+      ]),
+      itemDigest(leaves, [
+        "id",
+        "employeeId",
+        "status",
+        "type",
+        "startDate",
+        "returnDate",
+        "updatedAt",
+      ]),
+      itemDigest(readJsonArray("nawah-travel-requests"), [
+        "id",
+        "employeeId",
+        "status",
+        "travelDate",
+        "returnDate",
+        "resumeDate",
+        "updatedAt",
+      ]),
+      itemDigest(readJsonArray("nawah-establishment-documents"), [
+        "id",
+        "endDate",
+        "approvedEndDate",
+        "updatedAt",
+      ]),
+      itemDigest(readJsonArray("nawah-payroll-advances"), [
+        "id",
+        "employeeId",
+        "amount",
+        "paidAmount",
+        "remainingAmount",
+        "updatedAt",
+      ]),
+    ].join("||");
+  }
+
+  function dashboardDomReady() {
+    return Boolean(
+      document.querySelector("#dashboardView.active") &&
+        document.querySelector("#totalEmployees") &&
+        document.querySelector("#monthlyPayroll") &&
+        document.querySelector("#leavePreviewList"),
+    );
+  }
+
+  const stableRenderDashboard = function stableRenderDashboard() {
+    const digest = dashboardDigest();
+    if (dashboardDomReady() && digest && digest === lastDashboardDigest)
+      return;
+    const result = previousRenderDashboard.apply(this, arguments);
+    lastDashboardDigest = dashboardDigest();
+    return result;
+  };
+  stableRenderDashboard.__v224StableDashboardPaint = true;
+
+  try {
+    renderDashboard = stableRenderDashboard;
+  } catch (_) {}
+  window.renderDashboard = stableRenderDashboard;
 })();
