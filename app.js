@@ -17960,15 +17960,11 @@ async function init() {
       renderLeaves = h;
     } catch (e) {}
     ((window.renderLeaves = h), (window.renderLeaveTravelPage = h));
-    function runLegacyLeaveTravelRender() {
-      if (window.__v78CleanLeavesTravelInterface) return;
-      h();
-    }
     const b = "function" == typeof switchView ? switchView : null;
     if (b && !b.__finalClickableLeaveTabs) {
       const e = function (e) {
         const t = b.apply(this, arguments);
-        return ("leaves" === e && setTimeout(runLegacyLeaveTravelRender, 0), t);
+        return ("leaves" === e && setTimeout(h, 0), t);
       };
       e.__finalClickableLeaveTabs = !0;
       try {
@@ -17978,9 +17974,9 @@ async function init() {
     }
     "loading" === document.readyState
       ? document.addEventListener("DOMContentLoaded", function () {
-          setTimeout(runLegacyLeaveTravelRender, 120);
+          setTimeout(h, 120);
         })
-      : setTimeout(runLegacyLeaveTravelRender, 120);
+      : setTimeout(h, 120);
   })(),
   (function () {
     const e = "nawah-travel-requests";
@@ -30899,724 +30895,6 @@ async function init() {
   }, 250);
 })();
 
-/* v221 - unified cloud persistence guard and legacy attachment migration */
-(function v221CloudPersistenceIntegrity() {
-  if (window.__v221CloudPersistenceIntegrity) return;
-  window.__v221CloudPersistenceIntegrity = true;
-
-  const VERSION = "v221";
-  const CLOUD_KEY =
-    typeof CLOUD_STATE_KEY !== "undefined" && CLOUD_STATE_KEY
-      ? CLOUD_STATE_KEY
-      : "app_state";
-  const IMPORTANT_LOCAL_KEYS = [
-    "nawah-employees",
-    "nawah-leaves",
-    "nawah-travel-requests",
-    "nawah-attendance-exceptions",
-    "nawah-work-settings",
-    "nawah-absence-policy-settings",
-    "nawah-minute-template-settings",
-    "nawah-job-titles",
-    "nawah-org-structure",
-    "nawah-payroll-advances",
-    "nawah-payroll-runs",
-    "nawah-payroll-prepaid-deductions",
-    "nawah-finance-settings",
-    "nawah-finance-daily-open",
-    "nawah-finance-daily-days",
-    "nawah-managers",
-    "nawah-leave-balance-reservations",
-    "nawah-company-settings-v92",
-    "nawah-document-type-settings",
-    "nawah-establishment-documents",
-    "nawah-branches",
-    "nawah-private-alerts-v166",
-    "nawah-attachment-records-v165",
-    "nawah-v136-notification-settings",
-    "nawah-v136-org-settings",
-  ];
-  const IMPORTANT_KEY_SET = new Set(IMPORTANT_LOCAL_KEYS);
-  const IMPORTANT_PREFIXES = [
-    "nawah-finance-daily-",
-    "nawah-finance-settings-",
-  ];
-  const EXCLUDED_PREFIX_KEYS = new Set([
-    "nawah-finance-empty-reset-version",
-    "nawah-finance-hard-empty-reset-version",
-    "nawah-finance-clean-start-reset-version",
-  ]);
-  const DATA_FIELD_MAP = {
-    legacyPhoto: { idKey: "photoAttachmentId", category: "employee-photo" },
-    logoDataUrl: { idKey: "logoAttachmentId", category: "company-logo" },
-    loginBackgroundDataUrl: {
-      idKey: "loginBackgroundAttachmentId",
-      category: "company-login-background",
-    },
-    nationalAddressFileDataUrl: {
-      idKey: "nationalAddressAttachmentId",
-      category: "company-national-address",
-    },
-    siteFaviconDataUrl: {
-      idKey: "siteFaviconAttachmentId",
-      category: "company-favicon",
-    },
-    stampDataUrl: { idKey: "stampAttachmentId", category: "company-stamp" },
-  };
-
-  let applyingCloudSnapshot = false;
-  let cloudSaveTimerV221 = null;
-  let saveInFlight = null;
-  let migrationInFlight = null;
-  let lastWarningAt = 0;
-
-  function text(value) {
-    return String(value == null ? "" : value).trim();
-  }
-
-  function nowIso() {
-    return new Date().toISOString();
-  }
-
-  function toast(message) {
-    try {
-      if (typeof showToast === "function") showToast(message);
-      else console.warn(message);
-    } catch (_) {
-      console.warn(message);
-    }
-  }
-
-  function warnOnce(message) {
-    const now = Date.now();
-    if (now - lastWarningAt < 90000) return;
-    lastWarningAt = now;
-    toast(message);
-  }
-
-  function isImportantKey(key) {
-    const value = text(key);
-    if (!value || EXCLUDED_PREFIX_KEYS.has(value)) return false;
-    return (
-      IMPORTANT_KEY_SET.has(value) ||
-      IMPORTANT_PREFIXES.some((prefix) => value.startsWith(prefix))
-    );
-  }
-
-  function parseJson(raw, fallback) {
-    try {
-      if (raw == null || raw === "") return fallback;
-      return JSON.parse(raw);
-    } catch (_) {
-      return fallback;
-    }
-  }
-
-  function cloneJson(value) {
-    try {
-      return JSON.parse(JSON.stringify(value));
-    } catch (_) {
-      return value;
-    }
-  }
-
-  function isDataUrl(value) {
-    return /^data:[^,]+,/i.test(text(value));
-  }
-
-  function isLegacyLocalAttachmentId(value) {
-    return /^attachment-/i.test(text(value));
-  }
-
-  function sanitizeForCloud(value) {
-    if (!value || typeof value !== "object") return value;
-    const copy = Array.isArray(value) ? value.map(sanitizeForCloud) : {};
-    if (!Array.isArray(value)) {
-      Object.keys(value).forEach((key) => {
-        const next = value[key];
-        if (
-          typeof next === "string" &&
-          isDataUrl(next) &&
-          /dataurl|attachmentdata|legacyphoto/i.test(key)
-        ) {
-          copy[key] = "";
-          return;
-        }
-        if (key === "blob") return;
-        copy[key] = sanitizeForCloud(next);
-      });
-    }
-    return copy;
-  }
-
-  function localKeysToPersist() {
-    const keys = new Set(IMPORTANT_LOCAL_KEYS);
-    try {
-      for (let index = 0; index < localStorage.length; index += 1) {
-        const key = localStorage.key(index);
-        if (isImportantKey(key)) keys.add(key);
-      }
-    } catch (_) {}
-    return Array.from(keys);
-  }
-
-  function readLocalSnapshot() {
-    const snapshot = {};
-    localKeysToPersist().forEach((key) => {
-      try {
-        const raw = localStorage.getItem(key);
-        if (raw == null) return;
-        snapshot[key] = sanitizeForCloud(parseJson(raw, raw));
-      } catch (_) {}
-    });
-    return snapshot;
-  }
-
-  function readRawLocalSnapshot() {
-    const snapshot = {};
-    localKeysToPersist().forEach((key) => {
-      try {
-        const raw = localStorage.getItem(key);
-        if (raw == null) return;
-        snapshot[key] = parseJson(raw, raw);
-      } catch (_) {}
-    });
-    return snapshot;
-  }
-
-  function writeLocalSnapshot(snapshot) {
-    if (!snapshot || typeof snapshot !== "object") return;
-    applyingCloudSnapshot = true;
-    try {
-      Object.keys(snapshot).forEach((key) => {
-        if (!isImportantKey(key)) return;
-        try {
-          localStorage.setItem(key, JSON.stringify(snapshot[key]));
-        } catch (_) {}
-      });
-    } finally {
-      applyingCloudSnapshot = false;
-    }
-  }
-
-  function ensureSupabaseClient() {
-    try {
-      if (
-        (!supabaseClient || !supabaseClient.from) &&
-        typeof initSupabaseClient === "function"
-      ) {
-        initSupabaseClient();
-      }
-    } catch (_) {}
-    return typeof supabaseClient !== "undefined" && supabaseClient
-      ? supabaseClient
-      : null;
-  }
-
-  function hasActiveAppSession() {
-    try {
-      if (document.body?.classList?.contains("auth-locked")) return false;
-      const gate = document.getElementById("authGate");
-      if (gate && !gate.hidden && !gate.classList.contains("hidden")) return false;
-      if (typeof authUser !== "undefined" && authUser) {
-        if (typeof authProfile !== "undefined" && authProfile)
-          return authProfile.is_active !== false;
-      }
-    } catch (_) {}
-    return true;
-  }
-
-  function stateEmployeeCount(state) {
-    try {
-      return Array.isArray(state?.employees) ? state.employees.length : 0;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  async function readRemoteState() {
-    const client = ensureSupabaseClient();
-    if (!client || !client.from) {
-      return { ok: false, found: false, state: null, updatedAt: "", error: null };
-    }
-    try {
-      const { data, error } = await client
-        .from("app_settings")
-        .select("setting_value,updated_at")
-        .eq("setting_key", CLOUD_KEY)
-        .maybeSingle();
-      if (error) throw error;
-      return {
-        ok: true,
-        found: Boolean(data),
-        state: data?.setting_value || null,
-        updatedAt: data?.updated_at || "",
-        error: null,
-      };
-    } catch (error) {
-      return { ok: false, found: false, state: null, updatedAt: "", error };
-    }
-  }
-
-  function dataUrlToFile(dataUrl, fallbackName) {
-    const match = text(dataUrl).match(/^data:([^;,]+)?(;base64)?,(.*)$/);
-    if (!match) return null;
-    const mime = match[1] || "application/octet-stream";
-    const encoded = match[3] || "";
-    const binary = match[2] ? atob(encoded) : decodeURIComponent(encoded);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1)
-      bytes[index] = binary.charCodeAt(index);
-    const name =
-      text(fallbackName) ||
-      "attachment-" + Date.now() + (mime.includes("png") ? ".png" : "");
-    if (typeof File === "function") return new File([bytes], name, { type: mime });
-    return new Blob([bytes], { type: mime });
-  }
-
-  async function uploadFileStrict(file, category) {
-    if (!file) return "";
-    if (!hasActiveAppSession())
-      throw new Error("لا توجد جلسة دخول فعالة لحفظ المرفق في السحابة.");
-    const client = ensureSupabaseClient();
-    if (!client || !client.storage)
-      throw new Error("Supabase غير جاهز لحفظ المرفق.");
-    if (typeof saveAttachment !== "function")
-      throw new Error("دالة حفظ المرفقات غير جاهزة.");
-    const id = await saveAttachment(file, category || "attachment");
-    if (!id || isLegacyLocalAttachmentId(id))
-      throw new Error("تم إرجاع مرفق محلي، وهذا غير مسموح في الحفظ الحقيقي.");
-    return id;
-  }
-
-  async function migrateLegacyAttachmentId(id, stats, cache, category) {
-    const key = text(id);
-    if (!isLegacyLocalAttachmentId(key)) return key;
-    if (cache.has(key)) return cache.get(key);
-    if (typeof getAttachment !== "function") {
-      cache.set(key, key);
-      return key;
-    }
-    try {
-      const record = await getAttachment(key);
-      const blob = record?.blob || record?.file || null;
-      if (!blob) {
-        stats.unmigratedLegacyIds += 1;
-        cache.set(key, key);
-        return key;
-      }
-      const name = record?.name || record?.file_name || "legacy-attachment";
-      const file =
-        typeof File === "function" && blob instanceof File
-          ? blob
-          : typeof File === "function"
-            ? new File([blob], name, {
-                type:
-                  record?.type ||
-                  record?.file_type ||
-                  blob.type ||
-                  "application/octet-stream",
-              })
-            : blob;
-      const newId = await uploadFileStrict(
-        file,
-        category || record?.category || record?.related_table || "legacy-attachment",
-      );
-      cache.set(key, newId);
-      stats.legacyIdsMigrated += 1;
-      return newId;
-    } catch (error) {
-      stats.unmigratedLegacyIds += 1;
-      stats.errors.push(error.message || String(error));
-      cache.set(key, key);
-      return key;
-    }
-  }
-
-  async function migrateNode(node, stats, cache, path, parentKey) {
-    if (!node || typeof node !== "object") return node;
-    if (Array.isArray(node)) {
-      for (let index = 0; index < node.length; index += 1)
-        node[index] = await migrateNode(
-          node[index],
-          stats,
-          cache,
-          path + "[" + index + "]",
-          parentKey,
-        );
-      return node;
-    }
-
-    if (isDataUrl(node.attachmentData)) {
-      try {
-        const file = dataUrlToFile(
-          node.attachmentData,
-          node.attachmentName || node.fileName || "attachment",
-        );
-        node.attachmentId = await uploadFileStrict(
-          file,
-          parentKey || "attachment",
-        );
-        node.attachmentName = node.attachmentName || node.fileName || "مرفق";
-        node.attachmentData = "";
-        stats.dataUrlsMigrated += 1;
-      } catch (error) {
-        stats.unmigratedDataUrls += 1;
-        stats.errors.push(error.message || String(error));
-      }
-    }
-
-    for (const field of Object.keys(DATA_FIELD_MAP)) {
-      if (!isDataUrl(node[field])) continue;
-      const rule = DATA_FIELD_MAP[field];
-      try {
-        const file = dataUrlToFile(node[field], field + ".bin");
-        node[rule.idKey] = await uploadFileStrict(file, rule.category);
-        node[field] = "";
-        stats.dataUrlsMigrated += 1;
-      } catch (error) {
-        stats.unmigratedDataUrls += 1;
-        stats.errors.push(error.message || String(error));
-      }
-    }
-
-    for (const key of Object.keys(node)) {
-      const value = node[key];
-      if (typeof value === "string" && isLegacyLocalAttachmentId(value)) {
-        node[key] = await migrateLegacyAttachmentId(value, stats, cache, key);
-        continue;
-      }
-      if (value && typeof value === "object")
-        node[key] = await migrateNode(value, stats, cache, path + "." + key, key);
-    }
-    return node;
-  }
-
-  async function syncEmployeesAfterMigration() {
-    try {
-      if (!Array.isArray(employees) || !employees.length) return;
-      localStorage.setItem("nawah-employees", JSON.stringify(employees));
-      if (typeof dbSaveEmployee === "function")
-        await Promise.all(
-          employees.map((employee) => {
-            try {
-              const result = dbSaveEmployee(employee);
-              return result && typeof result.catch === "function"
-                ? result.catch(() => {})
-                : result;
-            } catch (_) {
-              return null;
-            }
-          }),
-        );
-    } catch (_) {}
-  }
-
-  async function migrateImportantLocalState() {
-    if (migrationInFlight) return migrationInFlight;
-    migrationInFlight = (async function () {
-      const stats = {
-        version: VERSION,
-        startedAt: nowIso(),
-        finishedAt: "",
-        dataUrlsMigrated: 0,
-        legacyIdsMigrated: 0,
-        unmigratedDataUrls: 0,
-        unmigratedLegacyIds: 0,
-        errors: [],
-      };
-      const cache = new Map();
-
-      try {
-        if (Array.isArray(employees) && employees.length) {
-          await migrateNode(employees, stats, cache, "employees", "employee");
-          await syncEmployeesAfterMigration();
-        }
-      } catch (error) {
-        stats.errors.push(error.message || String(error));
-      }
-
-      for (const key of localKeysToPersist()) {
-        try {
-          const raw = localStorage.getItem(key);
-          if (raw == null || !/[{[]/.test(raw.slice(0, 1))) continue;
-          const value = parseJson(raw, null);
-          if (!value || typeof value !== "object") continue;
-          await migrateNode(value, stats, cache, key, key);
-          localStorage.setItem(key, JSON.stringify(value));
-        } catch (error) {
-          stats.errors.push(key + ": " + (error.message || String(error)));
-        }
-      }
-
-      stats.finishedAt = nowIso();
-      window.__nawahV221LastMigration = stats;
-      if (stats.unmigratedDataUrls || stats.unmigratedLegacyIds) {
-        warnOnce(
-          "تم العثور على مرفقات محلية قديمة لم تترحل للسحابة. افتح أداة فحص الحفظ لمعرفة التفاصيل.",
-        );
-      }
-      return stats;
-    })().finally(function () {
-      migrationInFlight = null;
-    });
-    return migrationInFlight;
-  }
-
-  function scanNode(node, path, issues, max) {
-    if (!node || issues.length >= max) return;
-    if (typeof node === "string") {
-      if (isLegacyLocalAttachmentId(node))
-        issues.push({ type: "legacy-local-attachment", path, value: node });
-      else if (isDataUrl(node))
-        issues.push({ type: "embedded-data-url", path, value: node.slice(0, 48) });
-      return;
-    }
-    if (typeof node !== "object") return;
-    if (Array.isArray(node)) {
-      node.forEach((item, index) => scanNode(item, path + "[" + index + "]", issues, max));
-      return;
-    }
-    Object.keys(node).forEach((key) =>
-      scanNode(node[key], path ? path + "." + key : key, issues, max),
-    );
-  }
-
-  function persistenceIssues(max) {
-    const issues = [];
-    try {
-      if (typeof buildCloudState === "function")
-        scanNode(buildCloudState(), "cloudState", issues, max || 120);
-    } catch (_) {}
-    try {
-      scanNode(readRawLocalSnapshot(), "localStorageState", issues, max || 120);
-    } catch (_) {}
-    return issues;
-  }
-
-  const previousBuildCloudState =
-    typeof buildCloudState === "function" ? buildCloudState : null;
-  if (previousBuildCloudState && !previousBuildCloudState.__v221CompleteState) {
-    const wrappedBuildCloudState = function wrappedBuildCloudState() {
-      const state = previousBuildCloudState.apply(this, arguments) || {};
-      state.persistenceVersion = VERSION;
-      state.persistenceSavedAt = nowIso();
-      state.localStorageStateV221 = readLocalSnapshot();
-      return sanitizeForCloud(state);
-    };
-    wrappedBuildCloudState.__v221CompleteState = true;
-    try {
-      buildCloudState = wrappedBuildCloudState;
-    } catch (_) {}
-    window.buildCloudState = wrappedBuildCloudState;
-  }
-
-  const previousApplyCloudState =
-    typeof applyCloudState === "function" ? applyCloudState : null;
-  if (previousApplyCloudState && !previousApplyCloudState.__v221CompleteState) {
-    const wrappedApplyCloudState = function wrappedApplyCloudState(state) {
-      const result = previousApplyCloudState.apply(this, arguments);
-      if (state?.localStorageStateV221) writeLocalSnapshot(state.localStorageStateV221);
-      return result;
-    };
-    wrappedApplyCloudState.__v221CompleteState = true;
-    try {
-      applyCloudState = wrappedApplyCloudState;
-    } catch (_) {}
-    window.applyCloudState = wrappedApplyCloudState;
-  }
-
-  const previousSaveAttachment =
-    typeof saveAttachment === "function" ? saveAttachment : null;
-  if (previousSaveAttachment && !previousSaveAttachment.__v221StrictCloudOnly) {
-    const strictSaveAttachment = async function strictSaveAttachment(file, category) {
-      if (!hasActiveAppSession())
-        throw new Error("لا يمكن حفظ المرفق قبل تسجيل الدخول.");
-      const client = ensureSupabaseClient();
-      if (!client || !client.storage)
-        throw new Error("اتصال Supabase غير جاهز، لن يتم حفظ المرفق محليا.");
-      const id = await previousSaveAttachment.apply(this, arguments);
-      if (!id || isLegacyLocalAttachmentId(id))
-        throw new Error("فشل الحفظ السحابي للمرفق، ولم يتم قبول الحفظ المحلي.");
-      return id;
-    };
-    strictSaveAttachment.__v221StrictCloudOnly = true;
-    try {
-      saveAttachment = strictSaveAttachment;
-    } catch (_) {}
-    window.saveAttachment = strictSaveAttachment;
-  }
-
-  async function directCloudSave(options) {
-    const opts = options || {};
-    if (saveInFlight) return saveInFlight;
-    saveInFlight = (async function () {
-      if (!hasActiveAppSession()) return false;
-      const client = ensureSupabaseClient();
-      if (!client || !client.from) {
-        warnOnce("تعذر الوصول إلى Supabase؛ البيانات بقيت محلية ولم يتم اعتماد حفظها كسحابة.");
-        return false;
-      }
-      try {
-        cloudLoadAttempted = true;
-        if (opts.force) cloudSaveAllowed = true;
-      } catch (_) {}
-      if (!opts.force && typeof cloudSaveAllowed !== "undefined" && !cloudSaveAllowed)
-        return false;
-
-      const migrationStats = await migrateImportantLocalState();
-      if (migrationStats.unmigratedDataUrls || migrationStats.unmigratedLegacyIds) {
-        warnOnce(
-          "يوجد مرفقات محلية قديمة تحتاج ترحيل، لكن لن يتم منع حفظ بيانات الموظفين والحذف في قاعدة البيانات.",
-        );
-      }
-      const state =
-        typeof buildCloudState === "function"
-          ? buildCloudState()
-          : { version: 1, savedAt: nowIso() };
-
-      const { error } = await client.from("app_settings").upsert(
-        {
-          setting_key: CLOUD_KEY,
-          setting_value: state,
-          updated_at: nowIso(),
-        },
-        { onConflict: "setting_key" },
-      );
-      if (error) throw error;
-      try {
-        cloudReady = true;
-        cloudSaveAllowed = true;
-      } catch (_) {}
-      const issues = persistenceIssues(60);
-      if (issues.length) {
-        warnOnce("تم الحفظ، مع وجود مرفقات محلية قديمة تحتاج ترحيل يدوي من أداة الفحص.");
-      }
-      window.__nawahV221LastCloudSave = {
-        ok: true,
-        savedAt: nowIso(),
-        issues: issues.length,
-      };
-      return true;
-    })()
-      .catch(function (error) {
-        window.__nawahV221LastCloudSave = {
-          ok: false,
-          savedAt: nowIso(),
-          error: error.message || String(error),
-        };
-        console.warn("v221: فشل حفظ الحالة في Supabase.", error);
-        warnOnce("تعذر حفظ آخر تعديل في قاعدة البيانات. لم يتم اعتباره حفظا عالميا.");
-        return false;
-      })
-      .finally(function () {
-        saveInFlight = null;
-      });
-    return saveInFlight;
-  }
-
-  function queuedCloudSave() {
-    if (applyingCloudSnapshot || migrationInFlight) return false;
-    if (!hasActiveAppSession()) return false;
-    clearTimeout(cloudSaveTimerV221);
-    cloudSaveTimerV221 = setTimeout(function () {
-      directCloudSave({ reason: "queued-v221" });
-    }, 700);
-    return true;
-  }
-
-  const previousSaveCloudStateNow =
-    typeof saveCloudStateNow === "function" ? saveCloudStateNow : null;
-  if (previousSaveCloudStateNow && !previousSaveCloudStateNow.__v221DirectCloud) {
-    const wrappedSaveCloudStateNow = function wrappedSaveCloudStateNow(options) {
-      return directCloudSave(options || {});
-    };
-    wrappedSaveCloudStateNow.__v221DirectCloud = true;
-    try {
-      saveCloudStateNow = wrappedSaveCloudStateNow;
-    } catch (_) {}
-    window.saveCloudStateNow = wrappedSaveCloudStateNow;
-  }
-
-  const previousQueueCloudStateSave =
-    typeof queueCloudStateSave === "function" ? queueCloudStateSave : null;
-  if (previousQueueCloudStateSave && !previousQueueCloudStateSave.__v221DirectCloud) {
-    const wrappedQueueCloudStateSave = function wrappedQueueCloudStateSave() {
-      return queuedCloudSave();
-    };
-    wrappedQueueCloudStateSave.__v221DirectCloud = true;
-    try {
-      queueCloudStateSave = wrappedQueueCloudStateSave;
-    } catch (_) {}
-    window.queueCloudStateSave = wrappedQueueCloudStateSave;
-  }
-
-  const previousSetItem = Storage.prototype.setItem;
-  if (!previousSetItem.__v221CloudPersistence) {
-    const wrappedSetItem = function wrappedSetItem(key, value) {
-      const result = previousSetItem.apply(this, arguments);
-      try {
-        if (this === window.localStorage && isImportantKey(key) && !applyingCloudSnapshot)
-          queuedCloudSave();
-      } catch (_) {}
-      return result;
-    };
-    wrappedSetItem.__v221CloudPersistence = true;
-    Storage.prototype.setItem = wrappedSetItem;
-  }
-
-  window.nawahPersistence = {
-    version: VERSION,
-    audit: async function auditPersistence() {
-      const remote = await readRemoteState();
-      const issues = persistenceIssues(200);
-      const attachmentRows = await (async function () {
-        const client = ensureSupabaseClient();
-        if (!client || !client.from) return null;
-        try {
-          const { count, error } = await client
-            .from("attachments")
-            .select("id", { count: "exact", head: true });
-          if (error) throw error;
-          return count;
-        } catch (_) {
-          return null;
-        }
-      })();
-      return {
-        version: VERSION,
-        cloudReady: Boolean(ensureSupabaseClient()),
-        appStateReadable: remote.ok,
-        appStateFound: remote.found,
-        appStateUpdatedAt: remote.updatedAt,
-        attachmentRows,
-        importantLocalKeys: localKeysToPersist(),
-        localOnlyAttachmentIssues: issues,
-        lastMigration: window.__nawahV221LastMigration || null,
-        lastCloudSave: window.__nawahV221LastCloudSave || null,
-      };
-    },
-    migrate: async function migrateAndSave() {
-      const stats = await migrateImportantLocalState();
-      await directCloudSave({ force: true, allowEmptyOverwrite: true });
-      return stats;
-    },
-    forceSave: function forceSave() {
-      return directCloudSave({ force: true, allowEmptyOverwrite: true });
-    },
-  };
-  window.nawahPersistenceAudit = window.nawahPersistence.audit;
-  window.nawahMigrateLocalAttachmentsToCloud = window.nawahPersistence.migrate;
-  window.nawahForceSaveCloudState = window.nawahPersistence.forceSave;
-
-  window.addEventListener("online", function () {
-    queuedCloudSave();
-  });
-  document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible") queuedCloudSave();
-  });
-})();
-
 /* v211 - structured employee end-of-service workflow */
 (function () {
   if (window.__endServiceWizardV211) return;
@@ -33090,6 +32368,18 @@ async function init() {
       const state =
         typeof buildCloudState === "function" ? buildCloudState() : null;
       if (!state || typeof state !== "object") return;
+      const nextCount = empCount(state);
+      if (nextCount === 0 && !allowEmptyOverwrite) {
+        const current = await readCloudStateDirect();
+        const currentCount = empCount(current && current.state);
+        if (current.ok && current.found && currentCount > 0) {
+          console.warn(
+            "v65: تم منع حفظ حالة فارغة فوق بيانات موظفين موجودة في Supabase.",
+          );
+          toast("تم منع حفظ حالة فارغة فوق بيانات محفوظة في السحابة");
+          return;
+        }
+      }
       await upsertCloudStateDirect(state);
       cloudSaveAllowed = true;
       cloudLoadAttempted = true;
@@ -34822,8 +34112,6 @@ async function init() {
 	  var leaveFilter = "all";
 	  var leaveYearScope = "year";
   var drawing = false;
-  var renderTimer = 0;
-  var lastRenderSignature = "";
   var pendingTravelModalId = "";
 
   function q(s, r) {
@@ -35409,71 +34697,13 @@ async function init() {
 	      return String(r.travelDate || r.from || r.startDate || "").slice(0, 4) === year;
 	    });
 	  }
-  function filterLeavesByYearScope(list) {
+	  function filterLeavesByYearScope(list) {
 	    if (leaveYearScope === "all") return list;
 	    var year = currentYear();
 	    return list.filter(function (r) {
 	      return String(r.from || r.startDate || r.createdAt || "").slice(0, 4) === year;
 	    });
 	  }
-  function rowSignature(row, fields) {
-    return fields
-      .map(function (field) {
-        return String((row && row[field]) || "");
-      })
-      .join("|");
-  }
-  function pageSignature(travels, leavesList) {
-    var employeeIds = {};
-    travels.concat(leavesList).forEach(function (row) {
-      if (row && row.employeeId) employeeIds[String(row.employeeId)] = true;
-    });
-    var employeeSig = Object.keys(employeeIds)
-      .sort()
-      .map(function (id) {
-        var emp = employee(id) || {};
-        return [id, emp.employeeNumber || "", emp.name || "", emp.status || ""].join(":");
-      })
-      .join("~");
-    return [
-      activeTab,
-      travelFilter,
-      travelYearScope,
-      leaveFilter,
-      leaveYearScope,
-      employeeSig,
-      travels
-        .map(function (row) {
-          return rowSignature(row, [
-            "id",
-            "employeeId",
-            "status",
-            "travelDate",
-            "returnDate",
-            "workResumeDate",
-            "ticketAttachmentId",
-            "visaAttachmentId",
-            "updatedAt",
-          ]);
-        })
-        .join("~"),
-      leavesList
-        .map(function (row) {
-          return rowSignature(row, [
-            "id",
-            "employeeId",
-            "status",
-            "type",
-            "from",
-            "to",
-            "days",
-            "returnDate",
-            "updatedAt",
-          ]);
-        })
-        .join("~"),
-    ].join("||");
-  }
   function render() {
     var view = q("#leavesView");
     if (!view || !view.classList.contains("active") || drawing) return;
@@ -35500,10 +34730,6 @@ async function init() {
 	          : scopedLeaves.filter(function (r) {
 	              return leaveCategory(r) === leaveFilter;
 	            });
-      var signature = pageSignature(travels, leaveArr);
-      if (signature === lastRenderSignature && view.querySelector(".v78-leave-page"))
-        return;
-      lastRenderSignature = signature;
       view.innerHTML =
         '<div class="v78-leave-page"><div class="v78-page-tabs"><button type="button" class="' +
         (activeTab === "travel" ? "active" : "") +
@@ -35542,8 +34768,7 @@ async function init() {
     }
   }
   function schedule(delay) {
-    clearTimeout(renderTimer);
-    renderTimer = setTimeout(
+    setTimeout(
       function () {
         try {
           render();
@@ -35551,7 +34776,7 @@ async function init() {
           console.warn("تعذر رسم صفحة السفر والإجازات v78", e);
         }
       },
-      delay == null ? 40 : delay,
+      delay == null ? 80 : delay,
     );
   }
   try {
@@ -35569,7 +34794,7 @@ async function init() {
     if (oldRenderAll && !oldRenderAll.__v78CleanLeavesTravelInterface) {
       var wrapped = function () {
         var r = oldRenderAll.apply(this, arguments);
-        schedule(0);
+        [0, 80, 220, 500].forEach(schedule);
         return r;
       };
       wrapped.__v78CleanLeavesTravelInterface = true;
@@ -35642,7 +34867,7 @@ async function init() {
       }
       if (t.id === "newTravelBtn") activeTab = "travel";
       if (t.id === "newLeaveBtn") activeTab = "leave";
-      schedule(0);
+      schedule(180);
     },
     false,
   );
@@ -35667,10 +34892,12 @@ async function init() {
   document.addEventListener("DOMContentLoaded", function () {
     ensureTravelApprovalModal();
     schedule(0);
+    schedule(600);
   });
   setTimeout(function () {
     ensureTravelApprovalModal();
     schedule(0);
+    schedule(500);
   }, 250);
 })();
 
@@ -52514,9 +51741,6 @@ async function init() {
   function hasEmployees(list) {
     return Array.isArray(list) && list.length > 0;
   }
-  function hasEmployeeList(state) {
-    return Boolean(state && typeof state === "object" && Array.isArray(state.employees));
-  }
   function stateEmployeeCount(state) {
     try {
       return Array.isArray(state && state.employees)
@@ -52561,40 +51785,14 @@ async function init() {
       ? supabaseClient
       : null;
   }
-  function syncEmployeeStoreToCloudList(list) {
-    const nextList = Array.isArray(list) ? list : [];
-    try {
-      localStorage.setItem("nawah-employees", JSON.stringify(nextList));
-    } catch (_) {}
-    try {
-      if (!db || typeof dbGetAllEmployees !== "function" || typeof dbStore !== "function" || typeof requestResult !== "function")
-        return;
-      dbGetAllEmployees()
-        .then(function (current) {
-          const nextIds = new Set(nextList.map(function (employee) { return String(employee && employee.id); }));
-          const deletes = (Array.isArray(current) ? current : [])
-            .filter(function (employee) { return !nextIds.has(String(employee && employee.id)); })
-            .map(function (employee) {
-              return requestResult(dbStore("employees", "readwrite").delete(employee.id));
-            });
-          const writes = nextList.map(function (employee) {
-            return requestResult(dbStore("employees", "readwrite").put(employee));
-          });
-          return Promise.all(deletes.concat(writes));
-        })
-        .catch(function (error) {
-          console.warn("v151: تعذر مطابقة IndexedDB مع حالة Supabase.", error);
-        });
-    } catch (_) {}
-  }
   function applyState(state) {
-    if (!hasEmployeeList(state))
+    if (!state || typeof state !== "object" || !hasEmployees(state.employees))
       return false;
     var before = hasEmployees(employees) ? employees.length : 0;
     try {
       if (typeof applyCloudState === "function") {
         var ok = applyCloudState(state);
-        if (ok === false)
+        if (ok === false && !hasEmployees(employees))
           employees = state.employees.map(function (emp, idx) {
             return typeof normalizeEmployee === "function"
               ? normalizeEmployee(emp, idx)
@@ -52618,9 +51816,9 @@ async function init() {
       console.warn(
         "v151: تعذر تطبيق حالة Supabase بالطريقة الأصلية، تم تطبيق الموظفين مباشرة.",
         e,
-        );
+      );
     }
-    syncEmployeeStoreToCloudList(employees);
+    if (!hasEmployees(employees)) return false;
     try {
       window.__nawahEmployeesReady = true;
     } catch (_) {}
@@ -52647,6 +51845,8 @@ async function init() {
     return true;
   }
   async function fetchCloudState() {
+    if (lastGoodState && stateEmployeeCount(lastGoodState) > 0)
+      return lastGoodState;
     var client = ensureSupabase();
     if (!client || !client.from) throw new Error("supabase-not-ready");
     var response = await client
@@ -52656,7 +51856,7 @@ async function init() {
       .maybeSingle();
     if (response.error) throw response.error;
     var state = response.data && response.data.setting_value;
-    if (hasEmployeeList(state))
+    if (state && typeof state === "object" && stateEmployeeCount(state) > 0)
       lastGoodState = state;
     return state || null;
   }
@@ -52703,6 +51903,19 @@ async function init() {
     typeof saveCloudStateNow === "function" ? saveCloudStateNow : null;
   if (originalSave && !originalSave.__v151ProtectEmptyEmployees) {
     var protectedSave = async function (options) {
+      try {
+        if (
+          !hasEmployees(employees) &&
+          lastGoodState &&
+          stateEmployeeCount(lastGoodState) > 0 &&
+          !(options && options.allowEmptyOverwrite)
+        ) {
+          console.warn(
+            "v151: منع حفظ حالة بلا موظفين فوق حالة سحابية تحتوي موظفين.",
+          );
+          return;
+        }
+      } catch (_) {}
       return originalSave.apply(this, arguments);
     };
     protectedSave.__v151ProtectEmptyEmployees = true;
@@ -52994,7 +52207,6 @@ async function init() {
       });
     renderForKey(key);
     setTimeout(function () {
-      if (window.__v155SettingsLogicLoader) return;
       renderForKey(key);
     }, 80);
   }
@@ -53011,17 +52223,13 @@ async function init() {
       "company";
     activate(active);
   }
-  function scheduleLegacyBind(delay) {
-    setTimeout(function () {
-      if (window.__v155SettingsLogicLoader) return;
-      bind();
-    }, delay);
-  }
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", function () {
-      scheduleLegacyBind(60);
+      setTimeout(bind, 60);
     });
-  else scheduleLegacyBind(60);
+  else setTimeout(bind, 60);
+  setTimeout(bind, 400);
+  setTimeout(bind, 1200);
 })();
 
 /* v155 - إصلاح تحميل منطق تبويبات الإعدادات وربط بياناتها بسرعة */
@@ -56106,10 +55314,6 @@ async function init() {
   const CLOUD_TOKEN_PREFIX = "cloud-file-v165::";
   const CLOUD_TOKEN_RE = /^cloud-file-v\d*::/;
   const indexMemory = new Map();
-  const missingStorageBuckets = new Set();
-  const storageUrlMemory = new Map();
-  const STORAGE_SIGNED_URL_TTL = 45 * 60 * 1000;
-  const STORAGE_MISS_TTL = 45 * 1000;
 
   function text(value) {
     return String(value ?? "").trim();
@@ -56450,137 +55654,6 @@ async function init() {
 
   const previousAttachmentUrl =
     typeof attachmentUrl === "function" ? attachmentUrl : null;
-
-  function parsePersistentStoragePath(storagePath) {
-    const clean = text(storagePath);
-    if (!clean) return null;
-    const parts = clean.split("/").filter(Boolean);
-    const bucket = parts.shift();
-    const path = parts.join("/");
-    if (!bucket || !path) return null;
-    return { bucket, path };
-  }
-
-  function isSupabaseStorageUrl(url) {
-    return /\/storage\/v1\/object\//i.test(text(url));
-  }
-
-  function storagePathCandidates(storagePath) {
-    const parsed = parsePersistentStoragePath(storagePath);
-    if (!parsed) return [];
-    const list = [];
-    const seen = new Set();
-    const add = function (bucket, path) {
-      const cleanBucket = text(bucket);
-      const cleanPath = text(path).replace(/^\/+/, "");
-      if (!cleanBucket || !cleanPath) return;
-      const key = cleanBucket + "/" + cleanPath;
-      if (seen.has(key)) return;
-      seen.add(key);
-      list.push({ bucket: cleanBucket, path: cleanPath });
-    };
-    const alternateBucket =
-      parsed.bucket === "company-documents"
-        ? "employee-attachments"
-        : "company-documents";
-    add(parsed.bucket, parsed.path);
-    add(alternateBucket, parsed.path);
-    if (parsed.path.startsWith("company/")) {
-      add(alternateBucket, parsed.path.slice("company/".length));
-    } else {
-      add(alternateBucket, "company/" + parsed.path);
-    }
-    return list;
-  }
-
-  function isMissingBucketError(error) {
-    const message = text(
-      error?.message || error?.error || error?.statusCode || error || "",
-    );
-    return /bucket\s+not\s+found|storage.*bucket|404/i.test(message);
-  }
-
-  function withStorageTimeout(request, timeout = 1800) {
-    let timer = 0;
-    return Promise.race([
-      request,
-      new Promise(function (resolve) {
-        timer = setTimeout(function () {
-          resolve({ timeout: true });
-        }, timeout);
-      }),
-    ]).finally(function () {
-      clearTimeout(timer);
-    });
-  }
-
-  async function signedPersistentStorageUrl(storagePath) {
-    if (
-      !storagePath ||
-      typeof supabaseClient === "undefined" ||
-      !supabaseClient?.storage
-    )
-      return "";
-    const cacheKey = text(storagePath);
-    const cached = storageUrlMemory.get(cacheKey);
-    if (cached) {
-      const ttl = cached.value ? STORAGE_SIGNED_URL_TTL : STORAGE_MISS_TTL;
-      if (Date.now() - cached.time < ttl) return cached.value;
-      storageUrlMemory.delete(cacheKey);
-    }
-    const candidates = storagePathCandidates(storagePath);
-    for (const candidate of candidates) {
-      if (missingStorageBuckets.has(candidate.bucket)) continue;
-      try {
-        const { data, error, timeout } = await withStorageTimeout(
-          supabaseClient.storage
-            .from(candidate.bucket)
-            .createSignedUrl(candidate.path, 3600),
-        );
-        if (timeout) break;
-        if (!error && data?.signedUrl) {
-          storageUrlMemory.set(cacheKey, {
-            value: data.signedUrl,
-            time: Date.now(),
-          });
-          return data.signedUrl;
-        }
-        if (error && isMissingBucketError(error))
-          missingStorageBuckets.add(candidate.bucket);
-      } catch (error) {
-        if (isMissingBucketError(error))
-          missingStorageBuckets.add(candidate.bucket);
-      }
-    }
-    storageUrlMemory.set(cacheKey, { value: "", time: Date.now() });
-    return "";
-  }
-
-  async function downloadPersistentStorageBlob(storagePath) {
-    if (
-      !storagePath ||
-      typeof supabaseClient === "undefined" ||
-      !supabaseClient?.storage
-    )
-      return null;
-    const candidates = storagePathCandidates(storagePath);
-    for (const candidate of candidates) {
-      if (missingStorageBuckets.has(candidate.bucket)) continue;
-      try {
-        const { data, error } = await supabaseClient.storage
-          .from(candidate.bucket)
-          .download(candidate.path);
-        if (!error && data) return data;
-        if (error && isMissingBucketError(error))
-          missingStorageBuckets.add(candidate.bucket);
-      } catch (error) {
-        if (isMissingBucketError(error))
-          missingStorageBuckets.add(candidate.bucket);
-      }
-    }
-    return null;
-  }
-
   async function persistentAttachmentUrl(id) {
     const record = await getPersistentAttachment(id);
     if (!record) {
@@ -56598,11 +55671,24 @@ async function init() {
       } catch (_) {}
       return url;
     }
+    if (record.fileUrl) return record.fileUrl;
     const storagePath = text(record.storagePath || record.storage_path);
-    const storageUrl = await signedPersistentStorageUrl(storagePath);
-    if (storageUrl) return storageUrl;
-    const directUrl = text(record.fileUrl || record.file_url || record.url);
-    if (directUrl && !isSupabaseStorageUrl(directUrl)) return directUrl;
+    if (!storagePath || typeof supabaseClient === "undefined" || !supabaseClient)
+      return "";
+    const parts = storagePath.split("/");
+    const bucket = parts.shift();
+    const path = parts.join("/");
+    if (!bucket || !path) return "";
+    try {
+      const { data, error } = await supabaseClient.storage
+        .from(bucket)
+        .createSignedUrl(path, 3600);
+      if (!error && data?.signedUrl) return data.signedUrl;
+    } catch (_) {}
+    try {
+      const { data } = supabaseClient.storage.from(bucket).getPublicUrl(path);
+      if (data?.publicUrl) return data.publicUrl;
+    } catch (_) {}
     return "";
   }
 
@@ -56617,28 +55703,14 @@ async function init() {
     if (!file) return "";
     ensureCloudReady();
     const cleanCategory = text(category || "attachment") || "attachment";
-    let bucket = categoryBucket(cleanCategory);
+    const bucket = categoryBucket(cleanCategory);
     const path = pathForUpload(cleanCategory, file);
-    let upload = await supabaseClient.storage.from(bucket).upload(path, file, {
+    const upload = await supabaseClient.storage.from(bucket).upload(path, file, {
       cacheControl: "31536000",
       upsert: false,
       contentType: file.type || "application/octet-stream",
     });
-    if (
-      upload?.error &&
-      bucket === "company-documents" &&
-      isMissingBucketError(upload.error)
-    ) {
-      missingStorageBuckets.add(bucket);
-      bucket = "employee-attachments";
-      upload = await supabaseClient.storage.from(bucket).upload(path, file, {
-        cacheControl: "31536000",
-        upsert: false,
-        contentType: file.type || "application/octet-stream",
-      });
-    }
     if (upload?.error) throw upload.error;
-    storageUrlMemory.delete(bucket + "/" + path);
 
     const baseRecord = {
       related_table: cleanCategory,
@@ -56713,8 +55785,18 @@ async function init() {
     }
     let blob = record.blob || null;
     const storagePath = text(record.storagePath || record.storage_path);
-    if (!blob && storagePath)
-      blob = await downloadPersistentStorageBlob(storagePath);
+    if (!blob && storagePath && typeof supabaseClient !== "undefined" && supabaseClient) {
+      const parts = storagePath.split("/");
+      const bucket = parts.shift();
+      const path = parts.join("/");
+      if (bucket && path)
+        try {
+          const { data, error } = await supabaseClient.storage
+            .from(bucket)
+            .download(path);
+          if (!error && data) blob = data;
+        } catch (_) {}
+    }
     if (!blob) {
       const url = await persistentAttachmentUrl(id);
       if (!url) {
@@ -58871,8 +57953,6 @@ window.nawahV169Fixes = {
   const uploadInputByFile = new WeakMap();
   const attachmentRecordCache = new Map();
   const attachmentUrlCache = new Map();
-  const attachmentRecordPending = new Map();
-  const attachmentUrlPending = new Map();
   let refreshTimer = 0;
   let enhanceTimer = 0;
   let enhanceLateTimer = 0;
@@ -58921,33 +58001,15 @@ window.nawahV169Fixes = {
     if (!key) return;
     attachmentRecordCache.delete(key);
     attachmentUrlCache.delete(key);
-    attachmentRecordPending.delete(key);
-    attachmentUrlPending.delete(key);
   }
 
   async function resolveCachedAttachmentRecord(id, resolver) {
     const key = attachmentCacheKey(id);
     if (!key || typeof resolver !== "function") return null;
     const cached = attachmentRecordCache.get(key);
-    if (cached) {
-      const ttl = cached.value ? 5 * 60 * 1000 : 30 * 1000;
-      if (Date.now() - cached.time < ttl) return cached.value;
-      attachmentRecordCache.delete(key);
-    }
-    if (attachmentRecordPending.has(key)) return attachmentRecordPending.get(key);
-    const pending = Promise.resolve()
-      .then(function () {
-        return resolver(id);
-      })
-      .then(function (value) {
-        attachmentRecordCache.set(key, { value: value || null, time: Date.now() });
-        return value || null;
-      })
-      .finally(function () {
-        attachmentRecordPending.delete(key);
-      });
-    attachmentRecordPending.set(key, pending);
-    const value = await pending;
+    if (cached && Date.now() - cached.time < 5 * 60 * 1000) return cached.value;
+    const value = await resolver(id);
+    if (value) attachmentRecordCache.set(key, { value, time: Date.now() });
     return value || null;
   }
 
@@ -58955,26 +58017,9 @@ window.nawahV169Fixes = {
     const key = attachmentCacheKey(id);
     if (!key || typeof resolver !== "function") return "";
     const cached = attachmentUrlCache.get(key);
-    if (cached) {
-      const ttl = cached.value ? 8 * 60 * 1000 : 30 * 1000;
-      if (Date.now() - cached.time < ttl) return cached.value;
-      attachmentUrlCache.delete(key);
-    }
-    if (attachmentUrlPending.has(key)) return attachmentUrlPending.get(key);
-    const pending = Promise.resolve()
-      .then(function () {
-        return resolver(id);
-      })
-      .then(function (value) {
-        const clean = text(value);
-        attachmentUrlCache.set(key, { value: clean, time: Date.now() });
-        return clean;
-      })
-      .finally(function () {
-        attachmentUrlPending.delete(key);
-      });
-    attachmentUrlPending.set(key, pending);
-    const value = await pending;
+    if (cached && Date.now() - cached.time < 8 * 60 * 1000) return cached.value;
+    const value = text(await resolver(id));
+    if (value) attachmentUrlCache.set(key, { value, time: Date.now() });
     return value;
   }
 
@@ -59494,7 +58539,7 @@ window.nawahV169Fixes = {
         return previousOpenAttachment(key);
       const url =
         typeof attachmentUrl === "function"
-          ? text(await attachmentUrl(key))
+          ? await resolveCachedAttachmentUrl(key, attachmentUrl)
           : "";
       if (url) downloadUrl(url, "attachment");
     };
@@ -59504,16 +58549,16 @@ window.nawahV169Fixes = {
       dialog.setAttribute("open", "open");
     }
     try {
-      const [record, url] = await Promise.all([
+      const record =
         typeof getAttachment === "function"
-          ? resolveCachedAttachmentRecord(key, getAttachment)
-          : Promise.resolve(null),
+          ? await resolveCachedAttachmentRecord(key, getAttachment)
+          : null;
+      const url =
         typeof attachmentUrl === "function"
-          ? attachmentUrl(key)
-          : Promise.resolve(""),
-      ]);
+          ? await resolveCachedAttachmentUrl(key, attachmentUrl)
+          : "";
       renderPreviewSource(dialog, {
-        url: text(url),
+        url,
         name: record?.file_name || record?.name || "مرفق",
         type: record?.file_type || record?.type || "",
         size: record?.file_size || record?.size || 0,
@@ -59704,8 +58749,7 @@ window.nawahV169Fixes = {
   if (previousTravelRenderer && !previousTravelRenderer.__v174TravelPreview) {
     const wrappedTravelRenderer = function wrappedTravelRenderer() {
       const result = previousTravelRenderer.apply(this, arguments);
-      if (!document.querySelector("#leavesView.active"))
-        scheduleNormalize(document);
+      scheduleNormalize(document);
       return result;
     };
     wrappedTravelRenderer.__v174TravelPreview = true;
@@ -59720,7 +58764,7 @@ window.nawahV169Fixes = {
     function (event) {
       if (
         event.target?.closest?.(
-          '[data-employee-section="leaveTravelHistory"], [data-v81-history-tab], [data-v81-filter], [data-v80-history-tab], [data-v80-filter]',
+          '[data-employee-section="leaveTravelHistory"], [data-v81-history-tab], [data-v81-filter], [data-v80-history-tab], [data-v80-filter], [data-v78-tab], [data-v78-filter], [data-page="leaves"], [data-view="leaves"], [data-go-view="leaves"]',
         )
       ) {
         scheduleNormalize(document);
@@ -59737,8 +58781,8 @@ window.nawahV169Fixes = {
           Array.prototype.some.call(mutation.addedNodes, function (node) {
             return (
               node.nodeType === 1 &&
-              (node.matches?.(".v81-employee-history-card,.v80-employee-history-card") ||
-                node.querySelector?.(".v81-employee-history-card,.v80-employee-history-card"))
+              (node.matches?.(".v81-employee-history-card,.v80-employee-history-card,.v78-travel-table") ||
+                node.querySelector?.(".v81-employee-history-card,.v80-employee-history-card,.v78-travel-table"))
             );
           })
         ) {
@@ -64032,8 +63076,6 @@ window.nawahLeaveBalanceReportV185 = {
       form.querySelector(".company-logo-upload")
     );
   }
-  const BLANK_FAVICON =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E";
   function setSiteFaviconHref(url) {
     let link =
       document.querySelector('link[rel="icon"]') ||
@@ -64043,8 +63085,8 @@ window.nawahLeaveBalanceReportV185 = {
       link.rel = "icon";
       document.head.appendChild(link);
     }
-    link.type = url ? "image/png" : "image/svg+xml";
-    link.href = url || BLANK_FAVICON;
+    link.type = "image/png";
+    link.href = url || "sar-symbol.png";
   }
   async function applySiteFavicon() {
     const company = readCompany();
@@ -64055,7 +63097,7 @@ window.nawahLeaveBalanceReportV185 = {
         : "") ||
       company.logoDataUrl ||
       (company.logoAttachmentId ? await imageUrl(company.logoAttachmentId) : "");
-    setSiteFaviconHref(url || "");
+    setSiteFaviconHref(url || "sar-symbol.png");
     const preview = q("#siteFaviconPreview");
     if (preview) {
       preview.innerHTML = url
@@ -65344,1673 +64386,4 @@ window.nawahLeaveBalanceReportV185 = {
   setTimeout(function () {
     scheduleOrgDecorate();
   }, 300);
-})();
-
-/* v222 - verified employee delete persistence */
-(function v222VerifiedEmployeeDeletePersistence() {
-  if (window.__v222VerifiedEmployeeDeletePersistence) return;
-  window.__v222VerifiedEmployeeDeletePersistence = true;
-
-  const VERSION = "v222";
-  const TOMBSTONE_KEY = "nawah-employee-delete-tombstones-v222";
-  const CLOUD_KEY =
-    typeof CLOUD_STATE_KEY !== "undefined" && CLOUD_STATE_KEY
-      ? CLOUD_STATE_KEY
-      : "app_state";
-
-  function text(value) {
-    return value == null ? "" : String(value);
-  }
-
-  function parseJson(raw, fallback) {
-    try {
-      if (raw == null || raw === "") return fallback;
-      return JSON.parse(raw);
-    } catch (_) {
-      return fallback;
-    }
-  }
-
-  function writeJson(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (_) {}
-  }
-
-  function notify(message, options) {
-    try {
-      if (typeof showToast === "function") showToast(message, options || {});
-    } catch (_) {}
-  }
-
-  function normalizeList(list) {
-    return (Array.isArray(list) ? list : [])
-      .filter(Boolean)
-      .map(function (employee, index) {
-        try {
-          return typeof normalizeEmployee === "function"
-            ? normalizeEmployee(employee, index)
-            : employee;
-        } catch (_) {
-          return employee;
-        }
-      });
-  }
-
-  function currentEmployees() {
-    return normalizeList(typeof employees !== "undefined" ? employees : []);
-  }
-
-  function setEmployees(list) {
-    employees = normalizeList(list);
-    try {
-      window.employees = employees;
-    } catch (_) {}
-    writeJson("nawah-employees", employees);
-  }
-
-  function readTombstones() {
-    const list = parseJson(localStorage.getItem(TOMBSTONE_KEY), []);
-    return Array.isArray(list) ? list.filter((item) => item && item.id) : [];
-  }
-
-  function writeTombstones(list) {
-    const unique = new Map();
-    (Array.isArray(list) ? list : []).forEach(function (item) {
-      if (!item || !item.id) return;
-      unique.set(text(item.id), {
-        id: text(item.id),
-        deletedAt: item.deletedAt || new Date().toISOString(),
-        reason: item.reason || "employee-delete",
-      });
-    });
-    writeJson(TOMBSTONE_KEY, Array.from(unique.values()).slice(-500));
-  }
-
-  function rememberDeletedEmployee(id) {
-    const list = readTombstones();
-    list.push({
-      id: text(id),
-      deletedAt: new Date().toISOString(),
-      reason: "employee-delete",
-    });
-    writeTombstones(list);
-  }
-
-  function tombstoneIdsFromState(state) {
-    const ids = new Set(readTombstones().map((item) => text(item.id)));
-    if (Array.isArray(state?.deletedEmployeesV222)) {
-      state.deletedEmployeesV222.forEach(function (item) {
-        if (item && item.id) ids.add(text(item.id));
-      });
-    }
-    return ids;
-  }
-
-  function filterDeletedEmployeesFromState(state) {
-    if (!state || typeof state !== "object") return state;
-    const ids = tombstoneIdsFromState(state);
-    if (!ids.size) return state;
-    const copy = { ...state };
-    if (Array.isArray(copy.employees)) {
-      copy.employees = copy.employees.filter(function (employee) {
-        return !ids.has(text(employee?.id));
-      });
-    }
-    if (copy.localStorageStateV221 && typeof copy.localStorageStateV221 === "object") {
-      copy.localStorageStateV221 = { ...copy.localStorageStateV221 };
-      const localEmployees = copy.localStorageStateV221["nawah-employees"];
-      if (Array.isArray(localEmployees)) {
-        copy.localStorageStateV221["nawah-employees"] = localEmployees.filter(
-          function (employee) {
-            return !ids.has(text(employee?.id));
-          },
-        );
-      }
-    }
-    if (Array.isArray(copy.deletedEmployeesV222)) {
-      writeTombstones(readTombstones().concat(copy.deletedEmployeesV222));
-    }
-    return copy;
-  }
-
-  const previousApplyCloudState =
-    typeof applyCloudState === "function" ? applyCloudState : null;
-  if (previousApplyCloudState && !previousApplyCloudState.__v222DeleteTombstones) {
-    const wrappedApplyCloudState = function wrappedApplyCloudState(state) {
-      const filtered = filterDeletedEmployeesFromState(state);
-      const result = previousApplyCloudState.call(this, filtered);
-      if (filtered && filtered !== state && Array.isArray(filtered.employees)) {
-        setEmployees(filtered.employees);
-      }
-      return result;
-    };
-    wrappedApplyCloudState.__v222DeleteTombstones = true;
-    try {
-      applyCloudState = wrappedApplyCloudState;
-    } catch (_) {}
-    window.applyCloudState = wrappedApplyCloudState;
-  }
-
-  function ensureSupabase() {
-    try {
-      if (
-        (!supabaseClient || !supabaseClient.from) &&
-        typeof initSupabaseClient === "function"
-      ) {
-        initSupabaseClient();
-      }
-    } catch (_) {}
-    return typeof supabaseClient !== "undefined" && supabaseClient
-      ? supabaseClient
-      : null;
-  }
-
-  async function ensureDbReady() {
-    try {
-      if (!db && typeof openDatabase === "function") db = await openDatabase();
-    } catch (_) {}
-    return typeof db !== "undefined" && db ? db : null;
-  }
-
-  async function syncIndexedDbEmployees(list) {
-    try {
-      await ensureDbReady();
-      if (
-        !db ||
-        typeof dbGetAllEmployees !== "function" ||
-        typeof dbStore !== "function" ||
-        typeof requestResult !== "function"
-      )
-        return;
-      const current = await dbGetAllEmployees();
-      const nextIds = new Set(list.map((employee) => text(employee.id)));
-      await Promise.all(
-        current
-          .filter((employee) => !nextIds.has(text(employee.id)))
-          .map((employee) =>
-            requestResult(dbStore("employees", "readwrite").delete(employee.id)),
-          ),
-      );
-      await Promise.all(
-        list.map((employee) =>
-          requestResult(dbStore("employees", "readwrite").put(employee)),
-        ),
-      );
-    } catch (error) {
-      console.warn("v222: تعذر مزامنة IndexedDB للموظفين.", error);
-    }
-  }
-
-  function buildVerifiedState(reason) {
-    const now = new Date().toISOString();
-    const state =
-      typeof buildCloudState === "function"
-        ? buildCloudState()
-        : { version: 1, savedAt: now };
-    const list = currentEmployees();
-    state.employees = list;
-    state.leaves = Array.isArray(leaves) ? leaves : [];
-    state.attendanceExceptions = Array.isArray(attendanceExceptions)
-      ? attendanceExceptions
-      : [];
-    state.localStorageStateV221 =
-      state.localStorageStateV221 && typeof state.localStorageStateV221 === "object"
-        ? state.localStorageStateV221
-        : {};
-    state.localStorageStateV221["nawah-employees"] = list;
-    state.localStorageStateV221["nawah-leaves"] = state.leaves;
-    state.localStorageStateV221["nawah-attendance-exceptions"] =
-      state.attendanceExceptions;
-    state.deletedEmployeesV222 = readTombstones();
-    state.persistenceVersion = VERSION;
-    state.persistenceReason = reason || "employee-save";
-    state.savedAt = now;
-    state.updatedAt = now;
-    return state;
-  }
-
-  async function readRemoteState(client) {
-    const response = await client
-      .from("app_settings")
-      .select("setting_value,updated_at")
-      .eq("setting_key", CLOUD_KEY)
-      .maybeSingle();
-    if (response.error) throw response.error;
-    return response.data?.setting_value || null;
-  }
-
-  async function saveEmployeeSnapshotNow(reason, options) {
-    const opts = options || {};
-    setEmployees(currentEmployees());
-    writeJson("nawah-leaves", Array.isArray(leaves) ? leaves : []);
-    writeJson(
-      "nawah-attendance-exceptions",
-      Array.isArray(attendanceExceptions) ? attendanceExceptions : [],
-    );
-    await syncIndexedDbEmployees(employees);
-    try {
-      if (typeof saveLocalMeta === "function") saveLocalMeta();
-    } catch (_) {}
-
-    const client = ensureSupabase();
-    if (!client || !client.from) {
-      throw new Error("Supabase غير جاهز، لم يتم تأكيد الحفظ الحقيقي.");
-    }
-    try {
-      cloudReady = true;
-      cloudLoadAttempted = true;
-      cloudSaveAllowed = true;
-    } catch (_) {}
-
-    const state = buildVerifiedState(reason);
-    const response = await client.from("app_settings").upsert(
-      {
-        setting_key: CLOUD_KEY,
-        setting_value: state,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "setting_key" },
-    );
-    if (response.error) throw response.error;
-    try {
-      applyAuthoritativeCloudState(state, cloudStateStamp({ updated_at: state.updatedAt }, state));
-    } catch (_) {}
-
-    if (opts.deletedEmployeeId) {
-      const remote = await readRemoteState(client);
-      const exists = Array.isArray(remote?.employees)
-        ? remote.employees.some(
-            (employee) => text(employee?.id) === text(opts.deletedEmployeeId),
-          )
-        : false;
-      if (exists) {
-        throw new Error("فشل التحقق من حذف الموظف في قاعدة البيانات.");
-      }
-    }
-    return true;
-  }
-
-  window.nawahSaveEmployeeSnapshotNow = saveEmployeeSnapshotNow;
-
-  window.persistEmployeeStateV179 = async function persistEmployeeStateV222(reason) {
-    await saveEmployeeSnapshotNow(reason || "employee-persist-v222");
-    return true;
-  };
-
-  function deleteGuard(employeeId) {
-    const pendingLeave = (Array.isArray(leaves) ? leaves : []).some(
-      (leave) =>
-        text(leave.employeeId) === text(employeeId) && leave.status === "pending",
-    );
-    const activeLeave = (Array.isArray(leaves) ? leaves : []).some(
-      (leave) =>
-        text(leave.employeeId) === text(employeeId) &&
-        leave.status === "approved" &&
-        !leave.returnDate,
-    );
-    const travel =
-      typeof window.employeeTravelDeleteGuard === "function"
-        ? window.employeeTravelDeleteGuard(employeeId)
-        : { pending: false, active: false };
-    if (pendingLeave || travel.pending) {
-      return {
-        blocked: true,
-        reason: "لا يمكن حذف الموظف لوجود طلبات إجازة أو سفر بانتظار الموافقة",
-      };
-    }
-    if (activeLeave || travel.active) {
-      return {
-        blocked: true,
-        reason: "لا يمكن حذف الموظف لأنه حاليًا في إجازة أو مسافر ولم تتم مباشرة العمل",
-      };
-    }
-    return { blocked: false, reason: "" };
-  }
-
-  function closeDeleteModal() {
-    try {
-      document.querySelector("#confirmModal")?.close?.();
-    } catch (_) {}
-  }
-
-  async function runVerifiedEmployeeDelete() {
-    const employeeId = typeof deleteTargetId !== "undefined" ? deleteTargetId : null;
-    if (!employeeId) return false;
-    const guard = deleteGuard(employeeId);
-    if (guard.blocked) {
-      closeDeleteModal();
-      deleteTargetId = null;
-      notify(guard.reason);
-      return true;
-    }
-
-    const before = currentEmployees();
-    const exists = before.some((employee) => text(employee.id) === text(employeeId));
-    if (!exists) {
-      closeDeleteModal();
-      deleteTargetId = null;
-      notify("الموظف غير موجود في القائمة الحالية.");
-      return true;
-    }
-
-    const button = document.querySelector("#confirmDeleteBtn");
-    const originalText = button ? button.textContent : "";
-    if (button) {
-      button.disabled = true;
-      button.textContent = "جاري الحذف...";
-    }
-
-    try {
-      setEmployees(
-        before.filter((employee) => text(employee.id) !== text(employeeId)),
-      );
-      leaves = (Array.isArray(leaves) ? leaves : []).filter(
-        (leave) => text(leave.employeeId) !== text(employeeId),
-      );
-      attendanceExceptions = (
-        Array.isArray(attendanceExceptions) ? attendanceExceptions : []
-      ).filter((item) => text(item.employeeId) !== text(employeeId));
-      try {
-        if (typeof window.cleanupEmployeePayrollAdvances === "function") {
-          await window.cleanupEmployeePayrollAdvances(employeeId);
-        }
-      } catch (error) {
-        console.warn("v222: تعذر تنظيف سلفيات الموظف المحذوف.", error);
-      }
-      rememberDeletedEmployee(employeeId);
-      await saveEmployeeSnapshotNow("employee-delete-v222", {
-        deletedEmployeeId: employeeId,
-      });
-      closeDeleteModal();
-      deleteTargetId = null;
-      try {
-        if (typeof renderAll === "function") renderAll();
-      } catch (_) {}
-      notify("تم حذف الموظف وحفظ الحذف في قاعدة البيانات.");
-    } catch (error) {
-      console.error("v222: فشل حذف الموظف بشكل مؤكد.", error);
-      notify(
-        "لم يتم تأكيد حذف الموظف في قاعدة البيانات. راجع اتصال Supabase وملف SQL ثم أعد المحاولة.",
-        { duration: 5200 },
-      );
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.textContent = originalText || "حذف";
-      }
-    }
-    return true;
-  }
-
-  document.addEventListener(
-    "click",
-    function (event) {
-      const button = event.target?.closest?.("#confirmDeleteBtn");
-      if (!button) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation?.();
-      runVerifiedEmployeeDelete();
-    },
-    true,
-  );
-
-  let lastAppliedCloudStamp = "";
-  let cloudRefreshInFlight = null;
-  let lastAppliedCloudDigest = "";
-
-  function cloudStateStamp(row, state) {
-    return [
-      row?.updated_at || "",
-      state?.savedAt || "",
-      state?.updatedAt || "",
-      Array.isArray(state?.employees) ? state.employees.length : "x",
-      Array.isArray(state?.deletedEmployeesV222)
-        ? state.deletedEmployeesV222.length
-        : 0,
-    ].join("|");
-  }
-
-  function listDigest(list, fields) {
-    return (Array.isArray(list) ? list : [])
-      .map(function (item) {
-        return fields
-          .map(function (field) {
-            return text(item && item[field]);
-          })
-          .join(":");
-      })
-      .join("~");
-  }
-
-  function readLocalArray(key) {
-    const value = parseJson(localStorage.getItem(key), []);
-    return Array.isArray(value) ? value : [];
-  }
-
-  function stateDigest(state) {
-    if (!state || typeof state !== "object") return "";
-    const local =
-      state.localStorageStateV221 && typeof state.localStorageStateV221 === "object"
-        ? state.localStorageStateV221
-        : {};
-    return [
-      listDigest(state.employees, [
-        "id",
-        "employeeNumber",
-        "name",
-        "status",
-        "updatedAt",
-        "photoAttachmentId",
-      ]),
-      listDigest(state.leaves, [
-        "id",
-        "employeeId",
-        "status",
-        "startDate",
-        "returnDate",
-        "updatedAt",
-      ]),
-      listDigest(state.attendanceExceptions, [
-        "id",
-        "employeeId",
-        "date",
-        "type",
-        "updatedAt",
-      ]),
-      listDigest(state.travelRequests || local["nawah-travel-requests"], [
-        "id",
-        "employeeId",
-        "status",
-        "travelDate",
-        "returnDate",
-        "resumeDate",
-        "updatedAt",
-      ]),
-      listDigest(
-        state.deletedEmployeesV222,
-        ["id", "deletedAt"],
-      ),
-    ].join("||");
-  }
-
-  function currentCloudDigest() {
-    return stateDigest({
-      employees,
-      leaves,
-      attendanceExceptions,
-      travelRequests: readLocalArray("nawah-travel-requests"),
-      deletedEmployeesV222: readTombstones(),
-    });
-  }
-
-  function activeViewId() {
-    return document.querySelector(".view.active")?.id || "";
-  }
-
-  function renderActiveCloudChange(employeeDataChanged) {
-    try {
-      const count = document.querySelector("#sidebarEmployeeCount");
-      if (count && typeof arabicNumber === "function")
-        count.textContent = arabicNumber(Array.isArray(employees) ? employees.length : 0);
-    } catch (_) {}
-    try {
-      if (employeeDataChanged && typeof populateFormOptions === "function")
-        populateFormOptions();
-    } catch (_) {}
-    const view = activeViewId();
-    try {
-      if (view === "dashboardView" && typeof renderDashboard === "function")
-        renderDashboard();
-      else if (view === "employeesView" && typeof renderEmployees === "function")
-        renderEmployees();
-      else if (view === "attendanceView" && typeof renderAttendance === "function")
-        renderAttendance();
-      else if (view === "leavesView" && typeof renderLeaves === "function")
-        renderLeaves();
-      else if (view === "payrollView" && typeof renderPayroll === "function")
-        renderPayroll();
-      else if (view === "advancesView" && typeof renderAdvancesPage === "function")
-        renderAdvancesPage();
-      else if (view === "settingsView" && typeof renderSettings === "function")
-        renderSettings();
-      else if (view === "usersView" && typeof renderUsersManagement === "function")
-        renderUsersManagement();
-    } catch (error) {
-      console.warn("v222: تعذر تحديث القسم الحالي بعد مزامنة السحابة.", error);
-    }
-    try {
-      const root = document.querySelector(".view.active") || document;
-      if (typeof hydrateIcons === "function") hydrateIcons(root);
-      if (typeof hydrateAttachmentImages === "function") hydrateAttachmentImages(root);
-    } catch (_) {}
-  }
-
-  function applyAuthoritativeCloudState(state, stamp) {
-    if (!state || typeof state !== "object" || !Array.isArray(state.employees))
-      return false;
-    const filtered = filterDeletedEmployeesFromState(state);
-    const nextDigest = stateDigest(filtered);
-    const currentDigest = currentCloudDigest();
-    if (nextDigest && nextDigest === currentDigest) {
-      if (stamp) lastAppliedCloudStamp = stamp;
-      lastAppliedCloudDigest = nextDigest;
-      return true;
-    }
-    const previousEmployeeDigest = listDigest(employees, [
-      "id",
-      "employeeNumber",
-      "name",
-      "status",
-      "updatedAt",
-      "photoAttachmentId",
-    ]);
-    try {
-      if (typeof applyCloudState === "function") applyCloudState(filtered);
-      else setEmployees(filtered.employees);
-    } catch (error) {
-      console.warn("v222: تعذر تطبيق الحالة السحابية مباشرة.", error);
-      setEmployees(filtered.employees);
-    }
-    setEmployees(Array.isArray(filtered.employees) ? filtered.employees : []);
-    if (Array.isArray(filtered.leaves)) {
-      leaves = filtered.leaves;
-      writeJson("nawah-leaves", leaves);
-    }
-    if (Array.isArray(filtered.attendanceExceptions)) {
-      attendanceExceptions = filtered.attendanceExceptions;
-      writeJson("nawah-attendance-exceptions", attendanceExceptions);
-    }
-    syncIndexedDbEmployees(employees);
-    try {
-      cloudReady = true;
-      cloudLoadAttempted = true;
-      cloudSaveAllowed = true;
-    } catch (_) {}
-    if (stamp) lastAppliedCloudStamp = stamp;
-    lastAppliedCloudDigest = nextDigest;
-    const employeeDataChanged =
-      previousEmployeeDigest !==
-      listDigest(employees, [
-        "id",
-        "employeeNumber",
-        "name",
-        "status",
-        "updatedAt",
-        "photoAttachmentId",
-      ]);
-    renderActiveCloudChange(employeeDataChanged);
-    return true;
-  }
-
-  async function refreshCloudState(force) {
-    if (cloudRefreshInFlight && !force) return cloudRefreshInFlight;
-    cloudRefreshInFlight = (async function () {
-      const client = ensureSupabase();
-      if (!client || !client.from) return false;
-      try {
-        const response = await client
-          .from("app_settings")
-          .select("setting_value,updated_at")
-          .eq("setting_key", CLOUD_KEY)
-          .maybeSingle();
-        if (response.error) throw response.error;
-        const state = response.data?.setting_value;
-        if (!state || !Array.isArray(state.employees)) return false;
-        const stamp = cloudStateStamp(response.data, state);
-        if (stamp && stamp === lastAppliedCloudStamp) return true;
-        const nextDigest = stateDigest(filterDeletedEmployeesFromState(state));
-        if (nextDigest && nextDigest === lastAppliedCloudDigest) {
-          if (stamp) lastAppliedCloudStamp = stamp;
-          return true;
-        }
-        return applyAuthoritativeCloudState(state, stamp);
-      } catch (error) {
-        console.warn("v222: تعذر مزامنة حالة الموظفين من Supabase.", error);
-        return false;
-      }
-    })().finally(function () {
-      cloudRefreshInFlight = null;
-    });
-    return cloudRefreshInFlight;
-  }
-
-  function startCloudStateSync() {
-    refreshCloudState(true);
-    try {
-      setInterval(function () {
-        refreshCloudState(false);
-      }, 4500);
-    } catch (_) {}
-    try {
-      window.addEventListener("focus", function () {
-        refreshCloudState(true);
-      });
-      document.addEventListener("visibilitychange", function () {
-        if (document.visibilityState === "visible") refreshCloudState(true);
-      });
-    } catch (_) {}
-    try {
-      const client = ensureSupabase();
-      if (!client || typeof client.channel !== "function") return;
-      client
-        .channel("nawah-app-state-sync-v222")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "app_settings",
-            filter: "setting_key=eq." + CLOUD_KEY,
-          },
-          function (payload) {
-            const state = payload?.new?.setting_value;
-            const stamp = cloudStateStamp(payload?.new || {}, state);
-            applyAuthoritativeCloudState(state, stamp);
-          },
-        )
-        .subscribe();
-    } catch (error) {
-      console.warn("v222: تعذر تشغيل المزامنة الفورية.", error);
-    }
-  }
-
-  window.nawahRefreshCloudStateNow = refreshCloudState;
-  setTimeout(startCloudStateSync, 1200);
-})();
-
-/* v224 - skip unchanged dashboard paints to remove card flicker */
-(function v224StableDashboardPaint() {
-  if (window.__v224StableDashboardPaint) return;
-  window.__v224StableDashboardPaint = true;
-
-  const previousRenderDashboard =
-    typeof window.renderDashboard === "function"
-      ? window.renderDashboard
-      : typeof renderDashboard === "function"
-        ? renderDashboard
-        : null;
-  if (!previousRenderDashboard || previousRenderDashboard.__v224StableDashboardPaint)
-    return;
-
-  let lastDashboardDigest = "";
-
-  function readJsonArray(key) {
-    try {
-      const value = JSON.parse(localStorage.getItem(key) || "[]");
-      return Array.isArray(value) ? value : [];
-    } catch (_) {
-      return [];
-    }
-  }
-
-  function itemDigest(list, fields) {
-    return (Array.isArray(list) ? list : [])
-      .map(function (item) {
-        return fields
-          .map(function (field) {
-            return String((item && item[field]) || "");
-          })
-          .join(":");
-      })
-      .join("~");
-  }
-
-  function dashboardDigest() {
-    const today =
-      typeof formatInputDate === "function" && typeof todayAtNoon === "function"
-        ? formatInputDate(todayAtNoon())
-        : new Date().toISOString().slice(0, 10);
-    return [
-      today,
-      itemDigest(employees, [
-        "id",
-        "employeeNumber",
-        "name",
-        "status",
-        "department",
-        "role",
-        "updatedAt",
-      ]),
-      itemDigest(leaves, [
-        "id",
-        "employeeId",
-        "status",
-        "type",
-        "startDate",
-        "returnDate",
-        "updatedAt",
-      ]),
-      itemDigest(readJsonArray("nawah-travel-requests"), [
-        "id",
-        "employeeId",
-        "status",
-        "travelDate",
-        "returnDate",
-        "resumeDate",
-        "updatedAt",
-      ]),
-      itemDigest(readJsonArray("nawah-establishment-documents"), [
-        "id",
-        "endDate",
-        "approvedEndDate",
-        "updatedAt",
-      ]),
-      itemDigest(readJsonArray("nawah-payroll-advances"), [
-        "id",
-        "employeeId",
-        "amount",
-        "paidAmount",
-        "remainingAmount",
-        "updatedAt",
-      ]),
-    ].join("||");
-  }
-
-  function dashboardDomReady() {
-    return Boolean(
-      document.querySelector("#dashboardView.active") &&
-        document.querySelector("#totalEmployees") &&
-        document.querySelector("#monthlyPayroll") &&
-        document.querySelector("#leavePreviewList"),
-    );
-  }
-
-  const stableRenderDashboard = function stableRenderDashboard() {
-    const digest = dashboardDigest();
-    if (dashboardDomReady() && digest && digest === lastDashboardDigest)
-      return;
-    const result = previousRenderDashboard.apply(this, arguments);
-    lastDashboardDigest = dashboardDigest();
-    return result;
-  };
-  stableRenderDashboard.__v224StableDashboardPaint = true;
-
-  try {
-    renderDashboard = stableRenderDashboard;
-  } catch (_) {}
-  window.renderDashboard = stableRenderDashboard;
-})();
-
-/* v233 - remove retired paint guards so settings and leaves stay visible */
-(function retireLegacyPaintGuardsV233() {
-  function clearLegacyPaintGuards() {
-    const oldStyle = document.getElementById("v228-stable-leaves-settings-paint-style");
-    if (oldStyle) oldStyle.remove();
-    ["leavesView", "settingsView"].forEach(function (id) {
-      const view = document.getElementById(id);
-      if (!view) return;
-      view.classList.remove("v228-stabilizing");
-      view.classList.add("v233-ready");
-    });
-  }
-  if (document.readyState === "loading")
-    document.addEventListener("DOMContentLoaded", clearLegacyPaintGuards, { once: true });
-  else clearLegacyPaintGuards();
-})();
-
-/* v232 - stable settings templates without delayed blank or legacy repaint */
-(function () {
-  if (window.__v232SettingsStableTemplates) return;
-  window.__v232SettingsStableTemplates = true;
-
-  const COMPANY_KEY = "nawah-company-settings-v92";
-  const NOTIF_KEY = "nawah-v136-notification-settings";
-  const previousPanelRenderer =
-    typeof window.__stableSettingsRenderPanel === "function" &&
-    !window.__stableSettingsRenderPanel.__v232SettingsStableTemplates
-      ? window.__stableSettingsRenderPanel
-      : null;
-  const PANEL_META = {
-    company: ["بيانات المنشأة", "بيانات الهوية، الشعار، الخلفية، الختم والعنوان الوطني.", "building"],
-    branches: ["الفروع", "إدارة فروع المنشأة وربطها بالموظفين والوثائق.", "building"],
-    account: ["الحساب الشخصي", "بيانات الحساب الحالي بتصميم الموقع.", "user"],
-    notifications: ["الإشعارات", "إعداد مصادر التنبيه ومددها داخل جرس الهيدر.", "bell"],
-    permissions: ["الصلاحيات والأمان", "صلاحيات المستخدمين حسب الموظف المرتبط.", "shield"],
-    work: ["إعداد العمل", "فترات العمل وتوزيعها الأسبوعي.", "clock"],
-    financialAmounts: ["المبالغ المالية", "المبالغ الافتتاحية والعهدة المستخدمة في شاشة المالية.", "wallet"],
-    managers: ["المدراء", "تحديد المدراء وتوقيعاتهم المعتمدة.", "users"],
-    absence: ["قاعدة بيانات الغياب", "سياسة المنشأة وقاعدة الغياب المعتمدة.", "user-x"],
-    minuteSettings: ["إعداد المحاضر", "أنواع المحاضر التي تظهر في ملف الموظف.", "notes"],
-    documentTypes: ["أنواع الوثائق", "التصنيفات والجهات وأنواع الوثائق.", "file"],
-    departmentsSettings: ["الأقسام", "الإدارات والأقسام والمهن والمدراء المباشرون.", "grid"],
-  };
-  const ORDER = [
-    "company",
-    "branches",
-    "account",
-    "notifications",
-    "permissions",
-    "work",
-    "financialAmounts",
-    "managers",
-    "absence",
-    "minuteSettings",
-    "documentTypes",
-    "departmentsSettings",
-  ];
-  const NOTIF_META = {
-    contract: ["انتهاء العقد", "تنبيه قبل انتهاء عقد الموظف حسب عدد الأيام المحدد.", 60],
-    identity: ["انتهاء الهوية / الإقامة", "تنبيه قبل انتهاء الهوية أو الإقامة.", 30],
-    passport: ["انتهاء الجواز", "تنبيه قبل انتهاء جواز السفر.", 30],
-    workPermit: ["انتهاء رخصة العمل", "تنبيه قبل انتهاء رخصة العمل.", 30],
-    documents: ["انتهاء الوثائق", "تنبيه قبل انتهاء وثائق الموظف أو المنشأة.", 15],
-    notice: ["فترة الإشعار قبل نهاية العقد", "إذا كانت القيمة صفرًا يستخدم النظام فترة الإشعار المسجلة في العقد.", 0],
-    absence: ["تنبيه الغياب", "تنبيه عند وجود غياب يحتاج مراجعة.", 1],
-    leaves: ["الإجازات والسفر", "تنبيه عند وجود طلبات إجازة أو سفر تحتاج مراجعة.", 3],
-  };
-
-  function q(selector, root) {
-    return (root || document).querySelector(selector);
-  }
-  function qa(selector, root) {
-    return Array.prototype.slice.call((root || document).querySelectorAll(selector));
-  }
-  function esc(value) {
-    try {
-      if (typeof escapeHtml === "function") return escapeHtml(value == null ? "" : value);
-    } catch (_) {}
-    return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
-      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch] || ch;
-    });
-  }
-  function icon(name) {
-    try {
-      if (typeof iconSvg === "function") return iconSvg(name);
-    } catch (_) {}
-    return '<span data-icon="' + esc(name) + '"></span>';
-  }
-  function readJson(key, fallback) {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch (_) {
-      return fallback;
-    }
-  }
-  function writeJson(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (_) {}
-    try {
-      if (typeof queueCloudStateSave === "function") queueCloudStateSave();
-      else if (typeof saveLocalMeta === "function") saveLocalMeta();
-    } catch (_) {}
-  }
-  function readCompany() {
-    return readJson(COMPANY_KEY, {}) || {};
-  }
-  function writeCompany(patch) {
-    const next = Object.assign({}, readCompany(), patch || {});
-    if (next.logoAttachmentId) next.logoDataUrl = "";
-    if (next.loginBackgroundAttachmentId) next.loginBackgroundDataUrl = "";
-    if (next.nationalAddressAttachmentId) next.nationalAddressFileDataUrl = "";
-    writeJson(COMPANY_KEY, next);
-    return next;
-  }
-  async function attachmentSrc(id) {
-    if (!id) return "";
-    try {
-      return typeof attachmentUrl === "function" ? (await attachmentUrl(id)) || "" : "";
-    } catch (_) {
-      return "";
-    }
-  }
-  function hydrate(root) {
-    try {
-      if (typeof hydrateIcons === "function") hydrateIcons(root || document);
-    } catch (_) {}
-  }
-  function ready() {
-    const view = q("#settingsView");
-    if (!view) return;
-    view.classList.remove("v228-stabilizing");
-    view.classList.add("v232-ready", "v233-ready");
-  }
-  function activeSettingsKey() {
-    return (
-      q("#settingsNav [data-settings-section].active")?.dataset.settingsSection ||
-      q("#settingsView [data-settings-panel].active")?.dataset.settingsPanel ||
-      "company"
-    );
-  }
-  function panelHead(key) {
-    const meta = PANEL_META[key] || PANEL_META.company;
-    return (
-      '<div class="panel-head v232-panel-head"><div><h3>' +
-      esc(meta[0]) +
-      "</h3><p>" +
-      esc(meta[1]) +
-      "</p></div></div>"
-    );
-  }
-  function loadingShell(key) {
-    const meta = PANEL_META[key] || PANEL_META.company;
-    return (
-      panelHead(key) +
-      '<div class="v232-loading-card"><span data-icon="' +
-      esc(meta[2] || "settings") +
-      '"></span><div><strong>' +
-      esc(meta[0]) +
-      "</strong><p>الواجهة جاهزة، ويتم تحديث البيانات داخلها مباشرة بدون إخفاء الصفحة.</p></div></div>"
-    );
-  }
-  function ensureButton(key, afterKey) {
-    const nav = q("#settingsNav");
-    if (!nav) return null;
-    const meta = PANEL_META[key] || PANEL_META.company;
-    let btn = nav.querySelector('[data-settings-section="' + key + '"]');
-    if (!btn) {
-      btn = document.createElement("button");
-      btn.type = "button";
-      btn.dataset.settingsSection = key;
-      btn.innerHTML = '<span data-icon="' + esc(meta[2]) + '"></span>' + esc(meta[0]);
-      const after = afterKey ? nav.querySelector('[data-settings-section="' + afterKey + '"]') : null;
-      if (after && after.parentNode) after.insertAdjacentElement("afterend", btn);
-      else nav.appendChild(btn);
-    }
-    btn.type = "button";
-    return btn;
-  }
-  function ensurePanel(key) {
-    const container = q("#settingsView .settings-panel");
-    if (!container) return null;
-    let panel = container.querySelector('[data-settings-panel="' + key + '"]');
-    if (!panel) {
-      panel = document.createElement("section");
-      panel.className = "settings-section";
-      panel.dataset.settingsPanel = key;
-      panel.hidden = true;
-      container.appendChild(panel);
-    }
-    panel.classList.add("v232-settings-panel");
-    if (!panel.innerHTML.trim()) panel.innerHTML = loadingShell(key);
-    return panel;
-  }
-  function ensureStructure() {
-    let last = "";
-    ORDER.forEach(function (key) {
-      ensureButton(key, last);
-      ensurePanel(key);
-      last = key;
-    });
-    hydrate(q("#settingsNav"));
-  }
-  function setSettingsActive(key) {
-    ensureStructure();
-    qa("#settingsNav [data-settings-section]").forEach(function (btn) {
-      btn.classList.toggle("active", btn.dataset.settingsSection === key);
-    });
-    qa("#settingsView [data-settings-panel]").forEach(function (panel) {
-      const on = panel.dataset.settingsPanel === key;
-      panel.classList.toggle("active", on);
-      panel.hidden = !on;
-      panel.style.display = on ? "block" : "none";
-    });
-    ready();
-  }
-  function panelIsOnlyShell(panel) {
-    if (!panel) return true;
-    if (!panel.innerHTML.trim()) return true;
-    if (panel.querySelector(".v232-loading-card")) return true;
-    const text = (panel.textContent || "").trim();
-    return text.length < 20;
-  }
-  function isMeaningful(panel, key) {
-    if (!panel) return false;
-    if (key === "company") return !!panel.querySelector("#settingsForm");
-    if (key === "branches") return !!panel.querySelector("#branchesTableBody,#branchList");
-    if (key === "account") return !!panel.querySelector("#v157AccountForm");
-    if (key === "notifications") return !!panel.querySelector("#v157NotificationsForm");
-    if (key === "permissions") return !!panel.querySelector(".v158-permissions-final,#v158SecurityEmployeeSelect,#v157SecurityEmployeeSelect");
-    if (key === "work") return !!panel.querySelector("#workSettingsForm #workSettingsSummary") && !!panel.querySelector("#shiftList") && !!panel.querySelector("#workdayList");
-    if (key === "financialAmounts") return !!panel.querySelector("#financeSettingsForm");
-    if (key === "managers") return !!panel.querySelector("#managersSettingsBody");
-    if (key === "absence") return !!panel.querySelector("#absencePolicyForm #absencePolicySummary") && !!panel.querySelector("#establishmentAbsenceRuleList");
-    if (key === "minuteSettings") return !!panel.querySelector("#minuteSettingsForm #minuteTemplateList");
-    if (key === "documentTypes") return !!panel.querySelector(".doc-settings-grid,#documentCategoryBodyV2,#documentTypeBodyV2");
-    if (key === "departmentsSettings") return !!panel.querySelector(".v176-org-table-card,.v150-settings-departments-grid,.v136-grid");
-    return !panelIsOnlyShell(panel);
-  }
-  function syncLocalMeta() {
-    try {
-      if (typeof saveLocalMeta === "function") saveLocalMeta();
-      else if (typeof queueCloudStateSave === "function") queueCloudStateSave();
-    } catch (_) {}
-  }
-
-  function buildWorkShell(panel) {
-    panel.innerHTML =
-      panelHead("work") +
-      '<form id="workSettingsForm" class="settings-form v232-form" autocomplete="off">' +
-      '<div class="work-settings-summary" id="workSettingsSummary"></div>' +
-      '<section class="work-settings-block"><div class="section-title-with-action"><div><h4>فترات العمل</h4><p>عرّف الفترات ثم اربطها بأيام الأسبوع.</p></div><button type="button" class="primary-btn" id="addShiftBtn"><span data-icon="plus"></span>إضافة فترة</button></div><div class="shift-list" id="shiftList"></div></section>' +
-      '<section class="work-settings-block"><div class="section-title-with-action"><div><h4>توزيع الفترات الأسبوعية</h4><p>فعّل الأيام وأضف الفترات المناسبة لكل يوم.</p></div></div><div class="period-add-card"><label class="period-add-select"><span>الفترة المستخدمة للتطبيق</span><select id="bulkShiftSelect"></select></label><button type="button" class="secondary-btn" id="applyShiftToWorkdaysBtn"><span data-icon="check"></span>تطبيق على الأيام المفعلة</button></div><div class="workday-list" id="workdayList"></div></section>' +
-      '<div class="form-actions"><button type="button" class="secondary-btn" id="resetWorkSettingsBtn">استعادة الافتراضي</button><button type="submit" class="primary-btn">حفظ إعداد العمل</button></div>' +
-      "</form>";
-    bindWorkShell(panel);
-    try {
-      if (typeof renderWorkSettings === "function") renderWorkSettings();
-    } catch (_) {}
-    hydrate(panel);
-  }
-  function bindWorkShell(panel) {
-    if (!panel || panel.dataset.v232WorkBound === "1") return;
-    panel.dataset.v232WorkBound = "1";
-    panel.addEventListener("input", function (event) {
-      const target = event.target;
-      const shiftId =
-        target?.dataset?.shiftName || target?.dataset?.shiftStart || target?.dataset?.shiftEnd || "";
-      if (shiftId && typeof updateShiftFromForm === "function") updateShiftFromForm(shiftId);
-      if (
-        target?.dataset?.workdayStart !== undefined ||
-        target?.dataset?.workdayEnd !== undefined ||
-        target?.dataset?.workdayShift !== undefined
-      ) {
-        const day = target.dataset.workdayStart || target.dataset.workdayEnd || target.dataset.workdayShift;
-        if (typeof updateWorkdayFromForm === "function") updateWorkdayFromForm(day);
-      }
-    });
-    panel.addEventListener("change", function (event) {
-      const target = event.target;
-      if (target?.dataset?.workdayEnabled !== undefined && typeof updateWorkdayFromForm === "function")
-        updateWorkdayFromForm(target.dataset.workdayEnabled);
-      if (
-        target?.dataset?.workdayStart !== undefined ||
-        target?.dataset?.workdayEnd !== undefined ||
-        target?.dataset?.workdayShift !== undefined
-      ) {
-        const day = target.dataset.workdayStart || target.dataset.workdayEnd || target.dataset.workdayShift;
-        if (typeof updateWorkdayFromForm === "function") updateWorkdayFromForm(day);
-      }
-    });
-    panel.addEventListener("click", function (event) {
-      const addShift = event.target.closest("#addShiftBtn");
-      if (addShift) return event.preventDefault(), typeof addWorkShift === "function" && addWorkShift();
-      const reset = event.target.closest("#resetWorkSettingsBtn");
-      if (reset) return event.preventDefault(), typeof resetWorkSettings === "function" && resetWorkSettings();
-      const apply = event.target.closest("#applyShiftToWorkdaysBtn");
-      if (apply) return event.preventDefault(), typeof applySelectedShiftToWorkdays === "function" && applySelectedShiftToWorkdays();
-      const removeShift = event.target.closest("[data-remove-shift]");
-      if (removeShift) return event.preventDefault(), typeof removeWorkShift === "function" && removeWorkShift(removeShift.dataset.removeShift);
-      const addDayShift = event.target.closest("[data-add-day-shift]");
-      if (addDayShift) return event.preventDefault(), typeof addShiftToDay === "function" && addShiftToDay(addDayShift.dataset.addDayShift, q("#bulkShiftSelect")?.value);
-      const removeDayShift = event.target.closest("[data-remove-day-shift]");
-      if (removeDayShift)
-        return (
-          event.preventDefault(),
-          typeof removeShiftFromDay === "function" &&
-            removeShiftFromDay(removeDayShift.dataset.removeDayShift, removeDayShift.dataset.shiftIndex)
-        );
-    });
-    panel.addEventListener("submit", function (event) {
-      if (event.target?.id !== "workSettingsForm") return;
-      event.preventDefault();
-      syncLocalMeta();
-      try {
-        if (typeof showToast === "function") showToast("تم حفظ إعداد العمل");
-      } catch (_) {}
-    });
-  }
-
-  function buildAbsenceShell(panel) {
-    panel.innerHTML =
-      panelHead("absence") +
-      '<form id="absencePolicyForm" class="settings-form v232-form" autocomplete="off">' +
-      '<div class="absence-policy-summary work-settings-summary" id="absencePolicySummary"></div>' +
-      '<div class="absence-policy-choice-grid absence-policy-grid"><label class="absence-policy-choice establishment-policy-card" id="establishmentPolicyCard"><input type="radio" name="activePolicy" value="establishment" data-absence-policy="activePolicy"><div><strong>سياسة المنشأة</strong><span>سياسة مخصصة تظهر عند تسجيل الغياب.</span></div></label><label class="absence-policy-choice labor-policy-card" id="laborPolicyCard"><input type="radio" name="activePolicy" value="labor" data-absence-policy="activePolicy"><div><strong>قاعدة مكتب العمل</strong><span>القاعدة النظامية الافتراضية.</span></div></label></div>' +
-      '<div class="absence-policy-stack"><section class="work-settings-block absence-establishment-wide"><div class="section-title-with-action"><div><h4>سياسة المنشأة في الغياب</h4><p>اسم الغياب وعدد الأيام التي تخصم من راتب الموظف الأساسي.</p></div><button type="button" class="primary-btn" data-add-establishment-absence-rule><span data-icon="plus"></span>إضافة سياسة</button></div><div id="establishmentAbsenceRuleList" class="establishment-absence-rule-list"></div></section><section class="work-settings-block absence-labor-wide"><div class="section-title-with-action"><div><h4>قاعدة مكتب العمل</h4><p>تفاصيل القاعدة النظامية عند اختيارها.</p></div></div><div id="absenceLaborRulesList" class="absence-rule-list"></div></section></div>' +
-      '<div class="form-actions"><button type="submit" class="primary-btn">حفظ قاعدة الغياب</button></div>' +
-      "</form>";
-    bindAbsenceShell(panel);
-    try {
-      if (typeof renderAbsencePolicySettings === "function") renderAbsencePolicySettings();
-    } catch (_) {}
-    hydrate(panel);
-  }
-  function bindAbsenceShell(panel) {
-    if (!panel || panel.dataset.v232AbsenceBound === "1") return;
-    panel.dataset.v232AbsenceBound = "1";
-    panel.addEventListener("input", function (event) {
-      if (event.target?.closest?.("#establishmentAbsenceRuleList") && typeof updateAbsencePolicyFromForm === "function")
-        updateAbsencePolicyFromForm();
-    });
-    panel.addEventListener("change", function (event) {
-      if (event.target?.matches?.('[data-absence-policy="activePolicy"]') && typeof updateAbsencePolicyFromForm === "function")
-        updateAbsencePolicyFromForm();
-      if (event.target?.closest?.("#establishmentAbsenceRuleList") && typeof updateAbsencePolicyFromForm === "function")
-        updateAbsencePolicyFromForm();
-    });
-    panel.addEventListener("click", function (event) {
-      const add = event.target.closest("[data-add-establishment-absence-rule]");
-      if (add) return event.preventDefault(), typeof addEstablishmentAbsenceRule === "function" && addEstablishmentAbsenceRule();
-      const remove = event.target.closest("[data-remove-establishment-absence-rule]");
-      if (remove)
-        return (
-          event.preventDefault(),
-          typeof removeEstablishmentAbsenceRule === "function" &&
-            removeEstablishmentAbsenceRule(remove.dataset.removeEstablishmentAbsenceRule)
-        );
-    });
-    panel.addEventListener("submit", function (event) {
-      if (event.target?.id !== "absencePolicyForm") return;
-      event.preventDefault();
-      if (typeof updateAbsencePolicyFromForm === "function") updateAbsencePolicyFromForm();
-      syncLocalMeta();
-      try {
-        if (typeof showToast === "function") showToast("تم حفظ قاعدة الغياب");
-      } catch (_) {}
-    });
-  }
-
-  function buildMinuteShell(panel) {
-    panel.innerHTML =
-      panelHead("minuteSettings") +
-      '<form id="minuteSettingsForm" class="settings-form v232-form" autocomplete="off"><div class="work-settings-summary" id="minuteSettingsSummary"></div><section class="work-settings-block"><div class="section-title-with-action"><div><h4>أنواع المحاضر</h4><p>تظهر هذه الأنواع عند إضافة محضر داخل ملف الموظف.</p></div><button type="button" class="primary-btn" id="addMinuteTemplateBtn"><span data-icon="plus"></span>إضافة نوع محضر</button></div><div class="minute-template-list" id="minuteTemplateList"></div></section><div class="form-actions"><button type="submit" class="primary-btn">حفظ إعداد المحاضر</button></div></form>';
-    bindMinuteShell(panel);
-    try {
-      if (typeof renderMinuteTemplateSettings === "function") renderMinuteTemplateSettings();
-    } catch (_) {}
-    hydrate(panel);
-  }
-  function bindMinuteShell(panel) {
-    if (!panel || panel.dataset.v232MinuteBound === "1") return;
-    panel.dataset.v232MinuteBound = "1";
-    panel.addEventListener("click", function (event) {
-      if (event.target.closest("#addMinuteTemplateBtn") && typeof addMinuteTemplate === "function") {
-        event.preventDefault();
-        addMinuteTemplate();
-      }
-    });
-    panel.addEventListener("submit", function (event) {
-      if (event.target?.id !== "minuteSettingsForm") return;
-      event.preventDefault();
-      syncLocalMeta();
-      try {
-        if (typeof showToast === "function") showToast("تم حفظ إعداد المحاضر");
-      } catch (_) {}
-    });
-  }
-
-  function buildFinancialShell(panel) {
-    const data = readJson("nawah-finance-settings", {}) || {};
-    panel.innerHTML =
-      panelHead("financialAmounts") +
-      '<form id="financeSettingsForm" class="settings-form v232-form finance-settings-grid" autocomplete="off"><label><span>المبلغ المرحل</span><input type="number" min="0" step="0.01" name="openingAmount" value="' +
-      esc(data.openingAmount || "") +
-      '"></label><label><span>مبلغ العهدة</span><input type="number" min="0" step="0.01" name="custodyAmount" value="' +
-      esc(data.custodyAmount || "") +
-      '"></label><div class="form-actions span-all"><button type="submit" class="primary-btn">حفظ المبالغ المالية</button></div></form>';
-    hydrate(panel);
-  }
-
-  function buildManagersShell(panel) {
-    panel.innerHTML =
-      panelHead("managers") +
-      '<section class="work-settings-block v232-managers-panel"><div class="section-title-with-action"><div><h4>قائمة المدراء</h4><p>اختر المدير من المدراء المعينين في الإدارات أو الأقسام، ثم أرفق توقيعه.</p></div><button type="button" class="primary-btn" id="addManagerBtn"><span data-icon="plus"></span>إضافة مدير</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>التسلسل</th><th>المدير</th><th>مصدر التعيين</th><th>مرفق التوقيع</th><th>الإجراءات</th></tr></thead><tbody id="managersSettingsBody"></tbody></table></div></section>';
-    try {
-      if (window.nawahV191?.renderManagers) window.nawahV191.renderManagers();
-    } catch (_) {}
-    hydrate(panel);
-  }
-
-  function currentProfileFallback() {
-    const profile = window.authProfile || window.currentUserProfile || {};
-    const email =
-      profile.email ||
-      (typeof currentUserEmail === "function" ? currentUserEmail() : "") ||
-      (typeof window.currentUserEmail === "string" ? window.currentUserEmail : "") ||
-      "";
-    const name = profile.full_name || profile.name || window.currentUser || email || "مستخدم النظام";
-    return {
-      id: profile.id || "",
-      name: String(name).trim(),
-      email: String(email).trim(),
-      role: profile.role || "admin",
-      active: profile.is_active === false ? "موقوف" : "مفعل",
-    };
-  }
-  function roleText(role) {
-    const value = String(role || "");
-    if (value === "admin") return "مدير النظام";
-    if (value === "manager") return "مدير";
-    if (value === "hr") return "الموارد البشرية";
-    return "موظف";
-  }
-  function buildAccountPanel(panel) {
-    const profile = currentProfileFallback();
-    const initial = (profile.name || "م").charAt(0) || "م";
-    panel.classList.add("v156-settings-modern", "v157-settings-clean");
-    panel.innerHTML =
-      panelHead("account") +
-      '<form id="v157AccountForm" class="v156-modern-form"><section class="v156-account-hero"><div class="v156-avatar">' +
-      esc(initial) +
-      '</div><div class="v156-account-title"><strong>' +
-      esc(profile.name) +
-      '</strong><span dir="ltr">' +
-      esc(profile.email || "لا يوجد بريد ظاهر") +
-      '</span></div><span class="v156-pill ok">' +
-      esc(profile.active) +
-      '</span></section><div class="v156-info-grid"><article><span>البريد الإلكتروني</span><strong dir="ltr">' +
-      esc(profile.email || "—") +
-      "</strong></article><article><span>الصلاحية</span><strong>" +
-      esc(roleText(profile.role)) +
-      "</strong></article><article><span>حالة الحساب</span><strong>" +
-      esc(profile.active) +
-      "</strong></article><article><span>مصدر البيانات</span><strong>app_user_profiles</strong></article></div><section class=\"v156-edit-box\"><label><span>الاسم الظاهر</span><input name=\"fullName\" value=\"" +
-      esc(profile.name) +
-      '"></label><button class="primary-btn" type="submit">حفظ الاسم الظاهر</button></section><div class="v156-note warn">لا يمكن تعديل البريد أو الصلاحية من الحساب الشخصي حتى لا تتعارض مع إدارة المستخدمين والصلاحيات.</div></form>';
-    const form = q("#v157AccountForm", panel);
-    if (form) {
-      form.addEventListener("submit", async function (event) {
-        event.preventDefault();
-        const value = String(form.elements.fullName?.value || "").trim();
-        if (!value) return;
-        try {
-          if (typeof supabaseClient !== "undefined" && supabaseClient?.from && profile.id) {
-            await supabaseClient.from("app_user_profiles").update({ full_name: value, updated_at: new Date().toISOString() }).eq("id", profile.id);
-          }
-          window.authProfile = Object.assign({}, window.authProfile || {}, { full_name: value, name: value });
-          try {
-            if (typeof showToast === "function") showToast("تم حفظ الاسم الظاهر");
-          } catch (_) {}
-          buildAccountPanel(panel);
-        } catch (error) {
-          console.warn(error);
-        }
-      });
-    }
-    hydrate(panel);
-  }
-  function notifData() {
-    const saved = readJson(NOTIF_KEY, {}) || {};
-    const out = {};
-    Object.keys(NOTIF_META).forEach(function (key) {
-      out[key] = {
-        enabled: saved[key]?.enabled !== false,
-        days: Number(saved[key]?.days ?? NOTIF_META[key][2]) || 0,
-      };
-    });
-    return out;
-  }
-  function buildNotificationsPanel(panel) {
-    const data = notifData();
-    panel.classList.add("v156-settings-modern", "v157-settings-clean");
-    panel.innerHTML =
-      panelHead("notifications") +
-      '<form id="v157NotificationsForm" class="v156-modern-form"><div class="v156-notif-grid">' +
-      Object.keys(NOTIF_META)
-        .map(function (key) {
-          const item = data[key] || {};
-          return (
-            '<article class="v156-notif-card"><div class="v156-notif-head"><input type="checkbox" name="' +
-            esc(key) +
-            '_enabled" ' +
-            (item.enabled ? "checked" : "") +
-            "><strong>" +
-            esc(NOTIF_META[key][0]) +
-            "</strong></div><p>" +
-            esc(NOTIF_META[key][1]) +
-            '</p><label class="v156-days"><span>عدد الأيام قبل التنبيه</span><input type="number" min="0" step="1" name="' +
-            esc(key) +
-            '_days" value="' +
-            esc(item.days) +
-            '"></label></article>'
-          );
-        })
-        .join("") +
-      '</div><div class="v156-actions"><button type="button" class="secondary-btn" id="v157ResetNotif">استعادة الافتراضي</button><button type="submit" class="primary-btn">حفظ الإشعارات</button></div></form>';
-    const form = q("#v157NotificationsForm", panel);
-    form?.addEventListener("submit", function (event) {
-      event.preventDefault();
-      const next = {};
-      Object.keys(NOTIF_META).forEach(function (key) {
-        next[key] = {
-          enabled: !!form.elements[key + "_enabled"]?.checked,
-          days: Math.max(0, Number(form.elements[key + "_days"]?.value || 0) || 0),
-        };
-      });
-      writeJson(NOTIF_KEY, next);
-      try {
-        if (typeof showToast === "function") showToast("تم حفظ الإشعارات");
-      } catch (_) {}
-    });
-    q("#v157ResetNotif", panel)?.addEventListener("click", function () {
-      const next = {};
-      Object.keys(NOTIF_META).forEach(function (key) {
-        next[key] = { enabled: true, days: NOTIF_META[key][2] };
-      });
-      writeJson(NOTIF_KEY, next);
-      buildNotificationsPanel(panel);
-    });
-    hydrate(panel);
-  }
-  function buildPermissionsFallback(panel) {
-    panel.innerHTML =
-      panelHead("permissions") +
-      '<div class="v158-permissions-wrap v232-permissions-shell"><section class="v158-permission-toolbar"><article class="v158-picker-card"><span data-icon="shield"></span><div><strong>تحديد الموظف</strong><p>تظهر صلاحيات الحساب المرتبط بعد الاختيار.</p></div></article><div class="v158-controls"><select id="v158SecurityEmployeeSelect"><option value="">جاري تحميل الموظفين...</option></select><button type="button" class="secondary-btn" id="v158ReloadPermissions"><span data-icon="refresh"></span>تحديث</button><button type="button" class="primary-btn" id="v158SavePermissions"><span data-icon="check"></span>حفظ الصلاحيات</button></div></section><div id="v158PermissionsEditor" class="v158-editor"><div class="v158-empty-state"><span data-icon="shield"></span><strong>اختر موظفًا من القائمة</strong><p>سيتم إظهار الصلاحيات بمجرد اكتمال تحميل الحسابات.</p></div></div></div>';
-    hydrate(panel);
-  }
-  async function renderPermissionsPanel(panel) {
-    const selected =
-      q("#v158SecurityEmployeeSelect", panel)?.value ||
-      q("#securityUserSelectFinal", panel)?.value ||
-      q("#securityUserSelect", panel)?.value ||
-      "";
-    if (typeof window.v158RenderFinalPermissions === "function") {
-      const result = window.v158RenderFinalPermissions(selected);
-      if (result && typeof result.then === "function") await result;
-      [80, 220, 520].forEach(function (delay) {
-        setTimeout(function () {
-          const currentPanel = q('#settingsView [data-settings-panel="permissions"]');
-          if (!currentPanel || activeSettingsKey() !== "permissions") return;
-          if (
-            !currentPanel.classList.contains("v158-permissions-final") ||
-            !q("#v158SecurityEmployeeSelect", currentPanel)
-          ) {
-            window.v158RenderFinalPermissions(
-              q("#v158SecurityEmployeeSelect", currentPanel)?.value || selected,
-            );
-          }
-        }, delay);
-      });
-      return;
-    }
-    buildPermissionsFallback(panel);
-    if (typeof window.v134RenderCanonicalEmployeePermissions === "function") {
-      const result = window.v134RenderCanonicalEmployeePermissions();
-      if (result && typeof result.then === "function") await result;
-    }
-  }
-
-  function ensureLoginBackgroundControl() {
-    const form = q('#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"],#settingsForm.company-settings-real-form');
-    if (!form) return null;
-    const company = readCompany();
-    let card = q("[data-v96-login-bg-control]", form);
-    if (!card) {
-      card = document.createElement("div");
-      card.className = "company-logo-upload company-logo-upload-real v96-login-bg-upload v146-login-bg-card";
-      card.dataset.v96LoginBgControl = "1";
-      const anchor =
-        q("[data-v192-site-favicon-control]", form) ||
-        q(".v94-logo-upload", form) ||
-        q(".company-logo-upload-real", form) ||
-        form.firstElementChild;
-      if (anchor && anchor.parentNode) anchor.insertAdjacentElement("afterend", card);
-      else form.insertAdjacentElement("afterbegin", card);
-    }
-    const hasBg = Boolean(company.loginBackgroundAttachmentId || company.loginBackgroundDataUrl);
-    card.innerHTML =
-      '<div class="login-bg-preview" id="loginBgPreview"><span>خلفية</span></div>' +
-      '<div class="company-logo-copy"><strong>خلفية شاشة تسجيل الدخول</strong><span>تحفظ كمرفق حقيقي وتظهر مباشرة في شاشة الدخول على كل الأجهزة.</span><small>' +
-      esc(company.loginBackgroundFileName || (hasBg ? "تم إرفاق خلفية تسجيل الدخول" : "لم يتم إرفاق خلفية")) +
-      '</small></div><div class="v96-bg-actions v192-media-actions"><label class="secondary-btn company-logo-btn">تغيير الخلفية<input type="file" name="loginBackgroundFile" accept="image/png,image/jpeg,image/webp" hidden></label>' +
-      (hasBg ? '<button type="button" class="light-btn" id="removeLoginBackgroundBtn" data-v146-remove-login-bg="1">حذف الخلفية</button>' : "") +
-      "</div>";
-    return card;
-  }
-  async function refreshLoginBackgroundPreview(card) {
-    if (!card) return;
-    const company = readCompany();
-    const url =
-      (company.loginBackgroundAttachmentId ? await attachmentSrc(company.loginBackgroundAttachmentId) : "") ||
-      company.loginBackgroundDataUrl ||
-      "";
-    const preview = q("#loginBgPreview,.login-bg-preview", card);
-    if (preview) {
-      preview.innerHTML = url
-        ? '<img src="' + esc(url) + '" alt="خلفية تسجيل الدخول" loading="lazy" decoding="async">'
-        : "<span>خلفية</span>";
-    }
-  }
-  function polishNationalAddressControl() {
-    const form = q("#settingsForm");
-    if (!form) return;
-    const company = readCompany();
-    const fileName = q("#nationalAddressFileName", form);
-    if (fileName) {
-      fileName.textContent =
-        company.nationalAddressFileName ||
-        (company.nationalAddressAttachmentId ? "تم إرفاق العنوان الوطني" : "لم يتم إرفاق ملف");
-    }
-    const line = q(".national-address-attachment .attachment-line", form);
-    if (!line) return;
-    line.classList.add("v94-attachment-line", "v230-national-address-line");
-    qa("[data-download-national-address],[data-v101-download-national],[data-v230-national-address-eye]", line).forEach(function (old) {
-      old.remove();
-    });
-    let actions = q(".attachment-actions", line);
-    if (!actions) {
-      actions = document.createElement("div");
-      actions.className = "attachment-actions";
-      const picker = q('label.secondary-btn,input[name="nationalAddressFile"]', line)?.closest("label");
-      if (picker) actions.appendChild(picker);
-      line.appendChild(actions);
-    }
-    if (company.nationalAddressAttachmentId) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "attachment-view-btn attachment-preview-btn";
-      button.dataset.v230NationalAddressEye = "1";
-      button.dataset.viewAttachment = company.nationalAddressAttachmentId;
-      button.dataset.attachmentId = company.nationalAddressAttachmentId;
-      button.title = "معاينة العنوان الوطني";
-      button.setAttribute("aria-label", "معاينة العنوان الوطني");
-      button.innerHTML = icon("eye");
-      actions.appendChild(button);
-    }
-  }
-  async function refreshCompanyPanel() {
-    const form = q("#settingsForm");
-    if (!form) return;
-    const bgCard = ensureLoginBackgroundControl();
-    try {
-      if (window.nawahV191?.companyStampControl) window.nawahV191.companyStampControl();
-    } catch (_) {}
-    try {
-      if (window.refreshLoginBackgroundCardV146) await window.refreshLoginBackgroundCardV146();
-    } catch (_) {}
-    await refreshLoginBackgroundPreview(bgCard || q("[data-v96-login-bg-control]", form));
-    polishNationalAddressControl();
-    try {
-      if (window.nawahV177LoginBackground?.apply)
-        await window.nawahV177LoginBackground.apply({ allowCachedFallback: true });
-    } catch (_) {}
-    try {
-      if (window.applyCompanyMediaV101) await window.applyCompanyMediaV101();
-    } catch (_) {}
-    hydrate(form);
-  }
-
-  async function callPrevious(key) {
-    if (
-      previousPanelRenderer &&
-      previousPanelRenderer !== renderPanel &&
-      !previousPanelRenderer.__v232SettingsStableTemplates
-    ) {
-      const result = previousPanelRenderer(key);
-      if (result && typeof result.then === "function") await result;
-    }
-  }
-  function enforceModernAfterLegacy(panel, key) {
-    if (key === "account" && (!q("#v157AccountForm", panel) || q("#v136AccountForm", panel))) buildAccountPanel(panel);
-    if (key === "notifications" && (!q("#v157NotificationsForm", panel) || q("#v137NotificationsForm", panel))) buildNotificationsPanel(panel);
-  }
-  function scheduleIntegrityCheck(key) {
-    [80, 220, 480].forEach(function (delay) {
-      setTimeout(function () {
-        const view = q("#settingsView");
-        if (!view || !view.classList.contains("active")) return;
-        if (activeSettingsKey() !== key) return;
-        const panel = q('#settingsView [data-settings-panel="' + key + '"]');
-        if (!panel) return;
-        enforceModernAfterLegacy(panel, key);
-        if (!isMeaningful(panel, key) || panelIsOnlyShell(panel)) {
-          const count = Number(panel.dataset.v232IntegrityCount || "0") || 0;
-          if (count >= 2) return ready();
-          panel.dataset.v232IntegrityCount = String(count + 1);
-          renderPanel(key);
-        } else {
-          panel.dataset.v232IntegrityCount = "0";
-          ready();
-        }
-      }, delay);
-    });
-  }
-  async function renderPanel(key) {
-    key = key || activeSettingsKey();
-    setSettingsActive(key);
-    const panel = ensurePanel(key);
-    if (!panel) return;
-    if (panelIsOnlyShell(panel)) panel.innerHTML = loadingShell(key);
-
-    try {
-      if (key === "work") {
-        if (!isMeaningful(panel, key)) buildWorkShell(panel);
-        else if (typeof renderWorkSettings === "function") renderWorkSettings();
-      } else if (key === "absence") {
-        if (!isMeaningful(panel, key)) buildAbsenceShell(panel);
-        else if (typeof renderAbsencePolicySettings === "function") renderAbsencePolicySettings();
-      } else if (key === "minuteSettings") {
-        if (!isMeaningful(panel, key)) buildMinuteShell(panel);
-        else if (typeof renderMinuteTemplateSettings === "function") renderMinuteTemplateSettings();
-      } else if (key === "financialAmounts") {
-        if (!isMeaningful(panel, key)) buildFinancialShell(panel);
-      } else if (key === "managers") {
-        if (!isMeaningful(panel, key)) buildManagersShell(panel);
-        else if (window.nawahV191?.renderManagers) window.nawahV191.renderManagers();
-      } else if (key === "account") {
-        buildAccountPanel(panel);
-        if (window.v136Settings?.renderAccountPanel) {
-          await window.v136Settings.renderAccountPanel();
-          enforceModernAfterLegacy(panel, key);
-        }
-      } else if (key === "notifications") {
-        buildNotificationsPanel(panel);
-        if (window.v136Settings?.renderNotificationsPanel) {
-          window.v136Settings.renderNotificationsPanel();
-          enforceModernAfterLegacy(panel, key);
-        }
-      } else if (key === "permissions") {
-        await renderPermissionsPanel(panel);
-      } else {
-        await callPrevious(key);
-      }
-
-      if (key === "company") {
-        if (!isMeaningful(panel, key) && typeof renderCompanySettingsV94 === "function") renderCompanySettingsV94();
-        await refreshCompanyPanel();
-      } else if (key === "branches" && !isMeaningful(panel, key)) {
-        await callPrevious(key);
-      } else if (key === "documentTypes" && !isMeaningful(panel, key)) {
-        await callPrevious(key);
-      } else if (key === "departmentsSettings" && !isMeaningful(panel, key)) {
-        await callPrevious(key);
-      }
-    } catch (error) {
-      console.warn("v232: تعذر رسم تبويب الإعدادات.", error);
-      if (panelIsOnlyShell(panel)) panel.innerHTML = loadingShell(key);
-    }
-
-    enforceModernAfterLegacy(panel, key);
-    hydrate(panel);
-    ready();
-    scheduleIntegrityCheck(key);
-  }
-  renderPanel.__v232SettingsStableTemplates = true;
-
-  let token = 0;
-  async function activateSettings(key) {
-    key = key || activeSettingsKey();
-    const current = ++token;
-    setSettingsActive(key);
-    try {
-      await renderPanel(key);
-    } catch (error) {
-      console.warn("v232: تعذر تثبيت الإعدادات.", error);
-    }
-    if (current === token) ready();
-  }
-  activateSettings.__v232SettingsStableTemplates = true;
-
-  function renderSettingsFinal() {
-    activateSettings(activeSettingsKey());
-  }
-  renderSettingsFinal.__v232SettingsStableTemplates = true;
-
-  window.__stableSettingsRenderPanel = renderPanel;
-  window.__stableActivateSettingsSection = activateSettings;
-  window.switchSettingsSection = activateSettings;
-  window.v155ActivateSettingsSection = activateSettings;
-  try {
-    switchSettingsSection = activateSettings;
-  } catch (_) {}
-  try {
-    renderSettings = renderSettingsFinal;
-  } catch (_) {}
-  window.renderSettings = renderSettingsFinal;
-
-  document.addEventListener(
-    "click",
-    function (event) {
-      const btn = event.target?.closest?.("#settingsNav [data-settings-section]");
-      if (!btn) return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-      activateSettings(btn.dataset.settingsSection);
-    },
-    true,
-  );
-
-  document.addEventListener(
-    "click",
-    function (event) {
-      if (!event.target?.closest?.('#removeLoginBackgroundBtn,[data-v146-remove-login-bg]')) return;
-      writeCompany({
-        loginBackgroundAttachmentId: "",
-        loginBackgroundFileName: "",
-        loginBackgroundDataUrl: "",
-      });
-      const card = q("[data-v96-login-bg-control]");
-      if (card) card.remove();
-      try {
-        if (window.nawahV177LoginBackground?.set) window.nawahV177LoginBackground.set("");
-      } catch (_) {}
-      setTimeout(refreshCompanyPanel, 0);
-    },
-    true,
-  );
-
-  const settingsObserver = new MutationObserver(function () {
-    const view = q("#settingsView");
-    if (!view || !view.classList.contains("active")) return;
-    const key = activeSettingsKey();
-    const panel = q('#settingsView [data-settings-panel="' + key + '"]');
-    if (!panel || token < 0) return;
-    if (panelIsOnlyShell(panel)) {
-      const current = ++token;
-      setTimeout(function () {
-        if (current !== token) return;
-        renderPanel(key);
-      }, 0);
-    }
-  });
-
-  function init() {
-    ensureStructure();
-    ready();
-    const host = q("#settingsView .settings-panel");
-    if (host && !host.__v232SettingsObserver) {
-      host.__v232SettingsObserver = settingsObserver;
-      settingsObserver.observe(host, { childList: true, subtree: false });
-    }
-    if (q("#settingsView")?.classList.contains("active")) activateSettings(activeSettingsKey());
-  }
-
-  if (document.readyState === "loading")
-    document.addEventListener("DOMContentLoaded", init, { once: true });
-  else init();
 })();

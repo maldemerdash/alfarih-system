@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0d172c" />
     <title>نواة | إدارة الموظفين</title>
-    <link id="siteFaviconLink" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" />
+    <link rel="icon" type="image/png" href="sar-symbol.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,13 +16,10 @@
       (function () {
         try {
           var company = JSON.parse(localStorage.getItem("nawah-company-settings-v92") || "{}") || {};
-          var favicon = company.siteFaviconDataUrl || company.logoDataUrl || "";
+          var favicon = company.siteFaviconDataUrl || "";
           if (favicon) {
             var faviconLink = document.querySelector('link[rel="icon"]');
-            if (faviconLink) {
-              faviconLink.type = "image/png";
-              faviconLink.href = favicon;
-            }
+            if (faviconLink) faviconLink.href = favicon;
           }
           var url = company.loginBackgroundDataUrl || localStorage.getItem("nawah-login-bg-url-v177") || "";
           if (url) {
@@ -46,7 +43,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=233" />
+    <link rel="stylesheet" href="style.css?v=220" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -722,7 +719,6 @@
             <div class="settings-layout">
               <nav class="settings-nav" id="settingsNav" aria-label="قائمة الإعدادات">
                 <button type="button" class="active" data-settings-section="company"><span data-icon="building"></span>بيانات المنشأة</button>
-                <button type="button" data-settings-section="branches"><span data-icon="building"></span>الفروع</button>
                 <button type="button" data-settings-section="account"><span data-icon="user"></span>الحساب الشخصي</button>
                 <button type="button" data-settings-section="notifications"><span data-icon="bell"></span>الإشعارات</button>
                 <button type="button" data-settings-section="permissions"><span data-icon="shield"></span>الصلاحيات والأمان</button>
@@ -731,22 +727,148 @@
                 <button type="button" data-settings-section="managers"><span data-icon="users"></span>المدراء</button>
                 <button type="button" data-settings-section="absence"><span data-icon="user-x"></span>قاعدة بيانات الغياب</button>
                 <button type="button" data-settings-section="minuteSettings"><span data-icon="notes"></span>إعداد المحاضر</button>
-                <button type="button" data-settings-section="documentTypes"><span data-icon="file"></span>أنواع الوثائق</button>
-                <button type="button" data-settings-section="departmentsSettings"><span data-icon="grid"></span>الأقسام</button>
               </nav>
-              <article class="panel settings-panel" aria-live="polite">
-                <section class="settings-section active" data-settings-panel="company"></section>
-                <section class="settings-section" data-settings-panel="branches" hidden></section>
-                <section class="settings-section" data-settings-panel="account" hidden></section>
-                <section class="settings-section" data-settings-panel="notifications" hidden></section>
-                <section class="settings-section" data-settings-panel="permissions" hidden></section>
-                <section class="settings-section" data-settings-panel="work" hidden></section>
-                <section class="settings-section" data-settings-panel="financialAmounts" hidden></section>
-                <section class="settings-section" data-settings-panel="managers" hidden></section>
-                <section class="settings-section" data-settings-panel="absence" hidden></section>
-                <section class="settings-section" data-settings-panel="minuteSettings" hidden></section>
-                <section class="settings-section" data-settings-panel="documentTypes" hidden></section>
-                <section class="settings-section" data-settings-panel="departmentsSettings" hidden></section>
+              <article class="panel settings-panel">
+                <section class="settings-section active" data-settings-panel="company">
+                  <div class="panel-head"><div><h3>بيانات المنشأة</h3><p>المعلومات الأساسية التي تظهر في التقارير والمستندات</p></div></div>
+                  <form id="settingsForm" class="settings-form">
+                    <div class="company-logo-upload"><div class="brand-mark"><svg viewBox="0 0 40 40"><path d="M11 28V15l9-6 9 6v13l-9 5-9-5Z"/><path d="M16 25V17l4-3 4 3v8l-4 2-4-2Z"/></svg></div><div><strong>شعار المنشأة</strong><span>PNG أو JPG، بحد أقصى ٢ ميجابايت</span></div><button type="button" class="secondary-btn">تغيير الشعار</button></div>
+                    <div class="form-grid">
+                      <label><span>اسم المنشأة</span><input name="company" value="شركة نواة للحلول الرقمية" /></label>
+                      <label><span>الرقم الموحد</span><input name="unifiedNumber" value="٧٠١٢٣٤٥٦٧٨" /></label>
+                      <label><span>البريد الإلكتروني</span><input type="email" name="email" value="info@nawah.sa" /></label>
+                      <label><span>رقم التواصل</span><input name="phone" value="٠١١ ٢٣٤ ٥٦٧٨" /></label>
+                      <label class="full-field"><span>العنوان الوطني</span><input name="address" value="طريق الملك فهد، الرياض، المملكة العربية السعودية" /></label>
+                    </div>
+                    <div class="form-actions"><button type="button" class="secondary-btn">إلغاء</button><button type="submit" class="primary-btn">حفظ التغييرات</button></div>
+                  </form>
+                </section>
+
+                <section class="settings-section" data-settings-panel="account">
+                  <div class="panel-head"><div><h3>الحساب الشخصي</h3><p>بيانات المستخدم الحالي وتفضيلات الحساب.</p></div></div>
+                  <div class="settings-placeholder-card">
+                    <span data-icon="user"></span>
+                    <div><strong>سيتم ربط الحساب الشخصي لاحقًا</strong><p>هذه الشاشة مفعّلة للعرض والتنظيم، وسيتم ربطها بالمستخدمين عند إضافة تسجيل الدخول.</p></div>
+                  </div>
+                </section>
+
+                <section class="settings-section" data-settings-panel="notifications">
+                  <div class="panel-head"><div><h3>الإشعارات</h3><p>إعداد تنبيهات انتهاء الوثائق والغياب والعقود.</p></div></div>
+                  <div class="settings-placeholder-card">
+                    <span data-icon="bell"></span>
+                    <div><strong>تنبيهات النظام جاهزة كقسم مستقل</strong><p>سيتم لاحقًا تحديد قنوات التنبيه ومواعيد التذكير قبل انتهاء الهوية والجواز والعقد.</p></div>
+                  </div>
+                </section>
+
+                <section class="settings-section" data-settings-panel="permissions">
+                  <div class="panel-head"><div><h3>الصلاحيات والأمان</h3><p>تجهيز الصلاحيات لكل جزء في النظام، والتنفيذ التفصيلي مؤجل.</p></div></div>
+                  <div class="permissions-preview-grid" id="permissionsPreviewGrid"></div>
+                </section>
+
+                <section class="settings-section" data-settings-panel="work">
+                  <div class="panel-head"><div><h3>إعداد العمل</h3><p>تحديد أيام العمل وساعات الدوام، مع إمكانية إضافة أكثر من فترة لليوم الواحد.</p></div></div>
+                  <form id="workSettingsForm" class="settings-form work-settings-form">
+                    <div class="work-settings-summary" id="workSettingsSummary"></div>
+                    <div class="work-settings-block">
+                      <div class="section-title-with-action">
+                        <div><h4>الفترات</h4><p>عرّف الفترات المتاحة، ثم أضف فترة أو أكثر لكل يوم عمل.</p></div>
+                        <button type="button" class="secondary-btn" id="addShiftBtn"><span data-icon="plus"></span>إضافة فترة</button>
+                      </div>
+                      <div class="shift-list" id="shiftList"></div>
+                    </div>
+                    <div class="work-settings-block">
+                      <div class="section-title-with-action">
+                        <div><h4>أيام وساعات العمل</h4><p>يمكن تفعيل اليوم وإضافة أكثر من فترة له، مع تعديل بداية ونهاية كل فترة بشكل مستقل.</p></div>
+                      </div>
+                      <div class="period-add-card">
+                        <label class="period-add-select"><span>الفترة المراد إضافتها</span><select id="bulkShiftSelect"></select></label>
+                        <button type="button" class="primary-btn period-add-btn" id="applyShiftToWorkdaysBtn"><span data-icon="plus"></span>إضافة الفترة لأيام العمل</button>
+                      </div>
+                      <div class="workday-list" id="workdayList"></div>
+                    </div>
+                    <div class="form-actions"><button type="button" class="secondary-btn" id="resetWorkSettingsBtn">استعادة الافتراضي</button><button type="submit" class="primary-btn">حفظ إعداد العمل</button></div>
+                  </form>
+                </section>
+                <section class="settings-section" data-settings-panel="financialAmounts">
+                  <div class="panel-head"><div><h3>المبالغ المالية</h3><p>تحديد المبلغ الافتتاحي ومبلغ العهدة المستخدمين في شاشة المالية للأيام المفتوحة والقادمة فقط.</p></div></div>
+                  <form id="financeSettingsForm" class="settings-form work-settings-form">
+                    <div class="settings-placeholder-card finance-settings-note">
+                      <span data-icon="info"></span>
+                      <div><strong>تنبيه مهم</strong><p>تغيير هذه القيم لا يعبث بالأيام المالية المغلقة. يتم استخدام القيم في اليوم المفتوح والأيام القادمة فقط.</p></div>
+                    </div>
+                    <div class="form-grid">
+                      <label><span>المبلغ الافتتاحي</span><input type="number" min="0" step="0.01" name="openingAmount" id="financeOpeningAmountInput" placeholder="0" /></label>
+                      <label><span>مبلغ العهدة</span><input type="number" min="0" step="0.01" name="custodyAmount" id="financeCustodyAmountInput" placeholder="0" /></label>
+                    </div>
+                    <div class="form-actions"><button type="submit" class="primary-btn">حفظ المبالغ المالية</button></div>
+                  </form>
+                </section>
+
+                <section class="settings-section" data-settings-panel="managers">
+                  <div class="panel-head"><div><h3>المدراء</h3><p>تعيين المدراء المختارين من مدراء الإدارات والأقسام وربط توقيع كل مدير.</p></div><button type="button" class="primary-btn" id="addManagerBtn"><span data-icon="plus"></span>إضافة مدير</button></div>
+                  <div class="table-wrap managers-settings-wrap">
+                    <table class="managers-settings-table">
+                      <thead><tr><th>التسلسل</th><th>اسم المدير</th><th>مصدر التعيين</th><th>مرفق التوقيع</th><th>الإجراء</th></tr></thead>
+                      <tbody id="managersSettingsBody"><tr><td colspan="5">لا يوجد مدراء محددون</td></tr></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="settings-section" data-settings-panel="absence">
+                  <div class="panel-head"><div><h3>قاعدة بيانات الغياب</h3><p>اختر القاعدة المفعلة التي سيطبقها النظام تلقائيًا عند تسجيل الغياب.</p></div></div>
+                  <form id="absencePolicyForm" class="settings-form work-settings-form">
+                    <div class="absence-policy-summary" id="absencePolicySummary"></div>
+                    <div class="absence-policy-grid absence-policy-choice-grid">
+                      <label class="absence-policy-column absence-policy-choice" id="laborPolicyCard">
+                        <input type="radio" name="absenceActivePolicy" value="labor" data-absence-policy="activePolicy" />
+                        <div>
+                          <h5>قاعدة مكتب العمل</h5>
+                          <p>إذا كانت مفعلة، لا تظهر الفترة الغائبة عند تسجيل الغياب، ويحسب النظام الجزاء تلقائيًا حسب تاريخ ومدة الغياب والسنة العقدية.</p>
+                        </div>
+                        <span class="status-badge status-pending">قاعدة نظامية</span>
+                      </label>
+                      <label class="absence-policy-column absence-policy-choice establishment-policy-card" id="establishmentPolicyCard">
+                        <input type="radio" name="absenceActivePolicy" value="establishment" data-absence-policy="activePolicy" />
+                        <div>
+                          <h5>سياسة المنشأة</h5>
+                          <p>إذا كانت مفعلة، تظهر الفترة الغائبة ويطبق النظام خصم الفترة الأولى أو الثانية حسب سياسة المنشأة.</p>
+                        </div>
+                        <span class="status-badge status-active">سياسة داخلية</span>
+                      </label>
+                    </div>
+                    <div class="absence-policy-stack">
+                      <div class="absence-policy-column absence-labor-wide">
+                        <h5>بنود قاعدة مكتب العمل</h5>
+                        <p>مرجع تشغيلي للجزاءات، ويراعى اعتماد الصياغة النهائية من لائحة المنشأة المعتمدة.</p>
+                        <div class="absence-rule-list" id="absenceLaborRulesList"></div>
+                      </div>
+                      <div class="absence-policy-column establishment-policy-card absence-establishment-wide">
+                        <h5>سياسة المنشأة في الغياب</h5>
+                        <div class="establishment-absence-policy-toolbar">
+                          <p>أضف أنواع الغياب التي تظهر عند تسجيل الغياب وحدد عدد أيام الخصم من الراتب الأساسي.</p>
+                          <button type="button" class="secondary-btn small-btn" data-add-establishment-absence-rule><span data-icon="plus"></span>إضافة سياسة غياب</button>
+                        </div>
+                        <div class="establishment-absence-rule-list" id="establishmentAbsenceRuleList"></div>
+                        <div class="absence-policy-note"><span data-icon="info"></span><p>تظهر هذه السياسات في شاشة تسجيل الغياب، ويتم احتساب الحسم حسب عدد أيام الخصم المسجلة لكل سياسة.</p></div>
+                      </div>
+                    </div>
+                    <div class="form-actions"><button type="submit" class="primary-btn">حفظ قاعدة بيانات الغياب</button></div>
+                  </form>
+                </section>
+                <section class="settings-section" data-settings-panel="minuteSettings">
+                  <div class="panel-head"><div><h3>إعداد المحاضر</h3><p>إنشاء أنواع المحاضر وتحديد الخانات الخاصة بكل نوع.</p></div></div>
+                  <form id="minuteSettingsForm" class="settings-form work-settings-form">
+                    <div class="absence-policy-summary" id="minuteSettingsSummary"></div>
+                    <div class="work-settings-block minute-template-editor">
+                      <div class="section-title-with-action">
+                        <div><h4>أنواع المحاضر</h4><p>أضف نوع محضر، ثم أضف الخانات التي ستظهر عند اختياره في ملف الموظف.</p></div>
+                        <button type="button" class="primary-btn" id="addMinuteTemplateBtn"><span data-icon="plus"></span>إضافة نوع محضر</button>
+                      </div>
+                      <div class="minute-template-list" id="minuteTemplateList"></div>
+                    </div>
+                    <div class="form-actions"><button type="submit" class="primary-btn">حفظ إعداد المحاضر</button></div>
+                  </form>
+                </section>
               </article>
             </div>
           </section>
@@ -1097,6 +1219,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=233"></script>
+    <script src="app.js?v=220"></script>
   </body>
 </html>
