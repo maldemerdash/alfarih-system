@@ -66162,6 +66162,9 @@ window.nawahLeaveBalanceReportV185 = {
       #leavesView.active.v228-stabilizing > :not(.v78-leave-page) {
         visibility: hidden !important;
       }
+      #settingsView.active.v228-stabilizing .settings-panel {
+        visibility: hidden !important;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -66338,6 +66341,11 @@ window.nawahLeaveBalanceReportV185 = {
     const view = leavesActiveView();
     if (!view) return;
     clearTimeout(leavesTimer);
+    const currentDigest = leavesDigest();
+    if (!force && currentDigest === lastLeavesDigest && q(".v78-leave-page", view)) {
+      markLeavesReady();
+      return;
+    }
     view.classList.add("v228-stabilizing");
     view.classList.remove("v228-ready");
     leavesTimer = setTimeout(function () {
@@ -66382,6 +66390,7 @@ window.nawahLeaveBalanceReportV185 = {
   function runStableSettingsPanel(key) {
     if (
       typeof window.__stableActivateSettingsSection === "function" &&
+      !window.__stableActivateSettingsSection.__v228StableSettingsActivator &&
       !window.__stableActivateSettingsSection.__v228StableLeavesSettingsPaint
     )
       return window.__stableActivateSettingsSection(key);
@@ -66393,11 +66402,74 @@ window.nawahLeaveBalanceReportV185 = {
     return null;
   }
 
+  function polishCompanySettingsAttachments() {
+    const form = q("#settingsForm");
+    if (!form) return;
+    let company = {};
+    try {
+      company = JSON.parse(localStorage.getItem("nawah-company-settings-v92") || "{}") || {};
+    } catch (_) {
+      company = {};
+    }
+    const fileName = q("#nationalAddressFileName", form);
+    if (fileName) {
+      fileName.textContent =
+        company.nationalAddressFileName ||
+        (company.nationalAddressAttachmentId ? "تم إرفاق العنوان الوطني" : "لم يتم إرفاق ملف");
+    }
+    const line = q(".national-address-attachment .attachment-line", form);
+    if (!line) return;
+    line.classList.add("v94-attachment-line", "v230-national-address-line");
+    const oldDownload = line.querySelector("[data-download-national-address]");
+    if (oldDownload) oldDownload.remove();
+    let actions = line.querySelector(".attachment-actions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "attachment-actions";
+      const picker = line.querySelector('label.secondary-btn,input[name="nationalAddressFile"]')?.closest("label");
+      if (picker) actions.appendChild(picker);
+      line.appendChild(actions);
+    }
+    const existingEye = actions.querySelector("[data-v230-national-address-eye]");
+    if (existingEye) existingEye.remove();
+    if (company.nationalAddressAttachmentId) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "attachment-view-btn attachment-preview-btn";
+      button.dataset.v230NationalAddressEye = "1";
+      button.dataset.viewAttachment = company.nationalAddressAttachmentId;
+      button.dataset.attachmentId = company.nationalAddressAttachmentId;
+      button.title = "معاينة العنوان الوطني";
+      button.setAttribute("aria-label", "معاينة العنوان الوطني");
+      button.innerHTML = '<span data-icon="eye"></span>';
+      actions.appendChild(button);
+    } else if (company.nationalAddressFileDataUrl) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "attachment-view-btn attachment-preview-btn";
+      button.dataset.v230NationalAddressEye = "1";
+      button.dataset.downloadNationalAddress = "1";
+      button.title = "معاينة العنوان الوطني";
+      button.setAttribute("aria-label", "معاينة العنوان الوطني");
+      button.innerHTML = '<span data-icon="eye"></span>';
+      actions.appendChild(button);
+    }
+  }
+
   function stabilizeSettings(force) {
     const view = activeSettingsView();
     if (!view) return;
     clearTimeout(settingsTimer);
-    view.classList.remove("v228-stabilizing");
+    const currentDigest = settingsDigest();
+    const hasFinalLayout = !!q(".settings-layout", view);
+    if (!force && currentDigest === lastSettingsDigest && hasFinalLayout) {
+      markSettingsReady();
+      return;
+    }
+    if (force || !hasFinalLayout) {
+      view.classList.add("v228-stabilizing");
+      view.classList.remove("v228-ready");
+    }
     settingsTimer = setTimeout(async function () {
       if (settingsRendering) return;
       const digest = settingsDigest();
@@ -66407,8 +66479,39 @@ window.nawahLeaveBalanceReportV185 = {
       }
       settingsRendering = true;
       try {
-        const result = runStableSettingsPanel(activeSettingsKey());
-        if (result && typeof result.then === "function") await result;
+        const key = activeSettingsKey();
+        const panelResult = runStableSettingsPanel(key);
+        if (panelResult && typeof panelResult.then === "function") await panelResult;
+        if (typeof baseSettingsRenderer === "function") {
+          const result = baseSettingsRenderer();
+          if (result && typeof result.then === "function") await result;
+        }
+        if (key === "account" && window.v136Settings?.renderAccountPanel) {
+          await window.v136Settings.renderAccountPanel();
+        } else if (
+          key === "notifications" &&
+          window.v136Settings?.renderNotificationsPanel
+        ) {
+          await window.v136Settings.renderNotificationsPanel();
+        } else if (
+          key === "permissions" &&
+          typeof window.v134RenderCanonicalEmployeePermissions === "function"
+        ) {
+          await window.v134RenderCanonicalEmployeePermissions();
+        } else if (key === "company") {
+          if (window.nawahV191?.companyStampControl)
+            window.nawahV191.companyStampControl();
+          if (window.nawahV177LoginBackground?.apply)
+            window.nawahV177LoginBackground.apply({ allowCachedFallback: true });
+          if (typeof window.refreshLoginBackgroundCardV146 === "function")
+            window.refreshLoginBackgroundCardV146();
+          polishCompanySettingsAttachments();
+          setTimeout(polishCompanySettingsAttachments, 80);
+          setTimeout(polishCompanySettingsAttachments, 260);
+        }
+        try {
+          if (typeof hydrateIcons === "function") hydrateIcons(view);
+        } catch (_) {}
       } catch (error) {
         console.warn("v228: تعذر تثبيت تبويب الإعدادات.", error);
       }
@@ -66421,7 +66524,7 @@ window.nawahLeaveBalanceReportV185 = {
   }
 
   function stableLeavesRenderer() {
-    stabilizeLeaves(true);
+    stabilizeLeaves(false);
   }
   stableLeavesRenderer.__v228StableLeavesSettingsPaint = true;
 
@@ -66443,6 +66546,34 @@ window.nawahLeaveBalanceReportV185 = {
       renderSettings = stableSettingsRenderer;
     } catch (_) {}
     window.renderSettings = stableSettingsRenderer;
+  }
+
+  const previousSettingsActivator = window.__stableActivateSettingsSection;
+  if (
+    typeof previousSettingsActivator === "function" &&
+    !previousSettingsActivator.__v228StableSettingsActivator
+  ) {
+    const stableSettingsActivator = function (key) {
+      const view = activeSettingsView();
+      if (view) {
+        view.classList.add("v228-stabilizing");
+        view.classList.remove("v228-ready");
+      }
+      const result = previousSettingsActivator.apply(this, arguments);
+      const finish = function () {
+        stabilizeSettings(true);
+      };
+      if (result && typeof result.then === "function") result.then(finish, finish);
+      else setTimeout(finish, 0);
+      return result;
+    };
+    stableSettingsActivator.__v228StableSettingsActivator = true;
+    window.__stableActivateSettingsSection = stableSettingsActivator;
+    try {
+      switchSettingsSection = stableSettingsActivator;
+    } catch (_) {}
+    window.switchSettingsSection = stableSettingsActivator;
+    window.v155ActivateSettingsSection = stableSettingsActivator;
   }
 
   const previousSwitchView =

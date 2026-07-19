@@ -19116,3 +19116,50 @@ html.has-initial-login-bg .auth-gate,
     justify-content: flex-start !important;
   }
 }
+
+/* v230 - final no-flash guards for auth, leaves and settings */
+html.app-booting body,
+html.app-booting .app-boot-screen {
+  background: #ffffff !important;
+  background-image: none !important;
+}
+
+.auth-gate,
+.v177-login-bg-final .auth-gate {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: cover !important;
+}
+
+html.has-initial-login-bg .auth-gate,
+.auth-gate.auth-bg-ready,
+.auth-gate.has-login-bg-image,
+.auth-gate.v101-storage-bg,
+.auth-gate.v177-login-bg-ready {
+  background-color: #ffffff !important;
+  background-image: var(--initial-login-bg, var(--login-bg-image)) !important;
+}
+
+.auth-gate::before,
+.auth-gate::after {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+  background-image: none !important;
+}
+
+#settingsView.active.v228-stabilizing .settings-panel {
+  visibility: hidden !important;
+}
+
+.v230-national-address-line .attachment-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.v230-national-address-line [data-v230-national-address-eye] {
+  flex: 0 0 auto !important;
+}
