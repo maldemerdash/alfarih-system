@@ -30895,6 +30895,735 @@ async function init() {
   }, 250);
 })();
 
+/* v221 - unified cloud persistence guard and legacy attachment migration */
+(function v221CloudPersistenceIntegrity() {
+  if (window.__v221CloudPersistenceIntegrity) return;
+  window.__v221CloudPersistenceIntegrity = true;
+
+  const VERSION = "v221";
+  const CLOUD_KEY =
+    typeof CLOUD_STATE_KEY !== "undefined" && CLOUD_STATE_KEY
+      ? CLOUD_STATE_KEY
+      : "app_state";
+  const IMPORTANT_LOCAL_KEYS = [
+    "nawah-employees",
+    "nawah-leaves",
+    "nawah-travel-requests",
+    "nawah-attendance-exceptions",
+    "nawah-work-settings",
+    "nawah-absence-policy-settings",
+    "nawah-minute-template-settings",
+    "nawah-job-titles",
+    "nawah-org-structure",
+    "nawah-payroll-advances",
+    "nawah-payroll-runs",
+    "nawah-payroll-prepaid-deductions",
+    "nawah-finance-settings",
+    "nawah-finance-daily-open",
+    "nawah-finance-daily-days",
+    "nawah-managers",
+    "nawah-leave-balance-reservations",
+    "nawah-company-settings-v92",
+    "nawah-document-type-settings",
+    "nawah-establishment-documents",
+    "nawah-branches",
+    "nawah-private-alerts-v166",
+    "nawah-attachment-records-v165",
+    "nawah-v136-notification-settings",
+    "nawah-v136-org-settings",
+  ];
+  const IMPORTANT_KEY_SET = new Set(IMPORTANT_LOCAL_KEYS);
+  const IMPORTANT_PREFIXES = [
+    "nawah-finance-daily-",
+    "nawah-finance-settings-",
+  ];
+  const EXCLUDED_PREFIX_KEYS = new Set([
+    "nawah-finance-empty-reset-version",
+    "nawah-finance-hard-empty-reset-version",
+    "nawah-finance-clean-start-reset-version",
+  ]);
+  const DATA_FIELD_MAP = {
+    legacyPhoto: { idKey: "photoAttachmentId", category: "employee-photo" },
+    logoDataUrl: { idKey: "logoAttachmentId", category: "company-logo" },
+    loginBackgroundDataUrl: {
+      idKey: "loginBackgroundAttachmentId",
+      category: "company-login-background",
+    },
+    nationalAddressFileDataUrl: {
+      idKey: "nationalAddressAttachmentId",
+      category: "company-national-address",
+    },
+    siteFaviconDataUrl: {
+      idKey: "siteFaviconAttachmentId",
+      category: "company-favicon",
+    },
+    stampDataUrl: { idKey: "stampAttachmentId", category: "company-stamp" },
+  };
+
+  let applyingCloudSnapshot = false;
+  let cloudSaveTimerV221 = null;
+  let saveInFlight = null;
+  let migrationInFlight = null;
+  let lastWarningAt = 0;
+
+  function text(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
+  function toast(message) {
+    try {
+      if (typeof showToast === "function") showToast(message);
+      else console.warn(message);
+    } catch (_) {
+      console.warn(message);
+    }
+  }
+
+  function warnOnce(message) {
+    const now = Date.now();
+    if (now - lastWarningAt < 90000) return;
+    lastWarningAt = now;
+    toast(message);
+  }
+
+  function isImportantKey(key) {
+    const value = text(key);
+    if (!value || EXCLUDED_PREFIX_KEYS.has(value)) return false;
+    return (
+      IMPORTANT_KEY_SET.has(value) ||
+      IMPORTANT_PREFIXES.some((prefix) => value.startsWith(prefix))
+    );
+  }
+
+  function parseJson(raw, fallback) {
+    try {
+      if (raw == null || raw === "") return fallback;
+      return JSON.parse(raw);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function cloneJson(value) {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (_) {
+      return value;
+    }
+  }
+
+  function isDataUrl(value) {
+    return /^data:[^,]+,/i.test(text(value));
+  }
+
+  function isLegacyLocalAttachmentId(value) {
+    return /^attachment-/i.test(text(value));
+  }
+
+  function sanitizeForCloud(value) {
+    if (!value || typeof value !== "object") return value;
+    const copy = Array.isArray(value) ? value.map(sanitizeForCloud) : {};
+    if (!Array.isArray(value)) {
+      Object.keys(value).forEach((key) => {
+        const next = value[key];
+        if (
+          typeof next === "string" &&
+          isDataUrl(next) &&
+          /dataurl|attachmentdata|legacyphoto/i.test(key)
+        ) {
+          copy[key] = "";
+          return;
+        }
+        if (key === "blob") return;
+        copy[key] = sanitizeForCloud(next);
+      });
+    }
+    return copy;
+  }
+
+  function localKeysToPersist() {
+    const keys = new Set(IMPORTANT_LOCAL_KEYS);
+    try {
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (isImportantKey(key)) keys.add(key);
+      }
+    } catch (_) {}
+    return Array.from(keys);
+  }
+
+  function readLocalSnapshot() {
+    const snapshot = {};
+    localKeysToPersist().forEach((key) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw == null) return;
+        snapshot[key] = sanitizeForCloud(parseJson(raw, raw));
+      } catch (_) {}
+    });
+    return snapshot;
+  }
+
+  function readRawLocalSnapshot() {
+    const snapshot = {};
+    localKeysToPersist().forEach((key) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw == null) return;
+        snapshot[key] = parseJson(raw, raw);
+      } catch (_) {}
+    });
+    return snapshot;
+  }
+
+  function writeLocalSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== "object") return;
+    applyingCloudSnapshot = true;
+    try {
+      Object.keys(snapshot).forEach((key) => {
+        if (!isImportantKey(key)) return;
+        try {
+          localStorage.setItem(key, JSON.stringify(snapshot[key]));
+        } catch (_) {}
+      });
+    } finally {
+      applyingCloudSnapshot = false;
+    }
+  }
+
+  function ensureSupabaseClient() {
+    try {
+      if (
+        (!supabaseClient || !supabaseClient.from) &&
+        typeof initSupabaseClient === "function"
+      ) {
+        initSupabaseClient();
+      }
+    } catch (_) {}
+    return typeof supabaseClient !== "undefined" && supabaseClient
+      ? supabaseClient
+      : null;
+  }
+
+  function hasActiveAppSession() {
+    try {
+      if (document.body?.classList?.contains("auth-locked")) return false;
+      const gate = document.getElementById("authGate");
+      if (gate && !gate.hidden && !gate.classList.contains("hidden")) return false;
+      if (typeof authUser !== "undefined" && authUser) {
+        if (typeof authProfile !== "undefined" && authProfile)
+          return authProfile.is_active !== false;
+      }
+    } catch (_) {}
+    return true;
+  }
+
+  function stateEmployeeCount(state) {
+    try {
+      return Array.isArray(state?.employees) ? state.employees.length : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  async function readRemoteState() {
+    const client = ensureSupabaseClient();
+    if (!client || !client.from) {
+      return { ok: false, found: false, state: null, updatedAt: "", error: null };
+    }
+    try {
+      const { data, error } = await client
+        .from("app_settings")
+        .select("setting_value,updated_at")
+        .eq("setting_key", CLOUD_KEY)
+        .maybeSingle();
+      if (error) throw error;
+      return {
+        ok: true,
+        found: Boolean(data),
+        state: data?.setting_value || null,
+        updatedAt: data?.updated_at || "",
+        error: null,
+      };
+    } catch (error) {
+      return { ok: false, found: false, state: null, updatedAt: "", error };
+    }
+  }
+
+  function dataUrlToFile(dataUrl, fallbackName) {
+    const match = text(dataUrl).match(/^data:([^;,]+)?(;base64)?,(.*)$/);
+    if (!match) return null;
+    const mime = match[1] || "application/octet-stream";
+    const encoded = match[3] || "";
+    const binary = match[2] ? atob(encoded) : decodeURIComponent(encoded);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1)
+      bytes[index] = binary.charCodeAt(index);
+    const name =
+      text(fallbackName) ||
+      "attachment-" + Date.now() + (mime.includes("png") ? ".png" : "");
+    if (typeof File === "function") return new File([bytes], name, { type: mime });
+    return new Blob([bytes], { type: mime });
+  }
+
+  async function uploadFileStrict(file, category) {
+    if (!file) return "";
+    if (!hasActiveAppSession())
+      throw new Error("لا توجد جلسة دخول فعالة لحفظ المرفق في السحابة.");
+    const client = ensureSupabaseClient();
+    if (!client || !client.storage)
+      throw new Error("Supabase غير جاهز لحفظ المرفق.");
+    if (typeof saveAttachment !== "function")
+      throw new Error("دالة حفظ المرفقات غير جاهزة.");
+    const id = await saveAttachment(file, category || "attachment");
+    if (!id || isLegacyLocalAttachmentId(id))
+      throw new Error("تم إرجاع مرفق محلي، وهذا غير مسموح في الحفظ الحقيقي.");
+    return id;
+  }
+
+  async function migrateLegacyAttachmentId(id, stats, cache, category) {
+    const key = text(id);
+    if (!isLegacyLocalAttachmentId(key)) return key;
+    if (cache.has(key)) return cache.get(key);
+    if (typeof getAttachment !== "function") {
+      cache.set(key, key);
+      return key;
+    }
+    try {
+      const record = await getAttachment(key);
+      const blob = record?.blob || record?.file || null;
+      if (!blob) {
+        stats.unmigratedLegacyIds += 1;
+        cache.set(key, key);
+        return key;
+      }
+      const name = record?.name || record?.file_name || "legacy-attachment";
+      const file =
+        typeof File === "function" && blob instanceof File
+          ? blob
+          : typeof File === "function"
+            ? new File([blob], name, {
+                type:
+                  record?.type ||
+                  record?.file_type ||
+                  blob.type ||
+                  "application/octet-stream",
+              })
+            : blob;
+      const newId = await uploadFileStrict(
+        file,
+        category || record?.category || record?.related_table || "legacy-attachment",
+      );
+      cache.set(key, newId);
+      stats.legacyIdsMigrated += 1;
+      return newId;
+    } catch (error) {
+      stats.unmigratedLegacyIds += 1;
+      stats.errors.push(error.message || String(error));
+      cache.set(key, key);
+      return key;
+    }
+  }
+
+  async function migrateNode(node, stats, cache, path, parentKey) {
+    if (!node || typeof node !== "object") return node;
+    if (Array.isArray(node)) {
+      for (let index = 0; index < node.length; index += 1)
+        node[index] = await migrateNode(
+          node[index],
+          stats,
+          cache,
+          path + "[" + index + "]",
+          parentKey,
+        );
+      return node;
+    }
+
+    if (isDataUrl(node.attachmentData)) {
+      try {
+        const file = dataUrlToFile(
+          node.attachmentData,
+          node.attachmentName || node.fileName || "attachment",
+        );
+        node.attachmentId = await uploadFileStrict(
+          file,
+          parentKey || "attachment",
+        );
+        node.attachmentName = node.attachmentName || node.fileName || "مرفق";
+        node.attachmentData = "";
+        stats.dataUrlsMigrated += 1;
+      } catch (error) {
+        stats.unmigratedDataUrls += 1;
+        stats.errors.push(error.message || String(error));
+      }
+    }
+
+    for (const field of Object.keys(DATA_FIELD_MAP)) {
+      if (!isDataUrl(node[field])) continue;
+      const rule = DATA_FIELD_MAP[field];
+      try {
+        const file = dataUrlToFile(node[field], field + ".bin");
+        node[rule.idKey] = await uploadFileStrict(file, rule.category);
+        node[field] = "";
+        stats.dataUrlsMigrated += 1;
+      } catch (error) {
+        stats.unmigratedDataUrls += 1;
+        stats.errors.push(error.message || String(error));
+      }
+    }
+
+    for (const key of Object.keys(node)) {
+      const value = node[key];
+      if (typeof value === "string" && isLegacyLocalAttachmentId(value)) {
+        node[key] = await migrateLegacyAttachmentId(value, stats, cache, key);
+        continue;
+      }
+      if (value && typeof value === "object")
+        node[key] = await migrateNode(value, stats, cache, path + "." + key, key);
+    }
+    return node;
+  }
+
+  async function syncEmployeesAfterMigration() {
+    try {
+      if (!Array.isArray(employees) || !employees.length) return;
+      localStorage.setItem("nawah-employees", JSON.stringify(employees));
+      if (typeof dbSaveEmployee === "function")
+        await Promise.all(
+          employees.map((employee) => {
+            try {
+              const result = dbSaveEmployee(employee);
+              return result && typeof result.catch === "function"
+                ? result.catch(() => {})
+                : result;
+            } catch (_) {
+              return null;
+            }
+          }),
+        );
+    } catch (_) {}
+  }
+
+  async function migrateImportantLocalState() {
+    if (migrationInFlight) return migrationInFlight;
+    migrationInFlight = (async function () {
+      const stats = {
+        version: VERSION,
+        startedAt: nowIso(),
+        finishedAt: "",
+        dataUrlsMigrated: 0,
+        legacyIdsMigrated: 0,
+        unmigratedDataUrls: 0,
+        unmigratedLegacyIds: 0,
+        errors: [],
+      };
+      const cache = new Map();
+
+      try {
+        if (Array.isArray(employees) && employees.length) {
+          await migrateNode(employees, stats, cache, "employees", "employee");
+          await syncEmployeesAfterMigration();
+        }
+      } catch (error) {
+        stats.errors.push(error.message || String(error));
+      }
+
+      for (const key of localKeysToPersist()) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw == null || !/[{[]/.test(raw.slice(0, 1))) continue;
+          const value = parseJson(raw, null);
+          if (!value || typeof value !== "object") continue;
+          await migrateNode(value, stats, cache, key, key);
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch (error) {
+          stats.errors.push(key + ": " + (error.message || String(error)));
+        }
+      }
+
+      stats.finishedAt = nowIso();
+      window.__nawahV221LastMigration = stats;
+      if (stats.unmigratedDataUrls || stats.unmigratedLegacyIds) {
+        warnOnce(
+          "تم العثور على مرفقات محلية قديمة لم تترحل للسحابة. افتح أداة فحص الحفظ لمعرفة التفاصيل.",
+        );
+      }
+      return stats;
+    })().finally(function () {
+      migrationInFlight = null;
+    });
+    return migrationInFlight;
+  }
+
+  function scanNode(node, path, issues, max) {
+    if (!node || issues.length >= max) return;
+    if (typeof node === "string") {
+      if (isLegacyLocalAttachmentId(node))
+        issues.push({ type: "legacy-local-attachment", path, value: node });
+      else if (isDataUrl(node))
+        issues.push({ type: "embedded-data-url", path, value: node.slice(0, 48) });
+      return;
+    }
+    if (typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => scanNode(item, path + "[" + index + "]", issues, max));
+      return;
+    }
+    Object.keys(node).forEach((key) =>
+      scanNode(node[key], path ? path + "." + key : key, issues, max),
+    );
+  }
+
+  function persistenceIssues(max) {
+    const issues = [];
+    try {
+      if (typeof buildCloudState === "function")
+        scanNode(buildCloudState(), "cloudState", issues, max || 120);
+    } catch (_) {}
+    try {
+      scanNode(readRawLocalSnapshot(), "localStorageState", issues, max || 120);
+    } catch (_) {}
+    return issues;
+  }
+
+  const previousBuildCloudState =
+    typeof buildCloudState === "function" ? buildCloudState : null;
+  if (previousBuildCloudState && !previousBuildCloudState.__v221CompleteState) {
+    const wrappedBuildCloudState = function wrappedBuildCloudState() {
+      const state = previousBuildCloudState.apply(this, arguments) || {};
+      state.persistenceVersion = VERSION;
+      state.persistenceSavedAt = nowIso();
+      state.localStorageStateV221 = readLocalSnapshot();
+      return sanitizeForCloud(state);
+    };
+    wrappedBuildCloudState.__v221CompleteState = true;
+    try {
+      buildCloudState = wrappedBuildCloudState;
+    } catch (_) {}
+    window.buildCloudState = wrappedBuildCloudState;
+  }
+
+  const previousApplyCloudState =
+    typeof applyCloudState === "function" ? applyCloudState : null;
+  if (previousApplyCloudState && !previousApplyCloudState.__v221CompleteState) {
+    const wrappedApplyCloudState = function wrappedApplyCloudState(state) {
+      const result = previousApplyCloudState.apply(this, arguments);
+      if (state?.localStorageStateV221) writeLocalSnapshot(state.localStorageStateV221);
+      return result;
+    };
+    wrappedApplyCloudState.__v221CompleteState = true;
+    try {
+      applyCloudState = wrappedApplyCloudState;
+    } catch (_) {}
+    window.applyCloudState = wrappedApplyCloudState;
+  }
+
+  const previousSaveAttachment =
+    typeof saveAttachment === "function" ? saveAttachment : null;
+  if (previousSaveAttachment && !previousSaveAttachment.__v221StrictCloudOnly) {
+    const strictSaveAttachment = async function strictSaveAttachment(file, category) {
+      if (!hasActiveAppSession())
+        throw new Error("لا يمكن حفظ المرفق قبل تسجيل الدخول.");
+      const client = ensureSupabaseClient();
+      if (!client || !client.storage)
+        throw new Error("اتصال Supabase غير جاهز، لن يتم حفظ المرفق محليا.");
+      const id = await previousSaveAttachment.apply(this, arguments);
+      if (!id || isLegacyLocalAttachmentId(id))
+        throw new Error("فشل الحفظ السحابي للمرفق، ولم يتم قبول الحفظ المحلي.");
+      return id;
+    };
+    strictSaveAttachment.__v221StrictCloudOnly = true;
+    try {
+      saveAttachment = strictSaveAttachment;
+    } catch (_) {}
+    window.saveAttachment = strictSaveAttachment;
+  }
+
+  async function directCloudSave(options) {
+    const opts = options || {};
+    if (saveInFlight) return saveInFlight;
+    saveInFlight = (async function () {
+      if (!hasActiveAppSession()) return false;
+      const client = ensureSupabaseClient();
+      if (!client || !client.from) {
+        warnOnce("تعذر الوصول إلى Supabase؛ البيانات بقيت محلية ولم يتم اعتماد حفظها كسحابة.");
+        return false;
+      }
+      try {
+        cloudLoadAttempted = true;
+        if (opts.force) cloudSaveAllowed = true;
+      } catch (_) {}
+      if (!opts.force && typeof cloudSaveAllowed !== "undefined" && !cloudSaveAllowed)
+        return false;
+
+      const migrationStats = await migrateImportantLocalState();
+      if (migrationStats.unmigratedDataUrls) {
+        warnOnce(
+          "يوجد مرفق محفوظ كبيانات محلية ولم يتم رفعه للسحابة؛ تم إيقاف الحفظ العالمي حتى لا تضيع المرفقات.",
+        );
+        return false;
+      }
+      const state =
+        typeof buildCloudState === "function"
+          ? buildCloudState()
+          : { version: 1, savedAt: nowIso() };
+
+      if (!opts.allowEmptyOverwrite && stateEmployeeCount(state) === 0) {
+        const remote = await readRemoteState();
+        if (stateEmployeeCount(remote.state) > 0) {
+          console.warn(
+            "v221: منع حفظ حالة بلا موظفين فوق حالة سحابية تحتوي موظفين.",
+          );
+          return false;
+        }
+      }
+
+      const { error } = await client.from("app_settings").upsert(
+        {
+          setting_key: CLOUD_KEY,
+          setting_value: state,
+          updated_at: nowIso(),
+        },
+        { onConflict: "setting_key" },
+      );
+      if (error) throw error;
+      try {
+        cloudReady = true;
+        cloudSaveAllowed = true;
+      } catch (_) {}
+      const issues = persistenceIssues(60);
+      if (issues.length) {
+        warnOnce("تم الحفظ، مع وجود مرفقات محلية قديمة تحتاج ترحيل يدوي من أداة الفحص.");
+      }
+      window.__nawahV221LastCloudSave = {
+        ok: true,
+        savedAt: nowIso(),
+        issues: issues.length,
+      };
+      return true;
+    })()
+      .catch(function (error) {
+        window.__nawahV221LastCloudSave = {
+          ok: false,
+          savedAt: nowIso(),
+          error: error.message || String(error),
+        };
+        console.warn("v221: فشل حفظ الحالة في Supabase.", error);
+        warnOnce("تعذر حفظ آخر تعديل في قاعدة البيانات. لم يتم اعتباره حفظا عالميا.");
+        return false;
+      })
+      .finally(function () {
+        saveInFlight = null;
+      });
+    return saveInFlight;
+  }
+
+  function queuedCloudSave() {
+    if (applyingCloudSnapshot || migrationInFlight) return false;
+    if (!hasActiveAppSession()) return false;
+    clearTimeout(cloudSaveTimerV221);
+    cloudSaveTimerV221 = setTimeout(function () {
+      directCloudSave({ reason: "queued-v221" });
+    }, 700);
+    return true;
+  }
+
+  const previousSaveCloudStateNow =
+    typeof saveCloudStateNow === "function" ? saveCloudStateNow : null;
+  if (previousSaveCloudStateNow && !previousSaveCloudStateNow.__v221DirectCloud) {
+    const wrappedSaveCloudStateNow = function wrappedSaveCloudStateNow(options) {
+      return directCloudSave(options || {});
+    };
+    wrappedSaveCloudStateNow.__v221DirectCloud = true;
+    try {
+      saveCloudStateNow = wrappedSaveCloudStateNow;
+    } catch (_) {}
+    window.saveCloudStateNow = wrappedSaveCloudStateNow;
+  }
+
+  const previousQueueCloudStateSave =
+    typeof queueCloudStateSave === "function" ? queueCloudStateSave : null;
+  if (previousQueueCloudStateSave && !previousQueueCloudStateSave.__v221DirectCloud) {
+    const wrappedQueueCloudStateSave = function wrappedQueueCloudStateSave() {
+      return queuedCloudSave();
+    };
+    wrappedQueueCloudStateSave.__v221DirectCloud = true;
+    try {
+      queueCloudStateSave = wrappedQueueCloudStateSave;
+    } catch (_) {}
+    window.queueCloudStateSave = wrappedQueueCloudStateSave;
+  }
+
+  const previousSetItem = Storage.prototype.setItem;
+  if (!previousSetItem.__v221CloudPersistence) {
+    const wrappedSetItem = function wrappedSetItem(key, value) {
+      const result = previousSetItem.apply(this, arguments);
+      try {
+        if (this === window.localStorage && isImportantKey(key) && !applyingCloudSnapshot)
+          queuedCloudSave();
+      } catch (_) {}
+      return result;
+    };
+    wrappedSetItem.__v221CloudPersistence = true;
+    Storage.prototype.setItem = wrappedSetItem;
+  }
+
+  window.nawahPersistence = {
+    version: VERSION,
+    audit: async function auditPersistence() {
+      const remote = await readRemoteState();
+      const issues = persistenceIssues(200);
+      const attachmentRows = await (async function () {
+        const client = ensureSupabaseClient();
+        if (!client || !client.from) return null;
+        try {
+          const { count, error } = await client
+            .from("attachments")
+            .select("id", { count: "exact", head: true });
+          if (error) throw error;
+          return count;
+        } catch (_) {
+          return null;
+        }
+      })();
+      return {
+        version: VERSION,
+        cloudReady: Boolean(ensureSupabaseClient()),
+        appStateReadable: remote.ok,
+        appStateFound: remote.found,
+        appStateUpdatedAt: remote.updatedAt,
+        attachmentRows,
+        importantLocalKeys: localKeysToPersist(),
+        localOnlyAttachmentIssues: issues,
+        lastMigration: window.__nawahV221LastMigration || null,
+        lastCloudSave: window.__nawahV221LastCloudSave || null,
+      };
+    },
+    migrate: async function migrateAndSave() {
+      const stats = await migrateImportantLocalState();
+      await directCloudSave({ force: true, allowEmptyOverwrite: true });
+      return stats;
+    },
+    forceSave: function forceSave() {
+      return directCloudSave({ force: true, allowEmptyOverwrite: true });
+    },
+  };
+  window.nawahPersistenceAudit = window.nawahPersistence.audit;
+  window.nawahMigrateLocalAttachmentsToCloud = window.nawahPersistence.migrate;
+  window.nawahForceSaveCloudState = window.nawahPersistence.forceSave;
+
+  window.addEventListener("online", function () {
+    queuedCloudSave();
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") queuedCloudSave();
+  });
+})();
+
 /* v211 - structured employee end-of-service workflow */
 (function () {
   if (window.__endServiceWizardV211) return;
