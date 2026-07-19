@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0d172c" />
     <title>نواة | إدارة الموظفين</title>
-    <link rel="icon" type="image/png" href="sar-symbol.png" />
+    <link id="siteFaviconLink" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,10 +16,13 @@
       (function () {
         try {
           var company = JSON.parse(localStorage.getItem("nawah-company-settings-v92") || "{}") || {};
-          var favicon = company.siteFaviconDataUrl || "";
+          var favicon = company.siteFaviconDataUrl || company.logoDataUrl || "";
           if (favicon) {
             var faviconLink = document.querySelector('link[rel="icon"]');
-            if (faviconLink) faviconLink.href = favicon;
+            if (faviconLink) {
+              faviconLink.type = "image/png";
+              faviconLink.href = favicon;
+            }
           }
           var url = company.loginBackgroundDataUrl || localStorage.getItem("nawah-login-bg-url-v177") || "";
           if (url) {
@@ -43,7 +46,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=221" />
+    <link rel="stylesheet" href="style.css?v=223" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -1219,6 +1222,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=222"></script>
+    <script src="app.js?v=223"></script>
   </body>
 </html>
