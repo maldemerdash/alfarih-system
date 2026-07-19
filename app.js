@@ -17960,11 +17960,15 @@ async function init() {
       renderLeaves = h;
     } catch (e) {}
     ((window.renderLeaves = h), (window.renderLeaveTravelPage = h));
+    function runLegacyLeaveTravelRender() {
+      if (window.__v78CleanLeavesTravelInterface) return;
+      h();
+    }
     const b = "function" == typeof switchView ? switchView : null;
     if (b && !b.__finalClickableLeaveTabs) {
       const e = function (e) {
         const t = b.apply(this, arguments);
-        return ("leaves" === e && setTimeout(h, 0), t);
+        return ("leaves" === e && setTimeout(runLegacyLeaveTravelRender, 0), t);
       };
       e.__finalClickableLeaveTabs = !0;
       try {
@@ -17974,9 +17978,9 @@ async function init() {
     }
     "loading" === document.readyState
       ? document.addEventListener("DOMContentLoaded", function () {
-          setTimeout(h, 120);
+          setTimeout(runLegacyLeaveTravelRender, 120);
         })
-      : setTimeout(h, 120);
+      : setTimeout(runLegacyLeaveTravelRender, 120);
   })(),
   (function () {
     const e = "nawah-travel-requests";
@@ -34818,6 +34822,8 @@ async function init() {
 	  var leaveFilter = "all";
 	  var leaveYearScope = "year";
   var drawing = false;
+  var renderTimer = 0;
+  var lastRenderSignature = "";
   var pendingTravelModalId = "";
 
   function q(s, r) {
@@ -35403,13 +35409,71 @@ async function init() {
 	      return String(r.travelDate || r.from || r.startDate || "").slice(0, 4) === year;
 	    });
 	  }
-	  function filterLeavesByYearScope(list) {
+  function filterLeavesByYearScope(list) {
 	    if (leaveYearScope === "all") return list;
 	    var year = currentYear();
 	    return list.filter(function (r) {
 	      return String(r.from || r.startDate || r.createdAt || "").slice(0, 4) === year;
 	    });
 	  }
+  function rowSignature(row, fields) {
+    return fields
+      .map(function (field) {
+        return String((row && row[field]) || "");
+      })
+      .join("|");
+  }
+  function pageSignature(travels, leavesList) {
+    var employeeIds = {};
+    travels.concat(leavesList).forEach(function (row) {
+      if (row && row.employeeId) employeeIds[String(row.employeeId)] = true;
+    });
+    var employeeSig = Object.keys(employeeIds)
+      .sort()
+      .map(function (id) {
+        var emp = employee(id) || {};
+        return [id, emp.employeeNumber || "", emp.name || "", emp.status || ""].join(":");
+      })
+      .join("~");
+    return [
+      activeTab,
+      travelFilter,
+      travelYearScope,
+      leaveFilter,
+      leaveYearScope,
+      employeeSig,
+      travels
+        .map(function (row) {
+          return rowSignature(row, [
+            "id",
+            "employeeId",
+            "status",
+            "travelDate",
+            "returnDate",
+            "workResumeDate",
+            "ticketAttachmentId",
+            "visaAttachmentId",
+            "updatedAt",
+          ]);
+        })
+        .join("~"),
+      leavesList
+        .map(function (row) {
+          return rowSignature(row, [
+            "id",
+            "employeeId",
+            "status",
+            "type",
+            "from",
+            "to",
+            "days",
+            "returnDate",
+            "updatedAt",
+          ]);
+        })
+        .join("~"),
+    ].join("||");
+  }
   function render() {
     var view = q("#leavesView");
     if (!view || !view.classList.contains("active") || drawing) return;
@@ -35436,6 +35500,10 @@ async function init() {
 	          : scopedLeaves.filter(function (r) {
 	              return leaveCategory(r) === leaveFilter;
 	            });
+      var signature = pageSignature(travels, leaveArr);
+      if (signature === lastRenderSignature && view.querySelector(".v78-leave-page"))
+        return;
+      lastRenderSignature = signature;
       view.innerHTML =
         '<div class="v78-leave-page"><div class="v78-page-tabs"><button type="button" class="' +
         (activeTab === "travel" ? "active" : "") +
@@ -35474,7 +35542,8 @@ async function init() {
     }
   }
   function schedule(delay) {
-    setTimeout(
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(
       function () {
         try {
           render();
@@ -35482,7 +35551,7 @@ async function init() {
           console.warn("تعذر رسم صفحة السفر والإجازات v78", e);
         }
       },
-      delay == null ? 80 : delay,
+      delay == null ? 40 : delay,
     );
   }
   try {
@@ -35500,7 +35569,7 @@ async function init() {
     if (oldRenderAll && !oldRenderAll.__v78CleanLeavesTravelInterface) {
       var wrapped = function () {
         var r = oldRenderAll.apply(this, arguments);
-        [0, 80, 220, 500].forEach(schedule);
+        schedule(0);
         return r;
       };
       wrapped.__v78CleanLeavesTravelInterface = true;
@@ -35573,7 +35642,7 @@ async function init() {
       }
       if (t.id === "newTravelBtn") activeTab = "travel";
       if (t.id === "newLeaveBtn") activeTab = "leave";
-      schedule(180);
+      schedule(0);
     },
     false,
   );
@@ -35598,12 +35667,10 @@ async function init() {
   document.addEventListener("DOMContentLoaded", function () {
     ensureTravelApprovalModal();
     schedule(0);
-    schedule(600);
   });
   setTimeout(function () {
     ensureTravelApprovalModal();
     schedule(0);
-    schedule(500);
   }, 250);
 })();
 
@@ -56034,6 +56101,10 @@ async function init() {
   const CLOUD_TOKEN_PREFIX = "cloud-file-v165::";
   const CLOUD_TOKEN_RE = /^cloud-file-v\d*::/;
   const indexMemory = new Map();
+  const missingStorageBuckets = new Set();
+  const storageUrlMemory = new Map();
+  const STORAGE_SIGNED_URL_TTL = 45 * 60 * 1000;
+  const STORAGE_MISS_TTL = 45 * 1000;
 
   function text(value) {
     return String(value ?? "").trim();
@@ -56424,6 +56495,20 @@ async function init() {
     return /bucket\s+not\s+found|storage.*bucket|404/i.test(message);
   }
 
+  function withStorageTimeout(request, timeout = 1800) {
+    let timer = 0;
+    return Promise.race([
+      request,
+      new Promise(function (resolve) {
+        timer = setTimeout(function () {
+          resolve({ timeout: true });
+        }, timeout);
+      }),
+    ]).finally(function () {
+      clearTimeout(timer);
+    });
+  }
+
   async function signedPersistentStorageUrl(storagePath) {
     if (
       !storagePath ||
@@ -56431,15 +56516,38 @@ async function init() {
       !supabaseClient?.storage
     )
       return "";
+    const cacheKey = text(storagePath);
+    const cached = storageUrlMemory.get(cacheKey);
+    if (cached) {
+      const ttl = cached.value ? STORAGE_SIGNED_URL_TTL : STORAGE_MISS_TTL;
+      if (Date.now() - cached.time < ttl) return cached.value;
+      storageUrlMemory.delete(cacheKey);
+    }
     const candidates = storagePathCandidates(storagePath);
     for (const candidate of candidates) {
+      if (missingStorageBuckets.has(candidate.bucket)) continue;
       try {
-        const { data, error } = await supabaseClient.storage
-          .from(candidate.bucket)
-          .createSignedUrl(candidate.path, 3600);
-        if (!error && data?.signedUrl) return data.signedUrl;
-      } catch (_) {}
+        const { data, error, timeout } = await withStorageTimeout(
+          supabaseClient.storage
+            .from(candidate.bucket)
+            .createSignedUrl(candidate.path, 3600),
+        );
+        if (timeout) break;
+        if (!error && data?.signedUrl) {
+          storageUrlMemory.set(cacheKey, {
+            value: data.signedUrl,
+            time: Date.now(),
+          });
+          return data.signedUrl;
+        }
+        if (error && isMissingBucketError(error))
+          missingStorageBuckets.add(candidate.bucket);
+      } catch (error) {
+        if (isMissingBucketError(error))
+          missingStorageBuckets.add(candidate.bucket);
+      }
     }
+    storageUrlMemory.set(cacheKey, { value: "", time: Date.now() });
     return "";
   }
 
@@ -56452,12 +56560,18 @@ async function init() {
       return null;
     const candidates = storagePathCandidates(storagePath);
     for (const candidate of candidates) {
+      if (missingStorageBuckets.has(candidate.bucket)) continue;
       try {
         const { data, error } = await supabaseClient.storage
           .from(candidate.bucket)
           .download(candidate.path);
         if (!error && data) return data;
-      } catch (_) {}
+        if (error && isMissingBucketError(error))
+          missingStorageBuckets.add(candidate.bucket);
+      } catch (error) {
+        if (isMissingBucketError(error))
+          missingStorageBuckets.add(candidate.bucket);
+      }
     }
     return null;
   }
@@ -56510,6 +56624,7 @@ async function init() {
       bucket === "company-documents" &&
       isMissingBucketError(upload.error)
     ) {
+      missingStorageBuckets.add(bucket);
       bucket = "employee-attachments";
       upload = await supabaseClient.storage.from(bucket).upload(path, file, {
         cacheControl: "31536000",
@@ -56518,6 +56633,7 @@ async function init() {
       });
     }
     if (upload?.error) throw upload.error;
+    storageUrlMemory.delete(bucket + "/" + path);
 
     const baseRecord = {
       related_table: cleanCategory,
@@ -58750,6 +58866,8 @@ window.nawahV169Fixes = {
   const uploadInputByFile = new WeakMap();
   const attachmentRecordCache = new Map();
   const attachmentUrlCache = new Map();
+  const attachmentRecordPending = new Map();
+  const attachmentUrlPending = new Map();
   let refreshTimer = 0;
   let enhanceTimer = 0;
   let enhanceLateTimer = 0;
@@ -58798,15 +58916,33 @@ window.nawahV169Fixes = {
     if (!key) return;
     attachmentRecordCache.delete(key);
     attachmentUrlCache.delete(key);
+    attachmentRecordPending.delete(key);
+    attachmentUrlPending.delete(key);
   }
 
   async function resolveCachedAttachmentRecord(id, resolver) {
     const key = attachmentCacheKey(id);
     if (!key || typeof resolver !== "function") return null;
     const cached = attachmentRecordCache.get(key);
-    if (cached && Date.now() - cached.time < 5 * 60 * 1000) return cached.value;
-    const value = await resolver(id);
-    if (value) attachmentRecordCache.set(key, { value, time: Date.now() });
+    if (cached) {
+      const ttl = cached.value ? 5 * 60 * 1000 : 30 * 1000;
+      if (Date.now() - cached.time < ttl) return cached.value;
+      attachmentRecordCache.delete(key);
+    }
+    if (attachmentRecordPending.has(key)) return attachmentRecordPending.get(key);
+    const pending = Promise.resolve()
+      .then(function () {
+        return resolver(id);
+      })
+      .then(function (value) {
+        attachmentRecordCache.set(key, { value: value || null, time: Date.now() });
+        return value || null;
+      })
+      .finally(function () {
+        attachmentRecordPending.delete(key);
+      });
+    attachmentRecordPending.set(key, pending);
+    const value = await pending;
     return value || null;
   }
 
@@ -58814,9 +58950,26 @@ window.nawahV169Fixes = {
     const key = attachmentCacheKey(id);
     if (!key || typeof resolver !== "function") return "";
     const cached = attachmentUrlCache.get(key);
-    if (cached && Date.now() - cached.time < 8 * 60 * 1000) return cached.value;
-    const value = text(await resolver(id));
-    if (value) attachmentUrlCache.set(key, { value, time: Date.now() });
+    if (cached) {
+      const ttl = cached.value ? 8 * 60 * 1000 : 30 * 1000;
+      if (Date.now() - cached.time < ttl) return cached.value;
+      attachmentUrlCache.delete(key);
+    }
+    if (attachmentUrlPending.has(key)) return attachmentUrlPending.get(key);
+    const pending = Promise.resolve()
+      .then(function () {
+        return resolver(id);
+      })
+      .then(function (value) {
+        const clean = text(value);
+        attachmentUrlCache.set(key, { value: clean, time: Date.now() });
+        return clean;
+      })
+      .finally(function () {
+        attachmentUrlPending.delete(key);
+      });
+    attachmentUrlPending.set(key, pending);
+    const value = await pending;
     return value;
   }
 
@@ -59336,7 +59489,7 @@ window.nawahV169Fixes = {
         return previousOpenAttachment(key);
       const url =
         typeof attachmentUrl === "function"
-          ? await resolveCachedAttachmentUrl(key, attachmentUrl)
+          ? text(await attachmentUrl(key))
           : "";
       if (url) downloadUrl(url, "attachment");
     };
@@ -59346,16 +59499,16 @@ window.nawahV169Fixes = {
       dialog.setAttribute("open", "open");
     }
     try {
-      const record =
+      const [record, url] = await Promise.all([
         typeof getAttachment === "function"
-          ? await resolveCachedAttachmentRecord(key, getAttachment)
-          : null;
-      const url =
+          ? resolveCachedAttachmentRecord(key, getAttachment)
+          : Promise.resolve(null),
         typeof attachmentUrl === "function"
-          ? await resolveCachedAttachmentUrl(key, attachmentUrl)
-          : "";
+          ? attachmentUrl(key)
+          : Promise.resolve(""),
+      ]);
       renderPreviewSource(dialog, {
-        url,
+        url: text(url),
         name: record?.file_name || record?.name || "مرفق",
         type: record?.file_type || record?.type || "",
         size: record?.file_size || record?.size || 0,
@@ -59546,7 +59699,8 @@ window.nawahV169Fixes = {
   if (previousTravelRenderer && !previousTravelRenderer.__v174TravelPreview) {
     const wrappedTravelRenderer = function wrappedTravelRenderer() {
       const result = previousTravelRenderer.apply(this, arguments);
-      scheduleNormalize(document);
+      if (!document.querySelector("#leavesView.active"))
+        scheduleNormalize(document);
       return result;
     };
     wrappedTravelRenderer.__v174TravelPreview = true;
@@ -59561,7 +59715,7 @@ window.nawahV169Fixes = {
     function (event) {
       if (
         event.target?.closest?.(
-          '[data-employee-section="leaveTravelHistory"], [data-v81-history-tab], [data-v81-filter], [data-v80-history-tab], [data-v80-filter], [data-v78-tab], [data-v78-filter], [data-page="leaves"], [data-view="leaves"], [data-go-view="leaves"]',
+          '[data-employee-section="leaveTravelHistory"], [data-v81-history-tab], [data-v81-filter], [data-v80-history-tab], [data-v80-filter]',
         )
       ) {
         scheduleNormalize(document);
@@ -59578,8 +59732,8 @@ window.nawahV169Fixes = {
           Array.prototype.some.call(mutation.addedNodes, function (node) {
             return (
               node.nodeType === 1 &&
-              (node.matches?.(".v81-employee-history-card,.v80-employee-history-card,.v78-travel-table") ||
-                node.querySelector?.(".v81-employee-history-card,.v80-employee-history-card,.v78-travel-table"))
+              (node.matches?.(".v81-employee-history-card,.v80-employee-history-card") ||
+                node.querySelector?.(".v81-employee-history-card,.v80-employee-history-card"))
             );
           })
         ) {
