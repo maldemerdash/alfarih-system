@@ -19150,16 +19150,12 @@ html.has-initial-login-bg .auth-gate,
   background-image: none !important;
 }
 
-#settingsView.active:not(.v228-ready) .settings-panel,
-#settingsView.active.v228-stabilizing .settings-panel,
 #settingsView.active .settings-panel {
   visibility: visible !important;
 }
 
-#leavesView.active:not(.v228-ready) > *,
-#leavesView.active:not(:has(.v78-leave-page)) > *,
-#leavesView.active.v228-stabilizing > :not(.v78-leave-page) {
-  visibility: hidden !important;
+#leavesView.active > * {
+  visibility: visible !important;
 }
 
 .v230-national-address-line .attachment-actions {
@@ -19275,4 +19271,22 @@ html.has-initial-login-bg .auth-gate,
 #settingsView .quick-view-btn,
 #settingsView .attachment-view-btn {
   box-shadow: none;
+}
+
+/* v233 - keep settings checkboxes compact; the form field rule must not stretch toggles */
+#settingsView .v156-modern-form input[type="checkbox"],
+#settingsView .v232-form input[type="checkbox"],
+#settingsView .v156-notif-head input[type="checkbox"] {
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+  flex: 0 0 18px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  accent-color: var(--primary) !important;
 }
