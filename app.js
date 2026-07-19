@@ -66127,3 +66127,432 @@ window.nawahLeaveBalanceReportV185 = {
   } catch (_) {}
   window.renderDashboard = stableRenderDashboard;
 })();
+
+/* v228 - stable final paints for leaves and settings to prevent legacy flashes */
+(function v228StableLeavesSettingsPaint() {
+  if (window.__v228StableLeavesSettingsPaint) return;
+  window.__v228StableLeavesSettingsPaint = true;
+
+  const STYLE_ID = "v228-stable-leaves-settings-paint-style";
+  const SETTINGS_KEYS = [
+    "nawah-company-settings-v92",
+    "nawah-branches",
+    "nawah-document-type-settings",
+    "nawah-v136-notification-settings",
+    "nawah-work-settings",
+    "nawah-absence-policy-settings",
+    "nawah-minute-templates",
+    "nawah-organization-structure",
+    "nawah-org-structure-v176",
+  ];
+
+  function installStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      #leavesView.active:not(:has(.v78-leave-page)) > * {
+        visibility: hidden !important;
+      }
+      #leavesView.active.v228-stabilizing > :not(.v78-leave-page) {
+        visibility: hidden !important;
+      }
+      #settingsView.active.v228-stabilizing > *,
+      #settingsView.active:not(.v228-ready) > * {
+        visibility: hidden !important;
+      }
+      #settingsView.active.v228-ready > * {
+        visibility: visible !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function q(selector, root) {
+    return (root || document).querySelector(selector);
+  }
+
+  function qa(selector, root) {
+    return Array.prototype.slice.call(
+      (root || document).querySelectorAll(selector),
+    );
+  }
+
+  function readArray(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(value) ? value : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function listDigest(list, fields) {
+    return (Array.isArray(list) ? list : [])
+      .map(function (item) {
+        return fields
+          .map(function (field) {
+            return String((item && item[field]) || "");
+          })
+          .join(":");
+      })
+      .join("~");
+  }
+
+  function localLeaves() {
+    try {
+      if (Array.isArray(leaves)) return leaves;
+    } catch (_) {}
+    try {
+      if (Array.isArray(window.leaves)) return window.leaves;
+    } catch (_) {}
+    return readArray("nawah-leaves");
+  }
+
+  function employeesDigest() {
+    let list = [];
+    try {
+      list = Array.isArray(employees) ? employees : [];
+    } catch (_) {
+      list = Array.isArray(window.employees) ? window.employees : [];
+    }
+    return listDigest(list, [
+      "id",
+      "employeeNumber",
+      "name",
+      "status",
+      "department",
+      "role",
+      "updatedAt",
+      "photoAttachmentId",
+    ]);
+  }
+
+  function leavesActiveView() {
+    const view = q("#leavesView");
+    return view && view.classList.contains("active") ? view : null;
+  }
+
+  function selectedLeavesControls(view) {
+    return qa(
+      "[data-v78-tab].active,[data-v78-filter].active,[data-v193-travel-scope].active,[data-v193-year-scope].active",
+      view,
+    )
+      .map(function (item) {
+        return [
+          item.getAttribute("data-v78-tab") || "",
+          item.getAttribute("data-v78-filter") || "",
+          item.getAttribute("data-filter-value") || "",
+          item.getAttribute("data-v193-travel-scope") || "",
+          item.getAttribute("data-v193-year-scope") || "",
+          item.getAttribute("data-v193-scope-value") || "",
+        ].join(":");
+      })
+      .join("|");
+  }
+
+  function leavesDigest() {
+    const view = q("#leavesView");
+    return [
+      selectedLeavesControls(view || document),
+      employeesDigest(),
+      listDigest(readArray("nawah-travel-requests"), [
+        "id",
+        "employeeId",
+        "status",
+        "travelDate",
+        "returnDate",
+        "workResumeDate",
+        "ticketAttachmentId",
+        "visaAttachmentId",
+        "updatedAt",
+      ]),
+      listDigest(localLeaves(), [
+        "id",
+        "employeeId",
+        "status",
+        "type",
+        "from",
+        "to",
+        "days",
+        "returnDate",
+        "updatedAt",
+      ]),
+    ].join("||");
+  }
+
+  function activeSettingsView() {
+    const view = q("#settingsView");
+    return view && view.classList.contains("active") ? view : null;
+  }
+
+  function activeSettingsKey() {
+    return (
+      q("#settingsNav [data-settings-section].active")?.dataset
+        .settingsSection ||
+      q("#settingsView [data-settings-panel].active")?.dataset.settingsPanel ||
+      "company"
+    );
+  }
+
+  function settingsDigest() {
+    return [
+      activeSettingsKey(),
+      employeesDigest(),
+      SETTINGS_KEYS.map(function (key) {
+        return key + ":" + String(localStorage.getItem(key) || "");
+      }).join("|"),
+    ].join("||");
+  }
+
+  installStyle();
+
+  const baseLeavesRenderer =
+    typeof window.nawahRenderLeavesV78 === "function"
+      ? window.nawahRenderLeavesV78
+      : typeof window.renderLeaves === "function"
+        ? window.renderLeaves
+        : typeof renderLeaves === "function"
+          ? renderLeaves
+          : null;
+  const baseSettingsRenderer =
+    typeof window.renderSettings === "function"
+      ? window.renderSettings
+      : typeof renderSettings === "function"
+        ? renderSettings
+        : null;
+
+  let leavesTimer = 0;
+  let leavesRendering = false;
+  let lastLeavesDigest = "";
+  let settingsTimer = 0;
+  let settingsRendering = false;
+  let lastSettingsDigest = "";
+
+  function markLeavesReady() {
+    const view = q("#leavesView");
+    if (!view) return;
+    view.classList.remove("v228-stabilizing");
+    view.classList.add("v228-ready");
+  }
+
+  function stabilizeLeaves(force) {
+    const view = leavesActiveView();
+    if (!view) return;
+    clearTimeout(leavesTimer);
+    view.classList.add("v228-stabilizing");
+    view.classList.remove("v228-ready");
+    leavesTimer = setTimeout(function () {
+      if (leavesRendering) return;
+      const renderer =
+        baseLeavesRenderer ||
+        (typeof window.nawahRenderLeavesV78 === "function"
+          ? window.nawahRenderLeavesV78
+          : typeof window.renderLeaves === "function"
+            ? window.renderLeaves
+            : null);
+      if (!renderer || renderer.__v228StableLeavesSettingsPaint) {
+        markLeavesReady();
+        return;
+      }
+      const digest = leavesDigest();
+      if (!force && digest === lastLeavesDigest && q(".v78-leave-page", view)) {
+        markLeavesReady();
+        return;
+      }
+      leavesRendering = true;
+      try {
+        renderer();
+      } catch (error) {
+        console.warn("v228: تعذر تثبيت صفحة الإجازات والسفر.", error);
+      }
+      lastLeavesDigest = leavesDigest();
+      requestAnimationFrame(function () {
+        leavesRendering = false;
+        markLeavesReady();
+      });
+    }, 0);
+  }
+
+  function markSettingsReady() {
+    const view = q("#settingsView");
+    if (!view) return;
+    view.classList.remove("v228-stabilizing");
+    view.classList.add("v228-ready");
+  }
+
+  function runStableSettingsPanel(key) {
+    if (
+      typeof window.__stableActivateSettingsSection === "function" &&
+      !window.__stableActivateSettingsSection.__v228StableLeavesSettingsPaint
+    )
+      return window.__stableActivateSettingsSection(key);
+    if (
+      typeof window.__stableSettingsRenderPanel === "function" &&
+      !window.__stableSettingsRenderPanel.__v228StableLeavesSettingsPaint
+    )
+      return window.__stableSettingsRenderPanel(key);
+    return null;
+  }
+
+  function stabilizeSettings(force) {
+    const view = activeSettingsView();
+    if (!view) return;
+    clearTimeout(settingsTimer);
+    view.classList.add("v228-stabilizing");
+    view.classList.remove("v228-ready");
+    settingsTimer = setTimeout(async function () {
+      if (settingsRendering) return;
+      const digest = settingsDigest();
+      if (!force && digest === lastSettingsDigest && q(".settings-layout", view)) {
+        markSettingsReady();
+        return;
+      }
+      settingsRendering = true;
+      try {
+        if (baseSettingsRenderer) baseSettingsRenderer();
+      } catch (error) {
+        console.warn("v228: تعذر تشغيل راسم الإعدادات الأساسي.", error);
+      }
+      try {
+        const result = runStableSettingsPanel(activeSettingsKey());
+        if (result && typeof result.then === "function") await result;
+      } catch (error) {
+        console.warn("v228: تعذر تثبيت تبويب الإعدادات.", error);
+      }
+      lastSettingsDigest = settingsDigest();
+      requestAnimationFrame(function () {
+        settingsRendering = false;
+        markSettingsReady();
+      });
+    }, 0);
+  }
+
+  function stableLeavesRenderer() {
+    stabilizeLeaves(true);
+  }
+  stableLeavesRenderer.__v228StableLeavesSettingsPaint = true;
+
+  function stableSettingsRenderer() {
+    stabilizeSettings(true);
+  }
+  stableSettingsRenderer.__v228StableLeavesSettingsPaint = true;
+
+  if (baseLeavesRenderer) {
+    try {
+      renderLeaves = stableLeavesRenderer;
+    } catch (_) {}
+    window.renderLeaves = stableLeavesRenderer;
+    window.nawahRenderLeavesV78 = stableLeavesRenderer;
+  }
+
+  if (baseSettingsRenderer) {
+    try {
+      renderSettings = stableSettingsRenderer;
+    } catch (_) {}
+    window.renderSettings = stableSettingsRenderer;
+  }
+
+  const previousSwitchView =
+    typeof switchView === "function" ? switchView : window.switchView;
+  if (previousSwitchView && !previousSwitchView.__v228StableLeavesSettingsPaint) {
+    const stableSwitchView = function (viewName) {
+      const normalized = String(viewName || "").replace(/View$/, "");
+      if (normalized === "leaves") {
+        const view = q("#leavesView");
+        if (view) {
+          view.classList.add("v228-stabilizing");
+          view.classList.remove("v228-ready");
+        }
+      }
+      if (normalized === "settings") {
+        const view = q("#settingsView");
+        if (view) {
+          view.classList.add("v228-stabilizing");
+          view.classList.remove("v228-ready");
+        }
+      }
+      const result = previousSwitchView.apply(this, arguments);
+      if (normalized === "leaves") stabilizeLeaves(true);
+      if (normalized === "settings") stabilizeSettings(true);
+      return result;
+    };
+    stableSwitchView.__v228StableLeavesSettingsPaint = true;
+    try {
+      switchView = stableSwitchView;
+    } catch (_) {}
+    window.switchView = stableSwitchView;
+  }
+
+  function bindObservers() {
+    const leavesView = q("#leavesView");
+    if (leavesView && !leavesView.__v228StableObserver) {
+      leavesView.__v228StableObserver = new MutationObserver(function () {
+        const view = leavesActiveView();
+        if (!view || leavesRendering) return;
+        if (q(".v78-leave-page", view)) markLeavesReady();
+        else stabilizeLeaves(true);
+      });
+      leavesView.__v228StableObserver.observe(leavesView, {
+        childList: true,
+        subtree: false,
+      });
+    }
+    const settingsView = q("#settingsView");
+    if (settingsView && !settingsView.__v228StableObserver) {
+      settingsView.__v228StableObserver = new MutationObserver(function () {
+        const view = activeSettingsView();
+        if (!view || settingsRendering) return;
+        view.classList.add("v228-stabilizing");
+        view.classList.remove("v228-ready");
+        stabilizeSettings(true);
+      });
+      settingsView.__v228StableObserver.observe(settingsView, {
+        childList: true,
+        subtree: true,
+      });
+    }
+  }
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const target =
+        event.target &&
+        event.target.closest &&
+        event.target.closest(
+          '[data-view="leaves"],[data-page="leaves"],[data-go-view="leaves"],[data-view="settings"],[data-page="settings"],[data-go-view="settings"]',
+        );
+      if (!target) return;
+      const viewName =
+        target.getAttribute("data-view") ||
+        target.getAttribute("data-page") ||
+        target.getAttribute("data-go-view") ||
+        "";
+      if (viewName === "leaves") {
+        const view = q("#leavesView");
+        if (view) view.classList.add("v228-stabilizing");
+      }
+      if (viewName === "settings") {
+        const view = q("#settingsView");
+        if (view) view.classList.add("v228-stabilizing");
+      }
+    },
+    true,
+  );
+
+  bindObservers();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      bindObservers();
+      stabilizeLeaves(true);
+      stabilizeSettings(true);
+    });
+  } else {
+    setTimeout(function () {
+      bindObservers();
+      stabilizeLeaves(true);
+      stabilizeSettings(true);
+    }, 0);
+  }
+})();
