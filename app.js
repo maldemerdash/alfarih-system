@@ -56374,6 +56374,94 @@ async function init() {
 
   const previousAttachmentUrl =
     typeof attachmentUrl === "function" ? attachmentUrl : null;
+
+  function parsePersistentStoragePath(storagePath) {
+    const clean = text(storagePath);
+    if (!clean) return null;
+    const parts = clean.split("/").filter(Boolean);
+    const bucket = parts.shift();
+    const path = parts.join("/");
+    if (!bucket || !path) return null;
+    return { bucket, path };
+  }
+
+  function isSupabaseStorageUrl(url) {
+    return /\/storage\/v1\/object\//i.test(text(url));
+  }
+
+  function storagePathCandidates(storagePath) {
+    const parsed = parsePersistentStoragePath(storagePath);
+    if (!parsed) return [];
+    const list = [];
+    const seen = new Set();
+    const add = function (bucket, path) {
+      const cleanBucket = text(bucket);
+      const cleanPath = text(path).replace(/^\/+/, "");
+      if (!cleanBucket || !cleanPath) return;
+      const key = cleanBucket + "/" + cleanPath;
+      if (seen.has(key)) return;
+      seen.add(key);
+      list.push({ bucket: cleanBucket, path: cleanPath });
+    };
+    const alternateBucket =
+      parsed.bucket === "company-documents"
+        ? "employee-attachments"
+        : "company-documents";
+    add(parsed.bucket, parsed.path);
+    add(alternateBucket, parsed.path);
+    if (parsed.path.startsWith("company/")) {
+      add(alternateBucket, parsed.path.slice("company/".length));
+    } else {
+      add(alternateBucket, "company/" + parsed.path);
+    }
+    return list;
+  }
+
+  function isMissingBucketError(error) {
+    const message = text(
+      error?.message || error?.error || error?.statusCode || error || "",
+    );
+    return /bucket\s+not\s+found|storage.*bucket|404/i.test(message);
+  }
+
+  async function signedPersistentStorageUrl(storagePath) {
+    if (
+      !storagePath ||
+      typeof supabaseClient === "undefined" ||
+      !supabaseClient?.storage
+    )
+      return "";
+    const candidates = storagePathCandidates(storagePath);
+    for (const candidate of candidates) {
+      try {
+        const { data, error } = await supabaseClient.storage
+          .from(candidate.bucket)
+          .createSignedUrl(candidate.path, 3600);
+        if (!error && data?.signedUrl) return data.signedUrl;
+      } catch (_) {}
+    }
+    return "";
+  }
+
+  async function downloadPersistentStorageBlob(storagePath) {
+    if (
+      !storagePath ||
+      typeof supabaseClient === "undefined" ||
+      !supabaseClient?.storage
+    )
+      return null;
+    const candidates = storagePathCandidates(storagePath);
+    for (const candidate of candidates) {
+      try {
+        const { data, error } = await supabaseClient.storage
+          .from(candidate.bucket)
+          .download(candidate.path);
+        if (!error && data) return data;
+      } catch (_) {}
+    }
+    return null;
+  }
+
   async function persistentAttachmentUrl(id) {
     const record = await getPersistentAttachment(id);
     if (!record) {
@@ -56391,24 +56479,11 @@ async function init() {
       } catch (_) {}
       return url;
     }
-    if (record.fileUrl) return record.fileUrl;
     const storagePath = text(record.storagePath || record.storage_path);
-    if (!storagePath || typeof supabaseClient === "undefined" || !supabaseClient)
-      return "";
-    const parts = storagePath.split("/");
-    const bucket = parts.shift();
-    const path = parts.join("/");
-    if (!bucket || !path) return "";
-    try {
-      const { data, error } = await supabaseClient.storage
-        .from(bucket)
-        .createSignedUrl(path, 3600);
-      if (!error && data?.signedUrl) return data.signedUrl;
-    } catch (_) {}
-    try {
-      const { data } = supabaseClient.storage.from(bucket).getPublicUrl(path);
-      if (data?.publicUrl) return data.publicUrl;
-    } catch (_) {}
+    const storageUrl = await signedPersistentStorageUrl(storagePath);
+    if (storageUrl) return storageUrl;
+    const directUrl = text(record.fileUrl || record.file_url || record.url);
+    if (directUrl && !isSupabaseStorageUrl(directUrl)) return directUrl;
     return "";
   }
 
@@ -56423,13 +56498,25 @@ async function init() {
     if (!file) return "";
     ensureCloudReady();
     const cleanCategory = text(category || "attachment") || "attachment";
-    const bucket = categoryBucket(cleanCategory);
+    let bucket = categoryBucket(cleanCategory);
     const path = pathForUpload(cleanCategory, file);
-    const upload = await supabaseClient.storage.from(bucket).upload(path, file, {
+    let upload = await supabaseClient.storage.from(bucket).upload(path, file, {
       cacheControl: "31536000",
       upsert: false,
       contentType: file.type || "application/octet-stream",
     });
+    if (
+      upload?.error &&
+      bucket === "company-documents" &&
+      isMissingBucketError(upload.error)
+    ) {
+      bucket = "employee-attachments";
+      upload = await supabaseClient.storage.from(bucket).upload(path, file, {
+        cacheControl: "31536000",
+        upsert: false,
+        contentType: file.type || "application/octet-stream",
+      });
+    }
     if (upload?.error) throw upload.error;
 
     const baseRecord = {
@@ -56505,18 +56592,8 @@ async function init() {
     }
     let blob = record.blob || null;
     const storagePath = text(record.storagePath || record.storage_path);
-    if (!blob && storagePath && typeof supabaseClient !== "undefined" && supabaseClient) {
-      const parts = storagePath.split("/");
-      const bucket = parts.shift();
-      const path = parts.join("/");
-      if (bucket && path)
-        try {
-          const { data, error } = await supabaseClient.storage
-            .from(bucket)
-            .download(path);
-          if (!error && data) blob = data;
-        } catch (_) {}
-    }
+    if (!blob && storagePath)
+      blob = await downloadPersistentStorageBlob(storagePath);
     if (!blob) {
       const url = await persistentAttachmentUrl(id);
       if (!url) {
