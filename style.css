@@ -19117,7 +19117,7 @@ html.has-initial-login-bg .auth-gate,
   }
 }
 
-/* v231 - final no-flash guards for auth, leaves and settings */
+/* final no-flash guards for auth, leaves and settings */
 html.app-booting body,
 html.app-booting .app-boot-screen {
   background: #ffffff !important;
@@ -19151,8 +19151,9 @@ html.has-initial-login-bg .auth-gate,
 }
 
 #settingsView.active:not(.v228-ready) .settings-panel,
-#settingsView.active.v228-stabilizing .settings-panel {
-  visibility: hidden !important;
+#settingsView.active.v228-stabilizing .settings-panel,
+#settingsView.active .settings-panel {
+  visibility: visible !important;
 }
 
 #leavesView.active:not(.v228-ready) > *,
@@ -19169,4 +19170,109 @@ html.has-initial-login-bg .auth-gate,
 
 .v230-national-address-line [data-v230-national-address-eye] {
   flex: 0 0 auto !important;
+}
+
+/* v232 - stable settings panels: templates stay visible while data hydrates */
+#settingsView .settings-panel {
+  visibility: visible !important;
+  min-height: 620px;
+}
+
+#settingsView .settings-section {
+  min-height: 560px;
+}
+
+#settingsView .settings-section[hidden] {
+  display: none !important;
+}
+
+#settingsView .settings-section.active {
+  display: block !important;
+}
+
+#settingsView .v232-settings-panel {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+#settingsView .v232-panel-head {
+  margin-bottom: 16px;
+}
+
+#settingsView .v232-loading-card {
+  min-height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(230, 251, 255, 0.9), #ffffff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+  text-align: right;
+}
+
+#settingsView .v232-loading-card > span,
+#settingsView .v232-loading-card > svg {
+  width: 42px;
+  height: 42px;
+  color: var(--primary);
+  flex: 0 0 auto;
+}
+
+#settingsView .v232-loading-card strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 17px;
+  color: var(--text);
+}
+
+#settingsView .v232-loading-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+#settingsView .v232-form input,
+#settingsView .v232-form select,
+#settingsView .v232-form textarea,
+#settingsView .v156-modern-form input,
+#settingsView .v156-modern-form select,
+#settingsView .v156-modern-form textarea {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  box-shadow: none;
+}
+
+#settingsView .v232-form input:focus,
+#settingsView .v232-form select:focus,
+#settingsView .v232-form textarea:focus,
+#settingsView .v156-modern-form input:focus,
+#settingsView .v156-modern-form select:focus,
+#settingsView .v156-modern-form textarea:focus {
+  outline: 0;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(17, 166, 151, 0.12);
+}
+
+#settingsView .v232-form .span-all {
+  grid-column: 1 / -1;
+}
+
+#settingsView .v232-managers-panel .attachment-line {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#settingsView .doc-settings-actions .doc-icon-action,
+#settingsView .v176-org-icon-btn,
+#settingsView .quick-view-btn,
+#settingsView .attachment-view-btn {
+  box-shadow: none;
 }
