@@ -964,6 +964,29 @@ async function dbDeleteEmployee(e) {
   (await requestResult(dbStore("employees", "readwrite").delete(e)),
     queueCloudStateSave());
 }
+async function syncEmployeeLocalCache(e = employees) {
+  const t = Array.isArray(e) ? e.map(normalizeEmployee) : [];
+  try {
+    localStorage.setItem("nawah-employees", JSON.stringify(t));
+  } catch (e) {}
+  try {
+    if (!db || "function" != typeof dbGetAllEmployees) return;
+    const e = new Set(t.map((e) => String(e && e.id))),
+      n = await dbGetAllEmployees();
+    await Promise.all(
+      (Array.isArray(n) ? n : [])
+        .filter((t) => !e.has(String(t && t.id)))
+        .map((e) =>
+          requestResult(dbStore("employees", "readwrite").delete(e.id)),
+        ),
+    );
+    await Promise.all(
+      t.map((e) => requestResult(dbStore("employees", "readwrite").put(e))),
+    );
+  } catch (e) {
+    console.warn("تعذر تنظيف كاش الموظفين المحلي.", e);
+  }
+}
 async function saveAttachment(e, t) {
   if (!e) return "";
   if (supabaseClient && cloudReady)
@@ -1070,7 +1093,7 @@ async function initStorage() {
   const e = await loadCloudState();
   if (e.ok && e.found && e.state && applyCloudState(e.state)) {
     if (
-      (await Promise.all(employees.map(dbSaveEmployee)),
+      (await syncEmployeeLocalCache(employees),
       (cloudSaveAllowed = !0),
       localStorage.getItem(FINANCE_EMPTY_RESET_KEY) ===
         FINANCE_EMPTY_RESET_VERSION)
@@ -51741,6 +51764,11 @@ async function init() {
   function hasEmployees(list) {
     return Array.isArray(list) && list.length > 0;
   }
+  function hasEmployeeArray(state) {
+    return Boolean(
+      state && typeof state === "object" && Array.isArray(state.employees),
+    );
+  }
   function stateEmployeeCount(state) {
     try {
       return Array.isArray(state && state.employees)
@@ -51786,7 +51814,7 @@ async function init() {
       : null;
   }
   function applyState(state) {
-    if (!state || typeof state !== "object" || !hasEmployees(state.employees))
+    if (!hasEmployeeArray(state))
       return false;
     var before = hasEmployees(employees) ? employees.length : 0;
     try {
@@ -51818,7 +51846,11 @@ async function init() {
         e,
       );
     }
-    if (!hasEmployees(employees)) return false;
+    try {
+      if (typeof syncEmployeeLocalCache === "function")
+        syncEmployeeLocalCache(employees);
+      else localStorage.setItem("nawah-employees", JSON.stringify(employees || []));
+    } catch (_) {}
     try {
       window.__nawahEmployeesReady = true;
     } catch (_) {}
@@ -51836,7 +51868,7 @@ async function init() {
         });
       }
     } catch (_) {}
-    if ((hasEmployees(employees) ? employees.length : 0) !== before)
+    if ((Array.isArray(employees) ? employees.length : 0) !== before)
       console.info(
         "v151: تم جلب بيانات الموظفين من Supabase. العدد:",
         employees.length,
@@ -51845,7 +51877,7 @@ async function init() {
     return true;
   }
   async function fetchCloudState() {
-    if (lastGoodState && stateEmployeeCount(lastGoodState) > 0)
+    if (hasEmployeeArray(lastGoodState))
       return lastGoodState;
     var client = ensureSupabase();
     if (!client || !client.from) throw new Error("supabase-not-ready");
@@ -51856,14 +51888,15 @@ async function init() {
       .maybeSingle();
     if (response.error) throw response.error;
     var state = response.data && response.data.setting_value;
-    if (state && typeof state === "object" && stateEmployeeCount(state) > 0)
+    if (hasEmployeeArray(state))
       lastGoodState = state;
     return state || null;
   }
   async function loadEmployeesFromCloud(force) {
     if (loadingPromise && !force) return loadingPromise;
     loadingPromise = (async function () {
-      if (!force && hasEmployees(employees)) return true;
+      if (!force && hasEmployees(employees) && window.__nawahCloudSourceReady)
+        return true;
       try {
         try {
           if (!db && typeof openDatabase === "function")
