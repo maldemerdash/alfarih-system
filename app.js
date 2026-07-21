@@ -12847,8 +12847,19 @@ async function init() {
       try {
         "function" == typeof queueCloudStateSave && queueCloudStateSave();
       } catch (e) {}
+      try {
+        window.nawahLeaveTravelSyncV222?.track("travelRequests");
+      } catch (e) {}
+    }
+    function refreshTravelCache() {
+      try {
+        const n = JSON.parse(localStorage.getItem(e) || "[]");
+        if (Array.isArray(n)) t = n;
+      } catch (e) {}
+      return t;
     }
     function s() {
+      refreshTravelCache();
       if (!window.__nawahEmployeesReady) return;
       if (!(Array.isArray(employees) && employees.length > 0)) return;
       const e = t.length;
@@ -13123,6 +13134,7 @@ async function init() {
           );
     }
     function P(e) {
+      refreshTravelCache();
       e && "function" == typeof e.preventDefault && e.preventDefault();
       const n = e?.currentTarget || l("#travelRequestForm");
       if (!n || !n.elements)
@@ -13199,6 +13211,12 @@ async function init() {
         showToast("تم حفظ طلب السفر"));
     }
     function q() {
+      if (
+        window.__v78CleanLeavesTravelInterface &&
+        typeof window.nawahRenderLeavesV78 === "function"
+      )
+        return window.nawahRenderLeavesV78();
+      refreshTravelCache();
       A();
       const e = l("#leavesView");
       if (!e) return;
@@ -13251,6 +13269,7 @@ async function init() {
           hydrateAttachmentImages(e));
     }
     function L(e) {
+      refreshTravelCache();
       A();
       const a = t.find((t) => t.id === e),
         i = a ? h(a.employeeId) : null;
@@ -13307,6 +13326,7 @@ async function init() {
         l("#travelApprovalModal")?.showModal());
     }
     async function k(e) {
+      refreshTravelCache();
       if (!n) return;
       const a = t.find((e) => e.id === n.travelId),
         s = a ? h(a.employeeId) : null;
@@ -13389,6 +13409,7 @@ async function init() {
         ));
     }
     function N(e) {
+      refreshTravelCache();
       ((t = t.map((t) =>
         t.id === e
           ? { ...t, status: "rejected", rejectedAt: new Date().toISOString() }
@@ -13402,6 +13423,7 @@ async function init() {
       return `${e}:${t}`;
     }
     function _(e) {
+      refreshTravelCache();
       const n = String(e || "").split(":"),
         a = n[0],
         o = n.slice(1).join(":");
@@ -13631,6 +13653,7 @@ async function init() {
               e.preventDefault(),
               e.stopImmediatePropagation(),
               void (function (e) {
+                refreshTravelCache();
                 A();
                 const n = t.find((t) => t.id === e),
                   o = n ? h(n.employeeId) : null;
@@ -13702,6 +13725,7 @@ async function init() {
             ("travelRequestForm" === e.target?.id && P(e),
               "travelResumeForm" === e.target?.id &&
                 (async function (e) {
+                  refreshTravelCache();
                   if ((e.preventDefault(), !a)) return;
                   const n =
                       "travelResumeForm" === e.target?.id
@@ -16757,11 +16781,7 @@ async function init() {
         renderAll = e;
       } catch (e) {}
     }
-    setTimeout(() => {
-      try {
-        (u(), document.querySelector("#leavesView") && v());
-      } catch (e) {}
-    }, 350);
+    /* v222: removed the delayed legacy renderer that replaced the final page. */
   })(),
   (function () {
     const e = "nawah-travel-requests";
@@ -17175,12 +17195,8 @@ async function init() {
           }
         },
         !0,
-      ),
-      setTimeout(() => {
-        try {
-          (p(), document.querySelector("#leavesView") && g());
-        } catch (e) {}
-      }, 400));
+      ));
+    /* v222: removed the second delayed legacy renderer. */
   })(),
   (function () {
     const e = "nawah-travel-requests",
@@ -17450,43 +17466,9 @@ async function init() {
         },
         !0,
       ));
-    const b = "function" == typeof renderAll ? renderAll : null;
-    if (b && !b.__definitiveLeaveTravelTabsWrapped) {
-      const e = function () {
-        const e = b.apply(this, arguments);
-        try {
-          document.querySelector(
-            "#leavesView.active, #leavesView.view.active",
-          ) && v();
-        } catch (e) {}
-        return e;
-      };
-      e.__definitiveLeaveTravelTabsWrapped = !0;
-      try {
-        renderAll = e;
-      } catch (e) {}
-      window.renderAll = e;
-    }
-    const S = "function" == typeof switchView ? switchView : null;
-    if (S && !S.__definitiveLeaveTravelTabsWrapped) {
-      const e = function (e) {
-        const t = S.apply(this, arguments);
-        return ("leaves" === e && setTimeout(v, 0), t);
-      };
-      e.__definitiveLeaveTravelTabsWrapped = !0;
-      try {
-        switchView = e;
-      } catch (e) {}
-      window.switchView = e;
-    }
-    function w() {
-      try {
-        document.querySelector("#leavesView") && v();
-      } catch (e) {}
-    }
-    "loading" === document.readyState
-      ? document.addEventListener("DOMContentLoaded", () => setTimeout(w, 150))
-      : setTimeout(w, 150);
+    /* v222: legacy render/navigation hooks removed. The v78 renderer below is
+       the sole owner of #leavesView, preventing stale closures from replacing
+       cloud-loaded leave and travel rows. */
   })(),
   (function () {
     const e = ["all", "pending", "approved", "rejected", "travel-pending"],
@@ -17902,23 +17884,7 @@ async function init() {
       renderLeaves = h;
     } catch (e) {}
     ((window.renderLeaves = h), (window.renderLeaveTravelPage = h));
-    const b = "function" == typeof switchView ? switchView : null;
-    if (b && !b.__finalClickableLeaveTabs) {
-      const e = function (e) {
-        const t = b.apply(this, arguments);
-        return ("leaves" === e && setTimeout(h, 0), t);
-      };
-      e.__finalClickableLeaveTabs = !0;
-      try {
-        switchView = e;
-      } catch (e) {}
-      window.switchView = e;
-    }
-    "loading" === document.readyState
-      ? document.addEventListener("DOMContentLoaded", function () {
-          setTimeout(h, 120);
-        })
-      : setTimeout(h, 120);
+    /* v222: do not schedule this superseded renderer after navigation. */
   })(),
   (function () {
     const e = "nawah-travel-requests";
@@ -30392,6 +30358,247 @@ async function init() {
   }, 250);
 })();
 
+/* v222 - stable leave/travel state bridge.
+   Local storage is a cache; Supabase app_settings remains the source of truth. */
+(function v222LeaveTravelStateBridge() {
+  if (window.__v222LeaveTravelStateBridge) return;
+  window.__v222LeaveTravelStateBridge = true;
+
+  const LEAVES_KEY = "nawah-leaves";
+  const TRAVEL_KEY = "nawah-travel-requests";
+  let renderTimer = 0;
+
+  function raw(key) {
+    try {
+      return localStorage.getItem(key) || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function readList(key) {
+    try {
+      const value = JSON.parse(raw(key) || "[]");
+      return Array.isArray(value) ? value : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function fieldsFor(kind) {
+    return kind === "leaves"
+      ? ["leaves", "leaveBalanceReservations"]
+      : ["travelRequests", "leaveBalanceReservations"];
+  }
+
+  function track(kind) {
+    if (window.__nawahCloudApplyInProgressV221) return false;
+    const normalized = kind === "leaves" ? "leaves" : "travelRequests";
+    try {
+      if (window.nawahCloudSyncV221?.trackFields)
+        return window.nawahCloudSyncV221.trackFields(fieldsFor(normalized));
+    } catch (_) {}
+    try {
+      if (typeof queueCloudStateSave === "function") {
+        queueCloudStateSave();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function syncLeaveRuntimeFromCache() {
+    const list = readList(LEAVES_KEY);
+    try {
+      leaves = list;
+    } catch (_) {}
+    window.leaves = list;
+    return list;
+  }
+
+  function scheduleStableRender() {
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(function () {
+      const view = document.querySelector("#leavesView.active");
+      if (!view) return;
+      try {
+        if (typeof window.nawahRenderLeavesV78 === "function")
+          window.nawahRenderLeavesV78();
+        else if (typeof renderLeaves === "function") renderLeaves();
+      } catch (error) {
+        console.warn("v222: تعذر تحديث شاشة الإجازات والسفر.", error);
+      }
+    }, 40);
+  }
+
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") showToast(message);
+    } catch (_) {}
+  }
+
+  function addTravelDays(dateValue, amount) {
+    const date = new Date(String(dateValue || "").slice(0, 10) + "T12:00:00");
+    if (Number.isNaN(date.getTime())) return "";
+    date.setDate(date.getDate() + Number(amount || 0));
+    return date.toISOString().slice(0, 10);
+  }
+
+  function saveTravelRequestV222(form) {
+    if (!form?.elements) return notify("تعذر قراءة نموذج طلب السفر");
+    const employeeId = String(form.elements.employeeId?.value || "").trim();
+    const travelMode = form.elements.travelMode?.value || "oneway";
+    const returnMode = form.elements.returnMode?.value || "date";
+    const travelDate = form.elements.travelDate?.value || "";
+    const note = String(form.elements.note?.value || "").trim();
+    let returnDate = String(form.elements.returnDate?.value || "").trim();
+    let returnDays = String(form.elements.returnDays?.value || "").trim();
+    if (!employeeId || !travelDate)
+      return notify("حدد الموظف وتاريخ السفر");
+    let employee = null;
+    try {
+      employee = typeof getEmployee === "function" ? getEmployee(employeeId) : null;
+    } catch (_) {}
+    if (!employee) return notify("تعذر العثور على الموظف المحدد");
+    try {
+      if (
+        typeof employeeIsOnDutyForTransactions === "function" &&
+        !employeeIsOnDutyForTransactions(employee)
+      )
+        return notify(
+          "لا يمكن إنشاء طلب سفر لموظف ليس على رأس العمل. سجل المباشرة أولاً.",
+        );
+    } catch (_) {}
+    if (travelMode === "roundtrip") {
+      if (returnMode === "days") {
+        const days = Number(returnDays);
+        if (!Number.isFinite(days) || days <= 0)
+          return notify("أدخل مدة السفر بالأيام بشكل صحيح");
+        returnDays = String(Math.floor(days));
+        returnDate = addTravelDays(travelDate, days);
+      }
+      if (!returnDate) return notify("حدد تاريخ العودة أو مدة السفر بالأيام");
+      if (returnDate < travelDate)
+        return notify("تاريخ العودة يجب أن يكون بعد أو مساويًا لتاريخ السفر");
+    } else {
+      returnDate = "";
+      returnDays = "";
+    }
+    try {
+      const conflict = window.nawahFindUnifiedRequestConflict?.(
+        "travel",
+        employeeId,
+        travelDate,
+        returnDate,
+        { travelId: "" },
+      );
+      if (conflict) {
+        const message = window.nawahConflictMessageFor
+          ? window.nawahConflictMessageFor("travel", conflict)
+          : "يوجد طلب سفر قائم أو متداخل لهذا الموظف";
+        if (window.nawahShowBlockingMessage)
+          window.nawahShowBlockingMessage(message);
+        else notify(message);
+        return;
+      }
+    } catch (_) {}
+    const list = readList(TRAVEL_KEY);
+    list.unshift({
+      id:
+        "travel-" +
+        Date.now() +
+        "-" +
+        Math.random().toString(16).slice(2),
+      employeeId: employeeId,
+      travelMode: travelMode,
+      returnMode: travelMode === "roundtrip" ? returnMode : "",
+      travelDate: travelDate,
+      returnDate: returnDate,
+      returnDays: returnDays,
+      workResumeDate: "",
+      status: "pending",
+      note: note,
+      ticketAttachmentId: "",
+      visaAttachmentId: "",
+      commissionFrozenAt: "",
+      commissionIssuedId: "",
+      createdAt: new Date().toISOString(),
+    });
+    try {
+      localStorage.setItem(TRAVEL_KEY, JSON.stringify(list));
+    } catch (_) {
+      return notify("تعذر حفظ طلب السفر");
+    }
+    track("travelRequests");
+    try {
+      form.closest("dialog")?.close();
+      form.reset();
+    } catch (_) {}
+    scheduleStableRender();
+    try {
+      if (typeof renderDashboard === "function") renderDashboard();
+    } catch (_) {}
+    notify("تم حفظ طلب السفر");
+  }
+
+  const previousSaveLocalMeta =
+    typeof saveLocalMeta === "function" ? saveLocalMeta : null;
+  if (previousSaveLocalMeta && !previousSaveLocalMeta.__v222LeaveTravelStateBridge) {
+    const wrappedSaveLocalMeta = function () {
+      const beforeLeaves = raw(LEAVES_KEY);
+      const beforeTravel = raw(TRAVEL_KEY);
+      const result = previousSaveLocalMeta.apply(this, arguments);
+      if (beforeLeaves !== raw(LEAVES_KEY)) track("leaves");
+      if (beforeTravel !== raw(TRAVEL_KEY)) track("travelRequests");
+      return result;
+    };
+    wrappedSaveLocalMeta.__v222LeaveTravelStateBridge = true;
+    try {
+      saveLocalMeta = wrappedSaveLocalMeta;
+    } catch (_) {}
+    window.saveLocalMeta = wrappedSaveLocalMeta;
+  }
+
+  window.addEventListener("storage", function (event) {
+    if (event.storageArea !== localStorage) return;
+    if (event.key === LEAVES_KEY) syncLeaveRuntimeFromCache();
+    if (event.key === LEAVES_KEY || event.key === TRAVEL_KEY)
+      scheduleStableRender();
+  });
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const button = event.target?.closest?.("#saveTravelRequestBtn");
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      if (button.dataset.v222Saving === "true") return;
+      button.dataset.v222Saving = "true";
+      try {
+        saveTravelRequestV222(document.querySelector("#travelRequestForm"));
+      } finally {
+        button.dataset.v222Saving = "false";
+      }
+    },
+    true,
+  );
+
+  window.nawahLeaveTravelSyncV222 = {
+    schemaVersion: 222,
+    track: track,
+    refresh: function () {
+      syncLeaveRuntimeFromCache();
+      scheduleStableRender();
+      return {
+        leaves: readList(LEAVES_KEY),
+        travelRequests: readList(TRAVEL_KEY),
+      };
+    },
+  };
+})();
+
 /* v211 - structured employee end-of-service workflow */
 (function () {
   if (window.__endServiceWizardV211) return;
@@ -33605,8 +33812,9 @@ async function init() {
 	  var travelFilter = "all";
 	  var travelYearScope = "year";
 	  var leaveFilter = "all";
-	  var leaveYearScope = "year";
+  var leaveYearScope = "year";
   var drawing = false;
+  var lastRenderSignature = "";
   var pendingTravelModalId = "";
 
   function q(s, r) {
@@ -34225,6 +34433,28 @@ async function init() {
 	          : scopedLeaves.filter(function (r) {
 	              return leaveCategory(r) === leaveFilter;
 	            });
+      var renderSignature = JSON.stringify({
+        activeTab: activeTab,
+        travelFilter: travelFilter,
+        travelYearScope: travelYearScope,
+        leaveFilter: leaveFilter,
+        leaveYearScope: leaveYearScope,
+        travels: travels,
+        leaves: leaveArr,
+        employees: (Array.isArray(window.employees)
+          ? window.employees
+          : typeof employees !== "undefined" && Array.isArray(employees)
+            ? employees
+            : []
+        ).map(function (item) {
+          return [item.id, item.name, item.employeeNumber, item.status];
+        }),
+      });
+      if (
+        renderSignature === lastRenderSignature &&
+        q(".v78-leave-page", view)
+      )
+        return;
       view.innerHTML =
         '<div class="v78-leave-page"><div class="v78-page-tabs"><button type="button" class="' +
         (activeTab === "travel" ? "active" : "") +
@@ -34255,6 +34485,7 @@ async function init() {
         '<div class="v78-table-scroll"><table class="v78-soft-table v78-leave-table"><colgroup><col class="c-employee"><col class="c-type"><col class="c-date"><col class="c-date"><col class="c-duration"><col class="c-status"><col class="c-actions"></colgroup><thead><tr><th>الموظف</th><th>نوع الإجازة</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>' +
         leaveRows(shownLeaves) +
         "</tbody></table></div></section></div>";
+      lastRenderSignature = renderSignature;
       try {
         if (typeof hydrateIcons === "function") hydrateIcons(view);
       } catch (_) {}
@@ -34288,9 +34519,7 @@ async function init() {
       window.renderAll || (typeof renderAll === "function" ? renderAll : null);
     if (oldRenderAll && !oldRenderAll.__v78CleanLeavesTravelInterface) {
       var wrapped = function () {
-        var r = oldRenderAll.apply(this, arguments);
-        [0, 80, 220, 500].forEach(schedule);
-        return r;
+        return oldRenderAll.apply(this, arguments);
       };
       wrapped.__v78CleanLeavesTravelInterface = true;
       window.renderAll = wrapped;
@@ -34387,12 +34616,10 @@ async function init() {
   document.addEventListener("DOMContentLoaded", function () {
     ensureTravelApprovalModal();
     schedule(0);
-    schedule(600);
   });
   setTimeout(function () {
     ensureTravelApprovalModal();
     schedule(0);
-    schedule(500);
   }, 250);
 })();
 
@@ -51290,21 +51517,15 @@ async function init() {
       return false;
     var before = hasEmployees(employees) ? employees.length : 0;
     try {
-      if (typeof applyCloudState === "function") {
-        var ok = applyCloudState(state);
-        if (ok === false && !hasEmployees(employees))
-          employees = state.employees.map(function (emp, idx) {
-            return typeof normalizeEmployee === "function"
-              ? normalizeEmployee(emp, idx)
-              : emp;
-          });
-      } else {
-        employees = state.employees.map(function (emp, idx) {
-          return typeof normalizeEmployee === "function"
-            ? normalizeEmployee(emp, idx)
-            : emp;
-        });
-      }
+      /* v222: this is an employee-only fast loader. Applying the entire cloud
+         snapshot here used to roll back newer leave/travel edits while the
+         normal cloud initializer was still running. */
+      employees = state.employees.map(function (emp, idx) {
+        return typeof normalizeEmployee === "function"
+          ? normalizeEmployee(emp, idx)
+          : emp;
+      });
+      window.employees = employees;
     } catch (e) {
       try {
         employees = state.employees.map(function (emp, idx) {
@@ -51314,7 +51535,7 @@ async function init() {
         });
       } catch (_) {}
       console.warn(
-        "v151: تعذر تطبيق حالة Supabase بالطريقة الأصلية، تم تطبيق الموظفين مباشرة.",
+        "v151: تعذر تطبيق قائمة موظفي Supabase مباشرة.",
         e,
       );
     }
@@ -63893,12 +64114,12 @@ window.nawahLeaveBalanceReportV185 = {
   }, 300);
 })();
  
-/* v221 - canonical cloud persistence, conflict protection, and cross-browser sync */
+/* v222 - canonical cloud persistence, conflict protection, and cross-browser sync */
 (function v221CanonicalCloudPersistence() {
   if (window.__v221CanonicalCloudPersistence) return;
   window.__v221CanonicalCloudPersistence = true;
 
-  const STATE_SCHEMA_VERSION = 221;
+  const STATE_SCHEMA_VERSION = 222;
   const STATE_KEY =
     typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
       ? CLOUD_STATE_KEY
@@ -63969,6 +64190,14 @@ window.nawahLeaveBalanceReportV185 = {
       return raw ? JSON.parse(raw) : clone(fallback);
     } catch (_) {
       return clone(fallback);
+    }
+  }
+
+  function hasLocalValue(key) {
+    try {
+      return localStorage.getItem(key) !== null;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -64068,9 +64297,11 @@ window.nawahLeaveBalanceReportV185 = {
     state.savedAt = new Date().toISOString();
     state.employees = clone(currentEmployees());
     state.leaves = clone(
-      typeof leaves !== "undefined" && Array.isArray(leaves)
-        ? leaves
-        : readJson("nawah-leaves", []),
+      hasLocalValue("nawah-leaves")
+        ? readJson("nawah-leaves", [])
+        : typeof leaves !== "undefined" && Array.isArray(leaves)
+          ? leaves
+          : [],
     );
     state.jobTitles = clone(
       typeof jobTitles !== "undefined" && Array.isArray(jobTitles)
@@ -64192,6 +64423,7 @@ window.nawahLeaveBalanceReportV185 = {
         try {
           leaves = state.leaves;
         } catch (_) {}
+        window.leaves = state.leaves;
         writeJson("nawah-leaves", state.leaves);
       }
       if (Array.isArray(state.jobTitles)) {
@@ -64627,6 +64859,78 @@ window.nawahLeaveBalanceReportV185 = {
     refresh: () => refreshCloudStateV221(true),
     save: (reason = "manual") =>
       saveCloudStateNowV221({ force: true, reason }),
+    trackFields: (fields) => {
+      markDirty(fields);
+      return queueCloudStateSaveV221();
+    },
     pendingFields: () => Array.from(dirtyFields.keys()),
   };
+  window.nawahCloudSyncV222 = window.nawahCloudSyncV221;
+})();
+
+/* v222 - final renderer lock (must remain the last application patch). */
+(function v222FinalLeaveTravelRendererLock() {
+  if (window.__v222FinalLeaveTravelRendererLock) return;
+  window.__v222FinalLeaveTravelRendererLock = true;
+  let navigationTimer = 0;
+  let recoveryQueued = false;
+
+  function canonicalRender() {
+    const renderer = window.nawahRenderLeavesV78;
+    if (typeof renderer !== "function") return;
+    return renderer.apply(this, arguments);
+  }
+  canonicalRender.__v222FinalLeaveTravelRendererLock = true;
+  try {
+    renderLeaves = canonicalRender;
+  } catch (_) {}
+  window.renderLeaves = canonicalRender;
+
+  const previousSwitch =
+    typeof switchView === "function" ? switchView : window.switchView;
+  if (typeof previousSwitch === "function") {
+    const finalSwitch = function (viewName) {
+      const view = document.querySelector("#leavesView");
+      if (viewName === "leaves" && view) view.style.visibility = "hidden";
+      const result = previousSwitch.apply(this, arguments);
+      if (viewName === "leaves") {
+        clearTimeout(navigationTimer);
+        navigationTimer = setTimeout(function () {
+          try {
+            canonicalRender();
+          } finally {
+            if (view) view.style.removeProperty("visibility");
+          }
+        }, 0);
+      }
+      return result;
+    };
+    finalSwitch.__v222FinalLeaveTravelRendererLock = true;
+    try {
+      switchView = finalSwitch;
+    } catch (_) {}
+    window.switchView = finalSwitch;
+  }
+
+  const view = document.querySelector("#leavesView");
+  if (view && typeof MutationObserver === "function") {
+    new MutationObserver(function () {
+      if (
+        recoveryQueued ||
+        !view.classList.contains("active") ||
+        view.querySelector(".v78-leave-page")
+      )
+        return;
+      recoveryQueued = true;
+      view.style.visibility = "hidden";
+      queueMicrotask(function () {
+        try {
+          canonicalRender();
+        } finally {
+          recoveryQueued = false;
+          view.style.removeProperty("visibility");
+        }
+      });
+    }).observe(view, { childList: true });
+  }
 })();
