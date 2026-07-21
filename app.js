@@ -30358,7 +30358,7 @@ async function init() {
   }, 250);
 })();
 
-/* v222 - stable leave/travel state bridge.
+/* v223 - stable leave/travel state bridge.
    Local storage is a cache; Supabase app_settings remains the source of truth. */
 (function v222LeaveTravelStateBridge() {
   if (window.__v222LeaveTravelStateBridge) return;
@@ -30586,7 +30586,7 @@ async function init() {
   );
 
   window.nawahLeaveTravelSyncV222 = {
-    schemaVersion: 222,
+    schemaVersion: 223,
     track: track,
     refresh: function () {
       syncLeaveRuntimeFromCache();
@@ -30597,6 +30597,7 @@ async function init() {
       };
     },
   };
+  window.nawahLeaveTravelSyncV223 = window.nawahLeaveTravelSyncV222;
 })();
 
 /* v211 - structured employee end-of-service workflow */
@@ -39517,6 +39518,7 @@ async function init() {
 	  var LEAVE_KEY = "nawah-leaves";
 	  var RESERVE_KEY = "nawah-leave-balance-reservations";
 	  var refreshTimer = null;
+	  var deleteInFlight = false;
   function q(s, r) {
     return (r || document).querySelector(s);
   }
@@ -39561,15 +39563,14 @@ async function init() {
   }
   function readLeaves() {
     try {
+      var a = JSON.parse(localStorage.getItem(LEAVE_KEY) || "[]");
+      return Array.isArray(a) ? a : [];
+    } catch (_) {}
+    try {
       if (typeof leaves !== "undefined" && Array.isArray(leaves))
         return leaves.slice();
     } catch (_) {}
-    try {
-      var a = JSON.parse(localStorage.getItem(LEAVE_KEY) || "[]");
-      return Array.isArray(a) ? a : [];
-    } catch (_) {
-      return [];
-    }
+    return [];
   }
 	  function writeLeaves(list) {
 	    list = Array.isArray(list) ? list : [];
@@ -39601,6 +39602,71 @@ async function init() {
 	    try {
 	      if (typeof queueCloudStateSave === "function") queueCloudStateSave();
 	    } catch (_) {}
+	  }
+	  function cloudSyncApi() {
+	    return (
+	      window.nawahCloudSyncV223 ||
+	      window.nawahCloudSyncV222 ||
+	      window.nawahCloudSyncV221 ||
+	      null
+	    );
+	  }
+	  async function prepareCloudDelete() {
+	    var sync = cloudSyncApi();
+	    if (!sync) return true;
+	    try {
+	      var pending =
+	        typeof sync.pendingFields === "function"
+	          ? sync.pendingFields()
+	          : [];
+	      if (pending.length && typeof sync.save === "function") {
+	        var flushed = await sync.save("history-pending-flush");
+	        if (
+	          flushed === false &&
+	          typeof sync.pendingFields === "function" &&
+	          sync.pendingFields().length
+	        )
+	          return false;
+	      }
+	      if (typeof sync.refresh === "function") await sync.refresh();
+	      return true;
+	    } catch (error) {
+	      console.warn("v223: تعذر تجهيز أحدث نسخة سحابية قبل الحذف.", error);
+	      return false;
+	    }
+	  }
+	  function trackDeletedRecords(field, ids) {
+	    ids = (ids || []).map(String).filter(Boolean);
+	    if (!ids.length) return;
+	    var sync = cloudSyncApi();
+	    try {
+	      if (sync && typeof sync.trackRecordDeletes === "function") {
+	        sync.trackRecordDeletes(field, ids);
+	        return;
+	      }
+	      if (sync && typeof sync.trackFields === "function")
+	        sync.trackFields([field]);
+	    } catch (_) {}
+	  }
+	  function trackChangedFields(fields) {
+	    var sync = cloudSyncApi();
+	    try {
+	      if (sync && typeof sync.trackFields === "function")
+	        sync.trackFields(fields);
+	    } catch (_) {}
+	  }
+	  async function confirmCloudDelete(reason) {
+	    var sync = cloudSyncApi();
+	    try {
+	      if (sync && typeof sync.save === "function")
+	        return (await sync.save(reason)) !== false;
+	      if (typeof saveCloudStateNow === "function")
+	        return (await saveCloudStateNow({ force: true, reason: reason })) !== false;
+	    } catch (error) {
+	      console.warn("v223: تعذر تأكيد حذف سجل الموظف سحابيًا.", error);
+	      return false;
+	    }
+	    return false;
 	  }
   function getEmp(id) {
     try {
@@ -40143,6 +40209,13 @@ async function init() {
     setTimeout(decorate, 60);
   }
 	  async function deleteTravel(empId, id, mode) {
+	    if (deleteInFlight) return false;
+	    deleteInFlight = true;
+	    try {
+	      if (!(await prepareCloudDelete())) {
+	        toast("تعذر الاتصال بالسحابة؛ لم يُنفذ الحذف لحماية السجلات.");
+	        return false;
+	      }
 	    var list = readTravels(),
 	      removed = [],
 	      ids = id
@@ -40154,13 +40227,18 @@ async function init() {
             .map(function (r) {
               return String(r.id || "");
 	            });
-	    if (!ids.length) return;
+	    if (!ids.length) return false;
 	    removed = list.filter(function (r) {
 	      return (
 	        String(r.employeeId || "") === String(empId) &&
 	        ids.indexOf(String(r.id || "")) >= 0
 	      );
 	    });
+	    if (!removed.length) {
+	      toast("السجل المطلوب غير موجود أو تم حذفه مسبقًا.");
+	      return false;
+	    }
+	    var reservationsBefore = readReservations();
 	    if (mode === "record") snapshotBalanceEffect(empId, "travel", removed);
 	    else clearBalanceEffect(empId, "travel", ids);
 	    writeTravels(
@@ -40182,15 +40260,51 @@ async function init() {
 	      return !related;
 	    });
 	    writeLeaves(ll);
-	    await recalcEmployeeStatus(empId, ids.concat(relatedLeaveIds));
+	    trackDeletedRecords("travelRequests", ids);
+	    trackDeletedRecords("leaves", relatedLeaveIds);
+	    if (mode !== "record") {
+	      var reservationsAfterIds = readReservations().map(function (r) {
+	        return String(r.id || "");
+	      });
+	      trackDeletedRecords(
+	        "leaveBalanceReservations",
+	        reservationsBefore
+	          .filter(function (r) {
+	            return reservationsAfterIds.indexOf(String(r.id || "")) < 0;
+	          })
+	          .map(function (r) {
+	            return String(r.id || "");
+	          }),
+	      );
+	    }
+	    var statusChanged = await recalcEmployeeStatus(
+	      empId,
+	      ids.concat(relatedLeaveIds),
+	    );
+	    if (statusChanged) trackChangedFields(["employees"]);
+	    var saved = await confirmCloudDelete("history-record-delete");
 	    refreshHistoryCards();
 	    try {
 	      if (typeof window.refreshQuickLeaveBalanceCard === "function")
 	        window.refreshQuickLeaveBalanceCard();
 	    } catch (_) {}
-	    toast(id ? "تم حذف سجل السفر." : "تم حذف كامل سجل السفر.");
+	    if (saved)
+	      toast(id ? "تم حذف سجل السفر وحفظه سحابيًا." : "تم حذف كامل سجل السفر وحفظه سحابيًا.");
+	    else
+	      toast("تم تطبيق الحذف مؤقتًا، لكن تعذر تأكيده سحابيًا وسيُعاد المحاولة تلقائيًا.");
+	    return saved;
+	    } finally {
+	      deleteInFlight = false;
+	    }
 	  }
 	  async function deleteLeave(empId, id, mode) {
+	    if (deleteInFlight) return false;
+	    deleteInFlight = true;
+	    try {
+	      if (!(await prepareCloudDelete())) {
+	        toast("تعذر الاتصال بالسحابة؛ لم يُنفذ الحذف لحماية السجلات.");
+	        return false;
+	      }
 	    var list = readLeaves(),
 	      removed = [],
 	      ids = id
@@ -40206,13 +40320,18 @@ async function init() {
             .map(function (r) {
               return String(r.id || "");
 	            });
-	    if (!ids.length) return;
+	    if (!ids.length) return false;
 	    removed = list.filter(function (r) {
 	      return (
 	        String(r.employeeId || "") === String(empId) &&
 	        ids.indexOf(String(r.id || "")) >= 0
 	      );
 	    });
+	    if (!removed.length) {
+	      toast("السجل المطلوب غير موجود أو تم حذفه مسبقًا.");
+	      return false;
+	    }
+	    var reservationsBefore = readReservations();
 	    if (mode === "record") snapshotBalanceEffect(empId, "leave", removed);
 	    else clearBalanceEffect(empId, "leave", ids);
 	    writeLeaves(
@@ -40220,17 +40339,46 @@ async function init() {
 	        return !(
           String(r.employeeId || "") === String(empId) &&
           ids.indexOf(String(r.id || "")) >= 0
-	          );
+	        );
 	      }),
 	    );
-	    await recalcEmployeeStatus(empId, ids);
+	    trackDeletedRecords("leaves", ids);
+	    if (mode !== "record") {
+	      var reservationsAfterIds = readReservations().map(function (r) {
+	        return String(r.id || "");
+	      });
+	      trackDeletedRecords(
+	        "leaveBalanceReservations",
+	        reservationsBefore
+	          .filter(function (r) {
+	            return reservationsAfterIds.indexOf(String(r.id || "")) < 0;
+	          })
+	          .map(function (r) {
+	            return String(r.id || "");
+	          }),
+	      );
+	    }
+	    var statusChanged = await recalcEmployeeStatus(empId, ids);
+	    if (statusChanged) trackChangedFields(["employees"]);
+	    var saved = await confirmCloudDelete("history-record-delete");
 	    refreshHistoryCards();
 	    try {
 	      if (typeof window.refreshQuickLeaveBalanceCard === "function")
 	        window.refreshQuickLeaveBalanceCard();
 	    } catch (_) {}
-	    toast(id ? "تم حذف سجل الإجازة." : "تم حذف كامل سجل الإجازات.");
+	    if (saved)
+	      toast(id ? "تم حذف سجل الإجازة وحفظه سحابيًا." : "تم حذف كامل سجل الإجازات وحفظه سحابيًا.");
+	    else
+	      toast("تم تطبيق الحذف مؤقتًا، لكن تعذر تأكيده سحابيًا وسيُعاد المحاولة تلقائيًا.");
+	    return saved;
+	    } finally {
+	      deleteInFlight = false;
+	    }
 	  }
+	  window.nawahEmployeeHistoryDeleteV223 = {
+	    deleteTravel: deleteTravel,
+	    deleteLeave: deleteLeave,
+	  };
   async function deleteCommission(empId, idx, all) {
     var emp = getEmp(empId);
     if (!emp) return;
@@ -64114,12 +64262,12 @@ window.nawahLeaveBalanceReportV185 = {
   }, 300);
 })();
  
-/* v222 - canonical cloud persistence, conflict protection, and cross-browser sync */
+/* v223 - canonical cloud persistence, conflict protection, and cross-browser sync */
 (function v221CanonicalCloudPersistence() {
   if (window.__v221CanonicalCloudPersistence) return;
   window.__v221CanonicalCloudPersistence = true;
 
-  const STATE_SCHEMA_VERSION = 222;
+  const STATE_SCHEMA_VERSION = 223;
   const STATE_KEY =
     typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
       ? CLOUD_STATE_KEY
@@ -64171,6 +64319,7 @@ window.nawahLeaveBalanceReportV185 = {
   let lastSyncErrorToastAt = 0;
   let dirtySequence = 0;
   const dirtyFields = new Map();
+  const recordDeleteTombstones = new Map();
 
   function clone(value) {
     try {
@@ -64247,6 +64396,23 @@ window.nawahLeaveBalanceReportV185 = {
       dirtySequence += 1;
       dirtyFields.set(field, dirtySequence);
     });
+  }
+
+  function markRecordDeletes(field, ids) {
+    const cleanIds = (Array.isArray(ids) ? ids : [ids])
+      .map((id) => String(id || ""))
+      .filter(Boolean);
+    if (!field || !cleanIds.length || window.__nawahCloudApplyInProgressV221)
+      return false;
+    markDirty(field);
+    const sequence = dirtyFields.get(field) || dirtySequence;
+    let tombstones = recordDeleteTombstones.get(field);
+    if (!tombstones) {
+      tombstones = new Map();
+      recordDeleteTombstones.set(field, tombstones);
+    }
+    cleanIds.forEach((id) => tombstones.set(id, sequence));
+    return true;
   }
 
   function markReason(reason) {
@@ -64500,19 +64666,48 @@ window.nawahLeaveBalanceReportV185 = {
     return new Map(dirtyFields);
   }
 
+  function recordDeleteSnapshot(snapshot) {
+    const selected = new Map();
+    snapshot.forEach((sequence, field) => {
+      const tombstones = recordDeleteTombstones.get(field);
+      if (!tombstones) return;
+      const ids = new Set();
+      tombstones.forEach((deleteSequence, id) => {
+        if (deleteSequence <= sequence) ids.add(id);
+      });
+      if (ids.size) selected.set(field, ids);
+    });
+    return selected;
+  }
+
   function clearSavedDirty(snapshot) {
     snapshot.forEach((sequence, field) => {
       if (dirtyFields.get(field) === sequence) dirtyFields.delete(field);
     });
   }
 
-  function mergedState(remoteState, localState, snapshot) {
+  function clearSavedRecordDeletes(snapshot) {
+    snapshot.forEach((ids, field) => {
+      const tombstones = recordDeleteTombstones.get(field);
+      if (!tombstones) return;
+      ids.forEach((id) => tombstones.delete(id));
+      if (!tombstones.size) recordDeleteTombstones.delete(field);
+    });
+  }
+
+  function mergedState(remoteState, localState, snapshot, deleteSnapshot) {
     const merged = clone(
       remoteState && typeof remoteState === "object" ? remoteState : {},
     );
     snapshot.forEach((_, field) => {
-      if (Object.prototype.hasOwnProperty.call(localState, field))
+      const deletedIds = deleteSnapshot.get(field);
+      if (deletedIds && Array.isArray(merged[field])) {
+        merged[field] = merged[field].filter(
+          (record) => !deletedIds.has(String(record?.id || "")),
+        );
+      } else if (Object.prototype.hasOwnProperty.call(localState, field)) {
         merged[field] = clone(localState[field]);
+      }
     });
     merged.version = Math.max(
       Number(merged.version || 0),
@@ -64579,6 +64774,7 @@ window.nawahLeaveBalanceReportV185 = {
     }
     markReason(options.reason);
     let snapshot = dirtySnapshot();
+    let deleteSnapshot = recordDeleteSnapshot(snapshot);
     let localState = buildCanonicalStateV221();
 
     if (!baselineUpdatedAt) {
@@ -64590,6 +64786,7 @@ window.nawahLeaveBalanceReportV185 = {
         baselineState = clone(localState);
         baselineUpdatedAt = updatedAt;
         clearSavedDirty(snapshot);
+        clearSavedRecordDeletes(deleteSnapshot);
         return true;
       }
     }
@@ -64623,6 +64820,7 @@ window.nawahLeaveBalanceReportV185 = {
       baselineState = clone(localState);
       baselineUpdatedAt = attempt.updatedAt;
       clearSavedDirty(snapshot);
+      clearSavedRecordDeletes(deleteSnapshot);
       return true;
     }
 
@@ -64633,6 +64831,7 @@ window.nawahLeaveBalanceReportV185 = {
         baselineState = clone(localState);
         baselineUpdatedAt = updatedAt;
         clearSavedDirty(snapshot);
+        clearSavedRecordDeletes(deleteSnapshot);
         return true;
       }
       if (!snapshot.size) {
@@ -64641,12 +64840,18 @@ window.nawahLeaveBalanceReportV185 = {
         applyCanonicalStateV221(clone(remote.state));
         return false;
       }
-      const merged = mergedState(remote.state, localState, snapshot);
+      const merged = mergedState(
+        remote.state,
+        localState,
+        snapshot,
+        deleteSnapshot,
+      );
       attempt = await writeStateIfUnchanged(merged, remote.updatedAt);
       if (attempt.saved) {
         baselineState = clone(merged);
         baselineUpdatedAt = attempt.updatedAt;
         clearSavedDirty(snapshot);
+        clearSavedRecordDeletes(deleteSnapshot);
         applyCanonicalStateV221(clone(merged));
         try {
           if (typeof syncEmployeeLocalCache === "function")
@@ -64655,6 +64860,7 @@ window.nawahLeaveBalanceReportV185 = {
         return true;
       }
       snapshot = dirtySnapshot();
+      deleteSnapshot = recordDeleteSnapshot(snapshot);
       localState = buildCanonicalStateV221();
     }
     throw new Error("cloud-state-conflict");
@@ -64863,12 +65069,18 @@ window.nawahLeaveBalanceReportV185 = {
       markDirty(fields);
       return queueCloudStateSaveV221();
     },
+    trackRecordDeletes: (field, ids) => {
+      const tracked = markRecordDeletes(field, ids);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
     pendingFields: () => Array.from(dirtyFields.keys()),
   };
   window.nawahCloudSyncV222 = window.nawahCloudSyncV221;
+  window.nawahCloudSyncV223 = window.nawahCloudSyncV221;
 })();
 
-/* v222 - final renderer lock (must remain the last application patch). */
+/* v223 - final renderer lock (must remain the last application patch). */
 (function v222FinalLeaveTravelRendererLock() {
   if (window.__v222FinalLeaveTravelRendererLock) return;
   window.__v222FinalLeaveTravelRendererLock = true;
