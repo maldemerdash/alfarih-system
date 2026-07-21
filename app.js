@@ -999,19 +999,20 @@ async function syncEmployeeLocalCache(e = employees) {
     console.warn("تعذر تنظيف كاش الموظفين المحلي.", e);
   }
 }
-async function saveAttachment(e, t) {
+async function saveAttachment(e, t, n = {}) {
   if (!e) return "";
+  const a = Boolean(n && n.cloudOnly);
   if (supabaseClient && cloudReady)
     try {
       const n = bucketForAttachmentCategory(t),
-        a = `${t || "attachment"}/${Date.now()}-${Math.random().toString(16).slice(2)}-${sanitizeStorageName(e.name)}`,
-        { error: o } = await supabaseClient.storage.from(n).upload(a, e, {
+        o = `${t || "attachment"}/${Date.now()}-${Math.random().toString(16).slice(2)}-${sanitizeStorageName(e.name)}`,
+        { error: r } = await supabaseClient.storage.from(n).upload(o, e, {
           cacheControl: "3600",
           upsert: !1,
           contentType: e.type || "application/octet-stream",
         });
-      if (o) throw o;
-      const { data: r, error: i } = await supabaseClient
+      if (r) throw r;
+      const { data: i, error: s } = await supabaseClient
         .from("attachments")
         .insert({
           related_table: t || "general",
@@ -1019,18 +1020,23 @@ async function saveAttachment(e, t) {
           file_name: e.name,
           file_type: e.type || "application/octet-stream",
           file_size: e.size || 0,
-          storage_path: `${n}/${a}`,
+          storage_path: `${n}/${o}`,
           uploaded_by: "web",
         })
         .select("id, file_name, file_type, file_size, storage_path, created_at")
         .single();
-      if (i) throw i;
-      return r.id;
+      if (s) throw s;
+      return i.id;
     } catch (e) {
+      if (a) {
+        console.warn("تعذر رفع المرفق الإلزامي إلى Supabase.", e);
+        throw e;
+      }
       (console.warn("تعذر رفع المرفق إلى Supabase، سيتم حفظه محليًا.", e),
         showToast("تعذر رفع المرفق للسحابة، تم حفظه محليًا مؤقتًا"));
     }
-  const n = {
+  if (a) throw new Error("cloud-attachment-unavailable");
+  const o = {
     id: `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     category: t,
     name: e.name,
@@ -1039,8 +1045,8 @@ async function saveAttachment(e, t) {
     createdAt: new Date().toISOString(),
   };
   return (
-    await requestResult(dbStore("attachments", "readwrite").put(n)),
-    n.id
+    await requestResult(dbStore("attachments", "readwrite").put(o)),
+    o.id
   );
 }
 async function getAttachment(e) {
@@ -11385,10 +11391,41 @@ async function init() {
       }));
     }
     function h(e) {
-      (l(t, e || []),
-        "function" == typeof queueCloudStateSave && queueCloudStateSave(),
-        "function" == typeof saveCloudStateNow &&
-          saveCloudStateNow({ force: !0, allowEmptyOverwrite: !0 }));
+      l(t, e || []);
+    }
+    function cloudDocumentSync() {
+      return window.nawahDocumentsSyncV227 || null;
+    }
+    async function prepareCloudMutation() {
+      const e = cloudDocumentSync();
+      if (!e || !(await e.prepare())) {
+        o("تعذر الاتصال بالسحابة. لم يتم تنفيذ التعديل");
+        return !1;
+      }
+      return !0;
+    }
+    async function confirmCloudMutation(e) {
+      const t = cloudDocumentSync();
+      if (t && (await t.save(e))) return !0;
+      o("تعذر تأكيد الحفظ السحابي. أُعيدت البيانات السابقة");
+      return !1;
+    }
+    function normalizedUniqueName(e) {
+      return String(e || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLocaleLowerCase("ar");
+    }
+    function sameDocumentIdentity(e, t) {
+      const n = normalizedUniqueName(e?.number),
+        a = normalizedUniqueName(t?.number);
+      return Boolean(
+        n &&
+          a &&
+          n === a &&
+          String(e?.branchId || "") === String(t?.branchId || "") &&
+          String(e?.typeId || "") === String(t?.typeId || ""),
+      );
     }
     function v(e, t = y()) {
       return t.types.find((t) => t.id === e) || null;
@@ -11458,14 +11495,6 @@ async function init() {
           .sort();
       return n.length ? n[n.length - 1] : e.expiryDate || "";
     }
-    function R(e) {
-      return new Promise((t) => {
-        const n = new FileReader();
-        ((n.onload = () => t(n.result || "")),
-          (n.onerror = () => t("")),
-          n.readAsDataURL(e));
-      });
-    }
     function newExtensionId() {
       return r("est-doc-ext");
     }
@@ -11534,13 +11563,17 @@ async function init() {
       for (const n of sortExtensions(e)) {
         const e = { ...n };
         if (e.attachmentData && !e.attachmentId && "function" == typeof saveAttachment) {
-          try {
-            const t = dataUrlToFile(
-              e.attachmentData,
-              e.attachmentName || "establishment-document-extension",
-            );
-            t && (e.attachmentId = await saveAttachment(t, "establishment-document-extension"));
-          } catch {}
+          const t = dataUrlToFile(
+            e.attachmentData,
+            e.attachmentName || "establishment-document-extension",
+          );
+          if (!t) throw new Error("invalid-extension-attachment");
+          e.attachmentId = await saveAttachment(
+            t,
+            "establishment-document-extension",
+            { cloudOnly: !0 },
+          );
+          e.attachmentData = "";
         }
         t.push(e);
       }
@@ -11777,8 +11810,9 @@ async function init() {
           "function" == typeof hydrateIcons &&
             hydrateIcons(document.getElementById("branchModal")));
         const e = document.getElementById("branchForm");
-        (e.addEventListener("submit", (t) => {
+        (e.addEventListener("submit", async (t) => {
           t.preventDefault();
+          if (e.dataset.saving === "1") return;
           const n = Object.fromEntries(new FormData(e).entries()),
             a = n.id || r("branch"),
             s = {
@@ -11791,15 +11825,48 @@ async function init() {
               unifiedNumberDocId: n.unifiedNumberDocId || "",
             };
           if (!s.name) return o("أدخل مسمى الفرع");
+          e.dataset.saving = "1";
+          const submitButton = e.querySelector('[type="submit"]');
+          submitButton && (submitButton.disabled = !0);
+          if (!(await prepareCloudMutation())) {
+            delete e.dataset.saving;
+            submitButton && (submitButton.disabled = !1);
+            return;
+          }
           const l = d(),
             c = l.findIndex((e) => e.id === a);
-          (c >= 0 ? (l[c] = { ...l[c], ...s }) : l.push(s),
-            u(l),
-            document.getElementById("branchModal")?.close(),
-            M(),
-            L(),
-            B(),
-            o("تم حفظ الفرع"));
+          if (
+            l.some(
+              (e) =>
+                e.id !== a &&
+                normalizedUniqueName(e.name) === normalizedUniqueName(s.name),
+            )
+          ) {
+            delete e.dataset.saving;
+            submitButton && (submitButton.disabled = !1);
+            return o("يوجد فرع محفوظ بالاسم نفسه");
+          }
+          const previous = [...l];
+          c >= 0 ? (l[c] = { ...l[c], ...s }) : l.push(s);
+          u(l);
+          cloudDocumentSync()?.trackUpserts("nawah-branches", [a]);
+          if (!(await confirmCloudMutation("branch-upsert"))) {
+            u(previous);
+            await cloudDocumentSync()?.rollback();
+            delete e.dataset.saving;
+            submitButton && (submitButton.disabled = !1);
+            M();
+            L();
+            B();
+            return;
+          }
+          delete e.dataset.saving;
+          submitButton && (submitButton.disabled = !1);
+          document.getElementById("branchModal")?.close();
+          M();
+          L();
+          B();
+          o("تم حفظ الفرع سحابيًا");
         }),
           e.elements.commercialRegisterDocId.addEventListener("change", () =>
             x("commercialRegisterDocId", "commercialRegisterNumber"),
@@ -11907,9 +11974,9 @@ async function init() {
             const t = e.elements.attachmentFile.files?.[0],
               n = e.querySelector("[data-branch-file-label]");
             if (!t) return (te(e), void 0);
-            (n && (n.textContent = "جاري تجهيز المرفق..."),
+            (n && (n.textContent = t.name),
               (e.elements.attachmentName.value = t.name),
-              (e.elements.attachmentData.value = await R(t)),
+              (e.elements.attachmentData.value = ""),
               (e.elements.attachmentId.value = ""),
               te(e));
           }),
@@ -11919,11 +11986,11 @@ async function init() {
               const t = e.querySelector("[data-est-doc-extension-file]")?.files?.[0],
                 n = e.querySelector("[data-est-doc-extension-file-label]");
               if (!t) return (updateExtensionAttachmentEditor(e), void 0);
-              (n && (n.textContent = "جاري تجهيز المرفق..."),
+              (n && (n.textContent = t.name),
                 (e.querySelector("[data-est-doc-extension-attachment-name]").value =
                   t.name),
                 (e.querySelector("[data-est-doc-extension-attachment-data]").value =
-                  await R(t)),
+                  ""),
                 (e.querySelector("[data-est-doc-extension-attachment-id]").value =
                   ""),
                 updateExtensionAttachmentEditor(e));
@@ -12002,17 +12069,29 @@ async function init() {
     }
     async function F(e) {
       e.preventDefault();
-      const t = e.currentTarget,
-        n = y();
-      const selectedType = v(t.elements.typeId.value, n);
+      const t = e.currentTarget;
+      if (t.dataset.saving === "1") return;
       if (!t.elements.categoryId.value) return o("اختر تصنيف الوثيقة");
+      if (!t.elements.typeId.value) return o("اختر نوع الوثيقة");
+      if (!t.elements.authorityId.value) return o("اختر الجهة التابعة");
+      t.dataset.saving = "1";
+      const submitButton = t.querySelector('[type="submit"]');
+      submitButton && (submitButton.disabled = !0);
+      if (!(await prepareCloudMutation())) {
+        delete t.dataset.saving;
+        submitButton && (submitButton.disabled = !1);
+        return;
+      }
+      const n = y();
+      const selectedType = v(t.elements.typeId.value, n);
       const selectedCategory = n.categories.find(
         (e) => e.id === t.elements.categoryId.value,
       );
-      if (!selectedCategory || "employee" === selectedCategory.beneficiary)
+      if (!selectedCategory || "employee" === selectedCategory.beneficiary) {
+        delete t.dataset.saving;
+        submitButton && (submitButton.disabled = !1);
         return o("اختر تصنيفًا مخصصًا للمنشأة");
-      if (!t.elements.typeId.value) return o("اختر نوع الوثيقة");
-      if (!t.elements.authorityId.value) return o("اختر الجهة التابعة");
+      }
       const selectedAuthority = n.authorities.find(
         (e) => e.id === t.elements.authorityId.value,
       );
@@ -12020,36 +12099,90 @@ async function init() {
         !selectedAuthority ||
         (selectedAuthority.categoryId &&
           selectedAuthority.categoryId !== t.elements.categoryId.value)
-      )
+      ) {
+        delete t.dataset.saving;
+        submitButton && (submitButton.disabled = !1);
         return o("اختر جهة تابعة للتصنيف المحدد");
+      }
       if (
         !selectedType ||
         selectedType.categoryId !== t.elements.categoryId.value ||
         selectedType.authorityId !== t.elements.authorityId.value
-      )
+      ) {
+        delete t.dataset.saving;
+        submitButton && (submitButton.disabled = !1);
         return o("اختر نوع وثيقة تابعًا للجهة المحددة");
+      }
+      const documentId = t.elements.id.value || r("est-doc"),
+        candidate = {
+          id: documentId,
+          branchId: t.elements.branchId.value || "",
+          typeId: t.elements.typeId.value,
+          number: i(t.elements.number.value),
+        },
+        currentDocuments = f();
+      if (
+        currentDocuments.some(
+          (document) =>
+            document.id !== documentId && sameDocumentIdentity(document, candidate),
+        )
+      ) {
+        delete t.dataset.saving;
+        submitButton && (submitButton.disabled = !1);
+        return o("يوجد رقم الوثيقة نفسه للنوع والفرع المحددين");
+      }
+      const effectiveExpiry = j({
+        expiryDate: t.elements.expiryDate.value,
+        extensions: U(t),
+      });
+      if (
+        t.elements.startDate.value &&
+        effectiveExpiry &&
+        t.elements.startDate.value > effectiveExpiry
+      ) {
+        delete t.dataset.saving;
+        submitButton && (submitButton.disabled = !1);
+        return o("تاريخ نهاية الوثيقة يجب أن يكون بعد تاريخ البداية");
+      }
       let a = t.elements.attachmentData.value || "",
         s = t.elements.attachmentName.value || "",
         l = t.elements.attachmentId.value || "";
       const c = t.elements.attachmentFile.files?.[0];
-      if (c) {
-        ((s = c.name),
-          (a = await (function (e) {
-            return new Promise((t) => {
-              const n = new FileReader();
-              ((n.onload = () => t(n.result || "")),
-                (n.onerror = () => t("")),
-                n.readAsDataURL(e));
-            });
-          })(c)));
-        try {
-          "function" == typeof saveAttachment &&
-            (l = await saveAttachment(c, "establishment-document"));
-        } catch {}
+      try {
+        if (c) {
+          s = c.name;
+          l = await saveAttachment(c, "establishment-document", {
+            cloudOnly: !0,
+          });
+          a = "";
+        } else if (a && !l) {
+          const legacyFile = dataUrlToFile(
+            a,
+            s || "establishment-document",
+          );
+          if (!legacyFile) throw new Error("invalid-document-attachment");
+          l = await saveAttachment(legacyFile, "establishment-document", {
+            cloudOnly: !0,
+          });
+          a = "";
+        } else if (l) a = "";
+      } catch (error) {
+        console.warn("تعذر حفظ مرفق وثيقة المنشأة سحابيًا.", error);
+        delete t.dataset.saving;
+        submitButton && (submitButton.disabled = !1);
+        return o("تعذر رفع المرفق للسحابة. لم يتم حفظ الوثيقة");
       }
-      const persistedExtensions = await persistExtensionAttachments(U(t));
+      let persistedExtensions;
+      try {
+        persistedExtensions = await persistExtensionAttachments(U(t));
+      } catch (error) {
+        console.warn("تعذر حفظ مرفق تمديد الوثيقة سحابيًا.", error);
+        delete t.dataset.saving;
+        submitButton && (submitButton.disabled = !1);
+        return o("تعذر رفع مرفق التمديد للسحابة. لم يتم حفظ الوثيقة");
+      }
       const d = {
-          id: t.elements.id.value || r("est-doc"),
+          id: documentId,
           branchId: t.elements.branchId.value || "",
           categoryId: t.elements.categoryId.value,
           typeId: t.elements.typeId.value,
@@ -12065,13 +12198,26 @@ async function init() {
           attachmentData: a,
           note: i(t.elements.note.value),
         },
-        u = f(),
-        m = u.findIndex((e) => e.id === d.id);
-      (m >= 0 ? (u[m] = { ...u[m], ...d }) : u.unshift(d),
-        h(u),
-        document.getElementById("branchEstDocModal")?.close(),
-        B(),
-        o("تم حفظ وثيقة المنشأة"));
+        previous = [...currentDocuments],
+        m = currentDocuments.findIndex((e) => e.id === d.id);
+      m >= 0
+        ? (currentDocuments[m] = { ...currentDocuments[m], ...d })
+        : currentDocuments.unshift(d);
+      h(currentDocuments);
+      cloudDocumentSync()?.trackUpserts("nawah-establishment-documents", [d.id]);
+      if (!(await confirmCloudMutation("establishment-document-upsert"))) {
+        h(previous);
+        await cloudDocumentSync()?.rollback();
+        delete t.dataset.saving;
+        submitButton && (submitButton.disabled = !1);
+        B();
+        return;
+      }
+      delete t.dataset.saving;
+      submitButton && (submitButton.disabled = !1);
+      document.getElementById("branchEstDocModal")?.close();
+      B();
+      o("تم حفظ وثيقة المنشأة سحابيًا");
     }
     function _() {
       const e = document.getElementById("establishmentDocumentsView");
@@ -12231,24 +12377,62 @@ async function init() {
         const n = e.target.closest("[data-toggle-branch]");
         if (n) {
           e.preventDefault();
-          const t = d(),
-            a = t.find((e) => e.id === n.dataset.toggleBranch);
-          return (a && (a.visible = !a.visible), u(t), M(), void L());
+          return void (async () => {
+            if (!(await prepareCloudMutation())) return;
+            const t = d(),
+              a = t.find((e) => e.id === n.dataset.toggleBranch);
+            if (!a) return o("لم يعد الفرع موجودًا");
+            const previous = t.map((e) => ({ ...e }));
+            a.visible = !a.visible;
+            u(t);
+            cloudDocumentSync()?.trackUpserts("nawah-branches", [a.id]);
+            if (!(await confirmCloudMutation("branch-toggle"))) {
+              u(previous);
+              await cloudDocumentSync()?.rollback();
+            }
+            M();
+            L();
+          })();
         }
         const a = e.target.closest("[data-delete-branch]");
         if (a) {
           e.preventDefault();
           const t = a.dataset.deleteBranch;
-          return Array.isArray(employees) &&
-            employees.some((e) => e.branch === t)
-            ? o("لا يمكن حذف فرع مرتبط بموظفين")
-            : (u(d().filter((e) => e.id !== t)),
-              h(
-                f().map((e) => (e.branchId === t ? { ...e, branchId: "" } : e)),
+          return void (async () => {
+            if (
+              Array.isArray(employees) &&
+              employees.some((e) => e.branch === t)
+            )
+              return o("لا يمكن حذف فرع مرتبط بموظفين");
+            if (!(await prepareCloudMutation())) return;
+            const previousBranches = d(),
+              previousDocuments = f(),
+              affectedDocuments = previousDocuments.filter(
+                (e) => e.branchId === t,
               ),
-              M(),
-              L(),
-              void B());
+              nextBranches = previousBranches.filter((e) => e.id !== t),
+              nextDocuments = previousDocuments.map((e) =>
+                e.branchId === t ? { ...e, branchId: "" } : e,
+              );
+            if (nextBranches.length === previousBranches.length)
+              return o("لم يعد الفرع موجودًا");
+            u(nextBranches);
+            h(nextDocuments);
+            cloudDocumentSync()?.trackDeletes("nawah-branches", [t]);
+            if (affectedDocuments.length)
+              cloudDocumentSync()?.trackUpserts(
+                "nawah-establishment-documents",
+                affectedDocuments.map((e) => e.id),
+              );
+            if (!(await confirmCloudMutation("branch-delete"))) {
+              u(previousBranches);
+              h(previousDocuments);
+              await cloudDocumentSync()?.rollback();
+            }
+            M();
+            L();
+            B();
+          })();
         }
         if (e.target.closest("[data-close-branch-modal]"))
           return (
@@ -12261,11 +12445,24 @@ async function init() {
         if (r) return (e.preventDefault(), void N(r.dataset.branchEditEstDoc));
         const i = e.target.closest("[data-branch-delete-est-doc]");
         if (i)
-          return (
-            e.preventDefault(),
-            h(f().filter((e) => e.id !== i.dataset.branchDeleteEstDoc)),
-            void B()
-          );
+          return (e.preventDefault(), void (async () => {
+            if (!(await prepareCloudMutation())) return;
+            const previous = f(),
+              id = i.dataset.branchDeleteEstDoc,
+              next = previous.filter((e) => e.id !== id);
+            if (next.length === previous.length)
+              return o("لم تعد الوثيقة موجودة");
+            h(next);
+            cloudDocumentSync()?.trackDeletes(
+              "nawah-establishment-documents",
+              [id],
+            );
+            if (!(await confirmCloudMutation("establishment-document-delete"))) {
+              h(previous);
+              await cloudDocumentSync()?.rollback();
+            }
+            B();
+          })());
         const extensionAdd = e.target.closest("[data-add-est-doc-extension]");
         if (extensionAdd) {
           e.preventDefault();
@@ -12304,11 +12501,17 @@ async function init() {
               const e = n.querySelector("[data-est-doc-extension-file-label]");
               e && (e.textContent = "جاري رفع المرفق...");
               p = u.name;
-              y = await R(u);
               try {
-                "function" == typeof saveAttachment &&
-                  (m = await saveAttachment(u, "establishment-document-extension"));
-              } catch {}
+                m = await saveAttachment(
+                  u,
+                  "establishment-document-extension",
+                  { cloudOnly: !0 },
+                );
+                y = "";
+              } catch (error) {
+                console.warn("تعذر رفع مرفق تمديد الوثيقة.", error);
+                return void o("تعذر رفع مرفق التمديد للسحابة");
+              }
             }
             if (!m && !y) return void o("أرفق وثيقة التمديد الجديدة");
             const b = [...s];
@@ -28581,7 +28784,24 @@ async function init() {
           }
         })()
           .map((e) => {
-            const t = e.expiryDate || e.endDate || "",
+            const extensionDates = (Array.isArray(e.extensions)
+                ? e.extensions
+                : []
+              )
+                .map(
+                  (extension) =>
+                    extension?.newExpiryDate ||
+                    extension?.expiryDate ||
+                    extension?.date ||
+                    "",
+                )
+                .filter(Boolean)
+                .sort(),
+              t =
+                extensionDates[extensionDates.length - 1] ||
+                e.expiryDate ||
+                e.endDate ||
+                "",
               n = r(t);
             return n && n.notify
               ? {
@@ -52816,6 +53036,60 @@ async function init() {
       if (typeof showToast === "function") showToast(msg);
     } catch (_) {}
   }
+  function documentSyncV227() {
+    return window.nawahDocumentsSyncV227 || null;
+  }
+  async function prepareDocumentSettingsMutation() {
+    var sync = documentSyncV227();
+    if (!sync || !(await sync.prepare())) {
+      toast("تعذر الاتصال بالسحابة. لم يتم تنفيذ التعديل");
+      return false;
+    }
+    return true;
+  }
+  function normalizedDocumentName(value) {
+    return String(value || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLocaleLowerCase("ar");
+  }
+  function changedRecordIds(previous, next) {
+    var previousById = new Map(
+        (Array.isArray(previous) ? previous : []).map(function (record) {
+          return [String(record && record.id || ""), record];
+        }),
+      ),
+      upserts = [],
+      deletes = [];
+    (Array.isArray(next) ? next : []).forEach(function (record) {
+      var id = String(record && record.id || "");
+      if (!id) return;
+      var oldRecord = previousById.get(id);
+      if (!oldRecord || JSON.stringify(oldRecord) !== JSON.stringify(record))
+        upserts.push(id);
+      previousById.delete(id);
+    });
+    previousById.forEach(function (_, id) {
+      if (id) deletes.push(id);
+    });
+    return { upserts: upserts, deletes: deletes };
+  }
+  async function persistDocumentSettings(previous, next, reason) {
+    var sync = documentSyncV227();
+    setDocSettings(next);
+    ["categories", "authorities", "types"].forEach(function (section) {
+      var changes = changedRecordIds(previous[section], next[section]);
+      if (changes.upserts.length)
+        sync.trackUpserts(DOC_KEY, changes.upserts, section);
+      if (changes.deletes.length)
+        sync.trackDeletes(DOC_KEY, changes.deletes, section);
+    });
+    if (await sync.save(reason || "document-settings-change")) return true;
+    setDocSettings(previous);
+    await sync.rollback();
+    toast("تعذر تأكيد الحفظ السحابي. أُعيدت البيانات السابقة");
+    return false;
+  }
   function uid(prefix) {
     return (
       prefix + "-" + Date.now() + "-" + Math.random().toString(16).slice(2)
@@ -53003,13 +53277,6 @@ async function init() {
   }
   function setDocSettings(value) {
     writeJson(DOC_KEY, normalizeDocSettings(value));
-    try {
-      if (typeof queueCloudStateSave === "function") queueCloudStateSave();
-    } catch (_) {}
-    try {
-      if (typeof saveCloudStateNow === "function")
-        saveCloudStateNow({ force: true, allowEmptyOverwrite: true });
-    } catch (_) {}
   }
 
   function ensureButton(key, title, iconName, afterKey) {
@@ -53441,21 +53708,45 @@ async function init() {
         });
         refreshAuthoritySelect(true);
       }
-      form.onsubmit = function (event) {
+      form.onsubmit = async function (event) {
         event.preventDefault();
+        if (form.dataset.saving === "1") return;
+        var submittedName = String(form.elements.name.value || "").trim();
+        if (!submittedName) return toast("اكتب الاسم");
+        form.dataset.saving = "1";
+        var submitButton = form.querySelector('[type="submit"]');
+        if (submitButton) submitButton.disabled = true;
+        if (!(await prepareDocumentSettingsMutation())) {
+          delete form.dataset.saving;
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
         var latest = getDocSettings();
+        var previous = JSON.parse(JSON.stringify(latest));
         var entryId = form.elements.id.value || uid("doc-" + kind);
         var entry = {
           id: entryId,
-          name: String(form.elements.name.value || "").trim(),
+          name: submittedName,
           visible: form.elements.visible.checked,
         };
-        if (!entry.name) return toast("اكتب الاسم");
         if (kind === "category") {
           entry.beneficiary =
             form.elements.beneficiary.value === "employee"
               ? "employee"
               : "establishment";
+          if (
+            latest.categories.some(function (row) {
+              return (
+                row.id !== entryId &&
+                normalizedDocumentName(row.name) ===
+                  normalizedDocumentName(entry.name)
+              );
+            })
+          ) {
+            delete form.dataset.saving;
+            if (submitButton) submitButton.disabled = false;
+            return toast("يوجد تصنيف محفوظ بالاسم نفسه");
+          }
           var catIndex = latest.categories.findIndex(function (row) {
             return row.id === entryId;
           });
@@ -53466,7 +53757,25 @@ async function init() {
             return row.id === entryId;
           });
           entry.categoryId = form.elements.categoryId.value;
-          if (!entry.categoryId) return toast("اختر التصنيف");
+          if (!entry.categoryId) {
+            delete form.dataset.saving;
+            if (submitButton) submitButton.disabled = false;
+            return toast("اختر التصنيف");
+          }
+          if (
+            latest.authorities.some(function (row) {
+              return (
+                row.id !== entryId &&
+                row.categoryId === entry.categoryId &&
+                normalizedDocumentName(row.name) ===
+                  normalizedDocumentName(entry.name)
+              );
+            })
+          ) {
+            delete form.dataset.saving;
+            if (submitButton) submitButton.disabled = false;
+            return toast("توجد جهة محفوظة بالاسم نفسه داخل التصنيف");
+          }
           if (authIndex >= 0) latest.authorities[authIndex] = entry;
           else latest.authorities.push(entry);
           latest.types = latest.types.map(function (type) {
@@ -53480,16 +53789,38 @@ async function init() {
         } else {
           entry.categoryId = form.elements.categoryId.value;
           entry.authorityId = form.elements.authorityId.value;
-          if (!entry.categoryId) return toast("اختر تصنيف الوثيقة");
-          if (!entry.authorityId) return toast("اختر الجهة التابعة");
+          if (!entry.categoryId || !entry.authorityId) {
+            delete form.dataset.saving;
+            if (submitButton) submitButton.disabled = false;
+            return toast(
+              !entry.categoryId ? "اختر تصنيف الوثيقة" : "اختر الجهة التابعة",
+            );
+          }
           var selectedAuthority = latest.authorities.find(function (row) {
             return row.id === entry.authorityId;
           });
           if (
             !selectedAuthority ||
             selectedAuthority.categoryId !== entry.categoryId
-          )
+          ) {
+            delete form.dataset.saving;
+            if (submitButton) submitButton.disabled = false;
             return toast("اختر جهة تابعة للتصنيف المحدد");
+          }
+          if (
+            latest.types.some(function (row) {
+              return (
+                row.id !== entryId &&
+                row.authorityId === entry.authorityId &&
+                normalizedDocumentName(row.name) ===
+                  normalizedDocumentName(entry.name)
+              );
+            })
+          ) {
+            delete form.dataset.saving;
+            if (submitButton) submitButton.disabled = false;
+            return toast("يوجد نوع وثيقة محفوظ بالاسم نفسه لدى الجهة");
+          }
           entry.authority = selectedAuthority.name;
           var typeIndex = latest.types.findIndex(function (row) {
             return row.id === entryId;
@@ -53497,10 +53828,17 @@ async function init() {
           if (typeIndex >= 0) latest.types[typeIndex] = entry;
           else latest.types.push(entry);
         }
-        setDocSettings(latest);
+        if (!(await persistDocumentSettings(previous, latest, "document-settings-upsert"))) {
+          delete form.dataset.saving;
+          if (submitButton) submitButton.disabled = false;
+          renderDocumentTypesPanel();
+          return;
+        }
+        delete form.dataset.saving;
+        if (submitButton) submitButton.disabled = false;
         modal.close();
         renderDocumentTypesPanel();
-        toast("تم الحفظ");
+        toast("تم الحفظ سحابيًا");
       };
       modal
         .querySelectorAll("[data-v212-close-doc-entry]")
@@ -53516,11 +53854,18 @@ async function init() {
         modal.setAttribute("open", "open");
       }
     }
-    function updateData(mutator) {
+    async function updateData(mutator, reason) {
+      if (!(await prepareDocumentSettingsMutation())) return false;
       var data = getDocSettings();
-      mutator(data);
-      setDocSettings(data);
+      var previous = JSON.parse(JSON.stringify(data));
+      if (mutator(data) === false) return false;
+      if (!(await persistDocumentSettings(previous, data, reason))) {
+        renderDocumentTypesPanel();
+        return false;
+      }
       renderDocumentTypesPanel();
+      toast("تم الحفظ سحابيًا");
+      return true;
     }
     var addCat = e.target.closest("#v212AddDocCategoryBtn");
     if (addCat) return handled(), openEntry("category");
@@ -53546,7 +53891,7 @@ async function init() {
             return row.id === toggleCat.dataset.v212ToggleDocCategory;
           });
           if (item) item.visible = !item.visible;
-        })
+        }, "document-category-toggle")
       );
     var toggleAuth = e.target.closest("[data-v212-toggle-doc-authority]");
     if (toggleAuth)
@@ -53557,7 +53902,7 @@ async function init() {
             return row.id === toggleAuth.dataset.v212ToggleDocAuthority;
           });
           if (item) item.visible = !item.visible;
-        })
+        }, "document-authority-toggle")
       );
     var toggleType = e.target.closest("[data-v212-toggle-doc-type]");
     if (toggleType)
@@ -53568,7 +53913,7 @@ async function init() {
             return row.id === toggleType.dataset.v212ToggleDocType;
           });
           if (item) item.visible = !item.visible;
-        })
+        }, "document-type-toggle")
       );
     var delCat = e.target.closest("[data-v212-delete-doc-category]");
     if (delCat)
@@ -53576,49 +53921,91 @@ async function init() {
         handled(),
         updateData(function (data) {
           var deletedCategoryId = delCat.dataset.v212DeleteDocCategory;
+          var establishmentDocuments = readJson(
+            "nawah-establishment-documents",
+            [],
+          );
+          if (
+            data.authorities.some(function (row) {
+              return row.categoryId === deletedCategoryId;
+            }) ||
+            data.types.some(function (row) {
+              return row.categoryId === deletedCategoryId;
+            }) ||
+            (Array.isArray(establishmentDocuments) &&
+              establishmentDocuments.some(function (row) {
+                return row.categoryId === deletedCategoryId;
+              }))
+          ) {
+            toast("لا يمكن حذف تصنيف مرتبط بجهات أو أنواع أو وثائق");
+            return false;
+          }
           data.categories = data.categories.filter(function (row) {
             return row.id !== deletedCategoryId;
           });
-          data.authorities = data.authorities.map(function (row) {
-            return row.categoryId === deletedCategoryId
-              ? Object.assign({}, row, { categoryId: "" })
-              : row;
-          });
-          data.types = data.types.map(function (row) {
-            return row.categoryId === deletedCategoryId
-              ? Object.assign({}, row, {
-                  categoryId: "",
-                  authorityId: "",
-                  authority: "",
-                })
-              : row;
-          });
-        })
+        }, "document-category-delete")
       );
     var delAuth = e.target.closest("[data-v212-delete-doc-authority]");
     if (delAuth)
       return (
         handled(),
         updateData(function (data) {
+          var authorityId = delAuth.dataset.v212DeleteDocAuthority;
+          var establishmentDocuments = readJson(
+            "nawah-establishment-documents",
+            [],
+          );
+          if (
+            data.types.some(function (row) {
+              return row.authorityId === authorityId;
+            }) ||
+            (Array.isArray(establishmentDocuments) &&
+              establishmentDocuments.some(function (row) {
+                return row.authorityId === authorityId;
+              }))
+          ) {
+            toast("لا يمكن حذف جهة مرتبطة بأنواع أو وثائق");
+            return false;
+          }
           data.authorities = data.authorities.filter(function (row) {
-            return row.id !== delAuth.dataset.v212DeleteDocAuthority;
+            return row.id !== authorityId;
           });
-          data.types = data.types.map(function (row) {
-            return row.authorityId === delAuth.dataset.v212DeleteDocAuthority
-              ? Object.assign({}, row, { authorityId: "", authority: "" })
-              : row;
-          });
-        })
+        }, "document-authority-delete")
       );
     var delType = e.target.closest("[data-v212-delete-doc-type]");
     if (delType)
       return (
         handled(),
         updateData(function (data) {
+          var typeId = delType.dataset.v212DeleteDocType;
+          var establishmentDocuments = readJson(
+            "nawah-establishment-documents",
+            [],
+          );
+          var employeeRows = Array.isArray(window.employees)
+            ? window.employees
+            : [];
+          if (
+            (Array.isArray(establishmentDocuments) &&
+              establishmentDocuments.some(function (row) {
+                return row.typeId === typeId;
+              })) ||
+            employeeRows.some(function (employee) {
+              return (Array.isArray(employee.documents)
+                ? employee.documents
+                : []
+              ).some(function (row) {
+                return row.typeId === typeId;
+              });
+            })
+          ) {
+            toast("لا يمكن حذف نوع وثيقة مستخدم في سجلات محفوظة");
+            return false;
+          }
           data.types = data.types.filter(function (row) {
-            return row.id !== delType.dataset.v212DeleteDocType;
+            return row.id !== typeId;
           });
-        })
+        }, "document-type-delete")
       );
   }
 
@@ -64942,12 +65329,12 @@ window.nawahLeaveBalanceReportV185 = {
   }, 300);
 })();
  
-/* v226 - canonical cloud persistence, daily-finance conflict protection, and cross-browser sync */
+/* v227 - canonical cloud persistence, document conflict protection, and cross-browser sync */
 (function v221CanonicalCloudPersistence() {
   if (window.__v221CanonicalCloudPersistence) return;
   window.__v221CanonicalCloudPersistence = true;
 
-  const STATE_SCHEMA_VERSION = 226;
+  const STATE_SCHEMA_VERSION = 227;
   const STATE_KEY =
     typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
       ? CLOUD_STATE_KEY
@@ -65678,6 +66065,110 @@ window.nawahLeaveBalanceReportV185 = {
     };
   }
 
+  function parseDocumentMutationKeyV227(value) {
+    const parts = String(value || "").split("::");
+    return parts.length >= 3
+      ? {
+          storageKey: parts[0],
+          section: parts[1],
+          id: parts.slice(2).join("::"),
+        }
+      : null;
+  }
+
+  function mergeDocumentRowsV227(remoteRows, localRows, deletes, upserts) {
+    const localById = new Map(
+        (Array.isArray(localRows) ? localRows : [])
+          .filter((record) => record && record.id != null)
+          .map((record) => [String(record.id), record]),
+      ),
+      rows = (Array.isArray(remoteRows) ? remoteRows : [])
+        .filter((record) => !deletes.has(String(record?.id || "")))
+        .map((record) => {
+          const id = String(record?.id || "");
+          return upserts.has(id) && localById.has(id)
+            ? clone(localById.get(id))
+            : record;
+        }),
+      present = new Set(rows.map((record) => String(record?.id || "")));
+    upserts.forEach((id) => {
+      if (!present.has(id) && localById.has(id))
+        rows.push(clone(localById.get(id)));
+    });
+    return rows;
+  }
+
+  function mergeDocumentStateV227(
+    remoteDocumentState,
+    localDocumentState,
+    deletedIds,
+    upsertIds,
+  ) {
+    const merged = clone(
+        remoteDocumentState && typeof remoteDocumentState === "object"
+          ? remoteDocumentState
+          : {},
+      ),
+      local =
+        localDocumentState && typeof localDocumentState === "object"
+          ? localDocumentState
+          : {},
+      groups = new Map();
+    const collect = (mutations, kind) => {
+      mutations?.forEach((_, mutationKey) => {
+        const parsed = parseDocumentMutationKeyV227(mutationKey);
+        if (
+          !parsed ||
+          !DOCUMENT_KEYS.includes(parsed.storageKey) ||
+          !parsed.section ||
+          !parsed.id
+        )
+          return;
+        const groupKey = `${parsed.storageKey}::${parsed.section}`;
+        if (!groups.has(groupKey))
+          groups.set(groupKey, {
+            storageKey: parsed.storageKey,
+            section: parsed.section,
+            deletes: new Set(),
+            upserts: new Set(),
+          });
+        groups.get(groupKey)[kind].add(parsed.id);
+      });
+    };
+    collect(deletedIds, "deletes");
+    collect(upsertIds, "upserts");
+    groups.forEach((group) => {
+      const localValue = local[group.storageKey];
+      if (group.section === "records") {
+        merged[group.storageKey] = mergeDocumentRowsV227(
+          merged[group.storageKey],
+          localValue,
+          group.deletes,
+          group.upserts,
+        );
+        return;
+      }
+      const remoteSettings =
+          merged[group.storageKey] &&
+          typeof merged[group.storageKey] === "object" &&
+          !Array.isArray(merged[group.storageKey])
+            ? { ...merged[group.storageKey] }
+            : {},
+        localSettings =
+          localValue && typeof localValue === "object" && !Array.isArray(localValue)
+            ? localValue
+            : {};
+      remoteSettings[group.section] = mergeDocumentRowsV227(
+        remoteSettings[group.section],
+        localSettings[group.section],
+        group.deletes,
+        group.upserts,
+      );
+      merged[group.storageKey] = remoteSettings;
+    });
+    return merged;
+  }
+
   function mergedState(
     remoteState,
     localState,
@@ -65693,6 +66184,15 @@ window.nawahLeaveBalanceReportV185 = {
       const upsertIds = upsertSnapshot.get(field);
       if (field === "financeDailyOpen" && snapshot.has("financeDailyDays"))
         return;
+      if (field === "documentLocalState" && (deletedIds || upsertIds)) {
+        merged.documentLocalState = mergeDocumentStateV227(
+          merged.documentLocalState,
+          localState.documentLocalState,
+          deletedIds,
+          upsertIds,
+        );
+        return;
+      }
       if (field === "financeSettings" && (deletedIds || upsertIds)) {
         const remoteSettings =
             merged[field] && typeof merged[field] === "object"
@@ -66127,6 +66627,20 @@ window.nawahLeaveBalanceReportV185 = {
     renderAfterCloudRefresh.timer = setTimeout(() => {
       try {
         if (typeof renderAll === "function") renderAll();
+        const activeView = document.querySelector(".view.active")?.id || "";
+        if (
+          activeView === "establishmentDocumentsView" &&
+          typeof window.renderEstablishmentDocuments === "function"
+        )
+          window.renderEstablishmentDocuments();
+        const activeSettings = document.querySelector(
+          "#settingsNav [data-settings-section].active",
+        )?.dataset.settingsSection;
+        if (
+          ["branches", "documentTypes"].includes(activeSettings) &&
+          typeof window.__stableSettingsRenderPanel === "function"
+        )
+          window.__stableSettingsRenderPanel(activeSettings);
       } catch (error) {
         console.warn("v221: تعذر تحديث العرض بعد المزامنة.", error);
       }
@@ -66247,9 +66761,68 @@ window.nawahLeaveBalanceReportV185 = {
   window.nawahCloudSyncV224 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV225 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV226 = window.nawahCloudSyncV221;
+  window.nawahCloudSyncV227 = window.nawahCloudSyncV221;
+  window.nawahDocumentsSyncV227 = {
+    schemaVersion: STATE_SCHEMA_VERSION,
+    prepare: async () => {
+      if (!activeSession() || !ensureClient()) return false;
+      clearTimeout(saveTimer);
+      if (dirtyFields.size) {
+        const flushed = await saveCloudStateNowV221({
+          force: true,
+          reason: "documents-preflight",
+        });
+        if (!flushed || dirtyFields.size) return false;
+      }
+      try {
+        await refreshCloudStateV221(true);
+        return !dirtyFields.size;
+      } catch (_) {
+        return false;
+      }
+    },
+    save: (reason = "documents-manual") =>
+      saveCloudStateNowV221({ force: true, reason }),
+    rollback: async () => {
+      clearTimeout(saveTimer);
+      dirtyFields.delete("documentLocalState");
+      recordDeleteTombstones.delete("documentLocalState");
+      recordUpsertMutations.delete("documentLocalState");
+      try {
+        const remote = await readCloudDirectV221();
+        if (remote.found && remote.state) {
+          applyCanonicalStateV221(clone(remote.state));
+          baselineState = clone(remote.state);
+          baselineUpdatedAt = remote.updatedAt || "";
+          renderAfterCloudRefresh();
+        }
+      } catch (_) {}
+      return true;
+    },
+    trackUpserts: (storageKey, ids, section = "records") => {
+      if (!DOCUMENT_KEYS.includes(storageKey)) return false;
+      const mutationIds = (Array.isArray(ids) ? ids : [ids])
+        .map((id) => String(id || ""))
+        .filter(Boolean)
+        .map((id) => `${storageKey}::${section}::${id}`);
+      const tracked = markRecordUpserts("documentLocalState", mutationIds);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
+    trackDeletes: (storageKey, ids, section = "records") => {
+      if (!DOCUMENT_KEYS.includes(storageKey)) return false;
+      const mutationIds = (Array.isArray(ids) ? ids : [ids])
+        .map((id) => String(id || ""))
+        .filter(Boolean)
+        .map((id) => `${storageKey}::${section}::${id}`);
+      const tracked = markRecordDeletes("documentLocalState", mutationIds);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
+  };
 })();
 
-/* v226 - final renderer lock (must remain the last application patch). */
+/* v227 - final renderer lock (must remain the last application patch). */
 (function v222FinalLeaveTravelRendererLock() {
   if (window.__v222FinalLeaveTravelRendererLock) return;
   window.__v222FinalLeaveTravelRendererLock = true;
