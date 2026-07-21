@@ -6563,6 +6563,15 @@ function setupEvents() {
             void (deleteTargetId = null)
           );
         const t = deleteTargetId;
+        if (
+          typeof window.nawahPayrollAdvancesV225?.prepareMutation === "function" &&
+          !(await window.nawahPayrollAdvancesV225.prepareMutation())
+        )
+          return (
+            document.querySelector("#confirmModal").close(),
+            showToast("تعذر الاتصال بالسحابة؛ لم يُحذف الموظف لحماية البيانات"),
+            void (deleteTargetId = null)
+          );
         ((employees = employees.filter((e) => e.id !== t)),
           (leaves = leaves.filter((e) => e.employeeId !== t)),
           (attendanceExceptions = attendanceExceptions.filter(
@@ -18139,6 +18148,8 @@ async function init() {
       t = "nawah-payroll-runs",
       n = "approved",
       prepaidKey = "nawah-payroll-prepaid-deductions";
+    let advanceMutationInFlight = false;
+    let payrollRunInFlight = false;
     function a(e) {
       try {
         return "function" == typeof escapeHtml
@@ -18358,34 +18369,91 @@ async function init() {
         ),
         L(t));
     }
-    async function F() {
+    function payrollCloudSyncV225() {
+      return (
+        window.nawahCloudSyncV225 ||
+        window.nawahCloudSyncV224 ||
+        window.nawahCloudSyncV223 ||
+        window.nawahCloudSyncV221 ||
+        null
+      );
+    }
+    async function preparePayrollMutationV225() {
+      const sync = payrollCloudSyncV225();
+      if (!sync) return true;
+      try {
+        const pending =
+          typeof sync.pendingFields === "function" ? sync.pendingFields() : [];
+        if (pending.length && typeof sync.save === "function") {
+          const flushed = await sync.save("pending-financial-state-flush");
+          if (
+            flushed === false &&
+            typeof sync.pendingFields === "function" &&
+            sync.pendingFields().length
+          )
+            return false;
+        }
+        if (typeof sync.refresh === "function") await sync.refresh();
+        return true;
+      } catch (error) {
+        console.warn("v225: تعذر تجهيز أحدث بيانات السلفيات من السحابة.", error);
+        return false;
+      }
+    }
+    function trackPayrollUpsertsV225(field, ids) {
+      const sync = payrollCloudSyncV225();
+      try {
+        if (sync && typeof sync.trackRecordUpserts === "function")
+          return sync.trackRecordUpserts(field, ids);
+        if (sync && typeof sync.trackFields === "function")
+          return sync.trackFields([field]);
+      } catch (_) {}
+      return false;
+    }
+    function trackPayrollDeletesV225(field, ids) {
+      const sync = payrollCloudSyncV225();
+      try {
+        if (sync && typeof sync.trackRecordDeletes === "function")
+          return sync.trackRecordDeletes(field, ids);
+        if (sync && typeof sync.trackFields === "function")
+          return sync.trackFields([field]);
+      } catch (_) {}
+      return false;
+    }
+    function lockedPayrollRunV225(monthKey) {
+      const run = k(monthKey);
+      if (!run) return null;
+      const status = String(run.status || "paid").toLowerCase();
+      return ["paid", "closed", "approved", "processed"].includes(status)
+        ? run
+        : null;
+    }
+    async function F(reason) {
       try {
         "function" == typeof saveLocalMeta && saveLocalMeta();
       } catch (e) {}
+      const sync = payrollCloudSyncV225();
       try {
-        "function" == typeof saveCloudStateNow
-          ? await saveCloudStateNow({ force: !0 })
-          : "function" == typeof queueCloudStateSave && queueCloudStateSave();
-      } catch (e) {
+        if (sync && typeof sync.save === "function")
+          return (
+            (await sync.save(reason || "confirmed-financial-record-save")) !==
+            false
+          );
+        if ("function" == typeof saveCloudStateNow)
+          return (
+            (await saveCloudStateNow({
+              force: !0,
+              reason: reason || "confirmed-financial-record-save",
+            })) !== false
+          );
+        if ("function" == typeof queueCloudStateSave) queueCloudStateSave();
+      } catch (error) {
+        console.warn("v225: تعذر تأكيد الحفظ المالي سحابيًا.", error);
         try {
           "function" == typeof queueCloudStateSave && queueCloudStateSave();
         } catch (e) {}
       }
-    }
-    function _(e) {
-      const t = k(e);
-      if (!t) return !1;
-      const n = J(e);
-      return (
-        N({
-          ...t,
-          items: n.items,
-          totals: n.totals,
-          updatedAt: new Date().toISOString(),
-          recalculatedAfterAdvanceChange: !0,
-        }),
-        !0
-      );
+      return false;
     }
     function B() {
       try {
@@ -18450,6 +18518,15 @@ async function init() {
       });
     }
     async function H(e) {
+      if (advanceMutationInFlight) return !1;
+      advanceMutationInFlight = true;
+      try {
+      if (!(await preparePayrollMutationV225())) {
+        try {
+          showToast("تعذر الاتصال بالسحابة؛ لم تُحذف السلفة لحماية البيانات");
+        } catch (_) {}
+        return !1;
+      }
       const t = String(e || "").trim();
       if (!t) return !1;
       const n = C(),
@@ -18460,17 +18537,34 @@ async function init() {
         } catch (e) {}
         return !1;
       }
+      const monthKey =
+        a.monthKey || String(a.date || "").slice(0, 7) || p();
+      if (lockedPayrollRunV225(monthKey)) {
+        try {
+          showToast(
+            "لا يمكن حذف سلفة مرتبطة بمسير مصروف؛ المسير المالي محفوظ وغير قابل للتعديل",
+          );
+        } catch (_) {}
+        return !1;
+      }
       const r = M(a.employeeId),
         i = `هل تريد حذف سلفة ${r?.name || a.employeeName || "الموظف"} بقيمة ${o(a.amount)}؟ سيتم تحديث الرواتب والمالية مباشرة.`;
       if (!(await confirmAdvanceDelete(a, r, i))) return !1;
-      (P(n.filter((e) => String(e?.id || "") !== t)),
-        _(a.monthKey || String(a.date || "").slice(0, 7) || p()),
-        await F(),
-        B());
+      P(n.filter((e) => String(e?.id || "") !== t));
+      trackPayrollDeletesV225("payrollAdvances", [t]);
+      const saved = await F("confirmed-advance-delete");
+      B();
       try {
-        showToast("تم حذف السلفة وتحديث الرواتب والمالية");
+        showToast(
+          saved
+            ? "تم حذف السلفة وحفظ التغيير سحابيًا"
+            : "تم تطبيق الحذف مؤقتًا، وتعذر تأكيده سحابيًا وسيُعاد تلقائيًا",
+        );
       } catch (e) {}
-      return !0;
+      return saved;
+      } finally {
+        advanceMutationInFlight = false;
+      }
     }
     function ensureAdvancePaymentModal() {
       let e = document.getElementById("advancePaymentModal");
@@ -18568,11 +18662,30 @@ async function init() {
       }
     }
     async function saveAdvancePaymentFromModal(e) {
+      if (advanceMutationInFlight) return !1;
+      advanceMutationInFlight = true;
+      try {
+      if (!(await preparePayrollMutationV225())) {
+        try {
+          showToast("تعذر الاتصال بالسحابة؛ لم يُسجل السداد لحماية البيانات");
+        } catch (_) {}
+        return !1;
+      }
       const t = advancePaymentModalState(e),
         n = String(t.id || "").trim(),
         a = C(),
         r = a.find((e) => String(e?.id || "") === n);
-      if (!r) return;
+      if (!r) return !1;
+      const monthKey =
+        r.monthKey || String(r.date || "").slice(0, 7) || p();
+      if (lockedPayrollRunV225(monthKey)) {
+        try {
+          showToast(
+            "لا يمكن تعديل سداد سلفة مرتبطة بمسير مصروف؛ المسير المالي محفوظ",
+          );
+        } catch (_) {}
+        return !1;
+      }
       const i = payrollAdvanceRemainingAmount(r),
         s =
           e.querySelector('input[name="advancePaymentMode"]:checked')?.value ||
@@ -18593,13 +18706,13 @@ async function init() {
         try {
           showToast("أدخل مبلغ السداد");
         } catch (e) {}
-        return;
+        return !1;
       }
       if (!c) {
         try {
           showToast("اختر تاريخ السداد");
         } catch (e) {}
-        return;
+        return !1;
       }
       P(
         a.map((e) =>
@@ -18613,13 +18726,20 @@ async function init() {
             : e,
         ),
       );
-      (_(r.monthKey || String(r.date || "").slice(0, 7) || p()),
-        await F(),
-        e.open && e.close(),
-        B());
+      trackPayrollUpsertsV225("payrollAdvances", [n]);
+      const saved = await F("confirmed-advance-payment");
+      (e.open && e.close(), B());
       try {
-        showToast("تم حفظ سداد السلفة وتحديث المتبقي");
+        showToast(
+          saved
+            ? "تم حفظ سداد السلفة وتحديث المتبقي سحابيًا"
+            : "تم تسجيل السداد مؤقتًا، وتعذر تأكيده سحابيًا وسيُعاد تلقائيًا",
+        );
       } catch (e) {}
+      return saved;
+      } finally {
+        advanceMutationInFlight = false;
+      }
     }
     function payMonthAdvancesFromPayroll(e, t) {
       const n = C();
@@ -18656,7 +18776,23 @@ async function init() {
           return n;
         }),
       );
-      return { count: a, total: r };
+      return {
+        count: a,
+        total: r,
+        ids: n
+          .filter((advance) => {
+            const monthKey =
+              advance.monthKey || String(advance.date || "").slice(0, 7);
+            return (
+              advance &&
+              String(advance.status || "approved") === "approved" &&
+              String(monthKey || "") === String(e || "") &&
+              payrollAdvanceRemainingAmount(advance) > 0
+            );
+          })
+          .map((advance) => String(advance.id || ""))
+          .filter(Boolean),
+      };
     }
     function O(e = p()) {
       return C().filter(
@@ -18687,6 +18823,7 @@ async function init() {
       const o = Math.max(0, Number(n || 0) || 0);
       o ? (a[t][e] = o) : delete a[t][e];
       (localStorage.setItem(prepaidKey, JSON.stringify(a)),
+        trackPayrollUpsertsV225("payrollPrepaidDeductions", [`${t}::${e}`]),
         "function" == typeof queueCloudStateSave && queueCloudStateSave());
     }
     function j() {
@@ -18748,6 +18885,15 @@ async function init() {
     }
     async function U(e) {
       e.preventDefault();
+      if (advanceMutationInFlight) return !1;
+      advanceMutationInFlight = true;
+      try {
+      if (!(await preparePayrollMutationV225())) {
+        try {
+          showToast("تعذر الاتصال بالسحابة؛ لم تُعتمد السلفة لحماية البيانات");
+        } catch (_) {}
+        return !1;
+      }
       const t = j(),
         a = t.querySelector("#advanceEmployeeSelect")?.value || "",
         r = (function (e) {
@@ -18763,18 +18909,24 @@ async function init() {
         try {
           showToast("اختر الموظف");
         } catch (e) {}
-        return;
+        return !1;
       }
       if (!(r > 0)) {
         try {
           showToast("أدخل قيمة السلفة");
         } catch (e) {}
-        return;
+        return !1;
       }
       const s = p(),
         l = x(i),
         c = l / 2,
         d = R(a, s) + r;
+      if (lockedPayrollRunV225(s)) {
+        try {
+          showToast("لا يمكن إضافة سلفة على مسير محفوظ ومصروف");
+        } catch (_) {}
+        return !1;
+      }
       if (l > 0 && d > c) {
         const e = d - c,
           t =
@@ -18804,7 +18956,7 @@ async function init() {
                 }),
                 t.open || t.showModal());
             }));
-        if (!t) return;
+        if (!t) return !1;
       }
       var u;
       const m = new Date(),
@@ -18837,9 +18989,16 @@ async function init() {
               : "النظام",
         },
         v = C();
-      (v.push(h), P(v), await F(), t.close());
+      (v.push(h), P(v));
+      trackPayrollUpsertsV225("payrollAdvances", [h.id]);
+      const saved = await F("confirmed-advance-create");
+      t.close();
       try {
-        showToast("تم اعتماد السلفة وتحديث مسير الرواتب");
+        showToast(
+          saved
+            ? "تم اعتماد السلفة وحفظها سحابيًا"
+            : "تم اعتماد السلفة مؤقتًا، وتعذر تأكيدها سحابيًا وسيُعاد تلقائيًا",
+        );
       } catch (e) {}
       try {
         "function" == typeof renderPayroll && renderPayroll();
@@ -18850,6 +19009,10 @@ async function init() {
       try {
         "function" == typeof renderDashboard && renderDashboard();
       } catch (e) {}
+      return saved;
+      } finally {
+        advanceMutationInFlight = false;
+      }
     }
     function z(e, t = p()) {
       const n =
@@ -18951,35 +19114,51 @@ async function init() {
         o = t.initials || (n || "م").slice(0, 1);
       return `<div class="employee-cell payroll-name-only-cell">${`<div class="avatar avatar-${a(t.color || "teal")}">${a(o)}</div>`}<div><strong class="employee-name">${a(n)}</strong></div></div>`;
     }
-    function Y() {
+    async function Y() {
+      if (payrollRunInFlight) return !1;
+      payrollRunInFlight = true;
+      try {
       if (!I()) {
         try {
           showToast("ليست لديك صلاحية اعتماد وصرف مسير الرواتب");
         } catch (e) {}
-        return;
+        return !1;
+      }
+      if (!(await preparePayrollMutationV225())) {
+        try {
+          showToast("تعذر الاتصال بالسحابة؛ لم يُعتمد المسير لحماية البيانات");
+        } catch (_) {}
+        return !1;
       }
       const e = p();
       if (k(e)) {
         try {
           showToast(`مسير رواتب ${y(e)} محفوظ مسبقًا`);
         } catch (e) {}
-        return void Q();
+        Q();
+        return !1;
       }
       const t = J(e),
         n = y(e);
       N(t);
       const a = payMonthAdvancesFromPayroll(e, t);
-      try {
-        F();
-      } catch (e) {}
+      trackPayrollUpsertsV225("payrollRuns", [t.id]);
+      trackPayrollUpsertsV225("payrollAdvances", a.ids || []);
+      const saved = await F("confirmed-payroll-run-create");
       try {
         showToast(
-          `تم اعتماد وصرف مسير رواتب ${n} وحفظه${
-            a.count ? `، وتم تسديد ${a.count} سلفة من المسير` : ""
-          }`,
+          saved
+            ? `تم اعتماد وصرف مسير رواتب ${n} وحفظه سحابيًا${
+                a.count ? `، وتم تسديد ${a.count} سلفة من المسير` : ""
+              }`
+            : `تم إنشاء مسير ${n} مؤقتًا، وتعذر تأكيده سحابيًا وسيُعاد تلقائيًا`,
         );
       } catch (e) {}
       Q();
+      return saved;
+      } finally {
+        payrollRunInFlight = false;
+      }
     }
     function Z() {
       try {
@@ -19417,26 +19596,60 @@ async function init() {
     ((window.deletePayrollAdvanceRecord = H),
       (window.cleanupEmployeePayrollAdvances = async function (e) {
         const t = String(e || "").trim();
-        if (!t) return { removedAdvances: 0, updatedRuns: 0 };
+        if (!t)
+          return {
+            removedAdvances: 0,
+            preservedLockedAdvances: 0,
+            updatedRuns: 0,
+            saved: true,
+          };
         const n = C(),
-          a = n.filter((e) => String(e?.employeeId || "") !== t),
-          o = n.length - a.length;
-        o && P(a);
-        const r = (function () {
-          const e = q();
-          if (!e.length) return 0;
-          let t = 0;
-          return (
-            e.forEach((e) => {
-              e?.monthKey && _(e.monthKey) && (t += 1);
-            }),
-            t
+          a = new Set(
+            q()
+              .filter((e) => {
+                const t = String(e?.status || "paid").toLowerCase();
+                return ["paid", "closed", "approved", "processed"].includes(t);
+              })
+              .map((e) => String(e?.monthKey || ""))
+              .filter(Boolean),
+          ),
+          o = n.filter((e) => {
+            const n = e?.monthKey || String(e?.date || "").slice(0, 7);
+            return String(e?.employeeId || "") === t && !a.has(String(n || ""));
+          }),
+          r = n.filter((e) => !o.includes(e)),
+          i = n.filter((e) => {
+            const n = e?.monthKey || String(e?.date || "").slice(0, 7);
+            return String(e?.employeeId || "") === t && a.has(String(n || ""));
+          }).length;
+        if (o.length) {
+          P(r);
+          trackPayrollDeletesV225(
+            "payrollAdvances",
+            o.map((e) => String(e?.id || "")).filter(Boolean),
           );
-        })();
-        return (await F(), B(), { removedAdvances: o, updatedRuns: r });
+        }
+        B();
+        return {
+          removedAdvances: o.length,
+          preservedLockedAdvances: i,
+          updatedRuns: 0,
+          saved: false,
+          deferredToEmployeeSave: true,
+        };
       }),
       (window.openAdvanceModal = V),
-      (window.saveCurrentPayrollRun = Y));
+      (window.saveCurrentPayrollRun = Y),
+      (window.nawahPayrollAdvancesV225 = {
+        readAdvances: C,
+        readRuns: q,
+        openCreate: V,
+        openPayment: openAdvancePaymentModal,
+        deleteAdvance: H,
+        processPayroll: Y,
+        prepareMutation: preparePayrollMutationV225,
+        isMonthLocked: (e) => Boolean(lockedPayrollRunV225(e)),
+      }));
     try {
       renderPayroll = Q;
     } catch (e) {}
@@ -30531,7 +30744,7 @@ async function init() {
   }, 250);
 })();
 
-/* v224 - stable leave/travel state bridge.
+/* v225 - stable leave/travel state bridge.
    Local storage is a cache; Supabase app_settings remains the source of truth. */
 (function v222LeaveTravelStateBridge() {
   if (window.__v222LeaveTravelStateBridge) return;
@@ -30759,7 +30972,7 @@ async function init() {
   );
 
   window.nawahLeaveTravelSyncV222 = {
-    schemaVersion: 224,
+    schemaVersion: 225,
     track: track,
     refresh: function () {
       syncLeaveRuntimeFromCache();
@@ -30772,6 +30985,7 @@ async function init() {
   };
   window.nawahLeaveTravelSyncV223 = window.nawahLeaveTravelSyncV222;
   window.nawahLeaveTravelSyncV224 = window.nawahLeaveTravelSyncV222;
+  window.nawahLeaveTravelSyncV225 = window.nawahLeaveTravelSyncV222;
 })();
 
 /* v211 - structured employee end-of-service workflow */
@@ -64436,12 +64650,12 @@ window.nawahLeaveBalanceReportV185 = {
   }, 300);
 })();
  
-/* v224 - canonical cloud persistence, conflict protection, and cross-browser sync */
+/* v225 - canonical cloud persistence, financial conflict protection, and cross-browser sync */
 (function v221CanonicalCloudPersistence() {
   if (window.__v221CanonicalCloudPersistence) return;
   window.__v221CanonicalCloudPersistence = true;
 
-  const STATE_SCHEMA_VERSION = 224;
+  const STATE_SCHEMA_VERSION = 225;
   const STATE_KEY =
     typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
       ? CLOUD_STATE_KEY
@@ -64914,6 +65128,71 @@ window.nawahLeaveBalanceReportV185 = {
     });
   }
 
+  function mergePayrollAdvanceV225(remoteRecord, localRecord) {
+    const remote =
+        remoteRecord && typeof remoteRecord === "object" ? remoteRecord : {},
+      local = localRecord && typeof localRecord === "object" ? localRecord : {},
+      amount = Math.max(
+        0,
+        Number(
+          local.amount ??
+            local.value ??
+            remote.amount ??
+            remote.value ??
+            0,
+        ) || 0,
+      ),
+      paymentsById = new Map();
+    [remote, local].forEach((record) => {
+      const payments = Array.isArray(record.payments) ? record.payments : [];
+      payments.forEach((payment, index) => {
+        if (!payment || typeof payment !== "object") return;
+        const id = String(
+          payment.id ||
+            `legacy-payment-${record.id || "advance"}-${payment.createdAt || payment.date || index}`,
+        );
+        paymentsById.set(id, {
+          ...clone(payment),
+          id,
+          amount: Math.max(0, Number(payment.amount || 0) || 0),
+        });
+      });
+    });
+    const ordered = Array.from(paymentsById.values()).sort((left, right) => {
+      const leftKey = `${left.createdAt || left.date || ""}|${left.id || ""}`,
+        rightKey = `${right.createdAt || right.date || ""}|${right.id || ""}`;
+      return leftKey.localeCompare(rightKey);
+    });
+    let remaining = amount;
+    const payments = [];
+    ordered.forEach((payment) => {
+      const accepted = Math.min(
+        remaining,
+        Math.max(0, Number(payment.amount || 0) || 0),
+      );
+      if (!(accepted > 0)) return;
+      payments.push({ ...payment, amount: accepted });
+      remaining = Math.max(0, remaining - accepted);
+    });
+    const latest = payments[payments.length - 1] || {},
+      paidAmount = Math.max(0, amount - remaining);
+    return {
+      ...clone(remote),
+      ...clone(local),
+      amount,
+      payments,
+      paidAmount,
+      remainingAmount: remaining,
+      paymentSource: latest.source || "",
+      paymentSourceLabel: latest.sourceLabel || "",
+      paidDate: latest.date || local.paidDate || remote.paidDate || "",
+      settledAt:
+        remaining <= 0
+          ? latest.createdAt || local.settledAt || remote.settledAt || ""
+          : "",
+    };
+  }
+
   function mergedState(
     remoteState,
     localState,
@@ -64927,6 +65206,37 @@ window.nawahLeaveBalanceReportV185 = {
     snapshot.forEach((_, field) => {
       const deletedIds = deleteSnapshot.get(field);
       const upsertIds = upsertSnapshot.get(field);
+      if (field === "payrollPrepaidDeductions" && upsertIds) {
+        const remoteMap =
+            merged[field] && typeof merged[field] === "object"
+              ? clone(merged[field])
+              : {},
+          localMap =
+            localState[field] && typeof localState[field] === "object"
+              ? localState[field]
+              : {};
+        upsertIds.forEach((_, mutationKey) => {
+          const separator = mutationKey.indexOf("::"),
+            monthKey = separator > -1 ? mutationKey.slice(0, separator) : "",
+            employeeId = separator > -1 ? mutationKey.slice(separator + 2) : "";
+          if (!monthKey || !employeeId) return;
+          const localMonth =
+              localMap[monthKey] && typeof localMap[monthKey] === "object"
+                ? localMap[monthKey]
+                : {},
+            remoteMonth =
+              remoteMap[monthKey] && typeof remoteMap[monthKey] === "object"
+                ? { ...remoteMap[monthKey] }
+                : {};
+          if (Object.prototype.hasOwnProperty.call(localMonth, employeeId))
+            remoteMonth[employeeId] = clone(localMonth[employeeId]);
+          else delete remoteMonth[employeeId];
+          if (Object.keys(remoteMonth).length) remoteMap[monthKey] = remoteMonth;
+          else delete remoteMap[monthKey];
+        });
+        merged[field] = remoteMap;
+        return;
+      }
       if (
         (deletedIds || upsertIds) &&
         Array.isArray(merged[field]) &&
@@ -64944,9 +65254,10 @@ window.nawahLeaveBalanceReportV185 = {
           )
           .map((record) => {
             const id = String(record?.id || "");
-            return upsertIds?.has(id) && localById.has(id)
-              ? clone(localById.get(id))
-              : record;
+            if (!upsertIds?.has(id) || !localById.has(id)) return record;
+            return field === "payrollAdvances"
+              ? mergePayrollAdvanceV225(record, localById.get(id))
+              : clone(localById.get(id));
           });
         const presentIds = new Set(
           rows.map((record) => String(record?.id || "")),
@@ -64960,6 +65271,32 @@ window.nawahLeaveBalanceReportV185 = {
         merged[field] = clone(localState[field]);
       }
     });
+    if (
+      snapshot.has("employees") &&
+      Array.isArray(merged.employees) &&
+      Array.isArray(merged.payrollAdvances)
+    ) {
+      const employeeIds = new Set(
+          merged.employees.map((employee) => String(employee?.id || "")).filter(Boolean),
+        ),
+        lockedMonths = new Set(
+          (Array.isArray(merged.payrollRuns) ? merged.payrollRuns : [])
+            .filter((run) =>
+              ["paid", "closed", "approved", "processed"].includes(
+                String(run?.status || "paid").toLowerCase(),
+              ),
+            )
+            .map((run) => String(run?.monthKey || ""))
+            .filter(Boolean),
+        );
+      merged.payrollAdvances = merged.payrollAdvances.filter((advance) => {
+        const employeeId = String(advance?.employeeId || ""),
+          monthKey = String(
+            advance?.monthKey || String(advance?.date || "").slice(0, 7),
+          );
+        return !employeeId || employeeIds.has(employeeId) || lockedMonths.has(monthKey);
+      });
+    }
     merged.version = Math.max(
       Number(merged.version || 0),
       Number(localState.version || 0),
@@ -65342,9 +65679,10 @@ window.nawahLeaveBalanceReportV185 = {
   window.nawahCloudSyncV222 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV223 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV224 = window.nawahCloudSyncV221;
+  window.nawahCloudSyncV225 = window.nawahCloudSyncV221;
 })();
 
-/* v224 - final renderer lock (must remain the last application patch). */
+/* v225 - final renderer lock (must remain the last application patch). */
 (function v222FinalLeaveTravelRendererLock() {
   if (window.__v222FinalLeaveTravelRendererLock) return;
   window.__v222FinalLeaveTravelRendererLock = true;
