@@ -21617,6 +21617,7 @@ async function init() {
   (function () {
     const e = "nawah-finance-settings",
       t = { openingAmount: 0, custodyAmount: 0, updatedAt: "" };
+    let financeSettingsSaveInFlightV226 = false;
     function n(e) {
       const t = Number(e);
       return Number.isFinite(t) && t >= 0 ? t : 0;
@@ -21716,28 +21717,54 @@ async function init() {
       };
       ((e.__financeAmountsWrapped = !0), (switchView = e));
     }
-    (document.addEventListener("submit", function (t) {
+    (document.addEventListener("submit", async function (t) {
       if ("financeSettingsForm" !== t.target?.id) return;
       t.preventDefault();
+      if (financeSettingsSaveInFlightV226) return;
+      financeSettingsSaveInFlightV226 = true;
       const n = t.target;
-      ((o = a({
+      const values = {
         openingAmount: n.elements.openingAmount?.value,
         custodyAmount: n.elements.custodyAmount?.value,
-        updatedAt: o.updatedAt,
-      })),
-        (o.updatedAt = new Date().toISOString()),
-        localStorage.setItem(e, JSON.stringify(o)),
-        l());
+      };
       try {
-        saveLocalMeta();
-      } catch (e) {
+        const sync = window.nawahFinanceSyncV226 || null;
+        if (
+          sync?.prepareMutation &&
+          !(await sync.prepareMutation())
+        ) {
+          try {
+            showToast("تعذر الاتصال بالسحابة؛ لم تُحفظ الإعدادات المالية");
+          } catch (_) {}
+          return;
+        }
+        ((o = a({
+          openingAmount: values.openingAmount,
+          custodyAmount: values.custodyAmount,
+          updatedAt: o.updatedAt,
+        })),
+          (o.updatedAt = new Date().toISOString()),
+          localStorage.setItem(e, JSON.stringify(o)),
+          sync?.trackSettings?.(["openingAmount", "custodyAmount", "updatedAt"]),
+          l());
+        const saved = sync?.save
+          ? await sync.save("confirmed-finance-settings-save")
+          : typeof saveCloudStateNow === "function"
+            ? await saveCloudStateNow({
+                force: !0,
+                reason: "confirmed-finance-settings-save",
+              })
+            : !1;
         try {
-          queueCloudStateSave();
-        } catch (e) {}
+          showToast(
+            saved !== false
+              ? "تم حفظ المبالغ المالية سحابيًا وتحديث بطاقات المالية"
+              : "تم تطبيق الإعدادات مؤقتًا، وتعذر تأكيدها سحابيًا وسيُعاد تلقائيًا",
+          );
+        } catch (_) {}
+      } finally {
+        financeSettingsSaveInFlightV226 = false;
       }
-      try {
-        showToast("تم حفظ المبالغ المالية وتحديث بطاقات المالية");
-      } catch (e) {}
     }),
       document.addEventListener("input", function (e) {
         if (!e.target?.closest?.("#financeSettingsForm")) return;
@@ -21760,7 +21787,95 @@ async function init() {
     const e = "nawah-finance-daily-open",
       t = "nawah-finance-daily-days",
       n = ["pending", "expenses", "cashSales", "cardSales"],
-      a = { amount: "", note: "" };
+      a = { id: "", amount: "", note: "" };
+    let financeCloseInFlightV226 = false;
+    function financeCloudSyncV226() {
+      return (
+        window.nawahCloudSyncV226 ||
+        window.nawahCloudSyncV225 ||
+        window.nawahCloudSyncV224 ||
+        window.nawahCloudSyncV221 ||
+        null
+      );
+    }
+    async function prepareFinanceMutationV226() {
+      const sync = financeCloudSyncV226();
+      if (!sync) return true;
+      try {
+        const pending =
+          typeof sync.pendingFields === "function" ? sync.pendingFields() : [];
+        if (pending.length && typeof sync.save === "function") {
+          const flushed = await sync.save("pending-finance-state-flush");
+          if (
+            flushed === false &&
+            typeof sync.pendingFields === "function" &&
+            sync.pendingFields().length
+          )
+            return false;
+        }
+        if (typeof sync.refresh === "function") await sync.refresh();
+        return true;
+      } catch (error) {
+        console.warn("v226: تعذر تجهيز أحدث بيانات المالية من السحابة.", error);
+        return false;
+      }
+    }
+    function trackFinanceUpsertsV226(ids) {
+      const clean = (Array.isArray(ids) ? ids : [ids]).filter(Boolean),
+        sync = financeCloudSyncV226();
+      if (!clean.length || !sync) return false;
+      try {
+        if (typeof sync.trackRecordUpserts === "function")
+          return sync.trackRecordUpserts("financeDailyDays", clean);
+        if (typeof sync.trackFields === "function")
+          return sync.trackFields(["financeDailyDays", "financeDailyOpen"]);
+      } catch (_) {}
+      return false;
+    }
+    function trackFinanceDeletesV226(ids) {
+      const clean = (Array.isArray(ids) ? ids : [ids]).filter(Boolean),
+        sync = financeCloudSyncV226();
+      if (!clean.length || !sync) return false;
+      try {
+        if (typeof sync.trackRecordDeletes === "function")
+          return sync.trackRecordDeletes("financeDailyDays", clean);
+        if (typeof sync.trackFields === "function")
+          return sync.trackFields(["financeDailyDays", "financeDailyOpen"]);
+      } catch (_) {}
+      return false;
+    }
+    function financeMutationKeyV226(date, section, id) {
+      return `${String(date || "")}::${String(section || "meta")}::${String(id || "")}`;
+    }
+    function financeRowIdV226(section) {
+      return `finance-${String(section || "row")}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+    function financeLegacyRowIdV226(record, amount, note, index) {
+      const seed = `${record?.source || "legacy"}|${record?.travelId || ""}|${record?.createdAt || ""}|${amount}|${note}|${index}`;
+      let hash = 2166136261;
+      for (let cursor = 0; cursor < seed.length; cursor += 1) {
+        hash ^= seed.charCodeAt(cursor);
+        hash = Math.imul(hash, 16777619);
+      }
+      return `finance-legacy-${(hash >>> 0).toString(16)}`;
+    }
+    async function confirmFinanceCloudV226(reason) {
+      const sync = financeCloudSyncV226();
+      try {
+        if (sync && typeof sync.save === "function")
+          return (await sync.save(reason || "confirmed-finance-save")) !== false;
+        if (typeof saveCloudStateNow === "function")
+          return (
+            (await saveCloudStateNow({
+              force: true,
+              reason: reason || "confirmed-finance-save",
+            })) !== false
+          );
+      } catch (error) {
+        console.warn("v226: تعذر تأكيد الحفظ المالي سحابيًا.", error);
+      }
+      return false;
+    }
     function o(e) {
       const t = Number(e);
       return Number.isFinite(t) && t >= 0 ? t : 0;
@@ -21769,9 +21884,23 @@ async function init() {
       const t = e && "object" == typeof e ? e : {};
       return 0 === t.amount ? "0" : String(t.amount || "").trim();
     }
-    function i(e) {
+    function i(e, index) {
       const t = e && "object" == typeof e ? e : {};
-      return { amount: r(t), note: String(t.note || "").trim() };
+      const amount = r(t),
+        note = String(t.note || "").trim(),
+        populated = amount !== "" || note !== "";
+      if (!populated) return { ...a };
+      const id =
+        String(t.id || "").trim() ||
+        financeLegacyRowIdV226(t, amount, note, index);
+      return {
+        ...t,
+        id,
+        amount,
+        note,
+        createdAt: t.createdAt || new Date().toISOString(),
+        updatedAt: t.updatedAt || t.createdAt || new Date().toISOString(),
+      };
     }
     function s(e) {
       const t = (Array.isArray(e) ? e.map(i) : []).filter(
@@ -21916,13 +22045,26 @@ async function init() {
         b(),
         H(!0));
     }
-    function b() {
-      (y(),
-        (p.financeDate = d),
-        (p.updatedAt = new Date().toISOString()),
-        (m[d] = c(p, d)),
-        localStorage.setItem(t, JSON.stringify(m)),
-        localStorage.setItem(e, JSON.stringify(p)));
+    function financeOpenRecordV226() {
+      const openDate = Object.keys(m)
+        .filter((date) => m[date] && !m[date].isClosed)
+        .sort()
+        .pop();
+      return openDate
+        ? { date: openDate, record: c(m[openDate], openDate) }
+        : { date: d, record: c(p, d) };
+    }
+    function b(markUpdated = !1) {
+      y();
+      p.financeDate = d;
+      if (markUpdated) p.updatedAt = new Date().toISOString();
+      m[d] = c(p, d);
+      const open = financeOpenRecordV226();
+      localStorage.setItem(t, JSON.stringify(m));
+      localStorage.setItem(
+        "nawah-finance-daily-open",
+        JSON.stringify(open.record),
+      );
     }
     function S(e) {
       try {
@@ -22268,6 +22410,7 @@ async function init() {
     function q(e, t, n, a) {
       const o = document.createElement("tr"),
         r = document.createElement("td");
+      o.dataset.financeRecordId = String(n?.id || "");
       if (
         (r.appendChild(
           (function (e, t, n) {
@@ -22391,16 +22534,24 @@ async function init() {
       }\n        </tbody></table>\n      </div>`;
     }
     async function F(e) {
+      const selectedDate = d;
+      if (!(await prepareFinanceMutationV226())) {
+        try {
+          showToast("تعذر الاتصال بالسحابة؛ لم يُحذف المبلغ لحماية البيانات");
+        } catch (_) {}
+        return !1;
+      }
+      selectedDate !== d && g(selectedDate);
       if (p.isClosed) {
         try {
           showToast("لا يمكن حذف مبلغ معلق من يوم مالي مغلق");
         } catch (e) {}
-        return;
+        return !1;
       }
       (_("pending"), (p = c(p, d)));
       const t = Array.isArray(p.pending) ? p.pending.slice() : [],
         n = t[e];
-      if (!n || !x(n)) return;
+      if (!n || !x(n)) return !1;
       const a = o(n.amount);
       if (
         await (function (e, t = {}) {
@@ -22446,73 +22597,113 @@ async function init() {
           },
         )
       ) {
-        (t.splice(e, 1),
-          (p.pending = s(t)),
-          (p.deletedPending = Array.isArray(p.deletedPending)
-            ? p.deletedPending
-            : []),
-          p.deletedPending.push({
+        const deletedId = String(n.id || ""),
+          deletedLog = {
             id: `deleted-pending-${Date.now()}-${Math.random().toString(16).slice(2)}`,
             amount: String(a),
             note: n.note || "",
             deletedBy: k(),
             deletedAt: new Date().toISOString(),
             financeDate: d,
-          }),
+          };
+        (t.splice(e, 1),
+          (p.pending = s(t)),
+          (p.deletedPending = Array.isArray(p.deletedPending)
+            ? p.deletedPending
+            : []),
+          p.deletedPending.push(deletedLog),
           (p.updatedAt = new Date().toISOString()),
-          b(),
+          deletedId &&
+            trackFinanceDeletesV226(
+              financeMutationKeyV226(d, "pending", deletedId),
+            ),
+          trackFinanceUpsertsV226(
+            financeMutationKeyV226(d, "deletedPending", deletedLog.id),
+          ),
+          b(!0),
           H(!0));
+        const saved = await confirmFinanceCloudV226(
+          "confirmed-finance-pending-delete",
+        ),
+          confirmed = Boolean(
+            saved &&
+              !JSON.parse(localStorage.getItem(t) || "{}")?.[d]?.pending?.some(
+                (record) => String(record?.id || "") === deletedId,
+              ),
+          );
         try {
-          saveLocalMeta();
-        } catch (e) {
-          try {
-            queueCloudStateSave();
-          } catch (e) {}
-        }
-        try {
-          showToast("تم حذف المبلغ المعلق وإضافته إلى مبلغ الصندوق");
+          showToast(
+            confirmed
+              ? "تم حذف المبلغ المعلق وحفظ التغيير سحابيًا"
+              : "تعذر تأكيد الحذف؛ ربما أُغلق اليوم من مستخدم آخر",
+          );
         } catch (e) {}
+        return confirmed;
       }
+      return !1;
     }
-    function _(e) {
+    function _(e, changedTarget) {
       const t = document.querySelector(`[data-finance-table="${e}"]`);
       if (!t) return;
-      const n = [];
-      (t.querySelectorAll("tbody tr").forEach((e) => {
-        const t = e.querySelector('[data-finance-field="amount"]')?.value || "",
-          a = e.querySelector('[data-finance-field="note"]')?.value || "";
-        n.push({ amount: t, note: a });
-      }),
-        (p[e] = s(n)));
+      const n = new Map(
+          (Array.isArray(p[e]) ? p[e] : [])
+            .filter((record) => record?.id)
+            .map((record) => [String(record.id), record]),
+        ),
+        a = [],
+        o = changedTarget?.closest?.("tr") || null;
+      t.querySelectorAll("tbody tr").forEach((t) => {
+        const r = t.querySelector('[data-finance-field="amount"]')?.value || "",
+          i = t.querySelector('[data-finance-field="note"]')?.value || "",
+          s = String(t.dataset.financeRecordId || "").trim(),
+          l = String(r).trim() !== "" || String(i).trim() !== "",
+          c = l ? s || financeRowIdV226(e) : s,
+          d = c && n.get(c) ? n.get(c) : {};
+        c && (t.dataset.financeRecordId = c);
+        a.push(
+          l
+            ? {
+                ...d,
+                id: c,
+                amount: r,
+                note: i,
+                createdAt: d.createdAt || new Date().toISOString(),
+                updatedAt:
+                  t === o ? new Date().toISOString() : d.updatedAt || d.createdAt || "",
+              }
+            : { id: c, amount: "", note: "" },
+        );
+      });
+      const r = s(a),
+        i = new Set(r.filter((record) => record?.id).map((record) => String(record.id))),
+        l = [];
+      n.forEach((_, id) => {
+        if (!i.has(id)) l.push(financeMutationKeyV226(d, e, id));
+      });
+      l.length && trackFinanceDeletesV226(l);
+      if (o) {
+        const id = String(o.dataset.financeRecordId || "");
+        id && i.has(id) &&
+          trackFinanceUpsertsV226(financeMutationKeyV226(d, e, id));
+      }
+      p[e] = r;
     }
     function B(e) {
-      const t = (function (e) {
-          const t = document.querySelector(`[data-finance-table="${e}"]`);
-          return Array.from(t?.querySelectorAll("tbody tr") || []).map((e) => ({
-            amount:
-              e.querySelector('[data-finance-field="amount"]')?.value || "",
-            note: e.querySelector('[data-finance-field="note"]')?.value || "",
-          }));
-        })(e),
-        n = s(t);
-      var o;
-      ((p[e] = n),
-      n.length < t.length || (o = t).some((e, t) => t < o.length - 1 && !x(e)))
-        ? L(e)
-        : n.length > t.length &&
-          (function (e) {
-            const t = document.querySelector(`[data-finance-table="${e}"]`),
-              n = t?.querySelector("tbody");
-            if (!n) return;
-            const o = Array.from(n.querySelectorAll("tr")),
-              r = o[o.length - 1];
-            if (!r) return void q(n, e, a, 0);
-            x({
-              amount:
-                r.querySelector('[data-finance-field="amount"]')?.value || "",
-              note: r.querySelector('[data-finance-field="note"]')?.value || "",
-            }) && q(n, e, a, o.length);
-          })(e);
+      const t = document.querySelector(`[data-finance-table="${e}"]`),
+        n = t?.querySelector("tbody");
+      if (!n) return;
+      const o = Array.from(n.querySelectorAll("tr")),
+        r = o.map((row) =>
+          x({
+            amount: row.querySelector('[data-finance-field="amount"]')?.value || "",
+            note: row.querySelector('[data-finance-field="note"]')?.value || "",
+          }),
+        ),
+        i = r.filter((value) => !value).length;
+      if (i > 1 || r.slice(0, -1).some((value) => !value)) return void L(e);
+      const s = o[o.length - 1];
+      if (!s) return void q(n, e, a, 0);
+      r[r.length - 1] && q(n, e, a, o.length);
     }
     function H(e) {
       (y(),
@@ -22563,131 +22754,170 @@ async function init() {
         })(),
         I());
     }
-    function O(a) {
-      if (
-        (a &&
-          (a.preventDefault?.(),
-          a.stopPropagation?.(),
-          a.stopImmediatePropagation?.()),
-        y(),
-        n.forEach(_),
-        (p = c(p, d)),
-        p.isClosed)
-      ) {
+    async function O(event) {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      event?.stopImmediatePropagation?.();
+      if (financeCloseInFlightV226) return !1;
+      const selectedDate = d;
+      if (!(await prepareFinanceMutationV226())) {
+        try {
+          showToast("تعذر الاتصال بالسحابة؛ لم يُغلق اليوم المالي");
+        } catch (_) {}
+        return !1;
+      }
+      selectedDate !== d && g(selectedDate);
+      (y(), n.forEach((section) => _(section)), (p = c(p, d)));
+      if (p.isClosed) {
         try {
           showToast("هذا اليوم المالي مغلق مسبقًا");
-        } catch (e) {}
-        return void H(!0);
+        } catch (_) {}
+        H(!0);
+        return !1;
       }
-      const o = T(),
-        r = v(d),
-        i = (function (e) {
-          let t = h(e, 1),
-            n = 0;
-          for (; 5 === f(t).getDay() && n < 10;) ((t = h(t, 1)), (n += 1));
-          return t;
-        })(d),
-        l = v(i);
-      !(function (e, t) {
-        let n = document.getElementById("financeCloseConfirmModal");
-        (n ||
-          ((n = document.createElement("dialog")),
-          (n.id = "financeCloseConfirmModal"),
-          (n.className = "modal small-modal finance-close-confirm-modal"),
-          document.body.appendChild(n)),
-          (n.innerHTML = `\n      <div class="modal-head finance-close-confirm-head">\n        <div class="finance-close-confirm-icon"><span data-icon="check-circle"></span></div>\n        <div>\n          <h2>تأكيد إغلاق اليوم المالي</h2>\n          <p>راجع بيانات اليوم قبل اعتماد الإغلاق والترحيل.</p>\n        </div>\n      </div>\n      <div class="modal-body finance-close-confirm-body">\n        <div class="finance-close-confirm-summary">\n          <div><span>اليوم الحالي</span><strong>${A(e.currentDay)}</strong></div>\n          <div><span>اليوم التالي</span><strong>${A(e.nextDay)}</strong></div>\n          <div><span>المبلغ المرحل</span><strong>${A(e.carriedAmount)}</strong></div>\n          <div><span>المبلغ المرحل الجديد</span><strong>${A(e.newCarriedAmount)}</strong></div>\n        </div>\n        <p class="finance-close-confirm-note">بعد الاعتماد سيتم تجميد اليوم الحالي وفتح اليوم التالي تلقائيًا.</p>\n      </div>\n      <div class="modal-actions finance-close-confirm-actions">\n        <button type="button" class="secondary-btn" data-finance-close-cancel>إلغاء</button>\n        <button type="button" class="primary-btn" data-finance-close-confirm><span data-icon="check-circle"></span>اعتماد إغلاق اليوم</button>\n      </div>`));
-        try {
-          hydrateIcons(n);
-        } catch (e) {}
-        (n
-          .querySelector("[data-finance-close-cancel]")
-          ?.addEventListener("click", () => n.close()),
-          n
-            .querySelector("[data-finance-close-confirm]")
-            ?.addEventListener("click", () => {
-              (n.close(), t?.());
-            }));
-        try {
-          n.showModal();
-        } catch (e) {
-          t?.();
-        }
-      })(
-        {
-          currentDay: `${r.dayName} ${r.dateLabel}`,
-          nextDay: `${l.dayName} ${l.dateLabel}`,
-          carriedAmount: S(o.carriedAmount),
-          newCarriedAmount: S(o.newCarriedAmount),
-        },
-        () => {
-          (!(function (e, t) {
-            ((p.isClosed = !0),
-              (p.closedAt = new Date().toISOString()),
-              (p.nextFinanceDate = t),
-              (p.carriedAmountSnapshot = e.settings.openingAmount),
-              (p.custodyAmountSnapshot = e.settings.custodyAmount),
-              (p.fundAmountSnapshot = e.fundAmount),
-              (p.newCarriedAmountSnapshot = e.newCarriedAmount),
-              (p.updatedAt = new Date().toISOString()));
-          })(o, i),
-            (m[d] = c(p, d)));
-          const n = m[i] ? c(m[i], i) : null;
-          (!n || n.isClosed
-            ? (m[i] = (function (e, t, n) {
-                return c(
-                  {
-                    financeDate: e,
-                    pending: s(n),
-                    deletedPending: [],
-                    expenses: [],
-                    cashSales: [],
-                    cardSales: [],
-                    budgetAmount: "",
-                    manualCashAmount: "",
-                    carriedAmountOverride: t,
-                    isClosed: !1,
-                    updatedAt: new Date().toISOString(),
-                  },
-                  e,
-                );
-              })(i, o.newCarriedAmount, p.pending))
-            : ((n.carriedAmountOverride = o.newCarriedAmount),
-              (n.pending = s(p.pending)),
-              (n.expenses = s([])),
-              (n.cashSales = s([])),
-              (n.cardSales = s([])),
-              (n.budgetAmount = ""),
-              (n.manualCashAmount = ""),
-              (n.updatedAt = new Date().toISOString()),
-              (m[i] = c(n, i))),
-            localStorage.setItem(t, JSON.stringify(m)),
-            localStorage.setItem(e, JSON.stringify(m[i])));
-          try {
-            saveLocalMeta();
-          } catch (e) {
-            try {
-              queueCloudStateSave();
-            } catch (e) {}
+      const totals = T(),
+        currentInfo = v(d),
+        nextFinanceDate = (function (date) {
+          let next = h(date, 1),
+            guard = 0;
+          for (; f(next).getDay() === 5 && guard < 10; ) {
+            next = h(next, 1);
+            guard += 1;
           }
-          (g(i), H(!0));
+          return next;
+        })(d),
+        nextInfo = v(nextFinanceDate);
+      let modal = document.getElementById("financeCloseConfirmModal");
+      if (!modal) {
+        modal = document.createElement("dialog");
+        modal.id = "financeCloseConfirmModal";
+        modal.className = "modal small-modal finance-close-confirm-modal";
+        document.body.appendChild(modal);
+      }
+      modal.innerHTML = `\n      <div class="modal-head finance-close-confirm-head">\n        <div class="finance-close-confirm-icon"><span data-icon="check-circle"></span></div>\n        <div>\n          <h2>تأكيد إغلاق اليوم المالي</h2>\n          <p>راجع بيانات اليوم قبل اعتماد الإغلاق والترحيل.</p>\n        </div>\n      </div>\n      <div class="modal-body finance-close-confirm-body">\n        <div class="finance-close-confirm-summary">\n          <div><span>اليوم الحالي</span><strong>${A(`${currentInfo.dayName} ${currentInfo.dateLabel}`)}</strong></div>\n          <div><span>اليوم التالي</span><strong>${A(`${nextInfo.dayName} ${nextInfo.dateLabel}`)}</strong></div>\n          <div><span>المبلغ المرحل</span><strong>${A(S(totals.settings.openingAmount))}</strong></div>\n          <div><span>المبلغ المرحل الجديد</span><strong>${A(S(totals.newCarriedAmount))}</strong></div>\n        </div>\n        <p class="finance-close-confirm-note">بعد الاعتماد سيتم تجميد اليوم الحالي وفتح اليوم التالي تلقائيًا.</p>\n      </div>\n      <div class="modal-actions finance-close-confirm-actions">\n        <button type="button" class="secondary-btn" data-finance-close-cancel>إلغاء</button>\n        <button type="button" class="primary-btn" data-finance-close-confirm><span data-icon="check-circle"></span>اعتماد إغلاق اليوم</button>\n      </div>`;
+      try {
+        hydrateIcons(modal);
+      } catch (_) {}
+      modal.querySelector("[data-finance-close-cancel]").onclick = () => modal.close();
+      modal.querySelector("[data-finance-close-confirm]").onclick = async () => {
+        if (financeCloseInFlightV226) return;
+        financeCloseInFlightV226 = true;
+        modal.close();
+        try {
+          if (!(await prepareFinanceMutationV226())) {
+            try {
+              showToast("تعذر الاتصال بالسحابة؛ لم يُغلق اليوم المالي");
+            } catch (_) {}
+            return;
+          }
+          selectedDate !== d && g(selectedDate);
+          (y(), n.forEach((section) => _(section)), (p = c(p, d)));
+          if (p.isClosed) {
+            try {
+              showToast("تم إغلاق هذا اليوم مسبقًا من مستخدم آخر");
+            } catch (_) {}
+            H(!0);
+            return;
+          }
+          const currentTotals = T(),
+            nextRecord = m[nextFinanceDate]
+              ? c(m[nextFinanceDate], nextFinanceDate)
+              : null;
+          if (nextRecord?.isClosed) {
+            try {
+              showToast("لا يمكن فتح اليوم التالي لأنه مغلق مسبقًا");
+            } catch (_) {}
+            return;
+          }
+          const closedAt = new Date().toISOString();
+          Object.assign(p, {
+            isClosed: !0,
+            closedAt,
+            nextFinanceDate,
+            carriedAmountSnapshot: currentTotals.settings.openingAmount,
+            custodyAmountSnapshot: currentTotals.settings.custodyAmount,
+            fundAmountSnapshot: currentTotals.fundAmount,
+            newCarriedAmountSnapshot: currentTotals.newCarriedAmount,
+            updatedAt: closedAt,
+          });
+          m[d] = c(p, d);
+          const carriedPending = s(p.pending).filter(x),
+            next = nextRecord || c({}, nextFinanceDate),
+            nextPendingById = new Map(
+              s(next.pending)
+                .filter(x)
+                .map((record) => [String(record.id), record]),
+            );
+          carriedPending.forEach((record) =>
+            nextPendingById.set(String(record.id), record),
+          );
+          next.pending = s(Array.from(nextPendingById.values()));
+          next.carriedAmountOverride = currentTotals.newCarriedAmount;
+          next.isClosed = !1;
+          next.updatedAt = closedAt;
+          m[nextFinanceDate] = c(next, nextFinanceDate);
+          [
+            "isClosed",
+            "closedAt",
+            "nextFinanceDate",
+            "carriedAmountSnapshot",
+            "custodyAmountSnapshot",
+            "fundAmountSnapshot",
+            "newCarriedAmountSnapshot",
+            "updatedAt",
+          ].forEach((field) =>
+            trackFinanceUpsertsV226(
+              financeMutationKeyV226(d, "meta", field),
+            ),
+          );
+          ["carriedAmountOverride", "isClosed", "updatedAt"].forEach((field) =>
+            trackFinanceUpsertsV226(
+              financeMutationKeyV226(nextFinanceDate, "meta", field),
+            ),
+          );
+          carriedPending.forEach((record) =>
+            trackFinanceUpsertsV226(
+              financeMutationKeyV226(nextFinanceDate, "pending", record.id),
+            ),
+          );
+          localStorage.setItem(t, JSON.stringify(m));
+          localStorage.setItem(e, JSON.stringify(m[nextFinanceDate]));
+          const saved = await confirmFinanceCloudV226(
+            "confirmed-finance-day-close",
+          );
+          if (saved) g(nextFinanceDate);
+          else H(!0);
           try {
-            showToast(`تم إغلاق اليوم وفتح ${l.dayName} ${l.dateLabel}`);
-          } catch (e) {}
-        },
-      );
+            showToast(
+              saved
+                ? `تم إغلاق اليوم وحفظه سحابيًا وفتح ${nextInfo.dayName} ${nextInfo.dateLabel}`
+                : "تم تطبيق الإغلاق مؤقتًا، وتعذر تأكيده سحابيًا وسيُعاد تلقائيًا",
+            );
+          } catch (_) {}
+        } finally {
+          financeCloseInFlightV226 = false;
+        }
+      };
+      try {
+        modal.open || modal.showModal();
+      } catch (_) {
+        modal.setAttribute("open", "open");
+      }
+      return !0;
     }
     const R = "function" == typeof buildCloudState ? buildCloudState : null;
     if (R && !R.__financeDailyTablesWrapped) {
       const e = function () {
         const e = R.apply(this, arguments) || {};
+        y();
+        const open = financeOpenRecordV226();
         return (
-          y(),
-          (e.financeDailyOpen = c(p, d)),
+          (e.financeDailyOpen = c(open.record, open.date)),
           (e.financeDailyDays = Object.keys(m).reduce(
             (e, t) => ((e[t] = c(m[t], t)), e),
             {},
           )),
-          (e.financeDailyCurrentDate = d),
+          (e.financeDailyCurrentDate = open.date),
           e
         );
       };
@@ -22702,14 +22932,27 @@ async function init() {
           (Object.keys(e.financeDailyDays).forEach((n) => {
             t[n] = c(e.financeDailyDays[n], n);
           }),
+            e.financeDailyOpen?.financeDate &&
+              (t[e.financeDailyOpen.financeDate] = c(
+                e.financeDailyOpen,
+                e.financeDailyOpen.financeDate,
+              )),
             (m = t),
-            (d = l()),
+            (d =
+              String(e.financeDailyCurrentDate || "") ||
+              String(e.financeDailyOpen?.financeDate || "") ||
+              l()),
+            (u = d !== l()),
             (p = c(m[d] || {}, d)),
             b());
         } else
           e &&
             e.financeDailyOpen &&
-            ((d = l()), (p = c(e.financeDailyOpen, d)), b());
+            ((d = String(e.financeDailyOpen.financeDate || "") || l()),
+            (u = d !== l()),
+            (p = c(e.financeDailyOpen, d)),
+            (m[d] = c(p, d)),
+            b());
         return (H(!0), t);
       };
       ((e.__financeDailyTablesWrapped = !0), (applyCloudState = e));
@@ -22744,32 +22987,32 @@ async function init() {
       }
       if (t && n.includes(t)) {
         ("note" === e.target?.dataset?.financeField && C(e.target),
-          _(t),
+          _(t, e.target),
           B(t),
           P(document.getElementById("financeView") || document),
-          b(),
+          b(!0),
           M());
-        try {
-          saveLocalMeta();
-        } catch (e) {
-          try {
-            queueCloudStateSave();
-          } catch (e) {}
-        }
         return;
       }
       const a = e.target?.dataset?.financeSpecial;
       if ("budgetAmount" === a || "manualCashAmount" === a) {
-        ((p[a] = e.target.value || ""), b(), M());
-        try {
-          saveLocalMeta();
-        } catch (e) {
-          try {
-            queueCloudStateSave();
-          } catch (e) {}
-        }
+        ((p[a] = e.target.value || ""),
+          trackFinanceUpsertsV226(financeMutationKeyV226(d, "meta", a)),
+          b(!0),
+          M());
       }
     }),
+      document.addEventListener(
+        "change",
+        async function (e) {
+          const table = e.target?.dataset?.financeTableInput,
+            special = e.target?.dataset?.financeSpecial;
+          if ((!table || !n.includes(table)) && !special) return;
+          if (p.isClosed) return void H(!0);
+          await confirmFinanceCloudV226("confirmed-finance-field-change");
+        },
+        !0,
+      ),
       document.addEventListener(
         "submit",
         function (e) {
@@ -22868,6 +23111,33 @@ async function init() {
           b();
           H(!0);
         }
+      }),
+      (window.nawahFinanceSyncV226 = {
+        schemaVersion: 226,
+        prepareMutation: prepareFinanceMutationV226,
+        save: (reason) => confirmFinanceCloudV226(reason),
+        trackSettings: (ids) => {
+          const sync = financeCloudSyncV226(),
+            clean = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
+          if (!sync || !clean.length) return false;
+          try {
+            if (typeof sync.trackRecordUpserts === "function")
+              return sync.trackRecordUpserts("financeSettings", clean);
+            if (typeof sync.trackFields === "function")
+              return sync.trackFields(["financeSettings"]);
+          } catch (_) {}
+          return false;
+        },
+        trackDayUpserts: trackFinanceUpsertsV226,
+        trackDayDeletes: trackFinanceDeletesV226,
+        mutationKey: financeMutationKeyV226,
+        readDays: () => JSON.parse(JSON.stringify(m || {})),
+        readCurrent: () => JSON.parse(JSON.stringify(p || {})),
+        currentDate: () => d,
+        selectDate: g,
+        render: () => H(!0),
+        closeDay: O,
+        deletePending: F,
       }),
       "loading" === document.readyState
         ? document.addEventListener("DOMContentLoaded", () =>
@@ -30744,7 +31014,7 @@ async function init() {
   }, 250);
 })();
 
-/* v225 - stable leave/travel state bridge.
+/* v226 - stable leave/travel state bridge.
    Local storage is a cache; Supabase app_settings remains the source of truth. */
 (function v222LeaveTravelStateBridge() {
   if (window.__v222LeaveTravelStateBridge) return;
@@ -30972,7 +31242,7 @@ async function init() {
   );
 
   window.nawahLeaveTravelSyncV222 = {
-    schemaVersion: 225,
+    schemaVersion: 226,
     track: track,
     refresh: function () {
       syncLeaveRuntimeFromCache();
@@ -30986,6 +31256,7 @@ async function init() {
   window.nawahLeaveTravelSyncV223 = window.nawahLeaveTravelSyncV222;
   window.nawahLeaveTravelSyncV224 = window.nawahLeaveTravelSyncV222;
   window.nawahLeaveTravelSyncV225 = window.nawahLeaveTravelSyncV222;
+  window.nawahLeaveTravelSyncV226 = window.nawahLeaveTravelSyncV222;
 })();
 
 /* v211 - structured employee end-of-service workflow */
@@ -63185,10 +63456,14 @@ window.nawahLeaveBalanceReportV185 = {
       return String(open.nextFinanceDate || nextDate(open.financeDate)).slice(0, 10);
     return today();
   }
-	  function postTicketExpense(req, amount, note) {
+	  async function postTicketExpense(req, amount, note) {
+	    const sync = window.nawahFinanceSyncV226 || null;
+	    if (sync?.prepareMutation && !(await sync.prepareMutation())) return false;
 	    const date = financeTargetDate();
 	    const pack = readFinanceDay(date);
-	    let exists = false;
+	    if (pack.record.isClosed) return false;
+	    let exists = false,
+	      expenseId = "";
 	    pack.record.expenses = pack.record.expenses.map(function (row) {
 	      if (
 	        row &&
@@ -63196,7 +63471,9 @@ window.nawahLeaveBalanceReportV185 = {
 	        String(row.travelId) === String(req.id)
 	      ) {
 	        exists = true;
+	        expenseId = String(row.id || `travel-ticket-expense-${req.id}`);
 	        return Object.assign({}, row, {
+	          id: expenseId,
 	          amount: String(Number(amount || 0) || 0),
 	          note: note,
 	          updatedAt: new Date().toISOString(),
@@ -63216,8 +63493,9 @@ window.nawahLeaveBalanceReportV185 = {
 	    if (!exists) {
 	      const blank = pack.record.expenses.pop() || { amount: "", note: "" };
       if (text(blank.amount) || text(blank.note)) pack.record.expenses.push(blank);
-      pack.record.expenses.push({
-        id: "travel-ticket-expense-" + Date.now(),
+	      expenseId = `travel-ticket-expense-${req.id}`;
+	      pack.record.expenses.push({
+	        id: expenseId,
         amount: String(Number(amount || 0) || 0),
         note: note,
         source: "travel-ticket",
@@ -63229,13 +63507,25 @@ window.nawahLeaveBalanceReportV185 = {
 	    pack.days[date] = pack.record;
 	    localStorage.setItem(FINANCE_DAYS_KEY, JSON.stringify(pack.days));
 	    if (!pack.record.isClosed) localStorage.setItem(FINANCE_OPEN_KEY, JSON.stringify(pack.record));
-	    try {
-	      if (typeof saveLocalMeta === "function") saveLocalMeta();
-	      else if (typeof queueCloudStateSave === "function") queueCloudStateSave();
-	    } catch (_) {}
+	    sync?.trackDayUpserts?.([
+	      sync.mutationKey(date, "expenses", expenseId),
+	    ]);
+	    const saved = sync?.save
+	      ? await sync.save("confirmed-finance-travel-ticket-expense")
+	      : false;
 	    try {
 	      window.dispatchEvent(new CustomEvent("nawah:finance-expense-posted", { detail: { date, source: "travel-ticket" } }));
 	    } catch (_) {}
+	    const confirmedDays = parseJson(
+	      localStorage.getItem(FINANCE_DAYS_KEY),
+	      {},
+	    );
+	    return Boolean(
+	      saved !== false &&
+	        confirmedDays?.[date]?.expenses?.some(
+	          (row) => String(row?.id || "") === expenseId,
+	        ),
+	    );
   }
   async function saveTicket(postExpense) {
     const dlg = ticketModal();
@@ -63280,11 +63570,13 @@ window.nawahLeaveBalanceReportV185 = {
     };
     if (postExpense && amount > 0) {
       const emp = employeeById(req.employeeId) || {};
-      postTicketExpense(
+      const financeSaved = await postTicketExpense(
         req,
         amount,
         "قيمة تذكرة الطيران - " + (emp.name || "موظف"),
       );
+	  if (!financeSaved)
+	    return notify("تعذر تأكيد ترحيل قيمة التذكرة إلى المالية سحابيًا.");
       info.postedExpenseAt = new Date().toISOString();
     }
     list = list.map(function (item) {
@@ -64650,12 +64942,12 @@ window.nawahLeaveBalanceReportV185 = {
   }, 300);
 })();
  
-/* v225 - canonical cloud persistence, financial conflict protection, and cross-browser sync */
+/* v226 - canonical cloud persistence, daily-finance conflict protection, and cross-browser sync */
 (function v221CanonicalCloudPersistence() {
   if (window.__v221CanonicalCloudPersistence) return;
   window.__v221CanonicalCloudPersistence = true;
 
-  const STATE_SCHEMA_VERSION = 225;
+  const STATE_SCHEMA_VERSION = 226;
   const STATE_KEY =
     typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
       ? CLOUD_STATE_KEY
@@ -64829,8 +65121,9 @@ window.nawahLeaveBalanceReportV185 = {
     if (value.includes("travel")) markDirty(["travelRequests", "leaveBalanceReservations"]);
     if (value.includes("advance")) markDirty(["payrollAdvances", "payrollRuns"]);
     if (value.includes("payroll")) markDirty(["payrollRuns", "payrollAdvances"]);
-    if (value.includes("finance"))
-      markDirty(["financeSettings", "financeDailyOpen", "financeDailyDays"]);
+    if (value.includes("finance-settings")) markDirty("financeSettings");
+    else if (value.includes("finance"))
+      markDirty(["financeDailyOpen", "financeDailyDays"]);
     if (value.includes("attachment")) markDirty("attachmentRecordsV165");
   }
 
@@ -65193,6 +65486,198 @@ window.nawahLeaveBalanceReportV185 = {
     };
   }
 
+  function financeLegacyRowIdV226(record, amount, note, index) {
+    const seed = `${record?.source || "legacy"}|${record?.travelId || ""}|${record?.createdAt || ""}|${amount}|${note}|${index}`;
+    let hash = 2166136261;
+    for (let cursor = 0; cursor < seed.length; cursor += 1) {
+      hash ^= seed.charCodeAt(cursor);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `finance-legacy-${(hash >>> 0).toString(16)}`;
+  }
+
+  function canonicalFinanceRowsV226(rows) {
+    return (Array.isArray(rows) ? rows : [])
+      .map((row, index) => {
+        const record = row && typeof row === "object" ? row : {},
+          amount = record.amount === 0 ? "0" : String(record.amount || "").trim(),
+          note = String(record.note || "").trim();
+        if (!amount && !note) return null;
+        return {
+          ...clone(record),
+          id:
+            String(record.id || "").trim() ||
+            financeLegacyRowIdV226(record, amount, note, index),
+          amount,
+          note,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function parseFinanceMutationKeyV226(value) {
+    const parts = String(value || "").split("::");
+    return parts.length >= 3
+      ? { date: parts[0], section: parts[1], id: parts.slice(2).join("::") }
+      : null;
+  }
+
+  function mergeFinanceDaysV226(
+    remoteDays,
+    localDays,
+    deletedIds,
+    upsertIds,
+  ) {
+    const mergedDays = clone(
+        remoteDays && typeof remoteDays === "object" ? remoteDays : {},
+      ),
+      local = localDays && typeof localDays === "object" ? localDays : {},
+      groups = new Map(),
+      lockedRemoteDates = new Set(
+        Object.keys(mergedDays).filter((date) => mergedDays[date]?.isClosed),
+      ),
+      ignoredTransactionDates = new Set(lockedRemoteDates);
+    const collect = (mutations, kind) => {
+      mutations?.forEach((_, mutationKey) => {
+        const parsed = parseFinanceMutationKeyV226(mutationKey);
+        if (!parsed?.date || !parsed.section || !parsed.id) return;
+        const groupKey = `${parsed.date}::${parsed.section}`;
+        if (!groups.has(groupKey))
+          groups.set(groupKey, {
+            date: parsed.date,
+            section: parsed.section,
+            upserts: new Set(),
+            deletes: new Set(),
+          });
+        groups.get(groupKey)[kind].add(parsed.id);
+      });
+    };
+    collect(deletedIds, "deletes");
+    collect(upsertIds, "upserts");
+    upsertIds?.forEach((_, mutationKey) => {
+      const parsed = parseFinanceMutationKeyV226(mutationKey);
+      if (
+        parsed?.section === "meta" &&
+        parsed.id === "isClosed" &&
+        lockedRemoteDates.has(parsed.date)
+      ) {
+        const nextDate = String(local[parsed.date]?.nextFinanceDate || "");
+        nextDate && ignoredTransactionDates.add(nextDate);
+      }
+    });
+    groups.forEach((group) => {
+      if (ignoredTransactionDates.has(group.date)) return;
+      const remoteDay =
+          mergedDays[group.date] && typeof mergedDays[group.date] === "object"
+            ? { ...mergedDays[group.date] }
+            : { financeDate: group.date },
+        localDay =
+          local[group.date] && typeof local[group.date] === "object"
+            ? local[group.date]
+            : {};
+      if (group.section === "meta") {
+        group.deletes.forEach((field) => delete remoteDay[field]);
+        group.upserts.forEach((field) => {
+          if (Object.prototype.hasOwnProperty.call(localDay, field))
+            remoteDay[field] = clone(localDay[field]);
+          else delete remoteDay[field];
+        });
+      } else {
+        const remoteRows = canonicalFinanceRowsV226(remoteDay[group.section]),
+          localRows = canonicalFinanceRowsV226(localDay[group.section]),
+          localById = new Map(
+            localRows.map((record) => [String(record.id), record]),
+          ),
+          rows = remoteRows
+            .filter((record) => !group.deletes.has(String(record.id)))
+            .map((record) =>
+              group.upserts.has(String(record.id)) &&
+              localById.has(String(record.id))
+                ? clone(localById.get(String(record.id)))
+                : record,
+            ),
+          present = new Set(rows.map((record) => String(record.id)));
+        group.upserts.forEach((id) => {
+          if (!present.has(id) && localById.has(id))
+            rows.push(clone(localById.get(id)));
+        });
+        remoteDay[group.section] = rows;
+      }
+      remoteDay.financeDate = group.date;
+      remoteDay.updatedAt =
+        String(localDay.updatedAt || "") > String(remoteDay.updatedAt || "")
+          ? localDay.updatedAt
+          : remoteDay.updatedAt || localDay.updatedAt || "";
+      mergedDays[group.date] = remoteDay;
+    });
+    return mergedDays;
+  }
+
+  function recalculateClosedFinanceDayV226(day, state) {
+    if (!day || !day.isClosed) return day;
+    const number = (value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+      },
+      sum = (rows) =>
+        canonicalFinanceRowsV226(rows).reduce(
+          (total, row) => total + number(row.amount),
+          0,
+        ),
+      settings =
+        state.financeSettings && typeof state.financeSettings === "object"
+          ? state.financeSettings
+          : {},
+      carried =
+        day.carriedAmountOverride == null
+          ? number(settings.openingAmount)
+          : number(day.carriedAmountOverride),
+      custody = number(settings.custodyAmount),
+      pending = sum(day.pending),
+      deletedPending = sum(day.deletedPending),
+      expenses = sum(day.expenses),
+      cashSales = sum(day.cashSales),
+      cardSales = sum(day.cardSales),
+      manualCash = number(day.manualCashAmount),
+      monthKey = String(day.financeDate || "").slice(0, 7),
+      advances = (Array.isArray(state.payrollAdvances)
+        ? state.payrollAdvances
+        : []
+      ).reduce((total, advance) => {
+        const advanceMonth = String(
+            advance?.monthKey || String(advance?.date || "").slice(0, 7),
+          ),
+          amount = number(
+            advance?.amount ?? advance?.value ?? advance?.total ?? 0,
+          ),
+          paid = Array.isArray(advance?.payments)
+            ? advance.payments.reduce(
+                (sum, payment) => sum + number(payment?.amount),
+                0,
+              )
+            : number(advance?.paidAmount || advance?.paid || 0);
+        return advanceMonth === monthKey &&
+          String(advance?.status || "approved") === "approved"
+          ? total + Math.max(0, amount - paid)
+          : total;
+      }, 0);
+    return {
+      ...day,
+      carriedAmountSnapshot: carried,
+      custodyAmountSnapshot: custody,
+      fundAmountSnapshot:
+        carried +
+        custody +
+        cashSales +
+        manualCash +
+        deletedPending -
+        pending -
+        expenses -
+        advances,
+      newCarriedAmountSnapshot: carried + cashSales - expenses,
+    };
+  }
+
   function mergedState(
     remoteState,
     localState,
@@ -65206,6 +65691,35 @@ window.nawahLeaveBalanceReportV185 = {
     snapshot.forEach((_, field) => {
       const deletedIds = deleteSnapshot.get(field);
       const upsertIds = upsertSnapshot.get(field);
+      if (field === "financeDailyOpen" && snapshot.has("financeDailyDays"))
+        return;
+      if (field === "financeSettings" && (deletedIds || upsertIds)) {
+        const remoteSettings =
+            merged[field] && typeof merged[field] === "object"
+              ? { ...merged[field] }
+              : {},
+          localSettings =
+            localState[field] && typeof localState[field] === "object"
+              ? localState[field]
+              : {};
+        deletedIds?.forEach((_, key) => delete remoteSettings[key]);
+        upsertIds?.forEach((_, key) => {
+          if (Object.prototype.hasOwnProperty.call(localSettings, key))
+            remoteSettings[key] = clone(localSettings[key]);
+          else delete remoteSettings[key];
+        });
+        merged[field] = remoteSettings;
+        return;
+      }
+      if (field === "financeDailyDays" && (deletedIds || upsertIds)) {
+        merged.financeDailyDays = mergeFinanceDaysV226(
+          merged.financeDailyDays,
+          localState.financeDailyDays,
+          deletedIds,
+          upsertIds,
+        );
+        return;
+      }
       if (field === "payrollPrepaidDeductions" && upsertIds) {
         const remoteMap =
             merged[field] && typeof merged[field] === "object"
@@ -65271,6 +65785,58 @@ window.nawahLeaveBalanceReportV185 = {
         merged[field] = clone(localState[field]);
       }
     });
+    if (
+      snapshot.has("financeDailyDays") &&
+      merged.financeDailyDays &&
+      typeof merged.financeDailyDays === "object"
+    ) {
+      const closeDates = new Set();
+      upsertSnapshot.get("financeDailyDays")?.forEach((_, mutationKey) => {
+        const parsed = parseFinanceMutationKeyV226(mutationKey);
+        if (parsed?.section === "meta" && parsed.id === "isClosed")
+          closeDates.add(parsed.date);
+      });
+      closeDates.forEach((date) => {
+        if (merged.financeDailyDays[date]?.isClosed) {
+          merged.financeDailyDays[date] = recalculateClosedFinanceDayV226(
+            merged.financeDailyDays[date],
+            merged,
+          );
+          const closedDay = merged.financeDailyDays[date],
+            nextDate = String(closedDay.nextFinanceDate || ""),
+            nextDay = nextDate ? merged.financeDailyDays[nextDate] : null;
+          if (nextDay && !nextDay.isClosed)
+            merged.financeDailyDays[nextDate] = {
+              ...nextDay,
+              carriedAmountOverride: Number(
+                closedDay.newCarriedAmountSnapshot || 0,
+              ),
+              updatedAt:
+                String(closedDay.updatedAt || "") >
+                String(nextDay.updatedAt || "")
+                  ? closedDay.updatedAt
+                  : nextDay.updatedAt || closedDay.updatedAt || "",
+            };
+        }
+      });
+      const preferredDate = String(
+          localState.financeDailyOpen?.financeDate ||
+            localState.financeDailyCurrentDate ||
+            "",
+        ),
+        fallbackDate = Object.keys(merged.financeDailyDays)
+          .filter((date) => !merged.financeDailyDays[date]?.isClosed)
+          .sort()
+          .pop(),
+        openDate =
+          (preferredDate && merged.financeDailyDays[preferredDate]
+            ? preferredDate
+            : fallbackDate) || preferredDate;
+      if (openDate && merged.financeDailyDays[openDate]) {
+        merged.financeDailyOpen = clone(merged.financeDailyDays[openDate]);
+        merged.financeDailyCurrentDate = openDate;
+      }
+    }
     if (
       snapshot.has("employees") &&
       Array.isArray(merged.employees) &&
@@ -65680,9 +66246,10 @@ window.nawahLeaveBalanceReportV185 = {
   window.nawahCloudSyncV223 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV224 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV225 = window.nawahCloudSyncV221;
+  window.nawahCloudSyncV226 = window.nawahCloudSyncV221;
 })();
 
-/* v225 - final renderer lock (must remain the last application patch). */
+/* v226 - final renderer lock (must remain the last application patch). */
 (function v222FinalLeaveTravelRendererLock() {
   if (window.__v222FinalLeaveTravelRendererLock) return;
   window.__v222FinalLeaveTravelRendererLock = true;
