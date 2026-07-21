@@ -369,65 +369,6 @@ let supabaseClient = null,
   cloudSaveTimer = null,
   cloudLoadAttempted = !1,
   cloudSaveAllowed = !1;
-const FINANCE_EMPTY_RESET_VERSION =
-    "20260628-finance-full-empty-v4-clean-cloud",
-  FINANCE_EMPTY_RESET_KEY = "nawah-finance-empty-reset-version",
-  ADVANCE_FIELD_RESET_KEY = "nawah-advance-fields-reset-version";
-function clearFinanceAndAdvanceLocalDataOnce() {
-  try {
-    if (
-      localStorage.getItem(FINANCE_EMPTY_RESET_KEY) ===
-      FINANCE_EMPTY_RESET_VERSION
-    )
-      return !1;
-    const e = [];
-    for (let t = 0; t < localStorage.length; t += 1) {
-      const n = localStorage.key(t);
-      if (!n) continue;
-      const a =
-          "nawah-finance-daily-open" === n ||
-          "nawah-finance-daily-days" === n ||
-          n.startsWith("nawah-finance-daily-"),
-        o =
-          "nawah-finance-settings" === n ||
-          n.startsWith("nawah-finance-settings-");
-      (a || o) && e.push(n);
-    }
-    return (
-      e.forEach((e) => localStorage.removeItem(e)),
-      localStorage.setItem(
-        "nawah-finance-settings",
-        JSON.stringify({ openingAmount: 0, custodyAmount: 0, updatedAt: "" }),
-      ),
-      localStorage.removeItem("nawah-finance-daily-open"),
-      localStorage.removeItem("nawah-finance-daily-days"),
-      localStorage.setItem(
-        FINANCE_EMPTY_RESET_KEY,
-        FINANCE_EMPTY_RESET_VERSION,
-      ),
-      !0
-    );
-  } catch (e) {
-    return (console.warn("تعذر تفريغ بيانات المالية والسلفيات محليًا.", e), !1);
-  }
-}
-async function clearEmployeeAdvanceFieldsOnce() {
-  try {
-    if (
-      localStorage.getItem(ADVANCE_FIELD_RESET_KEY) ===
-      FINANCE_EMPTY_RESET_VERSION
-    )
-      return;
-    (clearFinanceAndAdvanceLocalDataOnce(),
-      localStorage.setItem(
-        ADVANCE_FIELD_RESET_KEY,
-        FINANCE_EMPTY_RESET_VERSION,
-      ));
-  } catch (e) {
-    console.warn("تعذر تثبيت إعداد حماية السلفيات من الحذف.", e);
-  }
-}
-clearFinanceAndAdvanceLocalDataOnce();
 let appBootReadyTimer = 0;
 let appBootSettlingTimer = 0;
 function clearTransientBootWarnings() {
@@ -795,19 +736,7 @@ function buildCloudState() {
 function applyCloudState(e) {
   return (
     !(!e || "object" != typeof e) &&
-    (localStorage.getItem(FINANCE_EMPTY_RESET_KEY) ===
-      FINANCE_EMPTY_RESET_VERSION &&
-      (delete e.financeSettings,
-      delete e.financeDailyOpen,
-      delete e.financeDailyDays,
-      delete e.financeDailyCurrentDate,
-      localStorage.setItem(
-        "nawah-finance-settings",
-        JSON.stringify({ openingAmount: 0, custodyAmount: 0, updatedAt: "" }),
-      ),
-      localStorage.removeItem("nawah-finance-daily-open"),
-      localStorage.removeItem("nawah-finance-daily-days")),
-    Array.isArray(e.employees) &&
+    (Array.isArray(e.employees) &&
       (employees = e.employees.map(normalizeEmployee)),
     Array.isArray(e.leaves) && (leaves = e.leaves),
     Array.isArray(e.jobTitles) && (jobTitles = e.jobTitles),
@@ -1092,15 +1021,7 @@ async function initStorage() {
   ((db = await openDatabase()), initSupabaseClient(), (cloudSaveAllowed = !1));
   const e = await loadCloudState();
   if (e.ok && e.found && e.state && applyCloudState(e.state)) {
-    if (
-      (await syncEmployeeLocalCache(employees),
-      (cloudSaveAllowed = !0),
-      localStorage.getItem(FINANCE_EMPTY_RESET_KEY) ===
-        FINANCE_EMPTY_RESET_VERSION)
-    )
-      try {
-        await saveCloudStateNow({ force: !0 });
-      } catch (e) {}
+    (await syncEmployeeLocalCache(employees), (cloudSaveAllowed = !0));
     return;
   }
   const t = await dbGetAllEmployees();
@@ -7072,9 +6993,7 @@ async function init() {
   if (await requireAuthenticatedUser()) {
     setupEvents();
     try {
-      (await initStorage(),
-        await clearEmployeeAdvanceFieldsOnce(),
-        (window.__nawahEmployeesReady = !0));
+      (await initStorage(), (window.__nawahEmployeesReady = !0));
     } catch (e) {
       (console.error(e),
         (employees = seedEmployees.map(normalizeEmployee)),
@@ -22605,264 +22524,6 @@ async function init() {
         : setTimeout(() => H(!0), 150));
   })(),
   (function () {
-    const e = "20260629-finance-clean-empty-v48-no-closed-days",
-      t = "nawah-finance-clean-start-reset-version",
-      n = [
-        "nawah-finance-settings",
-        "nawah-finance-daily-open",
-        "nawah-finance-daily-days",
-        "nawah-finance-empty-reset-version",
-        "nawah-finance-hard-empty-reset-version",
-      ],
-      a = [
-        "financeSettings",
-        "financeDailyOpen",
-        "financeDailyDays",
-        "financeDailyCurrentDate",
-        "financeSettingsUpdatedAt",
-      ];
-    function o() {
-      try {
-        return localStorage.getItem(t) !== e;
-      } catch (e) {
-        return !0;
-      }
-    }
-    function r() {
-      try {
-        if (
-          "function" == typeof formatInputDate &&
-          "function" == typeof todayAtNoon
-        )
-          return formatInputDate(todayAtNoon());
-      } catch (e) {}
-      const e = new Date();
-      return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
-    }
-    function i() {
-      try {
-        const e = [];
-        for (let t = 0; t < localStorage.length; t += 1) {
-          const n = localStorage.key(t);
-          n && n.includes("finance") && e.push(n);
-        }
-        (Array.from(new Set([...e, ...n])).forEach((e) =>
-          localStorage.removeItem(e),
-        ),
-          localStorage.setItem(
-            "nawah-finance-settings",
-            JSON.stringify({
-              openingAmount: 0,
-              custodyAmount: 0,
-              updatedAt: "",
-            }),
-          ),
-          localStorage.setItem("nawah-finance-daily-days", JSON.stringify({})),
-          localStorage.removeItem("nawah-finance-daily-open"),
-          localStorage.setItem("nawah-payroll-advances", "[]"));
-      } catch (e) {
-        console.warn(
-          "تعذر تفريغ بيانات المالية والسلفيات الظاهرة في المالية.",
-          e,
-        );
-      }
-    }
-    function s(e) {
-      return e && "object" == typeof e
-        ? (a.forEach((t) => {
-            try {
-              delete e[t];
-            } catch (e) {}
-          }),
-          (e.financeSettings = {
-            openingAmount: 0,
-            custodyAmount: 0,
-            updatedAt: "",
-          }),
-          (e.financeDailyDays = {}),
-          (e.financeDailyOpen = {
-            financeDate: r(),
-            pending: [{ amount: "", note: "" }],
-            expenses: [{ amount: "", note: "" }],
-            cashSales: [{ amount: "", note: "" }],
-            cardSales: [{ amount: "", note: "" }],
-            budgetAmount: "",
-            manualCashAmount: "",
-            carriedAmountOverride: null,
-            carriedAmountSnapshot: 0,
-            custodyAmountSnapshot: 0,
-            fundAmountSnapshot: 0,
-            newCarriedAmountSnapshot: 0,
-            isClosed: !1,
-            closedAt: "",
-            nextFinanceDate: "",
-            deletedPending: [],
-            updatedAt: "",
-          }),
-          (e.financeDailyCurrentDate = r()),
-          (e.payrollAdvances = []),
-          e)
-        : e;
-    }
-    function l() {
-      try {
-        "function" == typeof renderFinance && renderFinance();
-      } catch (e) {}
-      try {
-        "function" == typeof renderPayroll && renderPayroll();
-      } catch (e) {}
-      try {
-        "function" == typeof renderAll && renderAll();
-      } catch (e) {}
-    }
-    o() && i();
-    const c = "function" == typeof buildCloudState ? buildCloudState : null;
-    if (c && !c.__financeCleanStartV48) {
-      const e = function () {
-        const e = c.apply(this, arguments) || {};
-        return o() ? s(e) : e;
-      };
-      e.__financeCleanStartV48 = !0;
-      try {
-        buildCloudState = e;
-      } catch (e) {}
-      window.buildCloudState = e;
-    }
-    const d = "function" == typeof applyCloudState ? applyCloudState : null;
-    if (d && !d.__financeCleanStartV48) {
-      const e = function (e) {
-        const t = o() ? s(e || {}) : e,
-          n = d.apply(this, [t]);
-        return (o() && i(), n);
-      };
-      e.__financeCleanStartV48 = !0;
-      try {
-        applyCloudState = e;
-      } catch (e) {}
-      window.applyCloudState = e;
-    }
-    const u = "function" == typeof initStorage ? initStorage : null;
-    if (u && !u.__financeCleanStartV48) {
-      const n = async function () {
-        const n = o();
-        n && i();
-        const a = await u.apply(this, arguments);
-        if (n) {
-          i();
-          try {
-            localStorage.setItem(t, e);
-          } catch (e) {}
-          try {
-            await saveCloudStateNow({ force: !0 });
-          } catch (e) {}
-          setTimeout(l, 100);
-        }
-        return a;
-      };
-      n.__financeCleanStartV48 = !0;
-      try {
-        initStorage = n;
-      } catch (e) {}
-      window.initStorage = n;
-    }
-    document.addEventListener("DOMContentLoaded", function () {
-      o() && (i(), setTimeout(l, 300));
-    });
-  })(),
-  (function () {
-    const e = "20260628-payroll-unapprove-v1",
-      t = "nawah-payroll-run-unapprove-reset-version",
-      n = "nawah-payroll-runs";
-    function a() {
-      try {
-        return localStorage.getItem(t) !== e;
-      } catch (e) {
-        return !0;
-      }
-    }
-    function o() {
-      try {
-        localStorage.removeItem(n);
-      } catch (e) {}
-      try {
-        localStorage.setItem(n, "[]");
-      } catch (e) {}
-    }
-    function r(e) {
-      if (!e || "object" != typeof e) return e;
-      if (!a()) return e;
-      try {
-        delete e.payrollRuns;
-      } catch (e) {}
-      return e;
-    }
-    a() && o();
-    const i = "function" == typeof buildCloudState ? buildCloudState : null;
-    if (i && !i.__payrollRunUnapproveResetV1) {
-      const e = function () {
-        return r(i.apply(this, arguments) || {});
-      };
-      e.__payrollRunUnapproveResetV1 = !0;
-      try {
-        buildCloudState = e;
-      } catch (e) {}
-      window.buildCloudState = e;
-    }
-    const s = "function" == typeof applyCloudState ? applyCloudState : null;
-    if (s && !s.__payrollRunUnapproveResetV1) {
-      const e = function (e) {
-        const t = s.apply(this, [r(e || {})]);
-        return (a() && o(), t);
-      };
-      e.__payrollRunUnapproveResetV1 = !0;
-      try {
-        applyCloudState = e;
-      } catch (e) {}
-      window.applyCloudState = e;
-    }
-    const l = "function" == typeof initStorage ? initStorage : null;
-    if (l && !l.__payrollRunUnapproveResetV1) {
-      const n = async function () {
-        const n = a();
-        n && o();
-        const r = await l.apply(this, arguments);
-        if (n) {
-          o();
-          try {
-            localStorage.setItem(t, e);
-          } catch (e) {}
-          try {
-            await saveCloudStateNow({ force: !0 });
-          } catch (e) {}
-          try {
-            "function" == typeof renderPayroll && renderPayroll();
-          } catch (e) {}
-          try {
-            "function" == typeof showToast &&
-              showToast("تم إرجاع مسير الرواتب إلى غير معتمد");
-          } catch (e) {}
-        }
-        return r;
-      };
-      n.__payrollRunUnapproveResetV1 = !0;
-      try {
-        initStorage = n;
-      } catch (e) {}
-      window.initStorage = n;
-    }
-    function c() {
-      if (a()) {
-        o();
-        try {
-          "function" == typeof renderPayroll && renderPayroll();
-        } catch (e) {}
-      }
-    }
-    document.addEventListener("DOMContentLoaded", function () {
-      setTimeout(c, 300);
-    });
-  })(),
-  (function () {
     if (window.__finalFinanceAndEstablishmentDocumentsPermissionFix) return;
     window.__finalFinanceAndEstablishmentDocumentsPermissionFix = !0;
     const e = {
@@ -27074,193 +26735,6 @@ async function init() {
         }
       });
     };
-  })(),
-  (function () {
-    const e = "v32-clean-employees-leaves-travel-20260629",
-      t = "nawah-v32-clean-state-applied";
-    function n(e, t) {
-      try {
-        if ("function" == typeof window.nawahShowBlockingMessage)
-          return void window.nawahShowBlockingMessage(
-            e,
-            t || "لا يمكن تنفيذ الطلب",
-          );
-      } catch (e) {}
-      try {
-        if ("function" == typeof window.showModalMessage)
-          return void window.showModalMessage(e, t || "لا يمكن تنفيذ الطلب");
-      } catch (e) {}
-      try {
-        showToast(e);
-      } catch (e) {}
-    }
-    function a(e, t) {
-      try {
-        if ("function" == typeof window.nawahConflictMessageFor)
-          return window.nawahConflictMessageFor(e, t);
-      } catch (e) {}
-      return "leave" === e
-        ? "يوجد طلب إجازة أو سفر قائم أو متداخل لهذا الموظف."
-        : "يوجد طلب سفر أو إجازة قائم أو متداخل لهذا الموظف.";
-    }
-    function o(e, t, n, a, o) {
-      try {
-        if ("function" == typeof window.nawahFindUnifiedRequestConflict)
-          return window.nawahFindUnifiedRequestConflict(e, t, n, a, o || {});
-      } catch (e) {}
-      return null;
-    }
-    async function r() {
-      try {
-        if (localStorage.getItem(t) === e) return;
-      } catch (e) {
-        return;
-      }
-      if (window.__nawahEmployeesReady) {
-        try {
-          ((employees = []), (window.employees = employees));
-        } catch (e) {}
-        try {
-          leaves = [];
-        } catch (e) {}
-        try {
-          attendanceExceptions = [];
-        } catch (e) {}
-        try {
-          localStorage.setItem("nawah-employees", JSON.stringify([]));
-        } catch (e) {}
-        try {
-          localStorage.setItem("nawah-leaves", JSON.stringify([]));
-        } catch (e) {}
-        try {
-          localStorage.setItem("nawah-travel-requests", JSON.stringify([]));
-        } catch (e) {}
-        try {
-          localStorage.setItem(
-            "nawah-attendance-exceptions",
-            JSON.stringify([]),
-          );
-        } catch (e) {}
-        await (async function () {
-          try {
-            if (
-              "function" == typeof dbGetAllEmployees &&
-              "function" == typeof dbDeleteEmployee
-            ) {
-              const e = await dbGetAllEmployees();
-              Array.isArray(e) &&
-                (await Promise.all(e.map((e) => dbDeleteEmployee(e.id))));
-            }
-          } catch (e) {}
-        })();
-        try {
-          saveLocalMeta();
-        } catch (e) {}
-        try {
-          await saveCloudStateNow({ force: !0 });
-        } catch (e) {}
-        try {
-          localStorage.setItem(t, e);
-        } catch (e) {}
-        try {
-          renderAll();
-        } catch (e) {}
-      } else setTimeout(r, 250);
-    }
-    (window.addEventListener(
-      "submit",
-      function (e) {
-        const t = e.target;
-        if (!t || "leaveForm" !== t.id) return;
-        const r = Object.fromEntries(new FormData(t).entries());
-        if (!r.employeeId || !r.from || !r.to) return;
-        const i = o("leave", r.employeeId, r.from, r.to, {});
-        i &&
-          !window.nawahConflictOverrideActiveV91(
-            "leave",
-            r.employeeId,
-            r.from,
-            r.to,
-          ) &&
-          (e.preventDefault(),
-          e.stopImmediatePropagation(),
-          window
-            .nawahAskConflictOverrideV91({
-              kind: "leave",
-              employeeId: r.employeeId,
-              from: r.from,
-              to: r.to,
-              message: a("leave", i),
-            })
-            .then(function (ok) {
-              if (ok) {
-                window.nawahSetConflictOverrideV91(
-                  "leave",
-                  r.employeeId,
-                  r.from,
-                  r.to,
-                );
-                try {
-                  t.requestSubmit ? t.requestSubmit() : t.submit();
-                } catch (_) {}
-              }
-            }));
-      },
-      !0,
-    ),
-      window.addEventListener(
-        "click",
-        function (e) {
-          const t = e.target?.closest?.("#saveTravelRequestBtn");
-          if (t) {
-            const t = document.querySelector("#travelRequestForm");
-            if (!t) return;
-            const r = (t.elements.employeeId?.value || "").trim(),
-              i = (t.elements.travelDate?.value || "").trim(),
-              s = t.elements.travelMode?.value || "oneway",
-              l = t.elements.returnMode?.value || "date";
-            let c = (t.elements.returnDate?.value || "").trim();
-            if ("roundtrip" === s && "days" === l) {
-              const e = Number(t.elements.returnDays?.value || 0);
-              if (e > 0 && i && "function" == typeof parseDate) {
-                const t = parseDate(i);
-                t &&
-                  (t.setDate(t.getDate() + e),
-                  (c = t.toISOString().slice(0, 10)));
-              }
-            }
-            if (!r || !i) return;
-            "roundtrip" !== s && (c = "");
-            const d = o("travel", r, i, c, {});
-            d &&
-              !window.nawahConflictOverrideActiveV91("travel", r, i, c) &&
-              (e.preventDefault(),
-              e.stopImmediatePropagation(),
-              window
-                .nawahAskConflictOverrideV91({
-                  kind: "travel",
-                  employeeId: r,
-                  from: i,
-                  to: c,
-                  message: a("travel", d),
-                })
-                .then(function (ok) {
-                  if (ok) {
-                    window.nawahSetConflictOverrideV91("travel", r, i, c);
-                    try {
-                      document.querySelector("#saveTravelRequestBtn")?.click();
-                    } catch (_) {}
-                  }
-                }));
-          }
-        },
-        !0,
-      ),
-      "loading" === document.readyState
-        ? document.addEventListener("DOMContentLoaded", () =>
-            setTimeout(r, 800),
-          )
-        : setTimeout(r, 800));
   })(),
   (function () {
     if (window.__cleanEmployeePhotoV45) return;
@@ -32501,14 +31975,12 @@ async function init() {
       cloud.found &&
       (!cloud.state || typeof cloud.state !== "object")
     ) {
-      employees = [];
-      cloudSaveAllowed = true;
+      employees = await localEmployees();
+      cloudSaveAllowed = false;
       cloudLoadAttempted = true;
-      await protectedSaveCloudStateNow({
-        force: true,
-        allowEmptyOverwrite: true,
-      });
-      window.__nawahCloudSourceReady = true;
+      toast(
+        "بيانات السحابة غير مكتملة؛ تم إيقاف الحفظ لحمايتها ولم يتم استبدالها.",
+      );
       return;
     }
     employees = await localEmployees();
@@ -64419,4 +63891,742 @@ window.nawahLeaveBalanceReportV185 = {
   setTimeout(function () {
     scheduleOrgDecorate();
   }, 300);
+})();
+ 
+/* v221 - canonical cloud persistence, conflict protection, and cross-browser sync */
+(function v221CanonicalCloudPersistence() {
+  if (window.__v221CanonicalCloudPersistence) return;
+  window.__v221CanonicalCloudPersistence = true;
+
+  const STATE_SCHEMA_VERSION = 221;
+  const STATE_KEY =
+    typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
+      ? CLOUD_STATE_KEY
+      : "app_state";
+  const CLIENT_ID =
+    "client-" +
+    Date.now().toString(36) +
+    "-" +
+    Math.random().toString(36).slice(2, 9);
+  const DOCUMENT_KEYS = [
+    "nawah-document-type-settings",
+    "nawah-establishment-documents",
+    "nawah-branches",
+  ];
+  const KEY_FIELDS = {
+    "nawah-employees": ["employees"],
+    "nawah-leaves": ["leaves"],
+    "nawah-job-titles": ["jobTitles"],
+    "nawah-attendance-exceptions": ["attendanceExceptions"],
+    "nawah-work-settings": ["workSettings"],
+    "nawah-absence-policy-settings": ["absencePolicySettings"],
+    "nawah-minute-template-settings": ["minuteTemplateSettings"],
+    "nawah-org-structure": ["orgStructure"],
+    "nawah-travel-requests": ["travelRequests"],
+    "nawah-payroll-prepaid-deductions": ["payrollPrepaidDeductions"],
+    "nawah-managers": ["managers"],
+    "nawah-leave-balance-reservations": ["leaveBalanceReservations"],
+    "nawah-payroll-advances": ["payrollAdvances"],
+    "nawah-payroll-runs": ["payrollRuns"],
+    "nawah-finance-settings": ["financeSettings"],
+    "nawah-finance-daily-open": ["financeDailyOpen", "financeDailyDays"],
+    "nawah-finance-daily-days": ["financeDailyOpen", "financeDailyDays"],
+    "nawah-company-settings-v92": ["companySettingsV92"],
+    "nawah-v136-notification-settings": ["v136Settings"],
+    "nawah-v136-org-settings": ["v136Settings"],
+    "nawah-private-alerts-v166": ["privateAlertsV166"],
+    "nawah-attachment-records-v165": ["attachmentRecordsV165"],
+    "nawah-document-type-settings": ["documentLocalState"],
+    "nawah-establishment-documents": ["documentLocalState"],
+    "nawah-branches": ["documentLocalState"],
+  };
+
+  let baselineState = null;
+  let baselineUpdatedAt = "";
+  let saveTimer = 0;
+  let activeSave = null;
+  let realtimeChannel = null;
+  let lastRefreshAt = 0;
+  let lastSyncErrorToastAt = 0;
+  let dirtySequence = 0;
+  const dirtyFields = new Map();
+
+  function clone(value) {
+    try {
+      return structuredClone(value);
+    } catch (_) {
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch (_) {
+        return value;
+      }
+    }
+  }
+
+  function readJson(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : clone(fallback);
+    } catch (_) {
+      return clone(fallback);
+    }
+  }
+
+  function writeJson(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.warn("v221: تعذر تحديث الذاكرة المحلية المؤقتة.", key, error);
+    }
+  }
+
+  function activeSession() {
+    try {
+      return Boolean(
+        authUser &&
+          authProfile &&
+          authProfile.is_active === true &&
+          !document.body.classList.contains("auth-locked") &&
+          !document.querySelector("#authGate"),
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function ensureClient() {
+    try {
+      if (!supabaseClient && typeof initSupabaseClient === "function")
+        initSupabaseClient();
+      return supabaseClient || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function fieldsForStorageKey(key) {
+    const normalized = String(key || "");
+    if (KEY_FIELDS[normalized]) return KEY_FIELDS[normalized];
+    if (normalized.startsWith("nawah-finance-daily-"))
+      return ["financeDailyOpen", "financeDailyDays"];
+    return [];
+  }
+
+  function markDirty(fields) {
+    if (window.__nawahCloudApplyInProgressV221) return;
+    (Array.isArray(fields) ? fields : [fields]).filter(Boolean).forEach((field) => {
+      dirtySequence += 1;
+      dirtyFields.set(field, dirtySequence);
+    });
+  }
+
+  function markReason(reason) {
+    const value = String(reason || "").toLowerCase();
+    if (!value) return;
+    if (value.includes("employee")) markDirty("employees");
+    if (value.includes("leave")) markDirty(["leaves", "leaveBalanceReservations"]);
+    if (value.includes("travel")) markDirty(["travelRequests", "leaveBalanceReservations"]);
+    if (value.includes("advance")) markDirty(["payrollAdvances", "payrollRuns"]);
+    if (value.includes("payroll")) markDirty(["payrollRuns", "payrollAdvances"]);
+    if (value.includes("finance"))
+      markDirty(["financeSettings", "financeDailyOpen", "financeDailyDays"]);
+    if (value.includes("attachment")) markDirty("attachmentRecordsV165");
+  }
+
+  function currentEmployees() {
+    try {
+      return Array.isArray(employees) ? employees : [];
+    } catch (_) {
+      return readJson("nawah-employees", []);
+    }
+  }
+
+  function buildDocumentState(existing) {
+    const next = existing && typeof existing === "object" ? { ...existing } : {};
+    DOCUMENT_KEYS.forEach((key) => {
+      let hasLocalValue = false;
+      try {
+        hasLocalValue = localStorage.getItem(key) !== null;
+      } catch (_) {}
+      if (hasLocalValue || !Object.prototype.hasOwnProperty.call(next, key))
+        next[key] = readJson(
+          key,
+          key === "nawah-document-type-settings" ? {} : [],
+        );
+    });
+    return next;
+  }
+
+  const previousBuildCloudState =
+    typeof buildCloudState === "function" ? buildCloudState : null;
+  function buildCanonicalStateV221() {
+    const state = previousBuildCloudState
+      ? previousBuildCloudState.apply(this, arguments) || {}
+      : {};
+    state.version = Math.max(Number(state.version || 0), STATE_SCHEMA_VERSION);
+    state.schemaVersion = STATE_SCHEMA_VERSION;
+    state.savedAt = new Date().toISOString();
+    state.employees = clone(currentEmployees());
+    state.leaves = clone(
+      typeof leaves !== "undefined" && Array.isArray(leaves)
+        ? leaves
+        : readJson("nawah-leaves", []),
+    );
+    state.jobTitles = clone(
+      typeof jobTitles !== "undefined" && Array.isArray(jobTitles)
+        ? jobTitles
+        : readJson("nawah-job-titles", []),
+    );
+    state.attendanceExceptions = clone(
+      typeof attendanceExceptions !== "undefined" &&
+        Array.isArray(attendanceExceptions)
+        ? attendanceExceptions
+        : readJson("nawah-attendance-exceptions", []),
+    );
+    state.workSettings = clone(
+      typeof workSettings !== "undefined"
+        ? workSettings
+        : readJson("nawah-work-settings", {}),
+    );
+    state.absencePolicySettings = clone(
+      typeof absencePolicySettings !== "undefined"
+        ? absencePolicySettings
+        : readJson("nawah-absence-policy-settings", {}),
+    );
+    state.minuteTemplateSettings = clone(
+      typeof minuteTemplateSettings !== "undefined"
+        ? minuteTemplateSettings
+        : readJson("nawah-minute-template-settings", {}),
+    );
+    try {
+      state.orgStructure = clone(
+        typeof getOrgStructure === "function"
+          ? getOrgStructure()
+          : readJson("nawah-org-structure", {}),
+      );
+    } catch (_) {
+      state.orgStructure = readJson("nawah-org-structure", {});
+    }
+    state.travelRequests = readJson("nawah-travel-requests", []);
+    state.payrollPrepaidDeductions = readJson(
+      "nawah-payroll-prepaid-deductions",
+      {},
+    );
+    state.managers = readJson("nawah-managers", []);
+    state.leaveBalanceReservations = readJson(
+      "nawah-leave-balance-reservations",
+      [],
+    );
+    state.payrollAdvances = readJson("nawah-payroll-advances", []);
+    state.payrollRuns = readJson("nawah-payroll-runs", []);
+    state.financeSettings = readJson("nawah-finance-settings", {
+      openingAmount: 0,
+      custodyAmount: 0,
+      updatedAt: "",
+    });
+    state.financeDailyOpen = readJson("nawah-finance-daily-open", {});
+    state.financeDailyDays = readJson("nawah-finance-daily-days", {});
+    state.companySettingsV92 = readJson("nawah-company-settings-v92", {});
+    state.documentLocalState = buildDocumentState(state.documentLocalState);
+    const previousV136 =
+      state.v136Settings && typeof state.v136Settings === "object"
+        ? state.v136Settings
+        : {};
+    state.v136Settings = {
+      notifications: readJson(
+        "nawah-v136-notification-settings",
+        previousV136.notifications || {},
+      ),
+      organization: readJson(
+        "nawah-v136-org-settings",
+        previousV136.organization || state.orgStructure || {
+          departments: [],
+          sections: [],
+          jobs: [],
+        },
+      ),
+    };
+    state.privateAlertsV166 = readJson("nawah-private-alerts-v166", []);
+    state.syncV221 = {
+      schemaVersion: STATE_SCHEMA_VERSION,
+      clientId: CLIENT_ID,
+      savedAt: state.savedAt,
+    };
+    delete state.financeResetVersion;
+    delete state.payrollResetVersion;
+    delete state.cleanStateVersion;
+    return state;
+  }
+  buildCanonicalStateV221.__v221CanonicalCloudPersistence = true;
+  try {
+    buildCloudState = buildCanonicalStateV221;
+  } catch (_) {}
+  window.buildCloudState = buildCanonicalStateV221;
+
+  const previousApplyCloudState =
+    typeof applyCloudState === "function" ? applyCloudState : null;
+  function applyCanonicalStateV221(state) {
+    if (!state || typeof state !== "object") return false;
+    window.__nawahCloudApplyInProgressV221 = true;
+    try {
+      const result = previousApplyCloudState
+        ? previousApplyCloudState.apply(this, arguments)
+        : true;
+      if (Array.isArray(state.employees)) {
+        const list = state.employees.map((employee, index) => {
+          try {
+            return typeof normalizeEmployee === "function"
+              ? normalizeEmployee(employee, index)
+              : employee;
+          } catch (_) {
+            return employee;
+          }
+        });
+        try {
+          employees = list;
+        } catch (_) {}
+        window.employees = list;
+        writeJson("nawah-employees", list);
+      }
+      if (Array.isArray(state.leaves)) {
+        try {
+          leaves = state.leaves;
+        } catch (_) {}
+        writeJson("nawah-leaves", state.leaves);
+      }
+      if (Array.isArray(state.jobTitles)) {
+        try {
+          jobTitles = state.jobTitles;
+        } catch (_) {}
+        writeJson("nawah-job-titles", state.jobTitles);
+      }
+      if (Array.isArray(state.attendanceExceptions)) {
+        try {
+          attendanceExceptions = state.attendanceExceptions;
+        } catch (_) {}
+        writeJson("nawah-attendance-exceptions", state.attendanceExceptions);
+      }
+      const directFields = [
+        ["travelRequests", "nawah-travel-requests"],
+        ["payrollPrepaidDeductions", "nawah-payroll-prepaid-deductions"],
+        ["managers", "nawah-managers"],
+        ["leaveBalanceReservations", "nawah-leave-balance-reservations"],
+        ["payrollAdvances", "nawah-payroll-advances"],
+        ["payrollRuns", "nawah-payroll-runs"],
+        ["financeSettings", "nawah-finance-settings"],
+        ["financeDailyOpen", "nawah-finance-daily-open"],
+        ["financeDailyDays", "nawah-finance-daily-days"],
+        ["companySettingsV92", "nawah-company-settings-v92"],
+        ["privateAlertsV166", "nawah-private-alerts-v166"],
+      ];
+      directFields.forEach(([field, key]) => {
+        if (Object.prototype.hasOwnProperty.call(state, field))
+          writeJson(key, state[field]);
+      });
+      if (state.documentLocalState && typeof state.documentLocalState === "object")
+        DOCUMENT_KEYS.forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(state.documentLocalState, key))
+            writeJson(key, state.documentLocalState[key]);
+        });
+      if (state.v136Settings && typeof state.v136Settings === "object") {
+        if (state.v136Settings.notifications)
+          writeJson(
+            "nawah-v136-notification-settings",
+            state.v136Settings.notifications,
+          );
+        if (state.v136Settings.organization)
+          writeJson("nawah-v136-org-settings", state.v136Settings.organization);
+      }
+      return result !== false;
+    } finally {
+      window.__nawahCloudApplyInProgressV221 = false;
+    }
+  }
+  applyCanonicalStateV221.__v221CanonicalCloudPersistence = true;
+  try {
+    applyCloudState = applyCanonicalStateV221;
+  } catch (_) {}
+  window.applyCloudState = applyCanonicalStateV221;
+
+  async function readCloudDirectV221() {
+    const client = ensureClient();
+    if (!client) throw new Error("cloud-client-unavailable");
+    const { data, error } = await client
+      .from("app_settings")
+      .select("setting_value, updated_at")
+      .eq("setting_key", STATE_KEY)
+      .maybeSingle();
+    if (error) throw error;
+    return {
+      found: Boolean(data),
+      state: data?.setting_value || null,
+      updatedAt: data?.updated_at || "",
+    };
+  }
+
+  function dirtySnapshot() {
+    return new Map(dirtyFields);
+  }
+
+  function clearSavedDirty(snapshot) {
+    snapshot.forEach((sequence, field) => {
+      if (dirtyFields.get(field) === sequence) dirtyFields.delete(field);
+    });
+  }
+
+  function mergedState(remoteState, localState, snapshot) {
+    const merged = clone(
+      remoteState && typeof remoteState === "object" ? remoteState : {},
+    );
+    snapshot.forEach((_, field) => {
+      if (Object.prototype.hasOwnProperty.call(localState, field))
+        merged[field] = clone(localState[field]);
+    });
+    merged.version = Math.max(
+      Number(merged.version || 0),
+      Number(localState.version || 0),
+      STATE_SCHEMA_VERSION,
+    );
+    merged.schemaVersion = STATE_SCHEMA_VERSION;
+    merged.savedAt = new Date().toISOString();
+    merged.syncV221 = {
+      schemaVersion: STATE_SCHEMA_VERSION,
+      clientId: CLIENT_ID,
+      savedAt: merged.savedAt,
+      merged: true,
+    };
+    return merged;
+  }
+
+  async function writeNewState(state) {
+    const client = ensureClient();
+    const updatedAt = new Date().toISOString();
+    const payload = {
+      setting_key: STATE_KEY,
+      setting_value: state,
+      updated_at: updatedAt,
+    };
+    const { data, error } = await client
+      .from("app_settings")
+      .upsert(payload, { onConflict: "setting_key" })
+      .select("updated_at")
+      .single();
+    if (error) throw error;
+    return data?.updated_at || updatedAt;
+  }
+
+  async function writeStateIfUnchanged(state, expectedUpdatedAt) {
+    const client = ensureClient();
+    const updatedAt = new Date().toISOString();
+    let query = client
+      .from("app_settings")
+      .update({ setting_value: state, updated_at: updatedAt })
+      .eq("setting_key", STATE_KEY);
+    if (expectedUpdatedAt) query = query.eq("updated_at", expectedUpdatedAt);
+    const { data, error } = await query.select("updated_at").maybeSingle();
+    if (error) throw error;
+    return data ? { saved: true, updatedAt: data.updated_at || updatedAt } : { saved: false };
+  }
+
+  function notifySyncFailure() {
+    const now = Date.now();
+    if (now - lastSyncErrorToastAt < 8000) return;
+    lastSyncErrorToastAt = now;
+    try {
+      if (typeof showToast === "function")
+        showToast("تعذر تأكيد الحفظ السحابي. لم تُعتبر العملية محفوظة بعد.");
+    } catch (_) {}
+  }
+
+  async function performSaveV221(options = {}) {
+    if (!activeSession()) return false;
+    const client = ensureClient();
+    if (!client) {
+      notifySyncFailure();
+      return false;
+    }
+    markReason(options.reason);
+    let snapshot = dirtySnapshot();
+    let localState = buildCanonicalStateV221();
+
+    if (!baselineUpdatedAt) {
+      const initial = await readCloudDirectV221();
+      baselineState = clone(initial.state);
+      baselineUpdatedAt = initial.updatedAt;
+      if (!initial.found) {
+        const updatedAt = await writeNewState(localState);
+        baselineState = clone(localState);
+        baselineUpdatedAt = updatedAt;
+        clearSavedDirty(snapshot);
+        return true;
+      }
+    }
+
+    const remoteEmployeeCount = Array.isArray(baselineState?.employees)
+      ? baselineState.employees.length
+      : 0;
+    const nextEmployeeCount = Array.isArray(localState.employees)
+      ? localState.employees.length
+      : 0;
+    const intentionalLastEmployeeDelete = Boolean(
+      options.allowEmptyOverwrite &&
+        String(options.reason || "").includes("employee-delete") &&
+        snapshot.has("employees"),
+    );
+    if (
+      remoteEmployeeCount > 0 &&
+      nextEmployeeCount === 0 &&
+      !intentionalLastEmployeeDelete
+    ) {
+      console.warn("v221: تم منع استبدال الموظفين بحالة فارغة غير مؤكدة.");
+      try {
+        if (typeof showToast === "function")
+          showToast("تم منع استبدال بيانات الموظفين بحالة فارغة غير مؤكدة");
+      } catch (_) {}
+      return false;
+    }
+
+    let attempt = await writeStateIfUnchanged(localState, baselineUpdatedAt);
+    if (attempt.saved) {
+      baselineState = clone(localState);
+      baselineUpdatedAt = attempt.updatedAt;
+      clearSavedDirty(snapshot);
+      return true;
+    }
+
+    for (let retry = 0; retry < 3; retry += 1) {
+      const remote = await readCloudDirectV221();
+      if (!remote.found) {
+        const updatedAt = await writeNewState(localState);
+        baselineState = clone(localState);
+        baselineUpdatedAt = updatedAt;
+        clearSavedDirty(snapshot);
+        return true;
+      }
+      if (!snapshot.size) {
+        baselineState = clone(remote.state);
+        baselineUpdatedAt = remote.updatedAt;
+        applyCanonicalStateV221(clone(remote.state));
+        return false;
+      }
+      const merged = mergedState(remote.state, localState, snapshot);
+      attempt = await writeStateIfUnchanged(merged, remote.updatedAt);
+      if (attempt.saved) {
+        baselineState = clone(merged);
+        baselineUpdatedAt = attempt.updatedAt;
+        clearSavedDirty(snapshot);
+        applyCanonicalStateV221(clone(merged));
+        try {
+          if (typeof syncEmployeeLocalCache === "function")
+            await syncEmployeeLocalCache(currentEmployees());
+        } catch (_) {}
+        return true;
+      }
+      snapshot = dirtySnapshot();
+      localState = buildCanonicalStateV221();
+    }
+    throw new Error("cloud-state-conflict");
+  }
+
+  async function saveCloudStateNowV221(options = {}) {
+    if (window.__nawahCloudApplyInProgressV221) return false;
+    if (activeSave) {
+      await activeSave;
+      if (!dirtyFields.size && !options.force) return true;
+    }
+    activeSave = performSaveV221(options)
+      .catch((error) => {
+        console.warn("v221: تعذر حفظ حالة النظام في Supabase.", error);
+        notifySyncFailure();
+        return false;
+      })
+      .finally(() => {
+        activeSave = null;
+        if (dirtyFields.size) queueCloudStateSaveV221();
+      });
+    return activeSave;
+  }
+  saveCloudStateNowV221.__v221CanonicalCloudPersistence = true;
+
+  function queueCloudStateSaveV221() {
+    if (
+      window.__nawahCloudApplyInProgressV221 ||
+      !activeSession() ||
+      !dirtyFields.size
+    )
+      return false;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveCloudStateNowV221({ reason: "debounced-change" });
+    }, 650);
+    return true;
+  }
+  queueCloudStateSaveV221.__v221CanonicalCloudPersistence = true;
+  try {
+    saveCloudStateNow = saveCloudStateNowV221;
+    queueCloudStateSave = queueCloudStateSaveV221;
+  } catch (_) {}
+  window.saveCloudStateNow = saveCloudStateNowV221;
+  window.queueCloudStateSave = queueCloudStateSaveV221;
+
+  const previousStorageSetItem = Storage.prototype.setItem;
+  if (!previousStorageSetItem.__v221CanonicalCloudPersistence) {
+    const wrappedSetItem = function (key, value) {
+      let previousValue = null;
+      try {
+        if (this === window.localStorage) previousValue = this.getItem(key);
+      } catch (_) {}
+      const result = previousStorageSetItem.apply(this, arguments);
+      try {
+        if (
+          this === window.localStorage &&
+          String(previousValue ?? "") !== String(value ?? "") &&
+          !window.__nawahCloudApplyInProgressV221
+        ) {
+          const fields = fieldsForStorageKey(key);
+          if (fields.length) {
+            markDirty(fields);
+            queueCloudStateSaveV221();
+          }
+        }
+      } catch (_) {}
+      return result;
+    };
+    wrappedSetItem.__v221CanonicalCloudPersistence = true;
+    Storage.prototype.setItem = wrappedSetItem;
+  }
+
+  const previousStorageRemoveItem = Storage.prototype.removeItem;
+  if (!previousStorageRemoveItem.__v221CanonicalCloudPersistence) {
+    const wrappedRemoveItem = function (key) {
+      let existed = false;
+      try {
+        existed = this === window.localStorage && this.getItem(key) !== null;
+      } catch (_) {}
+      const result = previousStorageRemoveItem.apply(this, arguments);
+      try {
+        if (
+          this === window.localStorage &&
+          existed &&
+          !window.__nawahCloudApplyInProgressV221
+        ) {
+          const fields = fieldsForStorageKey(key);
+          if (fields.length) {
+            markDirty(fields);
+            queueCloudStateSaveV221();
+          }
+        }
+      } catch (_) {}
+      return result;
+    };
+    wrappedRemoveItem.__v221CanonicalCloudPersistence = true;
+    Storage.prototype.removeItem = wrappedRemoveItem;
+  }
+
+  function renderAfterCloudRefresh() {
+    clearTimeout(renderAfterCloudRefresh.timer);
+    renderAfterCloudRefresh.timer = setTimeout(() => {
+      try {
+        if (typeof renderAll === "function") renderAll();
+      } catch (error) {
+        console.warn("v221: تعذر تحديث العرض بعد المزامنة.", error);
+      }
+    }, 120);
+  }
+
+  async function applyRemoteIfClean(remote) {
+    if (!remote?.state || dirtyFields.size || activeSave) return false;
+    if (remote.updatedAt && remote.updatedAt === baselineUpdatedAt) return false;
+    applyCanonicalStateV221(clone(remote.state));
+    baselineState = clone(remote.state);
+    baselineUpdatedAt = remote.updatedAt || "";
+    try {
+      if (typeof syncEmployeeLocalCache === "function")
+        await syncEmployeeLocalCache(currentEmployees());
+    } catch (_) {}
+    renderAfterCloudRefresh();
+    return true;
+  }
+
+  async function refreshCloudStateV221(force = false) {
+    if (!activeSession() || dirtyFields.size || activeSave) return false;
+    const now = Date.now();
+    if (!force && now - lastRefreshAt < 10000) return false;
+    lastRefreshAt = now;
+    try {
+      return await applyRemoteIfClean(await readCloudDirectV221());
+    } catch (error) {
+      console.warn("v221: تعذر تحديث البيانات من السحابة.", error);
+      return false;
+    }
+  }
+
+  function startRealtimeV221() {
+    const client = ensureClient();
+    if (!client?.channel || realtimeChannel) return;
+    try {
+      realtimeChannel = client
+        .channel("nawah-app-state-v221")
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "app_settings",
+            filter: "setting_key=eq." + STATE_KEY,
+          },
+          (payload) => {
+            const row = payload?.new || {};
+            if (row?.setting_value?.syncV221?.clientId === CLIENT_ID) return;
+            applyRemoteIfClean({
+              state: row.setting_value,
+              updatedAt: row.updated_at || "",
+            });
+          },
+        )
+        .subscribe();
+    } catch (error) {
+      realtimeChannel = null;
+      console.info("v221: التحديث الفوري غير متاح؛ سيُستخدم تحديث التركيز.");
+    }
+  }
+
+  const previousInitStorage =
+    typeof initStorage === "function" ? initStorage : null;
+  if (previousInitStorage) {
+    const initStorageV221 = async function () {
+      const result = await previousInitStorage.apply(this, arguments);
+      try {
+        const remote = await readCloudDirectV221();
+        if (remote.found && remote.state) {
+          baselineState = clone(remote.state);
+          baselineUpdatedAt = remote.updatedAt;
+        }
+      } catch (error) {
+        console.warn("v221: تعذر تثبيت خط أساس المزامنة السحابية.", error);
+      }
+      startRealtimeV221();
+      return result;
+    };
+    initStorageV221.__v221CanonicalCloudPersistence = true;
+    try {
+      initStorage = initStorageV221;
+    } catch (_) {}
+    window.initStorage = initStorageV221;
+  }
+
+  window.addEventListener("focus", () => refreshCloudStateV221(false));
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshCloudStateV221(false);
+    else if (dirtyFields.size) saveCloudStateNowV221({ reason: "page-hidden" });
+  });
+
+  window.nawahCloudSyncV221 = {
+    schemaVersion: STATE_SCHEMA_VERSION,
+    clientId: CLIENT_ID,
+    refresh: () => refreshCloudStateV221(true),
+    save: (reason = "manual") =>
+      saveCloudStateNowV221({ force: true, reason }),
+    pendingFields: () => Array.from(dirtyFields.keys()),
+  };
 })();
