@@ -691,6 +691,89 @@ function saveLocalMeta() {
     ),
     queueCloudStateSave());
 }
+
+function attendanceCloudSyncV224() {
+  return (
+    window.nawahCloudSyncV224 ||
+    window.nawahCloudSyncV223 ||
+    window.nawahCloudSyncV222 ||
+    window.nawahCloudSyncV221 ||
+    null
+  );
+}
+
+async function prepareAttendanceCloudMutationV224() {
+  const sync = attendanceCloudSyncV224();
+  if (!sync) return true;
+  try {
+    const pending =
+      typeof sync.pendingFields === "function" ? sync.pendingFields() : [];
+    if (pending.length && typeof sync.save === "function") {
+      const flushed = await sync.save("pending-state-flush");
+      if (
+        flushed === false &&
+        typeof sync.pendingFields === "function" &&
+        sync.pendingFields().length
+      )
+        return false;
+    }
+    if (typeof sync.refresh === "function") await sync.refresh();
+    return true;
+  } catch (error) {
+    console.warn("v224: تعذر تجهيز أحدث بيانات الحضور من السحابة.", error);
+    return false;
+  }
+}
+
+function trackAttendanceRecordUpsertsV224(field, ids) {
+  const sync = attendanceCloudSyncV224();
+  try {
+    if (sync && typeof sync.trackRecordUpserts === "function")
+      return sync.trackRecordUpserts(field, ids);
+    if (sync && typeof sync.trackFields === "function")
+      return sync.trackFields([field]);
+  } catch (_) {}
+  return false;
+}
+
+function trackAttendanceRecordDeletesV224(field, ids) {
+  const sync = attendanceCloudSyncV224();
+  try {
+    if (sync && typeof sync.trackRecordDeletes === "function")
+      return sync.trackRecordDeletes(field, ids);
+    if (sync && typeof sync.trackFields === "function")
+      return sync.trackFields([field]);
+  } catch (_) {}
+  return false;
+}
+
+async function confirmAttendanceCloudSaveV224(reason) {
+  const sync = attendanceCloudSyncV224();
+  try {
+    if (sync && typeof sync.save === "function")
+      return (await sync.save(reason || "confirmed-state-save")) !== false;
+    if (typeof saveCloudStateNow === "function")
+      return (
+        (await saveCloudStateNow({
+          force: true,
+          reason: reason || "confirmed-state-save",
+        })) !== false
+      );
+  } catch (error) {
+    console.warn("v224: تعذر تأكيد حفظ بيانات الحضور سحابيًا.", error);
+  }
+  return false;
+}
+
+async function persistAttendanceSettingsV224(fields) {
+  saveLocalMeta();
+  const sync = attendanceCloudSyncV224();
+  try {
+    if (sync && typeof sync.trackFields === "function")
+      sync.trackFields(fields);
+  } catch (_) {}
+  return confirmAttendanceCloudSaveV224("confirmed-settings-save");
+}
 function initSupabaseClient() {
   try {
     return window.supabase?.createClient
@@ -2145,7 +2228,7 @@ function readEstablishmentAbsenceRulesFromForm() {
     .filter((e) => e.name);
   return e.length ? e : legacyAbsenceRulesFromSettings(absencePolicySettings);
 }
-function addEstablishmentAbsenceRule() {
+async function addEstablishmentAbsenceRule() {
   const e = normalizeAbsencePolicySettings(absencePolicySettings);
   e.establishmentRules = [
     ...readEstablishmentAbsenceRulesFromForm(),
@@ -2159,10 +2242,17 @@ function addEstablishmentAbsenceRule() {
     ),
   ];
   ((absencePolicySettings = normalizeAbsencePolicySettings(e)),
-    renderAbsencePolicySettings(),
-    saveLocalMeta());
+    renderAbsencePolicySettings());
+  const saved = await persistAttendanceSettingsV224([
+    "absencePolicySettings",
+  ]);
+  showToast(
+    saved
+      ? "تمت إضافة سياسة الغياب وحفظها سحابيًا"
+      : "أُضيفت السياسة مؤقتًا، وتعذر تأكيد حفظها سحابيًا",
+  );
 }
-function removeEstablishmentAbsenceRule(e) {
+async function removeEstablishmentAbsenceRule(e) {
   const t = normalizeAbsencePolicySettings(absencePolicySettings),
     n = String(e || "");
   if (t.establishmentRules.length <= 1) return;
@@ -2170,8 +2260,15 @@ function removeEstablishmentAbsenceRule(e) {
     (e) => String(e.id) !== n,
   )),
     (absencePolicySettings = normalizeAbsencePolicySettings(t)),
-    renderAbsencePolicySettings(),
-    saveLocalMeta());
+    renderAbsencePolicySettings());
+  const saved = await persistAttendanceSettingsV224([
+    "absencePolicySettings",
+  ]);
+  showToast(
+    saved
+      ? "تم حذف سياسة الغياب وحفظ التغيير سحابيًا"
+      : "حُذفت السياسة مؤقتًا، وتعذر تأكيد الحفظ السحابي",
+  );
 }
 function renderAbsencePolicySettings() {
   absencePolicySettings = normalizeAbsencePolicySettings(absencePolicySettings);
@@ -2368,16 +2465,23 @@ function applySelectedShiftToWorkdays() {
     renderWorkSettings(),
     showToast("تمت إضافة الفترة المحددة إلى أيام العمل المفعلة"));
 }
-function resetWorkSettings() {
+async function resetWorkSettings() {
   ((workSettings = normalizeWorkSettings(DEFAULT_WORK_SETTINGS)),
     (absencePolicySettings = normalizeAbsencePolicySettings(
       DEFAULT_ABSENCE_POLICY_SETTINGS,
     )),
-    saveLocalMeta(),
     renderWorkSettings(),
     renderAttendance(),
-    renderDashboard(),
-    showToast("تمت استعادة إعداد العمل الافتراضي"));
+    renderDashboard());
+  const saved = await persistAttendanceSettingsV224([
+    "workSettings",
+    "absencePolicySettings",
+  ]);
+  showToast(
+    saved
+      ? "تمت استعادة إعداد العمل الافتراضي وحفظه سحابيًا"
+      : "تمت الاستعادة مؤقتًا، وتعذر تأكيد الحفظ السحابي",
+  );
 }
 function renderAll() {
   (renderDashboard(),
@@ -5199,7 +5303,15 @@ function openAbsenceModal() {
 }
 async function handleAbsenceSubmit(e) {
   e.preventDefault();
-  const t = e.currentTarget,
+  const t = e.currentTarget;
+  if (t.dataset.v224Saving === "true") return;
+  t.dataset.v224Saving = "true";
+  try {
+  if (!(await prepareAttendanceCloudMutationV224()))
+    return void showToast(
+      "تعذر الاتصال بالسحابة؛ لم يُسجل الغياب لحماية البيانات",
+    );
+  const
     n = Object.fromEntries(new FormData(t).entries()),
     a = n.from,
     o = n.to;
@@ -5244,26 +5356,70 @@ async function handleAbsenceSubmit(e) {
     (i.penaltyText = s.text),
     (i.policy = s.policy),
     (i.deductionAmount = absenceDeductionAmount(i)),
-    attendanceExceptions.unshift(i),
-    await createAbsenceMinute(i),
-    saveLocalMeta(),
-    t.closest("dialog").close(),
+    attendanceExceptions.unshift(i));
+  trackAttendanceRecordUpsertsV224("attendanceExceptions", [i.id]);
+  trackAttendanceRecordUpsertsV224("employees", [i.employeeId]);
+  (await createAbsenceMinute(i), saveLocalMeta());
+  trackAttendanceRecordUpsertsV224("attendanceExceptions", [i.id]);
+  trackAttendanceRecordUpsertsV224("employees", [i.employeeId]);
+  const saved = await confirmAttendanceCloudSaveV224(
+    "confirmed-attendance-record-save",
+  );
+  (t.closest("dialog").close(),
     (selectedAttendanceDate = a),
-    renderAll(),
-    showToast("تم تسجيل الغياب وإنشاء محضر غياب"));
+    renderAll());
+  showToast(
+    saved
+      ? "تم تسجيل الغياب وإنشاء المحضر وحفظهما سحابيًا"
+      : "تم تسجيل الغياب مؤقتًا، وتعذر تأكيد الحفظ السحابي وسيُعاد تلقائيًا",
+  );
+  return saved;
+  } finally {
+    t.dataset.v224Saving = "false";
+  }
 }
 async function deleteAbsenceRecord(e) {
+  if (!(await prepareAttendanceCloudMutationV224())) {
+    showToast("تعذر الاتصال بالسحابة؛ لم يُحذف الغياب لحماية البيانات");
+    return false;
+  }
   const t = attendanceExceptions.find((t) => t.id === e);
-  if (!t) return;
+  if (!t) {
+    showToast("سجل الغياب غير موجود أو تم حذفه مسبقًا");
+    return false;
+  }
   attendanceExceptions = attendanceExceptions.filter((t) => t.id !== e);
+  trackAttendanceRecordDeletesV224("attendanceExceptions", [e]);
   const n = getEmployee(t.employeeId);
-  (n?.minutes?.length &&
-    ((n.minutes = n.minutes.filter((t) => t.sourceAbsenceId !== e)),
-    await saveEmployeeRecord(n)),
-    saveLocalMeta(),
-    renderAll(),
-    showToast("تم حذف سجل الغياب"));
+  let employeeChanged = false;
+  if (n?.minutes?.length) {
+    const minutes = n.minutes.filter((t) => t.sourceAbsenceId !== e);
+    employeeChanged = minutes.length !== n.minutes.length;
+    if (employeeChanged) {
+      n.minutes = minutes;
+      trackAttendanceRecordUpsertsV224("employees", [n.id]);
+      await saveEmployeeRecord(n);
+    }
+  }
+  saveLocalMeta();
+  trackAttendanceRecordDeletesV224("attendanceExceptions", [e]);
+  if (employeeChanged)
+    trackAttendanceRecordUpsertsV224("employees", [n.id]);
+  const saved = await confirmAttendanceCloudSaveV224(
+    "confirmed-attendance-record-delete",
+  );
+  renderAll();
+  showToast(
+    saved
+      ? "تم حذف سجل الغياب ومحضره وحفظ التغيير سحابيًا"
+      : "تم تطبيق الحذف مؤقتًا، وتعذر تأكيده سحابيًا وسيُعاد تلقائيًا",
+  );
+  return saved;
 }
+window.nawahAttendanceSyncV224 = {
+  deleteAbsenceRecord,
+  persistSettings: persistAttendanceSettingsV224,
+};
 function setSelectedAttendanceDate(e) {
   parseDate(e) &&
     ((selectedAttendanceDate = e),
@@ -6595,29 +6751,39 @@ function setupEvents() {
       }),
     document
       .querySelector("#absencePolicyForm")
-      ?.addEventListener("click", (e) => {
+      ?.addEventListener("click", async (e) => {
         const t = e.target.closest("[data-add-establishment-absence-rule]"),
           n = e.target.closest("[data-remove-establishment-absence-rule]");
-        (t &&
-          (e.preventDefault(), e.stopPropagation(), addEstablishmentAbsenceRule()),
-          n &&
-            (e.preventDefault(),
-            e.stopPropagation(),
-            removeEstablishmentAbsenceRule(
-              n.dataset.removeEstablishmentAbsenceRule,
-            )));
+        if (t) {
+          e.preventDefault();
+          e.stopPropagation();
+          await addEstablishmentAbsenceRule();
+        }
+        if (n) {
+          e.preventDefault();
+          e.stopPropagation();
+          await removeEstablishmentAbsenceRule(
+            n.dataset.removeEstablishmentAbsenceRule,
+          );
+        }
       }),
     document
       .querySelector("#absencePolicyForm")
-      ?.addEventListener("submit", (e) => {
-        (e.preventDefault(),
-          updateAbsencePolicyFromForm(),
-          (absencePolicySettings = normalizeAbsencePolicySettings(
-            absencePolicySettings,
-          )),
-          saveLocalMeta(),
-          renderAttendance(),
-          showToast("تم حفظ قاعدة بيانات الغياب"));
+      ?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        updateAbsencePolicyFromForm();
+        absencePolicySettings = normalizeAbsencePolicySettings(
+          absencePolicySettings,
+        );
+        const saved = await persistAttendanceSettingsV224([
+          "absencePolicySettings",
+        ]);
+        renderAttendance();
+        showToast(
+          saved
+            ? "تم حفظ قاعدة بيانات الغياب سحابيًا"
+            : "تم الحفظ مؤقتًا، وتعذر تأكيد قاعدة الغياب سحابيًا",
+        );
       }),
     document
       .querySelector("#minuteSettingsForm")
@@ -6710,16 +6876,23 @@ function setupEvents() {
       }),
     document
       .querySelector("#workSettingsForm")
-      ?.addEventListener("submit", (e) => {
-        (e.preventDefault(),
-          (workSettings = normalizeWorkSettings(workSettings)),
-          (absencePolicySettings = normalizeAbsencePolicySettings(
-            absencePolicySettings,
-          )),
-          saveLocalMeta(),
-          renderAttendance(),
-          renderDashboard(),
-          showToast("تم حفظ إعداد العمل وتحديث الحضور الآلي"));
+      ?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        workSettings = normalizeWorkSettings(workSettings);
+        absencePolicySettings = normalizeAbsencePolicySettings(
+          absencePolicySettings,
+        );
+        const saved = await persistAttendanceSettingsV224([
+          "workSettings",
+          "absencePolicySettings",
+        ]);
+        renderAttendance();
+        renderDashboard();
+        showToast(
+          saved
+            ? "تم حفظ إعداد العمل وتحديث الحضور الآلي سحابيًا"
+            : "تم تحديث الحضور مؤقتًا، وتعذر تأكيد الإعدادات سحابيًا",
+        );
       }));
 }
 ((window.nawahShowBlockingMessage = showBlockingConflictMessage),
@@ -30358,7 +30531,7 @@ async function init() {
   }, 250);
 })();
 
-/* v223 - stable leave/travel state bridge.
+/* v224 - stable leave/travel state bridge.
    Local storage is a cache; Supabase app_settings remains the source of truth. */
 (function v222LeaveTravelStateBridge() {
   if (window.__v222LeaveTravelStateBridge) return;
@@ -30586,7 +30759,7 @@ async function init() {
   );
 
   window.nawahLeaveTravelSyncV222 = {
-    schemaVersion: 223,
+    schemaVersion: 224,
     track: track,
     refresh: function () {
       syncLeaveRuntimeFromCache();
@@ -30598,6 +30771,7 @@ async function init() {
     },
   };
   window.nawahLeaveTravelSyncV223 = window.nawahLeaveTravelSyncV222;
+  window.nawahLeaveTravelSyncV224 = window.nawahLeaveTravelSyncV222;
 })();
 
 /* v211 - structured employee end-of-service workflow */
@@ -64262,12 +64436,12 @@ window.nawahLeaveBalanceReportV185 = {
   }, 300);
 })();
  
-/* v223 - canonical cloud persistence, conflict protection, and cross-browser sync */
+/* v224 - canonical cloud persistence, conflict protection, and cross-browser sync */
 (function v221CanonicalCloudPersistence() {
   if (window.__v221CanonicalCloudPersistence) return;
   window.__v221CanonicalCloudPersistence = true;
 
-  const STATE_SCHEMA_VERSION = 223;
+  const STATE_SCHEMA_VERSION = 224;
   const STATE_KEY =
     typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
       ? CLOUD_STATE_KEY
@@ -64320,6 +64494,7 @@ window.nawahLeaveBalanceReportV185 = {
   let dirtySequence = 0;
   const dirtyFields = new Map();
   const recordDeleteTombstones = new Map();
+  const recordUpsertMutations = new Map();
 
   function clone(value) {
     try {
@@ -64412,6 +64587,23 @@ window.nawahLeaveBalanceReportV185 = {
       recordDeleteTombstones.set(field, tombstones);
     }
     cleanIds.forEach((id) => tombstones.set(id, sequence));
+    return true;
+  }
+
+  function markRecordUpserts(field, ids) {
+    const cleanIds = (Array.isArray(ids) ? ids : [ids])
+      .map((id) => String(id || ""))
+      .filter(Boolean);
+    if (!field || !cleanIds.length || window.__nawahCloudApplyInProgressV221)
+      return false;
+    markDirty(field);
+    const sequence = dirtyFields.get(field) || dirtySequence;
+    let mutations = recordUpsertMutations.get(field);
+    if (!mutations) {
+      mutations = new Map();
+      recordUpsertMutations.set(field, mutations);
+    }
+    cleanIds.forEach((id) => mutations.set(id, sequence));
     return true;
   }
 
@@ -64671,9 +64863,23 @@ window.nawahLeaveBalanceReportV185 = {
     snapshot.forEach((sequence, field) => {
       const tombstones = recordDeleteTombstones.get(field);
       if (!tombstones) return;
-      const ids = new Set();
+      const ids = new Map();
       tombstones.forEach((deleteSequence, id) => {
-        if (deleteSequence <= sequence) ids.add(id);
+        if (deleteSequence <= sequence) ids.set(id, deleteSequence);
+      });
+      if (ids.size) selected.set(field, ids);
+    });
+    return selected;
+  }
+
+  function recordUpsertSnapshot(snapshot) {
+    const selected = new Map();
+    snapshot.forEach((sequence, field) => {
+      const mutations = recordUpsertMutations.get(field);
+      if (!mutations) return;
+      const ids = new Map();
+      mutations.forEach((upsertSequence, id) => {
+        if (upsertSequence <= sequence) ids.set(id, upsertSequence);
       });
       if (ids.size) selected.set(field, ids);
     });
@@ -64690,21 +64896,66 @@ window.nawahLeaveBalanceReportV185 = {
     snapshot.forEach((ids, field) => {
       const tombstones = recordDeleteTombstones.get(field);
       if (!tombstones) return;
-      ids.forEach((id) => tombstones.delete(id));
+      ids.forEach((savedSequence, id) => {
+        if (tombstones.get(id) === savedSequence) tombstones.delete(id);
+      });
       if (!tombstones.size) recordDeleteTombstones.delete(field);
     });
   }
 
-  function mergedState(remoteState, localState, snapshot, deleteSnapshot) {
+  function clearSavedRecordUpserts(snapshot) {
+    snapshot.forEach((ids, field) => {
+      const mutations = recordUpsertMutations.get(field);
+      if (!mutations) return;
+      ids.forEach((savedSequence, id) => {
+        if (mutations.get(id) === savedSequence) mutations.delete(id);
+      });
+      if (!mutations.size) recordUpsertMutations.delete(field);
+    });
+  }
+
+  function mergedState(
+    remoteState,
+    localState,
+    snapshot,
+    deleteSnapshot,
+    upsertSnapshot,
+  ) {
     const merged = clone(
       remoteState && typeof remoteState === "object" ? remoteState : {},
     );
     snapshot.forEach((_, field) => {
       const deletedIds = deleteSnapshot.get(field);
-      if (deletedIds && Array.isArray(merged[field])) {
-        merged[field] = merged[field].filter(
-          (record) => !deletedIds.has(String(record?.id || "")),
+      const upsertIds = upsertSnapshot.get(field);
+      if (
+        (deletedIds || upsertIds) &&
+        Array.isArray(merged[field]) &&
+        Array.isArray(localState[field])
+      ) {
+        const localById = new Map(
+          localState[field]
+            .filter((record) => record && record.id != null)
+            .map((record) => [String(record.id), record]),
         );
+        const rows = merged[field]
+          .filter(
+            (record) =>
+              !deletedIds?.has(String(record?.id || "")),
+          )
+          .map((record) => {
+            const id = String(record?.id || "");
+            return upsertIds?.has(id) && localById.has(id)
+              ? clone(localById.get(id))
+              : record;
+          });
+        const presentIds = new Set(
+          rows.map((record) => String(record?.id || "")),
+        );
+        upsertIds?.forEach((_, id) => {
+          if (!presentIds.has(id) && localById.has(id))
+            rows.push(clone(localById.get(id)));
+        });
+        merged[field] = rows;
       } else if (Object.prototype.hasOwnProperty.call(localState, field)) {
         merged[field] = clone(localState[field]);
       }
@@ -64775,6 +65026,7 @@ window.nawahLeaveBalanceReportV185 = {
     markReason(options.reason);
     let snapshot = dirtySnapshot();
     let deleteSnapshot = recordDeleteSnapshot(snapshot);
+    let upsertSnapshot = recordUpsertSnapshot(snapshot);
     let localState = buildCanonicalStateV221();
 
     if (!baselineUpdatedAt) {
@@ -64787,6 +65039,7 @@ window.nawahLeaveBalanceReportV185 = {
         baselineUpdatedAt = updatedAt;
         clearSavedDirty(snapshot);
         clearSavedRecordDeletes(deleteSnapshot);
+        clearSavedRecordUpserts(upsertSnapshot);
         return true;
       }
     }
@@ -64821,6 +65074,7 @@ window.nawahLeaveBalanceReportV185 = {
       baselineUpdatedAt = attempt.updatedAt;
       clearSavedDirty(snapshot);
       clearSavedRecordDeletes(deleteSnapshot);
+      clearSavedRecordUpserts(upsertSnapshot);
       return true;
     }
 
@@ -64832,6 +65086,7 @@ window.nawahLeaveBalanceReportV185 = {
         baselineUpdatedAt = updatedAt;
         clearSavedDirty(snapshot);
         clearSavedRecordDeletes(deleteSnapshot);
+        clearSavedRecordUpserts(upsertSnapshot);
         return true;
       }
       if (!snapshot.size) {
@@ -64845,6 +65100,7 @@ window.nawahLeaveBalanceReportV185 = {
         localState,
         snapshot,
         deleteSnapshot,
+        upsertSnapshot,
       );
       attempt = await writeStateIfUnchanged(merged, remote.updatedAt);
       if (attempt.saved) {
@@ -64852,6 +65108,7 @@ window.nawahLeaveBalanceReportV185 = {
         baselineUpdatedAt = attempt.updatedAt;
         clearSavedDirty(snapshot);
         clearSavedRecordDeletes(deleteSnapshot);
+        clearSavedRecordUpserts(upsertSnapshot);
         applyCanonicalStateV221(clone(merged));
         try {
           if (typeof syncEmployeeLocalCache === "function")
@@ -64861,6 +65118,7 @@ window.nawahLeaveBalanceReportV185 = {
       }
       snapshot = dirtySnapshot();
       deleteSnapshot = recordDeleteSnapshot(snapshot);
+      upsertSnapshot = recordUpsertSnapshot(snapshot);
       localState = buildCanonicalStateV221();
     }
     throw new Error("cloud-state-conflict");
@@ -65074,13 +65332,19 @@ window.nawahLeaveBalanceReportV185 = {
       if (tracked) queueCloudStateSaveV221();
       return tracked;
     },
+    trackRecordUpserts: (field, ids) => {
+      const tracked = markRecordUpserts(field, ids);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
     pendingFields: () => Array.from(dirtyFields.keys()),
   };
   window.nawahCloudSyncV222 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV223 = window.nawahCloudSyncV221;
+  window.nawahCloudSyncV224 = window.nawahCloudSyncV221;
 })();
 
-/* v223 - final renderer lock (must remain the last application patch). */
+/* v224 - final renderer lock (must remain the last application patch). */
 (function v222FinalLeaveTravelRendererLock() {
   if (window.__v222FinalLeaveTravelRendererLock) return;
   window.__v222FinalLeaveTravelRendererLock = true;
