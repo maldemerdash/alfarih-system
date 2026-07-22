@@ -55830,6 +55830,27 @@ async function init() {
         : "موظف";
   }
   function groups() {
+    try {
+      const canonical = window.employeePermissionMatrix?.groups;
+      if (Array.isArray(canonical) && canonical.length) {
+        const icons = {
+          sidebar: "grid",
+          dashboard: "home",
+          employees: "users",
+          attendance: "clock",
+          leaves: "calendar",
+          finance: "wallet",
+          payroll: "wallet",
+          documents: "file",
+          organization: "grid",
+          settings: "shield",
+        };
+        return canonical.map((group) => ({
+          ...group,
+          icon: group.icon || icons[group.id] || "shield",
+        }));
+      }
+    } catch (_) {}
     return GROUPS;
   }
   function allKeys() {
@@ -56034,109 +56055,9 @@ async function init() {
     select.innerHTML = employeeOptions(emps, profiles, selected);
   }
   async function savePermissions() {
-    const p = panel();
-    const select = p?.querySelector("#v158SecurityEmployeeSelect");
-    const emp = employeesList().find(
-      (e) => String(e.id) === String(select?.value || ""),
-    );
-    if (!emp) return toast("اختر موظفًا أولًا");
-    const profiles = await loadProfiles(false);
-    const prof = linkedProfile(emp, profiles);
-    if (!prof) return toast("الموظف غير مربوط بحساب مستخدم");
-    const raw = {};
-    allKeys().forEach((k) => (raw[k] = false));
-    p.querySelectorAll("[data-v158-permission]").forEach(
-      (input) => (raw[input.dataset.v158Permission] = !!input.checked),
-    );
-    const permissions = normalizePerms(raw, prof.role || "employee");
-    const payload = {
-      permissions,
-      employee_id: emp.id,
-      updated_at: new Date().toISOString(),
-    };
-    try {
-      if (
-        typeof supabaseClient !== "undefined" &&
-        supabaseClient &&
-        supabaseClient.functions &&
-        supabaseClient.functions.invoke
-      ) {
-        try {
-          const body = {
-            action: "update-user",
-            id: prof.id,
-            email: prof.email,
-            fullName: prof.full_name,
-            role: prof.role || "employee",
-            isActive: prof.is_active,
-            employeeId: emp.id,
-            employee_id: emp.id,
-            permissions,
-          };
-          const fr = await supabaseClient.functions.invoke(
-            "admin-create-user",
-            { body },
-          );
-          if (fr.error || (fr.data && fr.data.error))
-            throw fr.error || new Error(fr.data.error);
-        } catch (err) {
-          if (!supabaseClient.from) throw err;
-          const r = await supabaseClient
-            .from("app_user_profiles")
-            .update(payload)
-            .eq("id", prof.id)
-            .select(
-              "id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at",
-            )
-            .maybeSingle();
-          if (r.error) throw r.error;
-          if (r.data) Object.assign(prof, r.data);
-        }
-      } else if (
-        typeof supabaseClient !== "undefined" &&
-        supabaseClient &&
-        supabaseClient.from
-      ) {
-        const r = await supabaseClient
-          .from("app_user_profiles")
-          .update(payload)
-          .eq("id", prof.id)
-          .select(
-            "id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at",
-          )
-          .maybeSingle();
-        if (r.error) throw r.error;
-        if (r.data) Object.assign(prof, r.data);
-      } else {
-        prof.permissions = permissions;
-        prof.employee_id = emp.id;
-      }
-      prof.permissions = permissions;
-      prof.employee_id = emp.id;
-      try {
-        if (
-          window.authProfile &&
-          String(window.authProfile.id) === String(prof.id)
-        )
-          window.authProfile.permissions = permissions;
-      } catch (_) {}
-      try {
-        if (
-          typeof authProfile !== "undefined" &&
-          authProfile &&
-          String(authProfile.id) === String(prof.id)
-        )
-          authProfile.permissions = permissions;
-      } catch (_) {}
-      try {
-        if (typeof applyRolePermissions === "function") applyRolePermissions();
-      } catch (_) {}
-      toast("تم حفظ الصلاحيات");
-      await renderEditor(emp.id);
-    } catch (err) {
-      console.error(err);
-      toast(String((err && err.message) || "تعذر حفظ الصلاحيات").slice(0, 160));
-    }
+    if (typeof window.nawahUserPermissionsV234?.savePermissionsFromUi === "function")
+      return window.nawahUserPermissionsV234.savePermissionsFromUi();
+    return toast("تعذر تجهيز الحفظ السحابي للصلاحيات");
   }
   async function renderFinalPermissions(selected) {
     if (rendering) return;
@@ -56206,9 +56127,9 @@ async function init() {
           b.checked = next;
           b.closest(".v158-permission-option")?.classList.toggle("is-on", next);
         });
-        const selected =
-          panel()?.querySelector("#v158SecurityEmployeeSelect")?.value || "";
-        renderEditor(selected);
+        const count = boxes.filter((box) => box.checked).length;
+        const counter = card?.querySelector(".v158-permission-title small");
+        if (counter) counter.textContent = count + " من " + boxes.length + " مفعلة";
         return;
       }
     },
@@ -56229,133 +56150,7 @@ async function init() {
     },
     true,
   );
-  function schedule() {
-    if (!isActive()) return;
-    const p = panel();
-    if (p && !p.classList.contains("v158-permissions-final"))
-      setTimeout(() => renderFinalPermissions(""), 0);
-  }
-  const root = document.getElementById("settingsView") || document.body;
-  try {
-    new MutationObserver(function () {
-      schedule();
-    }).observe(root, { childList: true, subtree: true });
-  } catch (_) {}
   window.v158RenderFinalPermissions = renderFinalPermissions;
-  setTimeout(schedule, 180);
-  window.addEventListener("nawah:employees-ready", function () {
-    if (isActive())
-      renderFinalPermissions(
-        panel()?.querySelector("#v158SecurityEmployeeSelect")?.value || "",
-      );
-  });
-})();
-
-/* v159 - hard-bind permissions settings tab to final v158 UI. This fixes old v157 renderer winning after tab clicks. */
-(function () {
-  if (window.__v159PermissionsHardBind) return;
-  window.__v159PermissionsHardBind = true;
-  function permissionsPanel() {
-    return (
-      document.querySelector(
-        '#settingsView [data-settings-panel="permissions"]',
-      ) || document.querySelector('[data-settings-panel="permissions"]')
-    );
-  }
-  function permissionsTab() {
-    return (
-      document.querySelector(
-        '#settingsView [data-settings-section="permissions"]',
-      ) || document.querySelector('[data-settings-section="permissions"]')
-    );
-  }
-  function looksVisible(el) {
-    if (!el) return false;
-    if (el.hidden) return false;
-    var st = window.getComputedStyle ? getComputedStyle(el) : null;
-    if (st && (st.display === "none" || st.visibility === "hidden"))
-      return false;
-    var r = el.getBoundingClientRect
-      ? el.getBoundingClientRect()
-      : { width: 1, height: 1 };
-    return !!(r.width || r.height || el.classList.contains("active"));
-  }
-  function isPermissionsActive() {
-    var p = permissionsPanel();
-    var t = permissionsTab();
-    return !!(
-      p &&
-      (p.classList.contains("active") ||
-        looksVisible(p) ||
-        (t && t.classList.contains("active")))
-    );
-  }
-  function hasOldPermissionsUi(p) {
-    if (!p) return false;
-    if (
-      p.classList.contains("v158-permissions-final") &&
-      p.querySelector("#v158SecurityEmployeeSelect")
-    )
-      return false;
-    return !!(
-      p.querySelector(
-        "#v157SecurityEmployeeSelect,#v134SecurityEmployeeSelect,#absoluteV2SecurityUserSelect,#securityEmployeeSelect,#employeeSecurityPermissionsEditor,[data-v157-permission],[data-v134-security-permission]",
-      ) || /مصدر الصلاحيات|طريقة العرض|القوائم اليمنى/.test(p.textContent || "")
-    );
-  }
-  function forceFinalPermissions(selected) {
-    var p = permissionsPanel();
-    if (!p || !isPermissionsActive()) return;
-    if (typeof window.v158RenderFinalPermissions === "function") {
-      window.v158RenderFinalPermissions(
-        selected ||
-          (p.querySelector("#v158SecurityEmployeeSelect") &&
-            p.querySelector("#v158SecurityEmployeeSelect").value) ||
-          "",
-      );
-    }
-  }
-  document.addEventListener(
-    "click",
-    function (e) {
-      var tab =
-        e.target &&
-        e.target.closest &&
-        e.target.closest('[data-settings-section="permissions"]');
-      if (tab) {
-        setTimeout(function () {
-          forceFinalPermissions("");
-        }, 0);
-        setTimeout(function () {
-          forceFinalPermissions("");
-        }, 80);
-        setTimeout(function () {
-          forceFinalPermissions("");
-        }, 250);
-      }
-    },
-    true,
-  );
-  var attempts = 0;
-  var timer = setInterval(function () {
-    attempts += 1;
-    var p = permissionsPanel();
-    if (isPermissionsActive() && hasOldPermissionsUi(p))
-      forceFinalPermissions("");
-    if (attempts > 24) clearInterval(timer);
-  }, 500);
-  try {
-    new MutationObserver(function () {
-      var p = permissionsPanel();
-      if (isPermissionsActive() && hasOldPermissionsUi(p))
-        setTimeout(function () {
-          forceFinalPermissions("");
-        }, 0);
-    }).observe(document.getElementById("settingsView") || document.body, {
-      childList: true,
-      subtree: true,
-    });
-  } catch (_) {}
 })();
 
 /* v161 - frontend cleanup folded into app.js */
@@ -67681,6 +67476,790 @@ window.nawahLeaveBalanceReportV185 = {
       if (tracked) queueCloudStateSaveV221();
       return tracked;
     },
+  };
+})();
+
+/* v234 - canonical cloud users and permissions coordinator. */
+(function v234CloudUsersAndPermissions() {
+  if (window.__v234CloudUsersAndPermissions) return;
+  window.__v234CloudUsersAndPermissions = true;
+
+  const PROFILE_FIELDS =
+    "id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at";
+  const mutationLocks = new Set();
+  let realtimeChannel = null;
+  let realtimeTimer = 0;
+  let lastFocusRefresh = 0;
+  let lastPermissionsRenderSignature = "";
+
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") showToast(message);
+    } catch (_) {}
+  }
+
+  function client() {
+    try {
+      return supabaseClient || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function isAdmin() {
+    try {
+      return typeof currentRoleKey === "function" && currentRoleKey() === "admin";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function normalizeList(data) {
+    const list = Array.isArray(data) ? data : data && data.id ? [data] : [];
+    return list
+      .filter((profile) => profile && profile.id)
+      .map((profile) => ({ ...profile }))
+      .sort((a, b) =>
+        String(b.created_at || "").localeCompare(String(a.created_at || "")),
+      );
+  }
+
+  function cachedProfiles() {
+    try {
+      return Array.isArray(appUserProfilesCache) ? appUserProfilesCache : [];
+    } catch (_) {
+      return Array.isArray(window.appUserProfilesCache)
+        ? window.appUserProfilesCache
+        : [];
+    }
+  }
+
+  function setProfiles(profiles) {
+    const list = normalizeList(profiles);
+    try {
+      appUserProfilesCache = list;
+    } catch (_) {}
+    window.appUserProfilesCache = list;
+    return list;
+  }
+
+  async function fetchProfilesFresh() {
+    const db = client();
+    if (!db?.from) throw new Error("Supabase غير متصل");
+    const result = await db
+      .from("app_user_profiles")
+      .select(PROFILE_FIELDS)
+      .order("created_at", { ascending: false });
+    if (result.error) throw result.error;
+    return setProfiles(result.data);
+  }
+
+  async function fetchProfileFresh(id) {
+    const db = client();
+    if (!db?.from || !id) return null;
+    const result = await db
+      .from("app_user_profiles")
+      .select(PROFILE_FIELDS)
+      .eq("id", id)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    return Array.isArray(result.data) ? result.data[0] || null : result.data || null;
+  }
+
+  function currentIdentityValues() {
+    const values = new Set();
+    try {
+      [authProfile?.id, authProfile?.user_id, authProfile?.email, authUser?.id, authUser?.email]
+        .filter(Boolean)
+        .forEach((value) => values.add(String(value).trim().toLowerCase()));
+    } catch (_) {}
+    try {
+      [window.authProfile?.id, window.authProfile?.user_id, window.authProfile?.email]
+        .filter(Boolean)
+        .forEach((value) => values.add(String(value).trim().toLowerCase()));
+    } catch (_) {}
+    return values;
+  }
+
+  function isCurrentProfile(profile) {
+    if (!profile) return false;
+    const current = currentIdentityValues();
+    return [profile.id, profile.user_id, profile.email]
+      .filter(Boolean)
+      .some((value) => current.has(String(value).trim().toLowerCase()));
+  }
+
+  function activeAdminCount(profiles) {
+    return (profiles || []).filter(
+      (profile) => profile.role === "admin" && profile.is_active !== false,
+    ).length;
+  }
+
+  function edgeMessage(error, fallback) {
+    const message = String(error?.message || error || fallback || "تعذر تنفيذ العملية");
+    if (/already|registered|exists/i.test(message))
+      return "هذا البريد موجود مسبقًا في حسابات الدخول";
+    if (/conflict|updated_at|stale/i.test(message))
+      return "تم تعديل السجل في متصفح آخر؛ حدّث القائمة ثم أعد المحاولة";
+    return message.slice(0, 160);
+  }
+
+  async function invokeAdmin(body) {
+    const db = client();
+    if (!db?.functions?.invoke) throw new Error("خدمة إدارة المستخدمين غير متصلة");
+    const result = await db.functions.invoke("admin-create-user", { body });
+    if (result.error) throw result.error;
+    if (result.data?.error) throw new Error(result.data.error);
+    return result.data || {};
+  }
+
+  function profileEdgePayload(profile) {
+    return {
+      action: "update-user",
+      id: profile.id,
+      email: profile.email,
+      fullName: profile.full_name,
+      role: profile.role || "employee",
+      isActive: profile.is_active !== false,
+      employeeId: profile.employee_id || null,
+      employee_id: profile.employee_id || null,
+      permissions: profile.permissions || {},
+      expectedUpdatedAt: profile.updated_at || null,
+    };
+  }
+
+  function setBusy(button, busy, label) {
+    if (!button) return;
+    if (busy) {
+      button.dataset.v234Label = button.innerHTML;
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      if (label) button.textContent = label;
+    } else {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      if (button.dataset.v234Label) {
+        button.innerHTML = button.dataset.v234Label;
+        delete button.dataset.v234Label;
+        try {
+          if (typeof hydrateIcons === "function") hydrateIcons(button);
+        } catch (_) {}
+      }
+    }
+  }
+
+  const previousRenderProfiles =
+    typeof renderAppUserProfiles === "function" ? renderAppUserProfiles : null;
+
+  function stableProfileSignature() {
+    return JSON.stringify(
+      cachedProfiles().map((profile) => [
+        profile.id,
+        profile.full_name,
+        profile.email,
+        profile.employee_id || profile.employeeId || "",
+        profile.role,
+        profile.is_active,
+        profile.updated_at || "",
+      ]),
+    );
+  }
+
+  function renderProfilesStable() {
+    const body = document.querySelector("#appUserProfilesBody");
+    if (!body || !previousRenderProfiles) return;
+    const signature = stableProfileSignature();
+    if (body.dataset.v234Signature === signature && body.childElementCount) return;
+    previousRenderProfiles();
+    body.dataset.v234Signature = signature;
+    cachedProfiles().forEach((profile) => {
+      if (!isCurrentProfile(profile)) return;
+      const toggle = body.querySelector(
+        `[data-toggle-user-profile="${CSS.escape(String(profile.id))}"]`,
+      );
+      const remove = body.querySelector(
+        `[data-delete-user-profile="${CSS.escape(String(profile.id))}"]`,
+      );
+      if (toggle && profile.is_active !== false)
+        toggle.title = "لا يمكن إيقاف الحساب الحالي";
+      if (remove) remove.title = "لا يمكن حذف الحساب الحالي";
+    });
+  }
+
+  async function renderUsersStable(options = {}) {
+    if (!isAdmin()) return;
+    try {
+      if (typeof ensureUsersManagementView === "function") ensureUsersManagementView();
+    } catch (_) {}
+    const body = document.querySelector("#appUserProfilesBody");
+    const refresh = document.querySelector("#refreshUsersBtn");
+    if (cachedProfiles().length) renderProfilesStable();
+    else if (body && !body.childElementCount)
+      body.innerHTML =
+        '<tr><td colspan="6"><div class="empty-state"><strong>جاري تحميل المستخدمين...</strong></div></td></tr>';
+    setBusy(refresh, true, "جاري التحديث...");
+    try {
+      await fetchProfilesFresh();
+      renderProfilesStable();
+    } catch (error) {
+      console.error(error);
+      if (!cachedProfiles().length && body)
+        body.innerHTML =
+          '<tr><td colspan="6"><div class="empty-state"><strong>تعذر تحميل المستخدمين</strong><p>تحقق من الاتصال بالسحابة ثم أعد المحاولة.</p></div></td></tr>';
+      if (!options.silent) notify("تعذر تحديث المستخدمين من السحابة");
+    } finally {
+      setBusy(refresh, false);
+    }
+  }
+
+  const previousFillUser =
+    typeof fillUserProfileForm === "function" ? fillUserProfileForm : null;
+  const previousResetUser =
+    typeof resetUserProfileForm === "function" ? resetUserProfileForm : null;
+
+  function rememberFormBaseline(profileId) {
+    const form = document.querySelector("#appUserProfileForm");
+    const profile = cachedProfiles().find(
+      (item) => String(item.id) === String(profileId || ""),
+    );
+    if (!form) return;
+    form.dataset.v234ProfileId = profile?.id || "";
+    form.dataset.v234UpdatedAt = profile?.updated_at || "";
+  }
+
+  function fillUserStable(profileId) {
+    if (previousFillUser) previousFillUser(profileId);
+    rememberFormBaseline(profileId);
+  }
+
+  function resetUserStable() {
+    if (previousResetUser) previousResetUser();
+    rememberFormBaseline("");
+  }
+
+  async function rollbackProfile(profile) {
+    if (!profile?.id) return false;
+    try {
+      const payload = profileEdgePayload(profile);
+      payload.expectedUpdatedAt = null;
+      await invokeAdmin(payload);
+      return true;
+    } catch (error) {
+      console.warn("v234 user rollback failed", error);
+      return false;
+    }
+  }
+
+  async function saveUserStable(form) {
+    if (!isAdmin()) return notify("هذه الشاشة للمدير فقط");
+    if (!form?.elements || mutationLocks.has("user-save")) return;
+    const id = String(form.elements.profileId?.value || "").trim();
+    const password = String(form.elements.password?.value || "");
+    const confirmation = String(form.elements.passwordConfirm?.value || password);
+    const role = form.elements.role?.value === "admin" ? "admin" : "employee";
+    const input = {
+      email: String(form.elements.email?.value || "").trim().toLowerCase(),
+      fullName: String(form.elements.fullName?.value || "").trim(),
+      role,
+      isActive: String(form.elements.isActive?.value || "true") === "true",
+      employeeId: form.elements.employeeId?.value || null,
+    };
+    if (!input.fullName || !input.email) return notify("أدخل الاسم والبريد");
+    if (!id && password.length < 6)
+      return notify("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+    if (!id && password !== confirmation) return notify("تأكيد كلمة المرور غير مطابق");
+
+    const submit = form.querySelector('[type="submit"]');
+    mutationLocks.add("user-save");
+    setBusy(submit, true, "جاري الحفظ...");
+    let remote = null;
+    let mutationStarted = false;
+    try {
+      const profiles = await fetchProfilesFresh();
+      remote = id
+        ? profiles.find((profile) => String(profile.id) === id) || null
+        : null;
+      if (id && !remote) throw new Error("تعذر العثور على المستخدم في السحابة");
+      const baselineUpdatedAt = form.dataset.v234UpdatedAt || "";
+      if (
+        id &&
+        baselineUpdatedAt &&
+        remote.updated_at &&
+        baselineUpdatedAt !== remote.updated_at
+      ) {
+        renderProfilesStable();
+        return notify("تم تعديل هذا المستخدم في متصفح آخر؛ أعد فتحه قبل الحفظ");
+      }
+      if (
+        remote &&
+        isCurrentProfile(remote) &&
+        (input.role !== "admin" || !input.isActive)
+      )
+        return notify("لا يمكنك خفض صلاحية حسابك الحالي أو إيقافه");
+      if (
+        remote?.role === "admin" &&
+        remote.is_active !== false &&
+        (input.role !== "admin" || !input.isActive) &&
+        activeAdminCount(profiles) <= 1
+      )
+        return notify("يجب إبقاء مدير نظام فعّال واحد على الأقل");
+
+      const body = id
+        ? {
+            action: "update-user",
+            id,
+            email: input.email,
+            fullName: input.fullName,
+            role: input.role,
+            isActive: input.isActive,
+            employeeId: input.employeeId,
+            employee_id: input.employeeId,
+            permissions: remote.permissions || {},
+            expectedUpdatedAt: remote.updated_at || null,
+          }
+        : {
+            action: "create-user",
+            email: input.email,
+            password,
+            fullName: input.fullName,
+            role: input.role,
+            isActive: input.isActive,
+            employeeId: input.employeeId,
+            employee_id: input.employeeId,
+            permissions: normalizePermissions({}, input.role),
+          };
+      mutationStarted = true;
+      await invokeAdmin(body);
+      const refreshed = await fetchProfilesFresh();
+      const saved = id
+        ? refreshed.find((profile) => String(profile.id) === id)
+        : refreshed.find(
+            (profile) => String(profile.email || "").toLowerCase() === input.email,
+          );
+      if (!saved) throw new Error("لم يتم تأكيد حفظ المستخدم في السحابة");
+      renderProfilesStable();
+      resetUserStable();
+      document.querySelector("#userProfileModal")?.close();
+      notify(id ? "تم تحديث المستخدم سحابيًا" : "تم إنشاء المستخدم سحابيًا");
+    } catch (error) {
+      console.error(error);
+      let rolledBack = true;
+      if (id && remote && mutationStarted) rolledBack = await rollbackProfile(remote);
+      try {
+        await fetchProfilesFresh();
+        renderProfilesStable();
+      } catch (_) {}
+      notify(
+        edgeMessage(
+          error,
+          rolledBack
+            ? "تعذر حفظ المستخدم وتمت استعادة بياناته السابقة"
+            : "تعذر حفظ المستخدم وتعذر تأكيد الاستعادة؛ حدّث القائمة",
+        ),
+      );
+    } finally {
+      mutationLocks.delete("user-save");
+      setBusy(submit, false);
+    }
+  }
+
+  async function toggleUserStable(profileId) {
+    if (!isAdmin()) return notify("هذه الشاشة للمدير فقط");
+    const lock = "toggle:" + profileId;
+    if (!profileId || mutationLocks.has(lock)) return;
+    const button = document.querySelector(
+      `[data-toggle-user-profile="${CSS.escape(String(profileId))}"]`,
+    );
+    mutationLocks.add(lock);
+    setBusy(button, true);
+    try {
+      const profiles = await fetchProfilesFresh();
+      const profile = profiles.find((item) => String(item.id) === String(profileId));
+      if (!profile) throw new Error("تعذر العثور على المستخدم في السحابة");
+      if (isCurrentProfile(profile) && profile.is_active !== false)
+        return notify("لا يمكنك إيقاف حسابك الحالي");
+      if (
+        profile.role === "admin" &&
+        profile.is_active !== false &&
+        activeAdminCount(profiles) <= 1
+      )
+        return notify("لا يمكن إيقاف آخر مدير نظام فعّال");
+      const next = profile.is_active === false;
+      await invokeAdmin({
+        action: "toggle-user",
+        id: profile.id,
+        isActive: next,
+        expectedUpdatedAt: profile.updated_at || null,
+      });
+      const refreshed = await fetchProfilesFresh();
+      const saved = refreshed.find((item) => String(item.id) === String(profile.id));
+      if (!saved || Boolean(saved.is_active) !== next)
+        throw new Error("لم يتم تأكيد تغيير حالة المستخدم في السحابة");
+      renderProfilesStable();
+      notify(next ? "تم تنشيط المستخدم سحابيًا" : "تم إيقاف المستخدم سحابيًا");
+    } catch (error) {
+      console.error(error);
+      try {
+        await fetchProfilesFresh();
+        renderProfilesStable();
+      } catch (_) {}
+      notify(edgeMessage(error, "تعذر تغيير حالة المستخدم"));
+    } finally {
+      mutationLocks.delete(lock);
+      setBusy(button, false);
+    }
+  }
+
+  async function deleteUserStable(profileId) {
+    if (!isAdmin()) return notify("هذه الشاشة للمدير فقط");
+    const lock = "delete:" + profileId;
+    if (!profileId || mutationLocks.has(lock)) return;
+    const button = document.querySelector(
+      `[data-delete-user-profile="${CSS.escape(String(profileId))}"]`,
+    );
+    mutationLocks.add(lock);
+    setBusy(button, true);
+    try {
+      const profiles = await fetchProfilesFresh();
+      const profile = profiles.find((item) => String(item.id) === String(profileId));
+      if (!profile) throw new Error("تعذر العثور على المستخدم في السحابة");
+      if (isCurrentProfile(profile)) return notify("لا يمكنك حذف حسابك الحالي");
+      if (
+        profile.role === "admin" &&
+        profile.is_active !== false &&
+        activeAdminCount(profiles) <= 1
+      )
+        return notify("لا يمكن حذف آخر مدير نظام فعّال");
+      if (!confirm(`هل تريد حذف المستخدم ${profile.full_name || profile.email} نهائيًا؟`))
+        return;
+      await invokeAdmin({
+        action: "delete-user",
+        id: profile.id,
+        expectedUpdatedAt: profile.updated_at || null,
+      });
+      const refreshed = await fetchProfilesFresh();
+      if (refreshed.some((item) => String(item.id) === String(profile.id)))
+        throw new Error("لم يتم تأكيد حذف المستخدم من السحابة");
+      renderProfilesStable();
+      notify("تم حذف المستخدم سحابيًا");
+    } catch (error) {
+      console.error(error);
+      try {
+        await fetchProfilesFresh();
+        renderProfilesStable();
+      } catch (_) {}
+      notify(edgeMessage(error, "تعذر حذف المستخدم"));
+    } finally {
+      mutationLocks.delete(lock);
+      setBusy(button, false);
+    }
+  }
+
+  function employeesList() {
+    try {
+      return Array.isArray(employees) ? employees : [];
+    } catch (_) {
+      return Array.isArray(window.employees) ? window.employees : [];
+    }
+  }
+
+  function employeeEmail(employee) {
+    return String(
+      employee?.email || employee?.workEmail || employee?.personalEmail || "",
+    )
+      .trim()
+      .toLowerCase();
+  }
+
+  function employeePhone(employee) {
+    return String(
+      employee?.phone || employee?.mobile || employee?.mobileNumber || "",
+    ).replace(/\D/g, "");
+  }
+
+  function linkedProfile(employee, profiles) {
+    if (!employee) return null;
+    const id = String(employee.id || employee.employeeId || "").trim();
+    const email = employeeEmail(employee);
+    const phone = employeePhone(employee);
+    return (
+      (profiles || cachedProfiles()).find((profile) => {
+        const linkedId = String(
+          profile.employee_id || profile.employeeId || profile.linked_employee_id || "",
+        ).trim();
+        const profilePhone = String(
+          profile.phone || profile.mobile || profile.mobileNumber || "",
+        ).replace(/\D/g, "");
+        return (
+          linkedId === id ||
+          (email && String(profile.email || "").toLowerCase() === email) ||
+          (phone && profilePhone === phone)
+        );
+      }) || null
+    );
+  }
+
+  function normalizePermissions(permissions, role) {
+    try {
+      const normalizer = window.employeePermissionMatrix?.normalizePermissions;
+      if (typeof normalizer === "function") return normalizer(permissions || {}, role);
+    } catch (_) {}
+    const normalized = {};
+    Object.entries(permissions || {}).forEach(
+      ([key, value]) => (normalized[key] = Boolean(value)),
+    );
+    return normalized;
+  }
+
+  function mergePermissionChanges(baseProfile, remoteProfile, desired) {
+    const role = remoteProfile.role || "employee";
+    const baseline = normalizePermissions(baseProfile?.permissions || {}, role);
+    const latest = { ...(remoteProfile.permissions || {}) };
+    Object.keys(desired).forEach((key) => {
+      if (Boolean(desired[key]) !== Boolean(baseline[key]))
+        latest[key] = Boolean(desired[key]);
+    });
+    return normalizePermissions(latest, role);
+  }
+
+  async function conditionalPermissionUpdate(profile, employeeId, permissions) {
+    const db = client();
+    if (!db?.from) throw new Error("Supabase غير متصل");
+    const updatedAt = new Date().toISOString();
+    let query = db
+      .from("app_user_profiles")
+      .update({ permissions, employee_id: employeeId, updated_at: updatedAt })
+      .eq("id", profile.id);
+    if (profile.updated_at) query = query.eq("updated_at", profile.updated_at);
+    const result = await query.select(PROFILE_FIELDS).maybeSingle();
+    if (result.error) throw result.error;
+    const saved = Array.isArray(result.data) ? result.data[0] : result.data;
+    return saved?.id ? saved : null;
+  }
+
+  function syncPermissionsUi(permissions) {
+    const panel = document.querySelector(
+      '#settingsView [data-settings-panel="permissions"]',
+    );
+    if (!panel) return;
+    panel.querySelectorAll("[data-v158-permission]").forEach((input) => {
+      const checked = Boolean(permissions[input.dataset.v158Permission]);
+      input.checked = checked;
+      input.closest(".v158-permission-option")?.classList.toggle("is-on", checked);
+    });
+    panel.querySelectorAll(".v158-permission-card").forEach((card) => {
+      const boxes = Array.from(card.querySelectorAll("[data-v158-permission]"));
+      const counter = card.querySelector(".v158-permission-title small");
+      if (counter)
+        counter.textContent =
+          boxes.filter((box) => box.checked).length + " من " + boxes.length + " مفعلة";
+    });
+    panel.dataset.v234PermissionsDirty = "0";
+  }
+
+  async function savePermissionsFromUi() {
+    if (!isAdmin()) return notify("هذه الشاشة للمدير فقط");
+    if (mutationLocks.has("permissions-save")) return;
+    const panel = document.querySelector(
+      '#settingsView [data-settings-panel="permissions"]',
+    );
+    const select = panel?.querySelector("#v158SecurityEmployeeSelect");
+    const employee = employeesList().find(
+      (item) => String(item.id) === String(select?.value || ""),
+    );
+    if (!employee) return notify("اختر موظفًا أولًا");
+    const baseProfile = linkedProfile(employee, cachedProfiles());
+    if (!baseProfile) return notify("الموظف غير مربوط بحساب مستخدم");
+    const desired = {};
+    panel.querySelectorAll("[data-v158-permission]").forEach((input) => {
+      desired[input.dataset.v158Permission] = Boolean(input.checked);
+    });
+    const button = panel.querySelector("#v158SavePermissions");
+    mutationLocks.add("permissions-save");
+    setBusy(button, true, "جاري الحفظ...");
+    try {
+      const profiles = await fetchProfilesFresh();
+      let remote = linkedProfile(employee, profiles);
+      if (!remote || String(remote.id) !== String(baseProfile.id))
+        throw new Error("تغيّر ربط الموظف في متصفح آخر؛ حدّث الشاشة");
+      const baseEmployeeId = String(
+        baseProfile.employee_id || baseProfile.employeeId || "",
+      );
+      const remoteEmployeeId = String(
+        remote.employee_id || remote.employeeId || "",
+      );
+      if (
+        baseEmployeeId !== remoteEmployeeId &&
+        (baseEmployeeId || remoteEmployeeId)
+      )
+        throw new Error("تغيّر ربط الموظف في متصفح آخر؛ حدّث الشاشة");
+      let merged = mergePermissionChanges(baseProfile, remote, desired);
+      let saved = await conditionalPermissionUpdate(remote, employee.id, merged);
+      if (!saved) {
+        remote = await fetchProfileFresh(remote.id);
+        if (!remote) throw new Error("تعذر إعادة تحميل الصلاحيات بعد تعارض التعديل");
+        merged = mergePermissionChanges(baseProfile, remote, desired);
+        saved = await conditionalPermissionUpdate(remote, employee.id, merged);
+      }
+      if (!saved) throw new Error("تم تعديل الصلاحيات في متصفح آخر؛ أعد المحاولة");
+      const refreshed = cachedProfiles().map((profile) =>
+        String(profile.id) === String(saved.id) ? { ...profile, ...saved } : profile,
+      );
+      setProfiles(refreshed);
+      if (isCurrentProfile(saved)) {
+        try {
+          authProfile.permissions = saved.permissions || merged;
+        } catch (_) {}
+        try {
+          if (window.authProfile) window.authProfile.permissions = saved.permissions || merged;
+        } catch (_) {}
+        try {
+          if (typeof applyRolePermissions === "function") applyRolePermissions();
+        } catch (_) {}
+      }
+      syncPermissionsUi(saved.permissions || merged);
+      notify("تم حفظ الصلاحيات سحابيًا");
+    } catch (error) {
+      console.error(error);
+      notify(edgeMessage(error, "تعذر حفظ الصلاحيات سحابيًا"));
+    } finally {
+      mutationLocks.delete("permissions-save");
+      setBusy(button, false);
+    }
+  }
+
+  const previousStableSettingsRenderer = window.__stableSettingsRenderPanel;
+  async function renderPermissionsStable(selected) {
+    try {
+      await fetchProfilesFresh();
+    } catch (error) {
+      console.warn("v234 permissions refresh failed", error);
+    }
+    const panel = document.querySelector(
+      '#settingsView [data-settings-panel="permissions"]',
+    );
+    const signature = JSON.stringify([
+      String(selected || ""),
+      stableProfileSignature(),
+      employeesList().map((employee) => [
+        employee.id,
+        employee.name || employee.fullName || "",
+        employee.email || "",
+        employee.status || "",
+      ]),
+    ]);
+    if (
+      panel?.classList.contains("v158-permissions-final") &&
+      panel.querySelector("#v158SecurityEmployeeSelect") &&
+      panel.dataset.v234PermissionsDirty !== "1" &&
+      lastPermissionsRenderSignature === signature
+    )
+      return;
+    if (typeof window.v158RenderFinalPermissions === "function") {
+      await window.v158RenderFinalPermissions(selected || "");
+      if (panel) panel.dataset.v234PermissionsDirty = "0";
+      lastPermissionsRenderSignature = signature;
+    }
+  }
+
+  window.__stableSettingsRenderPanel = async function (key) {
+    if (key === "permissions") {
+      const selected =
+        document.querySelector("#v158SecurityEmployeeSelect")?.value || "";
+      return renderPermissionsStable(selected);
+    }
+    if (typeof previousStableSettingsRenderer === "function")
+      return previousStableSettingsRenderer.apply(this, arguments);
+  };
+  window.v134RenderCanonicalEmployeePermissions = renderPermissionsStable;
+
+  function activePermissionsPanel() {
+    const panel = document.querySelector(
+      '#settingsView [data-settings-panel="permissions"].active',
+    );
+    return panel && !panel.hidden && panel.style.display !== "none" ? panel : null;
+  }
+
+  async function refreshActiveViews() {
+    if (document.querySelector("#usersView.active"))
+      return renderUsersStable({ silent: true });
+    const permissions = activePermissionsPanel();
+    if (permissions && permissions.dataset.v234PermissionsDirty !== "1") {
+      const selected = permissions.querySelector("#v158SecurityEmployeeSelect")?.value || "";
+      return renderPermissionsStable(selected);
+    }
+  }
+
+  function startRealtime() {
+    if (realtimeChannel || !client()?.channel) return;
+    try {
+      realtimeChannel = client()
+        .channel("nawah-app-user-profiles-v234")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "app_user_profiles" },
+          function () {
+            clearTimeout(realtimeTimer);
+            realtimeTimer = setTimeout(refreshActiveViews, 80);
+          },
+        )
+        .subscribe();
+    } catch (error) {
+      realtimeChannel = null;
+      console.info("v234 profile realtime unavailable; focus refresh remains active");
+    }
+  }
+
+  try {
+    loadAppUserProfiles = fetchProfilesFresh;
+    renderAppUserProfiles = renderProfilesStable;
+    renderUsersManagement = renderUsersStable;
+    fillUserProfileForm = fillUserStable;
+    resetUserProfileForm = resetUserStable;
+    saveUserProfileFromForm = saveUserStable;
+    toggleUserProfile = toggleUserStable;
+    deleteUserProfile = deleteUserStable;
+  } catch (_) {}
+  window.loadAppUserProfiles = fetchProfilesFresh;
+  window.renderAppUserProfiles = renderProfilesStable;
+  window.renderUsersManagement = renderUsersStable;
+
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (event.target?.matches?.("[data-v158-permission]")) {
+        const panel = activePermissionsPanel();
+        if (panel) panel.dataset.v234PermissionsDirty = "1";
+      }
+    },
+    true,
+  );
+
+  window.addEventListener("focus", function () {
+    const now = Date.now();
+    if (now - lastFocusRefresh < 1500) return;
+    lastFocusRefresh = now;
+    void refreshActiveViews();
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") void refreshActiveViews();
+  });
+  window.addEventListener("nawah:employees-ready", function () {
+    if (activePermissionsPanel())
+      setTimeout(function () {
+        void refreshActiveViews();
+      }, 0);
+  });
+  setTimeout(startRealtime, 0);
+
+  window.nawahUserPermissionsV234 = {
+    version: 234,
+    loadProfiles: fetchProfilesFresh,
+    renderUsers: renderUsersStable,
+    savePermissionsFromUi,
+    refreshActiveViews,
+    isCurrentProfile,
+    normalizePermissions,
   };
 })();
 
