@@ -68263,6 +68263,554 @@ window.nawahLeaveBalanceReportV185 = {
   };
 })();
 
+/* v235 - active session security and live cloud permission enforcement. */
+(function v235ActiveSessionSecurity() {
+  if (window.__v235ActiveSessionSecurity) return;
+  window.__v235ActiveSessionSecurity = true;
+
+  const PROFILE_FIELDS =
+    "id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at";
+  const PROFILE_CACHE_KEY = "nawah-auth-profile-cache-v53";
+  const RECHECK_INTERVAL = 45000;
+  const MIN_RECHECK_GAP = 5000;
+  let validationPromise = null;
+  let lastValidatedAt = 0;
+  let lastFingerprint = "";
+  let sessionEnded = false;
+  let profileChannel = null;
+  let profileChannelUserId = "";
+  let realtimeTimer = 0;
+
+  function db() {
+    try {
+      return supabaseClient || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function currentUser() {
+    try {
+      return authUser || window.authUser || null;
+    } catch (_) {
+      return window.authUser || null;
+    }
+  }
+
+  function currentProfile() {
+    try {
+      return authProfile || window.authProfile || null;
+    } catch (_) {
+      return window.authProfile || null;
+    }
+  }
+
+  function normalizePermissions(permissions, role) {
+    try {
+      const normalizer = window.employeePermissionMatrix?.normalizePermissions;
+      if (typeof normalizer === "function")
+        return normalizer(permissions || {}, role || "employee");
+    } catch (_) {}
+    const result = {};
+    Object.entries(permissions || {}).forEach(function ([key, value]) {
+      result[key] = Boolean(value);
+    });
+    return result;
+  }
+
+  function normalizeProfile(profile) {
+    if (!profile) return null;
+    const role = String(profile.role || "employee") === "admin" ? "admin" : "employee";
+    return {
+      ...profile,
+      role,
+      is_active: profile.is_active !== false,
+      permissions: normalizePermissions(profile.permissions || {}, role),
+    };
+  }
+
+  function fingerprint(profile) {
+    if (!profile) return "";
+    const permissions = profile.permissions || {};
+    return JSON.stringify([
+      profile.id || "",
+      profile.user_id || "",
+      profile.full_name || "",
+      profile.email || "",
+      profile.role || "",
+      profile.is_active !== false,
+      profile.employee_id || profile.employeeId || "",
+      profile.updated_at || "",
+      Object.keys(permissions)
+        .sort()
+        .map((key) => [key, Boolean(permissions[key])]),
+    ]);
+  }
+
+  function permissionFingerprint(profile) {
+    if (!profile) return "";
+    const permissions = profile.permissions || {};
+    return JSON.stringify([
+      profile.role || "",
+      profile.employee_id || profile.employeeId || "",
+      Object.keys(permissions)
+        .sort()
+        .map((key) => [key, Boolean(permissions[key])]),
+    ]);
+  }
+
+  function cacheProfile(user, profile) {
+    if (!user?.id || !profile) return;
+    try {
+      const cache = JSON.parse(sessionStorage.getItem(PROFILE_CACHE_KEY) || "{}");
+      cache[user.id] = {
+        email: user.email || "",
+        savedAt: Date.now(),
+        profile,
+      };
+      sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cache));
+    } catch (_) {}
+  }
+
+  function clearCachedProfile(user) {
+    try {
+      if (!user?.id) return sessionStorage.removeItem(PROFILE_CACHE_KEY);
+      const cache = JSON.parse(sessionStorage.getItem(PROFILE_CACHE_KEY) || "{}");
+      delete cache[user.id];
+      if (Object.keys(cache).length)
+        sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cache));
+      else sessionStorage.removeItem(PROFILE_CACHE_KEY);
+    } catch (_) {}
+  }
+
+  async function fetchProfile(user) {
+    const client = db();
+    if (!client?.from || !user) throw new Error("Supabase غير متصل");
+    let result = await client
+      .from("app_user_profiles")
+      .select(PROFILE_FIELDS)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    if (result.data) return normalizeProfile(result.data);
+    const email = String(user.email || "").trim().toLowerCase();
+    if (!email) return null;
+    result = await client
+      .from("app_user_profiles")
+      .select(PROFILE_FIELDS)
+      .eq("email", email)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    return normalizeProfile(result.data || null);
+  }
+
+  function installCurrentProfile(user, profile) {
+    const normalized = normalizeProfile(profile);
+    try {
+      authUser = user;
+      authProfile = normalized;
+    } catch (_) {}
+    window.authUser = user;
+    window.authProfile = normalized;
+    cacheProfile(user, normalized);
+    return normalized;
+  }
+
+  async function secureLoadAuthProfile(user) {
+    if (!user) return null;
+    try {
+      const fresh = await fetchProfile(user);
+      if (fresh) cacheProfile(user, fresh);
+      return (
+        fresh || {
+          full_name: user.email || "مستخدم",
+          email: user.email || "",
+          role: "employee",
+          is_active: false,
+          permissions: normalizePermissions({}, "employee"),
+        }
+      );
+    } catch (error) {
+      console.warn("v235: تعذر فحص ملف الجلسة مباشرة من السحابة.", error);
+      throw error;
+    }
+  }
+  secureLoadAuthProfile.__v235CloudSessionSecurity = true;
+  try {
+    loadAuthProfile = secureLoadAuthProfile;
+  } catch (_) {}
+  window.loadAuthProfile = secureLoadAuthProfile;
+
+  function notify(message, options) {
+    try {
+      if (typeof showToast === "function") showToast(message, options || {});
+    } catch (_) {}
+  }
+
+  async function resolveSessionUser() {
+    const existing = currentUser();
+    if (existing) return existing;
+    const client = db();
+    if (!client?.auth?.getSession) return null;
+    const result = await client.auth.getSession();
+    if (result.error) throw result.error;
+    const user = result.data?.session?.user || null;
+    if (user) {
+      try {
+        authUser = user;
+      } catch (_) {}
+      window.authUser = user;
+    }
+    return user;
+  }
+
+  function activeViewName() {
+    const id = document.querySelector(".view.active")?.id || "";
+    return id.endsWith("View") ? id.slice(0, -4) : "";
+  }
+
+  function canOpen(view) {
+    if (!view) return false;
+    try {
+      return typeof roleCanOpen === "function" && Boolean(roleCanOpen(view));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function removeNoAccessView() {
+    document.querySelector("#v235NoAccessView")?.remove();
+  }
+
+  function showNoAccessView() {
+    document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
+    let view = document.querySelector("#v235NoAccessView");
+    if (!view) {
+      view = document.createElement("section");
+      view.id = "v235NoAccessView";
+      view.className = "view v235-no-access-view";
+      view.innerHTML =
+        '<article class="panel"><div class="empty-state"><span data-icon="shield"></span><strong>لا توجد أقسام متاحة لهذا الحساب</strong><p>تواصل مع مدير النظام لإضافة الصلاحيات المناسبة. ستتحدث الجلسة تلقائيًا عند منحها.</p></div></article>';
+      (document.querySelector("main.content") || document.querySelector(".content"))?.appendChild(view);
+      try {
+        if (typeof hydrateIcons === "function") hydrateIcons(view);
+      } catch (_) {}
+    }
+    view.classList.add("active");
+    const title = document.querySelector("#pageTitle");
+    const subtitle = document.querySelector("#pageSubtitle");
+    if (title) title.textContent = "الصلاحيات";
+    if (subtitle) subtitle.textContent = "لا توجد أقسام متاحة لهذا الحساب حاليًا";
+  }
+
+  function ensureAllowedView() {
+    const active = activeViewName();
+    if (active && active !== "v235NoAccess" && canOpen(active)) {
+      removeNoAccessView();
+      return { moved: false, view: active };
+    }
+    const candidates = [
+      "dashboard",
+      "employees",
+      "attendance",
+      "leaves",
+      "finance",
+      "payroll",
+      "establishmentDocuments",
+      "departments",
+      "settings",
+      "users",
+      "privateAlerts",
+    ];
+    const fallback = candidates.find(canOpen) || "";
+    if (!fallback) {
+      showNoAccessView();
+      return { moved: true, view: "" };
+    }
+    removeNoAccessView();
+    try {
+      if (typeof switchView === "function") switchView(fallback);
+      else if (typeof window.switchView === "function") window.switchView(fallback);
+    } catch (error) {
+      console.warn("v235: تعذر نقل المستخدم إلى قسم مسموح.", error);
+    }
+    return { moved: true, view: fallback };
+  }
+
+  function changedPermissionKeys(previous, next) {
+    const before = previous?.permissions || {};
+    const after = next?.permissions || {};
+    return Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).filter(
+      (key) => Boolean(before[key]) !== Boolean(after[key]),
+    );
+  }
+
+  function refreshVisibleData(view, changedKeys) {
+    if (!view || !changedKeys.length) return;
+    const relevant = changedKeys.some(
+      (key) =>
+        key.startsWith(view + ".") ||
+        (view === "establishmentDocuments" && key.startsWith("documents.")) ||
+        (view === "departments" && key.startsWith("organization.")) ||
+        (view === "users" && key.startsWith("users.")),
+    );
+    if (!relevant && view !== "dashboard") return;
+    try {
+      if (window.nawahUiStabilityV229?.invalidate)
+        window.nawahUiStabilityV229.invalidate(
+          view === "establishmentDocuments" || view === "users" ? "settings" : view,
+        );
+    } catch (_) {}
+    try {
+      if (view === "dashboard" && typeof renderDashboard === "function")
+        renderDashboard({ forceUiRefreshV229: true });
+      else if (view === "employees" && typeof renderEmployees === "function")
+        renderEmployees();
+      else if (view === "attendance" && typeof renderAttendance === "function")
+        renderAttendance();
+      else if (view === "leaves") {
+        if (typeof window.nawahRenderLeavesV78 === "function")
+          window.nawahRenderLeavesV78();
+        else if (typeof renderLeaves === "function") renderLeaves();
+      } else if (view === "payroll" && typeof renderPayroll === "function")
+        renderPayroll({ forceUiRefreshV229: true });
+      else if (view === "finance" && typeof renderFinance === "function")
+        renderFinance();
+      else if (
+        view === "establishmentDocuments" &&
+        typeof window.renderEstablishmentDocuments === "function"
+      )
+        window.renderEstablishmentDocuments();
+      else if (view === "users" && typeof renderUsersManagement === "function")
+        renderUsersManagement({ silent: true });
+    } catch (error) {
+      console.warn("v235: تعذر تحديث بيانات القسم بعد تغير الصلاحيات.", error);
+    }
+  }
+
+  async function endDisabledSession(message) {
+    if (sessionEnded) return false;
+    sessionEnded = true;
+    stopProfileChannel();
+    const user = currentUser();
+    document.body.classList.add("auth-locked", "v235-session-ended");
+    document.documentElement.dataset.v235SessionState = "ended";
+    clearCachedProfile(user);
+    try {
+      const signOut = db()?.auth?.signOut?.();
+      if (signOut && typeof signOut.then === "function")
+        await Promise.race([
+          signOut,
+          new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
+    } catch (error) {
+      console.warn("v235: تعذر تأكيد تسجيل الخروج من المزود.", error);
+    }
+    try {
+      authUser = null;
+      authProfile = null;
+    } catch (_) {}
+    window.authUser = null;
+    window.authProfile = null;
+    try {
+      if (typeof showAuthGate === "function")
+        showAuthGate(message || "انتهت الجلسة. تواصل مع مدير النظام.");
+    } catch (_) {}
+    document.dispatchEvent(
+      new CustomEvent("nawah:session-ended", {
+        detail: { reason: message || "account-disabled" },
+      }),
+    );
+    return false;
+  }
+
+  async function performValidation(options) {
+    const opts = options || {};
+    const now = Date.now();
+    if (
+      !opts.force &&
+      lastValidatedAt &&
+      now - lastValidatedAt < MIN_RECHECK_GAP
+    )
+      return { status: "fresh", changed: false };
+    if (sessionEnded) return { status: "ended", changed: false };
+    let user = null;
+    try {
+      user = await resolveSessionUser();
+      if (!user) return { status: "signed-out", changed: false };
+      const fresh = await fetchProfile(user);
+      lastValidatedAt = Date.now();
+      if (!fresh)
+        return {
+          status: "ended",
+          changed: false,
+          active: await endDisabledSession(
+            "لم يعد حسابك مرتبطًا بصلاحيات النظام. تواصل مع مدير النظام.",
+          ),
+        };
+      if (fresh.is_active === false)
+        return {
+          status: "ended",
+          changed: false,
+          active: await endDisabledSession(
+            "تم تعطيل حسابك وإنهاء الجلسة. تواصل مع مدير النظام عند الحاجة.",
+          ),
+        };
+      const previous = currentProfile();
+      const previousFingerprint = fingerprint(previous);
+      const nextFingerprint = fingerprint(fresh);
+      const permissionsChanged =
+        permissionFingerprint(previous) !== permissionFingerprint(fresh);
+      const changed = Boolean(previousFingerprint && previousFingerprint !== nextFingerprint);
+      installCurrentProfile(user, fresh);
+      startProfileChannel(user);
+      lastFingerprint = nextFingerprint;
+      if (changed) {
+        try {
+          if (typeof applyRolePermissions === "function") applyRolePermissions();
+        } catch (error) {
+          console.warn("v235: تعذر تطبيق الصلاحيات المحدثة.", error);
+        }
+        const destination = ensureAllowedView();
+        if (permissionsChanged && !destination.moved)
+          refreshVisibleData(
+            destination.view,
+            changedPermissionKeys(previous, fresh),
+          );
+        if (!opts.silent)
+          notify(
+            permissionsChanged
+              ? "تم تحديث صلاحيات جلستك سحابيًا"
+              : "تم تحديث بيانات جلستك سحابيًا",
+          );
+      } else if (!previousFingerprint) {
+        try {
+          if (typeof applyRolePermissions === "function") applyRolePermissions();
+        } catch (_) {}
+        ensureAllowedView();
+      }
+      document.documentElement.dataset.v235SessionState = "active";
+      return { status: "active", active: true, changed, permissionsChanged };
+    } catch (error) {
+      console.warn("v235: تعذر إعادة التحقق من الجلسة؛ ستبقى الجلسة الحالية دون تغيير.", error);
+      return { status: "unavailable", active: true, changed: false, error };
+    }
+  }
+
+  function revalidate(options) {
+    if (validationPromise) return validationPromise;
+    validationPromise = performValidation(options).finally(function () {
+      validationPromise = null;
+    });
+    return validationPromise;
+  }
+
+  function stopProfileChannel() {
+    clearTimeout(realtimeTimer);
+    if (!profileChannel) return;
+    try {
+      if (typeof db()?.removeChannel === "function") db().removeChannel(profileChannel);
+      else if (typeof profileChannel.unsubscribe === "function") profileChannel.unsubscribe();
+    } catch (_) {}
+    profileChannel = null;
+    profileChannelUserId = "";
+  }
+
+  function startProfileChannel(user) {
+    const client = db();
+    if (!user?.id || !client?.channel || sessionEnded) return;
+    if (profileChannel && profileChannelUserId === String(user.id)) return;
+    stopProfileChannel();
+    try {
+      profileChannelUserId = String(user.id);
+      profileChannel = client
+        .channel("nawah-current-session-v235-" + profileChannelUserId)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "app_user_profiles",
+            filter: "user_id=eq." + profileChannelUserId,
+          },
+          function () {
+            clearTimeout(realtimeTimer);
+            realtimeTimer = setTimeout(function () {
+              void revalidate({ force: true });
+            }, 60);
+          },
+        )
+        .subscribe();
+    } catch (error) {
+      profileChannel = null;
+      profileChannelUserId = "";
+      console.info("v235: Realtime للجلسة غير متاح؛ سيبقى فحص التركيز فعالًا.");
+    }
+  }
+
+  async function bootstrap() {
+    try {
+      const user = await resolveSessionUser();
+      if (!user) return;
+      const result = await revalidate({ force: true, silent: true });
+      if (result.status === "active") startProfileChannel(user);
+    } catch (_) {}
+  }
+
+  window.addEventListener("focus", function () {
+    void revalidate({ silent: true });
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") void revalidate({ silent: true });
+  });
+  window.addEventListener("online", function () {
+    void revalidate({ force: true, silent: true });
+  });
+  setInterval(function () {
+    if (document.visibilityState === "visible") void revalidate({ silent: true });
+  }, RECHECK_INTERVAL);
+
+  try {
+    if (db()?.auth?.onAuthStateChange) {
+      db().auth.onAuthStateChange(function (event, session) {
+        if (event === "SIGNED_OUT") {
+          stopProfileChannel();
+          return;
+        }
+        if (session?.user) {
+          sessionEnded = false;
+          try {
+            authUser = session.user;
+          } catch (_) {}
+          window.authUser = session.user;
+          setTimeout(bootstrap, 0);
+        }
+      });
+    }
+  } catch (_) {}
+
+  setTimeout(bootstrap, 0);
+
+  window.nawahSessionSecurityV235 = {
+    version: 235,
+    revalidate: function (options) {
+      return revalidate({ ...(options || {}), force: options?.force !== false });
+    },
+    fetchCurrentProfile: function () {
+      return resolveSessionUser().then(fetchProfile);
+    },
+    state: function () {
+      return {
+        ended: sessionEnded,
+        lastValidatedAt,
+        fingerprint: lastFingerprint,
+        realtime: Boolean(profileChannel),
+      };
+    },
+    stopRealtime: stopProfileChannel,
+  };
+})();
+
 /* v228 - final renderer lock (must remain the last application patch). */
 (function v222FinalLeaveTravelRendererLock() {
   if (window.__v222FinalLeaveTravelRendererLock) return;
