@@ -64398,7 +64398,9 @@ window.nawahLeaveBalanceReportV185 = {
       form.querySelector(".company-logo-upload")
     );
   }
-  function setSiteFaviconHref(url) {
+  const FAVICON_PLACEHOLDER_V231 =
+    "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+  function setSiteFaviconHref(url, state) {
     let link =
       document.querySelector('link[rel="icon"]') ||
       document.querySelector('link[rel="shortcut icon"]');
@@ -64407,25 +64409,63 @@ window.nawahLeaveBalanceReportV185 = {
       link.rel = "icon";
       document.head.appendChild(link);
     }
-    link.type = "image/png";
-    link.href = url || "sar-symbol.png";
+    const next = url || FAVICON_PLACEHOLDER_V231;
+    link.type = String(next).includes("image/svg+xml")
+      ? "image/svg+xml"
+      : String(next).includes("image/gif")
+        ? "image/gif"
+        : "image/png";
+    if (link.href !== new URL(next, document.baseURI).href) link.href = next;
+    link.dataset.nawahFaviconState =
+      state || (next === FAVICON_PLACEHOLDER_V231 ? "pending" : "ready");
+    return link;
   }
   async function applySiteFavicon() {
     const company = readCompany();
-    const url =
-      company.siteFaviconDataUrl ||
-      (company.siteFaviconAttachmentId
-        ? await imageUrl(company.siteFaviconAttachmentId)
-        : "") ||
-      company.logoDataUrl ||
-      (company.logoAttachmentId ? await imageUrl(company.logoAttachmentId) : "");
-    setSiteFaviconHref(url || "sar-symbol.png");
+    let url = company.siteFaviconDataUrl || "";
+    if (!url && company.siteFaviconAttachmentId) {
+      url = await imageUrl(company.siteFaviconAttachmentId);
+      if (!url) {
+        setSiteFaviconHref(FAVICON_PLACEHOLDER_V231, "pending");
+        return false;
+      }
+    }
+    if (!url) url = company.logoDataUrl || "";
+    if (!url && company.logoAttachmentId) {
+      url = await imageUrl(company.logoAttachmentId);
+      if (!url) {
+        setSiteFaviconHref(FAVICON_PLACEHOLDER_V231, "pending");
+        return false;
+      }
+    }
+    if (url) setSiteFaviconHref(url, "ready");
+    else if (window.__nawahEmployeesReady)
+      setSiteFaviconHref("sar-symbol.png", "default");
+    else setSiteFaviconHref(FAVICON_PLACEHOLDER_V231, "pending");
     const preview = q("#siteFaviconPreview");
     if (preview) {
       preview.innerHTML = url
         ? '<img src="' + esc(url) + '" alt="أيقونة تبويب الموقع">'
         : "<span>تبويب</span>";
     }
+    return Boolean(url);
+  }
+  const previousFaviconCloudApply =
+    typeof applyCloudState === "function" ? applyCloudState : null;
+  if (previousFaviconCloudApply && !previousFaviconCloudApply.__v231StableFavicon) {
+    const wrappedFaviconCloudApply = function (state) {
+      const result = previousFaviconCloudApply.apply(this, arguments);
+      if (state && state.companySettingsV92) {
+        setTimeout(() => applySiteFavicon().catch(() => {}), 0);
+        setTimeout(() => applySiteFavicon().catch(() => {}), 350);
+      }
+      return result;
+    };
+    wrappedFaviconCloudApply.__v231StableFavicon = true;
+    try {
+      applyCloudState = wrappedFaviconCloudApply;
+    } catch (_) {}
+    window.applyCloudState = wrappedFaviconCloudApply;
   }
   function reorderCompanyMediaControls(form) {
     if (!form) return;
