@@ -16461,6 +16461,29 @@ html.has-initial-login-bg .auth-gate,
   order: initial;
 }
 
+/* v230: the 104px favicon preview previously overflowed an 86px grid track,
+   which consumed the visual gap and made the Arabic copy touch the preview. */
+.v192-site-favicon-card {
+  grid-template-columns: 116px minmax(0, 1fr) auto !important;
+  column-gap: 24px !important;
+}
+
+.v192-site-favicon-card .company-logo-copy {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .v192-site-favicon-card {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    text-align: center;
+  }
+
+  .v192-site-favicon-card .v192-media-actions {
+    justify-content: center;
+  }
+}
+
 .v192-site-favicon-preview,
 .v192-stamp-preview {
   background: #fff !important;

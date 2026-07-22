@@ -38923,7 +38923,9 @@ async function init() {
     try {
       if (typeof hydrateIcons === "function") hydrateIcons(section);
     } catch (_) {}
-    setTimeout(() => window.nawahV191?.companyStampControl?.(), 40);
+    /* v230: restore the cloud-backed media controls in the same microtask as
+       the company form rebuild so navigation never paints an incomplete card. */
+    queueMicrotask(() => window.nawahCompanyMediaControlsV230?.ensure?.());
     loadSaudiGuide().then((full) => {
       if (
         section.isConnected &&
@@ -39427,6 +39429,9 @@ async function init() {
       applyLoginBackground();
     }, 350),
   );
+  window.nawahLoginBackgroundControlV230 = {
+    ensure: renderBackgroundControl,
+  };
   /* v100: removed repeating login background applier for performance; event based only */
 })();
 
@@ -39605,6 +39610,57 @@ async function init() {
     },
     true,
   );
+})();
+
+/* v230 - stable company media controls after settings navigation.
+   This only rebuilds missing UI controls; cloud persistence remains unchanged. */
+(function v230StableCompanyMediaControls() {
+  if (window.__v230StableCompanyMediaControls) return;
+  window.__v230StableCompanyMediaControls = true;
+
+  function companyForm() {
+    return document.querySelector(
+      '#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"]',
+    );
+  }
+
+  function keepMediaOrder(form) {
+    if (!form) return;
+    const logo =
+        form.querySelector(".company-logo-upload-real.v94-logo-upload") ||
+        form.querySelector(
+          ".company-logo-upload-real:not([data-v96-login-bg-control]):not([data-v191-company-stamp]):not([data-v192-site-favicon-control])",
+        ),
+      background = form.querySelector("[data-v96-login-bg-control]"),
+      favicon = form.querySelector("[data-v192-site-favicon-control]");
+    if (logo && background && background.previousElementSibling !== logo)
+      logo.insertAdjacentElement("afterend", background);
+    if (background && favicon && favicon.previousElementSibling !== background)
+      background.insertAdjacentElement("afterend", favicon);
+    background?.classList.add("v146-login-bg-card");
+  }
+
+  async function ensureCompanyMediaControls() {
+    const form = companyForm();
+    if (!form) return false;
+    window.nawahV191?.companyStampControl?.();
+    window.nawahLoginBackgroundControlV230?.ensure?.();
+    keepMediaOrder(form);
+    const refreshes = [];
+    if (typeof window.refreshLoginBackgroundCardV146 === "function")
+      refreshes.push(window.refreshLoginBackgroundCardV146());
+    if (typeof window.applyCompanyMediaV101 === "function")
+      refreshes.push(window.applyCompanyMediaV101());
+    if (refreshes.length) await Promise.allSettled(refreshes);
+    return Boolean(
+      form.querySelector("[data-v96-login-bg-control]") &&
+        form.querySelector("[data-v192-site-favicon-control]"),
+    );
+  }
+
+  window.nawahCompanyMediaControlsV230 = {
+    ensure: ensureCompanyMediaControls,
+  };
 })();
 
 /* v99 - prevent topbar/header avatar flicker on first entry */
