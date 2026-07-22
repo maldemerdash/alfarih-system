@@ -7051,6 +7051,169 @@ body {
   }
 }
 
+/* v230 - unified company identity media cards and cloud attachment preview */
+#settingsForm .v230-company-media-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+#settingsForm .v230-company-media-card,
+#settingsForm .v230-company-media-card.v146-login-bg-card {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+  min-height: 248px !important;
+  margin: 0 !important;
+  padding: 15px !important;
+  border: 1px solid rgba(20, 184, 166, .18) !important;
+  border-radius: 21px !important;
+  background: linear-gradient(145deg, #fff, #f7fcfd) !important;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .045) !important;
+  text-align: right !important;
+}
+
+#settingsForm .v230-company-media-title {
+  display: block !important;
+  min-height: 24px !important;
+  color: #0f172a !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  line-height: 1.7 !important;
+}
+
+#settingsForm .v230-company-media-preview,
+#settingsForm .v230-company-media-card.v146-login-bg-card .v230-company-media-preview {
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  height: 132px !important;
+  min-height: 132px !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  border: 1px dashed rgba(15, 140, 161, .28) !important;
+  border-radius: 17px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  color: #0f7d8f !important;
+}
+
+#settingsForm .v230-company-media-preview img,
+#settingsForm .v230-company-media-card.v146-login-bg-card .v230-company-media-preview img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 7px !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
+
+#settingsForm [data-v230-company-media="login-background"] .v230-company-media-preview img {
+  padding: 0 !important;
+  object-fit: cover !important;
+}
+
+#settingsForm .v230-company-media-actions,
+#settingsForm .v230-company-media-card.v146-login-bg-card .v230-company-media-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  margin-top: auto !important;
+  flex-wrap: wrap !important;
+}
+
+#settingsForm .v230-company-media-actions .company-logo-btn {
+  flex: 1 1 auto !important;
+  min-width: 112px !important;
+  justify-content: center !important;
+  height: 40px !important;
+  padding: 0 13px !important;
+  border-radius: 13px !important;
+}
+
+#settingsForm .v230-media-view-btn {
+  display: inline-grid !important;
+  flex: 0 0 40px !important;
+  place-items: center !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+  border: 1px solid rgba(14, 165, 183, .22) !important;
+  border-radius: 13px !important;
+  background: #eefcff !important;
+  color: #08778a !important;
+  cursor: pointer !important;
+}
+
+#settingsForm .v230-media-view-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+#settingsForm .v230-company-media-actions .light-btn {
+  flex: 1 1 100% !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+}
+
+#settingsForm .v230-national-address-attachment {
+  display: grid !important;
+  gap: 7px !important;
+}
+
+#settingsForm .v230-national-address-attachment > span {
+  color: #334155 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+#settingsForm .v230-national-address-attachment .attachment-actions {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  justify-content: flex-start !important;
+}
+
+#settingsForm .v230-national-address-attachment .attachment-actions .secondary-btn {
+  min-width: 118px !important;
+  justify-content: center !important;
+}
+
+@media (max-width: 980px) {
+  #settingsForm .v230-company-media-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  #settingsForm .v230-company-media-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #settingsForm .v230-national-address-attachment .attachment-line {
+    align-items: stretch !important;
+  }
+
+  #settingsForm .v230-national-address-attachment .attachment-actions {
+    width: 100% !important;
+  }
+
+  #settingsForm .v230-national-address-attachment .attachment-actions .secondary-btn {
+    flex: 1 1 auto !important;
+  }
+}
+
 .approval-question-card,
 .end-service-warning {
   border: 1px solid #dbe7ea;
@@ -14380,7 +14543,6 @@ input.manual-field { background: #fff !important; border-color: #0f766e !importa
 .auth-logo.v101-storage-logo img,.auth-logo.v95-login-logo-circle img{width:100%!important;height:100%!important;display:block!important;object-fit:cover!important;border-radius:50%!important;border:none!important;background:transparent!important;padding:0!important;}
 .topbar-user-mark.v101-topbar-avatar{overflow:hidden!important;border-radius:50%!important;background:transparent!important;}
 .topbar-user-mark.v101-topbar-avatar img{width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%!important;display:block!important;}
-.v101-national-download{margin-inline-start:8px;white-space:nowrap;}
 .company-logo-preview img,.login-bg-preview img{content-visibility:auto;}
 .auth-gate.v101-storage-bg::before{background-image:var(--login-bg-image);}
 
@@ -16459,29 +16621,6 @@ html.has-initial-login-bg .auth-gate,
 .v192-site-favicon-card,
 .v192-company-stamp-card {
   order: initial;
-}
-
-/* v230: the 104px favicon preview previously overflowed an 86px grid track,
-   which consumed the visual gap and made the Arabic copy touch the preview. */
-.v192-site-favicon-card {
-  grid-template-columns: 116px minmax(0, 1fr) auto !important;
-  column-gap: 24px !important;
-}
-
-.v192-site-favicon-card .company-logo-copy {
-  min-width: 0;
-}
-
-@media (max-width: 760px) {
-  .v192-site-favicon-card {
-    grid-template-columns: 1fr !important;
-    gap: 14px !important;
-    text-align: center;
-  }
-
-  .v192-site-favicon-card .v192-media-actions {
-    justify-content: center;
-  }
 }
 
 .v192-site-favicon-preview,
