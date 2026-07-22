@@ -37896,7 +37896,9 @@ async function init() {
   document.addEventListener(
     "submit",
     (e) => {
-      const form = e.target?.closest?.('#settingsForm[data-v92-company="1"]');
+      const form = e.target?.closest?.(
+        '#settingsForm[data-v92-company="1"]:not([data-v94-company="1"])',
+      );
       if (!form) return;
       e.preventDefault();
       e.stopPropagation();
@@ -38377,13 +38379,37 @@ async function init() {
   function saveCompany(data) {
     const current = getCompany(),
       next = { ...current, ...data };
+    if (next.logoAttachmentId) next.logoDataUrl = "";
+    if (next.loginBackgroundAttachmentId) next.loginBackgroundDataUrl = "";
+    if (next.nationalAddressAttachmentId)
+      next.nationalAddressFileDataUrl = "";
+    if (next.siteFaviconAttachmentId) next.siteFaviconDataUrl = "";
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    try {
-      if (typeof saveCloudStateNow === "function")
-        saveCloudStateNow({ force: true });
-      else if (typeof queueCloudStateSave === "function") queueCloudStateSave();
-    } catch (_) {}
     return next;
+  }
+  function companyIdentitySyncV228() {
+    return window.nawahCompanyIdentitySyncV228 || null;
+  }
+  async function persistCompanyDataV228(patch, reason) {
+    const sync = companyIdentitySyncV228();
+    if (!sync || !(await sync.prepare())) {
+      try {
+        typeof showToast === "function" &&
+          showToast("تعذر الاتصال بالسحابة. لم يتم حفظ بيانات المنشأة");
+      } catch (_) {}
+      return !1;
+    }
+    const previous = getCompany();
+    saveCompany(patch);
+    sync.trackCompanyUpserts(Object.keys(patch || {}));
+    if (await sync.save(reason || "company-details-upsert")) return !0;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(previous));
+    await sync.rollback(["companySettingsV92"]);
+    try {
+      typeof showToast === "function" &&
+        showToast("تعذر تأكيد الحفظ السحابي. أُعيدت بيانات المنشأة السابقة");
+    } catch (_) {}
+    return !1;
   }
   function escape(s) {
     return String(s ?? "").replace(
@@ -38524,17 +38550,6 @@ async function init() {
       )
       .join("");
   }
-  function fileToDataUrl(file, maxSize) {
-    return new Promise((resolve, reject) => {
-      if (!file) return resolve("");
-      if (file.size > maxSize)
-        return reject(new Error("حجم الملف أكبر من الحد المسموح."));
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("تعذر قراءة الملف."));
-      reader.readAsDataURL(file);
-    });
-  }
   function downloadDataUrl(dataUrl, filename) {
     if (!dataUrl) return;
     const a = document.createElement("a");
@@ -38658,39 +38673,6 @@ async function init() {
         company: form.elements.company.value,
       }),
     );
-    form.elements.logoFile?.addEventListener("change", async (e) => {
-      try {
-        const logoDataUrl = await fileToDataUrl(
-          e.target.files?.[0],
-          2 * 1024 * 1024,
-        );
-        if (logoDataUrl) {
-          saveCompany({ logoDataUrl });
-          applyCompanyBrandingV94(getCompany());
-          renderCompanySettingsV94();
-        }
-      } catch (err) {
-        alert(err.message || "تعذر رفع الشعار");
-      }
-    });
-    form.elements.nationalAddressFile?.addEventListener("change", async (e) => {
-      try {
-        const file = e.target.files?.[0];
-        const nationalAddressFileDataUrl = await fileToDataUrl(
-          file,
-          5 * 1024 * 1024,
-        );
-        if (nationalAddressFileDataUrl) {
-          saveCompany({
-            nationalAddressFileDataUrl,
-            nationalAddressFileName: file.name,
-          });
-          renderCompanySettingsV94();
-        }
-      } catch (err) {
-        alert(err.message || "تعذر رفع ملف العنوان الوطني");
-      }
-    });
     section
       .querySelector("[data-download-national-address]")
       ?.addEventListener("click", () => {
@@ -38726,16 +38708,19 @@ async function init() {
         }
       }
     });
+    return true;
   }
+  window.renderCompanySettingsV94 = renderCompanySettingsV94;
   document.addEventListener(
     "submit",
-    function (e) {
+    async function (e) {
       const form = e.target?.closest?.('#settingsForm[data-v94-company="1"]');
       if (!form) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation?.();
-      saveCompany({
+      if (form.dataset.savingV228 === "1") return;
+      const patch = {
         company:
           form.elements.company?.value?.trim() || DEFAULT_COMPANY.company,
         unifiedNumber: form.elements.unifiedNumber?.value?.trim() || "",
@@ -38749,12 +38734,32 @@ async function init() {
         street: form.elements.street?.value?.trim() || "",
         additionalNumber: form.elements.additionalNumber?.value?.trim() || "",
         postalCode: form.elements.postalCode?.value?.trim() || "",
-      });
+      };
+      if (form.elements.email?.value && !form.elements.email.checkValidity()) {
+        form.elements.email.reportValidity?.();
+        return;
+      }
+      form.dataset.savingV228 = "1";
+      const submitButton = form.querySelector('[type="submit"]');
+      submitButton && (submitButton.disabled = !0);
+      const saved = await persistCompanyDataV228(
+        patch,
+        "company-details-upsert",
+      );
+      delete form.dataset.savingV228;
+      submitButton && (submitButton.disabled = !1);
+      if (!saved) {
+        renderCompanySettingsV94();
+        return;
+      }
       applyCompanyBrandingV94();
+      try {
+        await window.applyCompanyMediaV101?.();
+      } catch (_) {}
       renderCompanySettingsV94();
       try {
         typeof showToast === "function"
-          ? showToast("تم حفظ بيانات المنشأة وتحديث العنوان الوطني.")
+          ? showToast("تم حفظ بيانات المنشأة سحابيًا وتحديث العنوان الوطني.")
           : alert("تم حفظ بيانات المنشأة.");
       } catch (_) {
         alert("تم حفظ بيانات المنشأة.");
@@ -39764,13 +39769,26 @@ async function init() {
         throw err;
       }
     }
-    try {
-      if (typeof saveCloudStateNow === "function")
-        saveCloudStateNow({ force: true });
-      else if (typeof queueCloudStateSave === "function") queueCloudStateSave();
-    } catch (_) {}
     scheduleBranding(0);
     return next;
+  }
+  function identitySyncV228() {
+    return window.nawahCompanyIdentitySyncV228 || null;
+  }
+  async function prepareIdentityMutationV228() {
+    const sync = identitySyncV228();
+    if (!sync || !(await sync.prepare()))
+      throw new Error("تعذر الاتصال بالسحابة. لم يتم تنفيذ التعديل.");
+    return sync;
+  }
+  async function persistCompanyMediaV228(previous, patch, reason) {
+    const sync = identitySyncV228();
+    writeCompany(patch);
+    sync.trackCompanyUpserts(Object.keys(patch || {}));
+    if (await sync.save(reason || "company-media-upsert")) return !0;
+    localStorage.setItem(COMPANY_KEY, JSON.stringify(previous || {}));
+    await sync.rollback(["companySettingsV92"]);
+    throw new Error("تعذر تأكيد حفظ مرجع الملف في السحابة.");
   }
   function requireCloud() {
     if (!(
@@ -40130,6 +40148,8 @@ async function init() {
     };
     const cfg = map[field];
     if (!cfg) return;
+    await prepareIdentityMutationV228();
+    const previous = readCompany();
     const id = await uploadToStorage(file, cfg[0]);
     const patch = {};
     patch[cfg[1]] = id;
@@ -40137,10 +40157,14 @@ async function init() {
     if (field === "logoFile") patch.logoDataUrl = "";
     if (field === "loginBackgroundFile") patch.loginBackgroundDataUrl = "";
     if (field === "nationalAddressFile") patch.nationalAddressFileDataUrl = "";
-    writeCompany(patch);
+    await persistCompanyMediaV228(
+      previous,
+      patch,
+      `company-media-${field}-upsert`,
+    );
     try {
       typeof showToast === "function"
-        ? showToast("تم رفع الملف وحفظه في Supabase Storage.")
+        ? showToast("تم رفع الملف وتأكيد حفظه سحابيًا.")
         : null;
     } catch (_) {}
     scheduleBranding(0);
@@ -40178,13 +40202,35 @@ async function init() {
         e.preventDefault();
         e.stopPropagation();
         if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-        writeCompany({
-          loginBackgroundAttachmentId: "",
-          loginBackgroundFileName: "",
-          loginBackgroundDataUrl: "",
-        });
-        setLoginBackground("");
-        scheduleBranding(0);
+        void (async function () {
+          try {
+            await prepareIdentityMutationV228();
+            const previous = readCompany(),
+              patch = {
+                loginBackgroundAttachmentId: "",
+                loginBackgroundFileName: "",
+                loginBackgroundDataUrl: "",
+              };
+            await persistCompanyMediaV228(
+              previous,
+              patch,
+              "company-login-background-delete",
+            );
+            setLoginBackground("");
+            scheduleBranding(0);
+            try {
+              typeof showToast === "function" &&
+                showToast("تم حذف خلفية تسجيل الدخول سحابيًا.");
+            } catch (_) {}
+          } catch (error) {
+            console.warn(error);
+            try {
+              typeof showToast === "function" &&
+                showToast("تعذر حذف خلفية تسجيل الدخول سحابيًا.");
+            } catch (_) {}
+          }
+        })();
+        return;
       }
       const dl =
         e.target &&
@@ -40275,7 +40321,13 @@ async function init() {
     return uploadToStorage(file, category);
   }
   async function migrateOldCompanyBase64() {
-    const c = readCompany();
+    try {
+      await prepareIdentityMutationV228();
+    } catch (_) {
+      return;
+    }
+    const c = readCompany(),
+      previous = { ...c };
     let patch = {};
     let changed = false;
     try {
@@ -40317,7 +40369,16 @@ async function init() {
     } catch (e) {
       console.warn("تعذر نقل مرفق العنوان الوطني إلى Storage", e);
     }
-    if (changed) writeCompany(patch);
+    if (changed)
+      try {
+        await persistCompanyMediaV228(
+          previous,
+          patch,
+          "company-media-legacy-migration",
+        );
+      } catch (error) {
+        console.warn("تعذر تأكيد نقل وسائط المنشأة القديمة.", error);
+      }
   }
   function afterSettingsRender() {
     scheduleBranding(80);
@@ -63994,21 +64055,29 @@ window.nawahLeaveBalanceReportV185 = {
   function saveCompany(patch) {
     const next = Object.assign({}, readCompany(), patch || {});
     localStorage.setItem(COMPANY_KEY, JSON.stringify(next));
-    cloudSave();
     return next;
   }
-  function fileToDataUrl(file) {
-    return new Promise(function (resolve) {
-      if (!file || !/^image\//i.test(file.type || "")) return resolve("");
-      const reader = new FileReader();
-      reader.onload = function () {
-        resolve(String(reader.result || ""));
-      };
-      reader.onerror = function () {
-        resolve("");
-      };
-      reader.readAsDataURL(file);
-    });
+  function identitySyncV228() {
+    return window.nawahCompanyIdentitySyncV228 || null;
+  }
+  async function prepareIdentityMutationV228() {
+    const sync = identitySyncV228();
+    if (!sync || !(await sync.prepare()))
+      throw new Error("company-identity-cloud-unavailable");
+    return sync;
+  }
+  async function persistCompanyIdentityV228(previous, patch, reason) {
+    const sync = identitySyncV228();
+    if (!sync) throw new Error("company-identity-sync-unavailable");
+    saveCompany(patch);
+    sync.trackCompanyUpserts(Object.keys(patch || {}));
+    const saved = await sync.save(reason || "company-identity-save");
+    if (!saved) {
+      localStorage.setItem(COMPANY_KEY, JSON.stringify(previous || {}));
+      await sync.rollback(["companySettingsV92"]);
+      throw new Error("company-identity-cloud-save-failed");
+    }
+    return readCompany();
   }
   function companyLogoCard(form) {
     return (
@@ -64182,13 +64251,59 @@ window.nawahLeaveBalanceReportV185 = {
       return text(a.name).localeCompare(text(b.name), "ar");
     });
   }
+  function managerLegacyIdV228(manager, index) {
+    const seed = String(
+      manager?.employeeId || manager?.name || manager?.createdAt || index || "record",
+    );
+    let hash = 2166136261;
+    for (let cursor = 0; cursor < seed.length; cursor += 1) {
+      hash ^= seed.charCodeAt(cursor);
+      hash = Math.imul(hash, 16777619);
+    }
+    return "manager-legacy-" + (hash >>> 0).toString(16);
+  }
+  function normalizeManagersV228(list) {
+    const normalized = [],
+      employeeIds = new Set(),
+      recordIds = new Set();
+    (Array.isArray(list) ? list : []).forEach(function (manager, index) {
+      if (!manager || typeof manager !== "object") return;
+      const employeeId = String(manager.employeeId || ""),
+        id = String(manager.id || managerLegacyIdV228(manager, index));
+      if (recordIds.has(id) || (employeeId && employeeIds.has(employeeId))) return;
+      recordIds.add(id);
+      if (employeeId) employeeIds.add(employeeId);
+      normalized.push(Object.assign({}, manager, { id: id }));
+    });
+    return normalized;
+  }
   function readManagers() {
-    const list = parseJson(localStorage.getItem(MANAGERS_KEY), []);
-    return Array.isArray(list) ? list : [];
+    return normalizeManagersV228(
+      parseJson(localStorage.getItem(MANAGERS_KEY), []),
+    );
   }
   function saveManagers(list) {
-    localStorage.setItem(MANAGERS_KEY, JSON.stringify(Array.isArray(list) ? list : []));
-    cloudSave();
+    const normalized = normalizeManagersV228(list);
+    localStorage.setItem(MANAGERS_KEY, JSON.stringify(normalized));
+    return normalized;
+  }
+  async function persistManagersV228(previous, next, options) {
+    const sync = identitySyncV228(),
+      config = options || {},
+      savedList = saveManagers(next);
+    if (!sync) throw new Error("manager-cloud-sync-unavailable");
+    if (config.upserts?.length) sync.trackManagerUpserts(config.upserts);
+    if (config.deletes?.length) sync.trackManagerDeletes(config.deletes);
+    const saved = await sync.save(config.reason || "manager-save");
+    if (!saved) {
+      localStorage.setItem(
+        MANAGERS_KEY,
+        JSON.stringify(normalizeManagersV228(previous)),
+      );
+      await sync.rollback(["managers"]);
+      throw new Error("manager-cloud-save-failed");
+    }
+    return savedList;
   }
   function renderManagers() {
     const body = q("#managersSettingsBody");
@@ -64278,43 +64393,122 @@ window.nawahLeaveBalanceReportV185 = {
       dlg.setAttribute("open", "open");
     }
   }
-  function addManager(id) {
-    const candidate = managerCandidates().find(function (item) {
-      return String(item.employeeId || item.name) === String(id);
-    });
-    if (!candidate) return;
-    const list = readManagers();
-    if (!list.some(function (item) { return String(item.employeeId || item.id) === String(id); })) {
-      list.push({
-        id: "manager-" + Date.now(),
-        employeeId: candidate.employeeId || id,
-        name: candidate.name,
-        sources: candidate.sources,
-        createdAt: new Date().toISOString(),
+  let managerMutationPendingV228 = false;
+  async function addManager(id) {
+    if (managerMutationPendingV228) return;
+    managerMutationPendingV228 = true;
+    try {
+      await prepareIdentityMutationV228();
+      const candidate = managerCandidates().find(function (item) {
+        return String(item.employeeId || item.name) === String(id);
       });
-      saveManagers(list);
+      if (!candidate) throw new Error("manager-candidate-not-found");
+      const previous = readManagers();
+      if (
+        previous.some(function (item) {
+          return String(item.employeeId || item.id) === String(id);
+        })
+      ) {
+        renderManagers();
+        openManagerModal();
+        return;
+      }
+      const record = {
+          id: "manager-" + Date.now(),
+          employeeId: candidate.employeeId || id,
+          name: candidate.name,
+          sources: candidate.sources,
+          createdAt: new Date().toISOString(),
+        },
+        next = previous.concat(record);
+      await persistManagersV228(previous, next, {
+        upserts: [record.id],
+        reason: "manager-add",
+      });
       renderManagers();
       openManagerModal();
+      notify("تمت إضافة المدير وحفظه سحابيًا.");
+    } catch (error) {
+      console.warn(error);
+      renderManagers();
+      notify("تعذر تأكيد إضافة المدير سحابيًا.");
+    } finally {
+      managerMutationPendingV228 = false;
     }
   }
   async function uploadManagerSignature(input) {
     const id = input && input.dataset.managerSignature;
     const file = input && input.files && input.files[0];
     if (!id || !file) return;
-    if (typeof saveAttachment !== "function") return notify("تعذر حفظ توقيع المدير حالياً.");
-    const attachmentId = await saveAttachment(file, "manager-signature");
-    const list = readManagers().map(function (manager) {
-      return String(manager.employeeId || manager.id) === String(id)
-        ? Object.assign({}, manager, {
-            signatureAttachmentId: attachmentId,
-            signatureFileName: file.name,
-            updatedAt: new Date().toISOString(),
-          })
-        : manager;
-    });
-    saveManagers(list);
-    renderManagers();
-    notify("تم حفظ توقيع المدير.");
+    if (managerMutationPendingV228) return;
+    if (typeof saveAttachment !== "function")
+      return notify("تعذر حفظ توقيع المدير حالياً.");
+    managerMutationPendingV228 = true;
+    input.disabled = true;
+    try {
+      await prepareIdentityMutationV228();
+      const previous = readManagers(),
+        target = previous.find(function (manager) {
+          return String(manager.employeeId || manager.id) === String(id);
+        });
+      if (!target) throw new Error("manager-record-not-found");
+      const attachmentId = await saveAttachment(file, "manager-signature"),
+        next = previous.map(function (manager) {
+          return String(manager.id) === String(target.id)
+            ? Object.assign({}, manager, {
+                signatureAttachmentId: attachmentId,
+                signatureFileName: file.name,
+                updatedAt: new Date().toISOString(),
+              })
+            : manager;
+        });
+      await persistManagersV228(previous, next, {
+        upserts: [target.id],
+        reason: "manager-signature",
+      });
+      renderManagers();
+      notify("تم حفظ توقيع المدير سحابيًا.");
+    } catch (error) {
+      console.warn(error);
+      renderManagers();
+      notify("تعذر تأكيد حفظ توقيع المدير سحابيًا.");
+    } finally {
+      input.disabled = false;
+      managerMutationPendingV228 = false;
+    }
+  }
+  async function pruneManagersByAssignmentsV228(names) {
+    if (managerMutationPendingV228) return false;
+    managerMutationPendingV228 = true;
+    try {
+      await prepareIdentityMutationV228();
+      const allowed = names instanceof Set ? names : new Set(names || []),
+        previous = readManagers(),
+        next = previous.filter(function (manager) {
+          return (
+            allowed.has(text(manager.name)) ||
+            allowed.has(text(manager.employeeId))
+          );
+        }),
+        nextIds = new Set(next.map(function (manager) { return String(manager.id); })),
+        deletedIds = previous
+          .filter(function (manager) { return !nextIds.has(String(manager.id)); })
+          .map(function (manager) { return manager.id; });
+      if (!deletedIds.length) return true;
+      await persistManagersV228(previous, next, {
+        deletes: deletedIds,
+        reason: "manager-organization-prune",
+      });
+      renderManagers();
+      return true;
+    } catch (error) {
+      console.warn(error);
+      renderManagers();
+      notify("تعذر تأكيد تحديث قائمة المدراء سحابيًا.");
+      return false;
+    } finally {
+      managerMutationPendingV228 = false;
+    }
   }
 
   async function imageUrl(attachmentId) {
@@ -64499,17 +64693,40 @@ window.nawahLeaveBalanceReportV185 = {
     const addManagerBtn = event.target?.closest?.("[data-add-manager]");
     if (addManagerBtn) {
       event.preventDefault();
-      addManager(addManagerBtn.getAttribute("data-add-manager"));
+      void addManager(addManagerBtn.getAttribute("data-add-manager"));
       return;
     }
     const deleteManagerBtn = event.target?.closest?.("[data-delete-manager]");
     if (deleteManagerBtn) {
       event.preventDefault();
       const id = deleteManagerBtn.getAttribute("data-delete-manager");
-      saveManagers(readManagers().filter(function (manager) {
-        return String(manager.employeeId || manager.id) !== String(id);
-      }));
-      renderManagers();
+      if (managerMutationPendingV228) return;
+      managerMutationPendingV228 = true;
+      void (async function () {
+        try {
+          await prepareIdentityMutationV228();
+          const previous = readManagers(),
+            target = previous.find(function (manager) {
+              return String(manager.employeeId || manager.id) === String(id);
+            });
+          if (!target) return renderManagers();
+          const next = previous.filter(function (manager) {
+            return String(manager.id) !== String(target.id);
+          });
+          await persistManagersV228(previous, next, {
+            deletes: [target.id],
+            reason: "manager-delete",
+          });
+          renderManagers();
+          notify("تم حذف المدير سحابيًا.");
+        } catch (error) {
+          console.warn(error);
+          renderManagers();
+          notify("تعذر تأكيد حذف المدير سحابيًا.");
+        } finally {
+          managerMutationPendingV228 = false;
+        }
+      })();
       return;
     }
     if (event.target?.closest?.("[data-v191-close-manager]")) {
@@ -64561,22 +64778,33 @@ window.nawahLeaveBalanceReportV185 = {
       const card = file.closest("[data-v191-company-stamp]");
       if (label) label.textContent = "جاري الرفع...";
       card && card.classList.add("is-uploading");
-      if (preview && /^image\//i.test(selected.type || ""))
-        preview.innerHTML =
-          '<img src="' +
-          esc(URL.createObjectURL(selected)) +
-          '" alt="ختم المنشأة">';
+      let localUrl = "";
       try {
+        localUrl = URL.createObjectURL(selected);
+      } catch (_) {}
+      if (preview && localUrl && /^image\//i.test(selected.type || ""))
+        preview.innerHTML = '<img src="' + esc(localUrl) + '" alt="ختم المنشأة">';
+      try {
+        await prepareIdentityMutationV228();
+        const previous = readCompany();
         const attachmentId = await saveAttachment(selected, "company-stamp");
-        saveCompany({ stampAttachmentId: attachmentId, stampFileName: selected.name });
+        await persistCompanyIdentityV228(
+          previous,
+          { stampAttachmentId: attachmentId, stampFileName: selected.name },
+          "company-stamp",
+        );
         if (label) label.textContent = selected.name;
         companyStampControl();
-        notify("تم حفظ ختم المنشأة.");
+        notify("تم حفظ ختم المنشأة سحابيًا.");
       } catch (error) {
         console.warn(error);
         if (label) label.textContent = "تعذر رفع الختم";
-        notify("تعذر حفظ ختم المنشأة.");
+        companyStampControl();
+        notify("تعذر تأكيد حفظ ختم المنشأة سحابيًا.");
       } finally {
+        try {
+          if (localUrl) URL.revokeObjectURL(localUrl);
+        } catch (_) {}
         card && card.classList.remove("is-uploading");
       }
       return;
@@ -64586,35 +64814,47 @@ window.nawahLeaveBalanceReportV185 = {
       if (!selected) return;
       if (typeof saveAttachment !== "function")
         return notify("تعذر حفظ أيقونة تبويب الموقع حالياً.");
-      const dataUrl = await fileToDataUrl(selected);
-      const localUrl = URL.createObjectURL(selected);
+      let localUrl = "";
+      try {
+        localUrl = URL.createObjectURL(selected);
+      } catch (_) {}
       const card = file.closest("[data-v192-site-favicon-control]");
       card && card.classList.add("is-uploading");
-      setSiteFaviconHref(dataUrl || localUrl);
+      if (localUrl) setSiteFaviconHref(localUrl);
       const preview = q("#siteFaviconPreview");
-      if (preview && /^image\//i.test(selected.type || ""))
+      if (preview && localUrl && /^image\//i.test(selected.type || ""))
         preview.innerHTML =
-          '<img src="' + esc(dataUrl || localUrl) + '" alt="أيقونة تبويب الموقع">';
+          '<img src="' + esc(localUrl) + '" alt="أيقونة تبويب الموقع">';
       try {
+        await prepareIdentityMutationV228();
+        const previous = readCompany();
         const attachmentId = await saveAttachment(selected, "company-favicon");
-        saveCompany({
-          siteFaviconAttachmentId: attachmentId,
-          siteFaviconFileName: selected.name,
-          siteFaviconDataUrl: dataUrl,
-        });
+        await persistCompanyIdentityV228(
+          previous,
+          {
+            siteFaviconAttachmentId: attachmentId,
+            siteFaviconFileName: selected.name,
+            siteFaviconDataUrl: "",
+          },
+          "company-favicon",
+        );
         companyStampControl();
-        applySiteFavicon();
-        notify("تم حفظ أيقونة تبويب الموقع.");
+        await applySiteFavicon();
+        notify("تم حفظ أيقونة تبويب الموقع سحابيًا.");
       } catch (error) {
         console.warn(error);
-        notify("تعذر حفظ أيقونة تبويب الموقع.");
+        await applySiteFavicon();
+        notify("تعذر تأكيد حفظ أيقونة تبويب الموقع سحابيًا.");
       } finally {
+        try {
+          if (localUrl) URL.revokeObjectURL(localUrl);
+        } catch (_) {}
         card && card.classList.remove("is-uploading");
       }
       return;
     }
     if (file?.matches?.("[data-manager-signature]")) {
-      uploadManagerSignature(file);
+      void uploadManagerSignature(file);
       return;
     }
     if (file?.matches?.('select[name="employeeId"]')) {
@@ -64679,6 +64919,7 @@ window.nawahLeaveBalanceReportV185 = {
 	    renderManagers,
 	    refreshTransactionSelects,
 	    companyStampControl,
+	    pruneManagersByAssignmentsV228,
 	  };
 	  window.nawahUpdateTravelApprovalTicketBox = updateTravelApprovalTicketBox;
 })();
@@ -64774,10 +65015,6 @@ window.nawahLeaveBalanceReportV185 = {
     const list = readJson(MANAGERS_KEY, []);
     return Array.isArray(list) ? list : [];
   }
-  function saveManagers(list) {
-    writeJson(MANAGERS_KEY, Array.isArray(list) ? list : []);
-    cloudSave();
-  }
   function employeeList() {
     try {
       return Array.isArray(employees) ? employees : [];
@@ -64850,11 +65087,14 @@ window.nawahLeaveBalanceReportV185 = {
   }
   function pruneSavedManagers(org) {
     const names = assignedManagerNames(org);
-    if (!names.size) return saveManagers([]);
-    const next = readManagers().filter(function (manager) {
-      return names.has(text(manager.name)) || names.has(text(manager.employeeId));
-    });
-    saveManagers(next);
+    if (
+      window.nawahV191 &&
+      typeof window.nawahV191.pruneManagersByAssignmentsV228 === "function"
+    ) {
+      void window.nawahV191.pruneManagersByAssignmentsV228(names);
+      return;
+    }
+    notify("تعذر تجهيز الحفظ السحابي لقائمة المدراء.");
   }
   function updateEmployeeDirectManagers(oldManager, type, item, org) {
     if (!oldManager) return;
@@ -65329,12 +65569,12 @@ window.nawahLeaveBalanceReportV185 = {
   }, 300);
 })();
  
-/* v227 - canonical cloud persistence, document conflict protection, and cross-browser sync */
+/* v228 - canonical cloud persistence, company identity conflict protection, and cross-browser sync */
 (function v221CanonicalCloudPersistence() {
   if (window.__v221CanonicalCloudPersistence) return;
   window.__v221CanonicalCloudPersistence = true;
 
-  const STATE_SCHEMA_VERSION = 227;
+  const STATE_SCHEMA_VERSION = 228;
   const STATE_KEY =
     typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
       ? CLOUD_STATE_KEY
@@ -66193,7 +66433,10 @@ window.nawahLeaveBalanceReportV185 = {
         );
         return;
       }
-      if (field === "financeSettings" && (deletedIds || upsertIds)) {
+      if (
+        ["financeSettings", "companySettingsV92"].includes(field) &&
+        (deletedIds || upsertIds)
+      ) {
         const remoteSettings =
             merged[field] && typeof merged[field] === "object"
               ? { ...merged[field] }
@@ -66637,10 +66880,15 @@ window.nawahLeaveBalanceReportV185 = {
           "#settingsNav [data-settings-section].active",
         )?.dataset.settingsSection;
         if (
-          ["branches", "documentTypes"].includes(activeSettings) &&
+          ["company", "branches", "documentTypes"].includes(activeSettings) &&
           typeof window.__stableSettingsRenderPanel === "function"
         )
           window.__stableSettingsRenderPanel(activeSettings);
+        if (
+          activeSettings === "managers" &&
+          typeof window.nawahV191?.renderManagers === "function"
+        )
+          window.nawahV191.renderManagers();
       } catch (error) {
         console.warn("v221: تعذر تحديث العرض بعد المزامنة.", error);
       }
@@ -66762,6 +67010,7 @@ window.nawahLeaveBalanceReportV185 = {
   window.nawahCloudSyncV225 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV226 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV227 = window.nawahCloudSyncV221;
+  window.nawahCloudSyncV228 = window.nawahCloudSyncV221;
   window.nawahDocumentsSyncV227 = {
     schemaVersion: STATE_SCHEMA_VERSION,
     prepare: async () => {
@@ -66820,9 +67069,70 @@ window.nawahLeaveBalanceReportV185 = {
       return tracked;
     },
   };
+  window.nawahCompanyIdentitySyncV228 = {
+    schemaVersion: STATE_SCHEMA_VERSION,
+    prepare: async () => {
+      if (!activeSession() || !ensureClient()) return false;
+      clearTimeout(saveTimer);
+      for (let attempt = 0; attempt < 3 && dirtyFields.size; attempt += 1) {
+        const flushed = await saveCloudStateNowV221({
+          force: true,
+          reason: "company-identity-preflight",
+        });
+        if (!flushed && dirtyFields.size) return false;
+      }
+      if (dirtyFields.size) return false;
+      try {
+        await refreshCloudStateV221(true);
+        return !dirtyFields.size;
+      } catch (_) {
+        return false;
+      }
+    },
+    save: (reason = "company-identity-manual") =>
+      saveCloudStateNowV221({ force: true, reason }),
+    rollback: async (fields = ["companySettingsV92", "managers"]) => {
+      clearTimeout(saveTimer);
+      (Array.isArray(fields) ? fields : [fields]).forEach((field) => {
+        dirtyFields.delete(field);
+        recordDeleteTombstones.delete(field);
+        recordUpsertMutations.delete(field);
+      });
+      try {
+        const remote = await readCloudDirectV221();
+        if (remote.found && remote.state) {
+          applyCanonicalStateV221(clone(remote.state));
+          baselineState = clone(remote.state);
+          baselineUpdatedAt = remote.updatedAt || "";
+          renderAfterCloudRefresh();
+        }
+      } catch (_) {}
+      return true;
+    },
+    trackCompanyUpserts: (fields) => {
+      const tracked = markRecordUpserts("companySettingsV92", fields);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
+    trackCompanyDeletes: (fields) => {
+      const tracked = markRecordDeletes("companySettingsV92", fields);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
+    trackManagerUpserts: (ids) => {
+      const tracked = markRecordUpserts("managers", ids);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
+    trackManagerDeletes: (ids) => {
+      const tracked = markRecordDeletes("managers", ids);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
+  };
 })();
 
-/* v227 - final renderer lock (must remain the last application patch). */
+/* v228 - final renderer lock (must remain the last application patch). */
 (function v222FinalLeaveTravelRendererLock() {
   if (window.__v222FinalLeaveTravelRendererLock) return;
   window.__v222FinalLeaveTravelRendererLock = true;
