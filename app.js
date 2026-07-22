@@ -38894,13 +38894,13 @@ async function init() {
             <label><span>اسم الشارع</span><input name="street" value="${escape(data.street)}" placeholder="اكتب اسم الشارع" /></label>
             <label><span>الرقم الإضافي</span><input name="additionalNumber" value="${escape(data.additionalNumber)}" inputmode="numeric" maxlength="4" /></label>
             <label><span>الرمز البريدي</span><input name="postalCode" value="${escape(data.postalCode)}" inputmode="numeric" maxlength="5" /></label>
-            <div class="full-field national-address-attachment v230-national-address-attachment"><span>مرفق العنوان الوطني</span><div class="attachment-line v94-attachment-line"><strong id="nationalAddressFileName">${escape(data.nationalAddressFileName || "لم يتم إرفاق ملف")}</strong><div class="attachment-actions"><label class="secondary-btn">رفع المرفق<input type="file" name="nationalAddressFile" accept="application/pdf,image/png,image/jpeg,image/webp" hidden></label>${data.nationalAddressAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="national-address" data-view-attachment="${escape(data.nationalAddressAttachmentId)}" data-attachment-id="${escape(data.nationalAddressAttachmentId)}" title="معاينة مرفق العنوان الوطني"><span data-icon="eye"></span></button>` : data.nationalAddressFileDataUrl ? `<button type="button" class="secondary-btn v94-download-address" data-download-national-address="1"><span data-icon="download"></span> تنزيل</button>` : ""}</div></div></div>
+            <div class="full-field national-address-attachment v230-national-address-attachment"><span>مرفق العنوان الوطني</span><div class="attachment-line v94-attachment-line"><strong id="nationalAddressFileName">${escape(data.nationalAddressFileName || "لم يتم إرفاق ملف")}</strong><div class="attachment-actions"><label class="secondary-btn">رفع المرفق<input type="file" name="nationalAddressFile" accept="application/pdf,image/png,image/jpeg,image/webp" hidden></label>${data.nationalAddressAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="national-address" data-view-attachment="${escape(data.nationalAddressAttachmentId)}" data-attachment-id="${escape(data.nationalAddressAttachmentId)}" title="معاينة مرفق العنوان الوطني"><span data-icon="eye"></span></button><button type="button" class="v233-cloud-media-delete v233-national-address-delete" data-v233-delete-company-media="national-address" title="حذف مرفق العنوان الوطني" aria-label="حذف مرفق العنوان الوطني"><span data-icon="trash"></span></button>` : data.nationalAddressFileDataUrl ? `<button type="button" class="secondary-btn v94-download-address" data-download-national-address="1"><span data-icon="download"></span> تنزيل</button>` : ""}</div></div></div>
           </div>
         </div>
-        <div class="company-logo-upload company-logo-upload-real company-stamp-upload-card v204-company-stamp-card" data-v191-company-stamp="1">
+        <div class="company-logo-upload company-logo-upload-real company-stamp-upload-card v204-company-stamp-card v233-company-stamp-card" data-v191-company-stamp="1">
           <div class="company-logo-preview company-stamp-preview" id="companyStampPreview"><span>ختم</span></div>
           <div class="company-logo-copy"><strong>ختم المنشأة</strong><span>ختم مستقل عن شعار المنشأة، ويظهر أسفل الجداول في التقارير والخطابات المطبوعة.</span><small id="companyStampFileName">${escape(data.stampFileName || (data.stampAttachmentId ? "تم إرفاق ختم المنشأة" : "لم يتم إرفاق ختم"))}</small></div>
-          <div class="v204-stamp-actions"><label class="secondary-btn company-logo-btn">اختيار الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>${data.stampAttachmentId ? `<button type="button" class="attachment-view-btn" data-view-attachment="${escape(data.stampAttachmentId)}" data-attachment-id="${escape(data.stampAttachmentId)}" title="عرض ختم المنشأة"><span data-icon="eye"></span></button>` : ""}</div>
+          <div class="v204-stamp-actions v233-stamp-actions"><label class="secondary-btn company-logo-btn">رفع الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>${data.stampAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-view-attachment="${escape(data.stampAttachmentId)}" data-attachment-id="${escape(data.stampAttachmentId)}" title="عرض ختم المنشأة"><span data-icon="eye"></span></button><button type="button" class="v233-cloud-media-delete v233-stamp-delete" data-v233-delete-company-media="stamp" title="حذف ختم المنشأة" aria-label="حذف ختم المنشأة"><span data-icon="trash"></span></button>` : ""}</div>
         </div>
         <div class="form-actions"><button type="button" class="secondary-btn" id="resetCompanySettingsBtn">إلغاء التغييرات</button><button type="submit" class="primary-btn">حفظ بيانات المنشأة</button></div>
       </form>`;
@@ -40377,6 +40377,30 @@ async function init() {
       button.dataset.attachmentId = attachmentId;
       button.title = title;
     }
+    function syncDeleteButton(container, attachmentId, kind, title) {
+      if (!container) return;
+      let button = container.querySelector(
+        '[data-v233-delete-company-media="' + kind + '"]',
+      );
+      if (!attachmentId) {
+        if (button) button.remove();
+        return;
+      }
+      if (!button) {
+        button = document.createElement("button");
+        button.type = "button";
+        button.className =
+          "v233-cloud-media-delete v233-" + kind + "-delete";
+        button.dataset.v233DeleteCompanyMedia = kind;
+        container.appendChild(button);
+      }
+      button.title = title;
+      button.setAttribute("aria-label", title);
+      button.innerHTML =
+        typeof iconSvg === "function"
+          ? iconSvg("trash")
+          : '<span data-icon="trash"></span>';
+    }
     const logoBox = document.querySelector("#companyLogoPreview");
     if (logoBox) {
       logoBox.innerHTML = logoUrl
@@ -40445,6 +40469,12 @@ async function init() {
         c.nationalAddressAttachmentId,
         "national-address",
         "معاينة مرفق العنوان الوطني",
+      );
+      syncDeleteButton(
+        actions,
+        c.nationalAddressAttachmentId,
+        "national-address",
+        "حذف مرفق العنوان الوطني",
       );
     }
     try {
@@ -40515,6 +40545,82 @@ async function init() {
   document.addEventListener(
     "click",
     function (e) {
+      const cloudMediaDelete =
+        e.target &&
+        e.target.closest &&
+        e.target.closest("[data-v233-delete-company-media]");
+      if (cloudMediaDelete) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        if (cloudMediaDelete.dataset.deleting === "1") return;
+        const kind = cloudMediaDelete.dataset.v233DeleteCompanyMedia || "";
+        const isStamp = kind === "stamp";
+        const isNational = kind === "national-address";
+        if (!isStamp && !isNational) return;
+        const prompt = isStamp
+          ? "هل تريد حذف ختم المنشأة؟"
+          : "هل تريد حذف مرفق العنوان الوطني؟";
+        if (typeof confirm === "function" && !confirm(prompt)) return;
+        cloudMediaDelete.dataset.deleting = "1";
+        cloudMediaDelete.disabled = true;
+        void (async function () {
+          try {
+            await prepareIdentityMutationV228();
+            const previous = readCompany();
+            const patch = isStamp
+              ? { stampAttachmentId: "", stampFileName: "" }
+              : {
+                  nationalAddressAttachmentId: "",
+                  nationalAddressFileName: "",
+                  nationalAddressFileDataUrl: "",
+                };
+            await persistCompanyMediaV228(
+              previous,
+              patch,
+              isStamp
+                ? "company-stamp-delete"
+                : "company-national-address-delete",
+            );
+            scheduleBranding(0);
+            if (isStamp)
+              setTimeout(
+                () => window.nawahV191?.companyStampControl?.(),
+                0,
+              );
+            try {
+              typeof showToast === "function" &&
+                showToast(
+                  isStamp
+                    ? "تم حذف ختم المنشأة سحابيًا."
+                    : "تم حذف مرفق العنوان الوطني سحابيًا.",
+                );
+            } catch (_) {}
+          } catch (error) {
+            console.warn(error);
+            scheduleBranding(0);
+            if (isStamp)
+              setTimeout(
+                () => window.nawahV191?.companyStampControl?.(),
+                0,
+              );
+            try {
+              typeof showToast === "function" &&
+                showToast(
+                  isStamp
+                    ? "تعذر تأكيد حذف ختم المنشأة سحابيًا."
+                    : "تعذر تأكيد حذف مرفق العنوان الوطني سحابيًا.",
+                );
+            } catch (_) {}
+          } finally {
+            if (cloudMediaDelete.isConnected) {
+              cloudMediaDelete.disabled = false;
+              delete cloudMediaDelete.dataset.deleting;
+            }
+          }
+        })();
+        return;
+      }
       const rm =
         e.target &&
         e.target.closest &&
@@ -40597,6 +40703,17 @@ async function init() {
         }
       } catch (_) {}
       scheduleBranding(80);
+      if (state && state.companySettingsV92)
+        setTimeout(function () {
+          try {
+            if (
+              document.querySelector(
+                '#settingsForm[data-v94-company="1"] [data-v191-company-stamp]',
+              )
+            )
+              window.nawahV191?.companyStampControl?.();
+          } catch (_) {}
+        }, 110);
       return result;
     };
     wrapped.__v101CompanyMediaApply = true;
@@ -64598,14 +64715,16 @@ window.nawahLeaveBalanceReportV185 = {
       '<div class="company-logo-preview v192-stamp-preview" id="companyStampPreview"><span>ختم</span></div>' +
       '<div class="company-logo-copy"><strong>ختم المنشأة</strong><span>يستخدم في خطابات الإجازات والسفر بعد الاعتماد.</span><small id="companyStampFileName">' +
       esc(company.stampFileName || (attachmentId ? "تم إرفاق ختم المنشأة" : "لم يتم إرفاق ختم")) +
-      '</small></div><div class="v192-media-actions"><label class="secondary-btn company-logo-btn">اختيار الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>' +
+      '</small></div><div class="v192-media-actions v233-stamp-actions"><label class="secondary-btn company-logo-btn">رفع الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>' +
       (attachmentId
-        ? '<button type="button" class="attachment-view-btn" data-view-attachment="' +
+        ? '<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-view-attachment="' +
           esc(attachmentId) +
           '" data-attachment-id="' +
           esc(attachmentId) +
           '" title="عرض الختم">' +
           icon("eye") +
+          '</button><button type="button" class="v233-cloud-media-delete v233-stamp-delete" data-v233-delete-company-media="stamp" title="حذف ختم المنشأة" aria-label="حذف ختم المنشأة">' +
+          icon("trash") +
           "</button>"
         : "") +
       "</div>";
@@ -64616,7 +64735,7 @@ window.nawahLeaveBalanceReportV185 = {
       else if (actions) actions.insertAdjacentElement("beforebegin", stamp);
       else form.appendChild(stamp);
     }
-    stamp.classList.add("v204-company-stamp-card");
+    stamp.classList.add("v204-company-stamp-card", "v233-company-stamp-card");
     reorderCompanyMediaControls(form);
     if (attachmentId) {
       imageUrl(attachmentId).then(function (url) {

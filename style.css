@@ -7051,6 +7051,72 @@ body {
   }
 }
 
+/* v233 - unified company stamp and cloud-backed document deletion */
+#settingsForm .v204-company-stamp-card.v233-company-stamp-card {
+  border-color: rgba(20, 184, 166, .18) !important;
+  background: linear-gradient(145deg, #fff, #f7fcfd) !important;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .045) !important;
+}
+
+#settingsForm .v233-stamp-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+#settingsForm .v233-stamp-actions .company-logo-btn {
+  height: 40px !important;
+  padding: 0 14px !important;
+  border-radius: 13px !important;
+}
+
+#settingsForm .v233-cloud-media-delete {
+  display: inline-grid !important;
+  flex: 0 0 32px !important;
+  place-items: center !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #dc2626 !important;
+  cursor: pointer !important;
+}
+
+#settingsForm .v233-cloud-media-delete svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke: currentColor !important;
+}
+
+#settingsForm .v233-cloud-media-delete:hover,
+#settingsForm .v233-cloud-media-delete:focus-visible {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #b91c1c !important;
+  opacity: .78 !important;
+}
+
+#settingsForm .v233-cloud-media-delete:disabled {
+  opacity: .45 !important;
+  cursor: wait !important;
+}
+
+@media (max-width: 980px) {
+  #settingsForm .v233-stamp-actions {
+    justify-content: center !important;
+  }
+}
+
 /* v230 - unified company identity media cards and cloud attachment preview */
 #settingsForm .v230-company-media-grid {
   display: grid !important;
