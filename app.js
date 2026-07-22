@@ -19581,7 +19581,7 @@ async function init() {
                 : [];
             })(n)
           : n,
-        r = t && (S() || I() || $()) ? t.totals : W(a),
+        r = t && (S() || I() || $()) ? t.totals || W(a) : W(a),
         s = document.querySelector("#payrollHeroTotal"),
         l = document.querySelector("#payrollEmployeeCount"),
         m = document.querySelector("#baseSalaryTotal"),
@@ -31234,6 +31234,238 @@ async function init() {
   }, 250);
 })();
 
+/* v229 - stable visible screens: dedupe identical redraws without changing cloud persistence. */
+(function v229StableVisibleScreens() {
+  if (window.__v229StableVisibleScreens) return;
+  window.__v229StableVisibleScreens = true;
+
+  const revisions = { dashboard: 0, payroll: 0, settings: 0 };
+
+  function markScreensForStorageKey(key) {
+    const value = String(key || "").toLowerCase();
+    if (!value) return;
+    if (
+      /(employee|leave|travel|attendance|absence|payroll|advance|document|private-alert)/.test(
+        value,
+      )
+    )
+      revisions.dashboard += 1;
+    if (/(employee|payroll|advance|absence|attendance)/.test(value))
+      revisions.payroll += 1;
+    if (
+      /(settings|company|work|absence|minute|org|branch|document|manager|notification|employee)/.test(
+        value,
+      )
+    )
+      revisions.settings += 1;
+  }
+
+  const previousSetItemV229 = Storage.prototype.setItem;
+  if (!previousSetItemV229.__v229StableVisibleScreens) {
+    const stableSetItem = function (key, value) {
+      let previous = null;
+      try {
+        if (this === window.localStorage) previous = this.getItem(key);
+      } catch (_) {}
+      const result = previousSetItemV229.apply(this, arguments);
+      if (
+        this === window.localStorage &&
+        String(previous ?? "") !== String(value ?? "")
+      )
+        markScreensForStorageKey(key);
+      return result;
+    };
+    stableSetItem.__v229StableVisibleScreens = true;
+    Storage.prototype.setItem = stableSetItem;
+  }
+
+  const previousRemoveItemV229 = Storage.prototype.removeItem;
+  if (!previousRemoveItemV229.__v229StableVisibleScreens) {
+    const stableRemoveItem = function (key) {
+      let existed = false;
+      try {
+        existed = this === window.localStorage && this.getItem(key) !== null;
+      } catch (_) {}
+      const result = previousRemoveItemV229.apply(this, arguments);
+      if (existed) markScreensForStorageKey(key);
+      return result;
+    };
+    stableRemoveItem.__v229StableVisibleScreens = true;
+    Storage.prototype.removeItem = stableRemoveItem;
+  }
+
+  function activeSettingsKey() {
+    return (
+      document.querySelector("#settingsNav [data-settings-section].active")
+        ?.dataset.settingsSection || "company"
+    );
+  }
+
+  function wrapRenderer(name, renderer, viewId, context) {
+    if (typeof renderer !== "function") return renderer;
+    let lastRevision = -1,
+      lastContext = "",
+      rendering = false;
+    const wrapped = function () {
+      const force = Boolean(arguments[0]?.forceUiRefreshV229),
+        currentContext = context ? String(context() || "") : "",
+        view = document.getElementById(viewId),
+        ready = view?.dataset.v229StableRendered === "1";
+      if (
+        !force &&
+        ready &&
+        lastRevision === revisions[name] &&
+        lastContext === currentContext
+      )
+        return;
+      if (rendering) return;
+      rendering = true;
+      try {
+        return renderer.apply(this, arguments);
+      } finally {
+        rendering = false;
+        lastRevision = revisions[name];
+        lastContext = context ? String(context() || "") : "";
+        if (view) view.dataset.v229StableRendered = "1";
+      }
+    };
+    wrapped.__v229StableVisibleScreens = true;
+    wrapped.invalidate = function () {
+      revisions[name] += 1;
+    };
+    return wrapped;
+  }
+
+  let stableDashboard = null,
+    stablePayroll = null,
+    stableSettings = null,
+    lastActivatedSettingsKey = "",
+    lastActivatedSettingsRevision = -1;
+
+  function installFinalRenderersV229() {
+    stableDashboard = wrapRenderer(
+      "dashboard",
+      typeof renderDashboard === "function"
+        ? renderDashboard
+        : window.renderDashboard,
+      "dashboardView",
+    );
+    stablePayroll = wrapRenderer(
+      "payroll",
+      typeof renderPayroll === "function" ? renderPayroll : window.renderPayroll,
+      "payrollView",
+      function () {
+        try {
+          return localStorage.getItem("nawah-selected-payroll-month") || "";
+        } catch (_) {
+          return "";
+        }
+      },
+    );
+    stableSettings = wrapRenderer(
+      "settings",
+      typeof renderSettings === "function"
+        ? renderSettings
+        : window.renderSettings,
+      "settingsView",
+      activeSettingsKey,
+    );
+    try {
+      renderDashboard = stableDashboard;
+      renderPayroll = stablePayroll;
+      renderSettings = stableSettings;
+    } catch (_) {}
+    window.renderDashboard = stableDashboard;
+    window.renderPayroll = stablePayroll;
+    window.renderSettings = stableSettings;
+  }
+  queueMicrotask(installFinalRenderersV229);
+
+  async function activateSettingsOnce(key) {
+    if (!key) return;
+    document
+      .querySelectorAll("#settingsNav [data-settings-section]")
+      .forEach(function (button) {
+        button.classList.toggle(
+          "active",
+          button.dataset.settingsSection === key,
+        );
+      });
+    document
+      .querySelectorAll("#settingsView [data-settings-panel]")
+      .forEach(function (panel) {
+        const active = panel.dataset.settingsPanel === key;
+        panel.classList.toggle("active", active);
+        panel.hidden = !active;
+        panel.style.display = active ? "block" : "none";
+        panel.style.pointerEvents = active ? "auto" : "";
+      });
+    const activePanel = document.querySelector(
+      '#settingsView [data-settings-panel="' + key + '"]',
+    );
+    if (
+      lastActivatedSettingsKey === key &&
+      lastActivatedSettingsRevision === revisions.settings &&
+      activePanel?.childElementCount
+    )
+      return;
+    if (
+      key === "managers" &&
+      typeof window.nawahV191?.renderManagers === "function"
+    )
+      window.nawahV191.renderManagers();
+    else if (
+      key === "financialAmounts" ||
+      typeof window.__stableSettingsRenderPanel !== "function"
+    )
+      (stableSettings || window.renderSettings)?.({ forceUiRefreshV229: true });
+    else await window.__stableSettingsRenderPanel(key);
+    lastActivatedSettingsKey = key;
+    lastActivatedSettingsRevision = revisions.settings;
+    try {
+      if (typeof hydrateIcons === "function")
+        hydrateIcons(
+          document.querySelector(
+            '#settingsView [data-settings-panel="' + key + '"]',
+          ) || document.getElementById("settingsView"),
+        );
+    } catch (_) {}
+  }
+
+  window.addEventListener(
+    "click",
+    function (event) {
+      const button = event.target?.closest?.(
+        "#settingsNav [data-settings-section]",
+      );
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      void activateSettingsOnce(button.dataset.settingsSection);
+    },
+    true,
+  );
+
+  window.addEventListener("nawah:employees-ready", function () {
+    revisions.dashboard += 1;
+    revisions.payroll += 1;
+    revisions.settings += 1;
+  });
+
+  window.nawahUiStabilityV229 = {
+    version: 229,
+    invalidate: function (screen) {
+      if (Object.prototype.hasOwnProperty.call(revisions, screen))
+        revisions[screen] += 1;
+    },
+    revisions: function () {
+      return { ...revisions };
+    },
+    activateSettings: activateSettingsOnce,
+  };
+})();
+
 /* v226 - stable leave/travel state bridge.
    Local storage is a cache; Supabase app_settings remains the source of truth. */
 (function v222LeaveTravelStateBridge() {
@@ -37920,7 +38152,10 @@ async function init() {
   if (previousRenderSettings && !previousRenderSettings.__v92CompanySettings) {
     const wrapped = function () {
       const result = previousRenderSettings.apply(this, arguments);
-      setTimeout(renderCompanySettingsForm, 0);
+      setTimeout(function () {
+        if (typeof window.renderCompanySettingsV94 !== "function")
+          renderCompanySettingsForm();
+      }, 0);
       setTimeout(() => applyCompanyBranding(), 0);
       return result;
     };
@@ -38710,6 +38945,14 @@ async function init() {
     });
     return true;
   }
+  function ensureCompanySettingsV94() {
+    const current = document.querySelector(
+      '[data-settings-panel="company"] form[data-v94-company="1"]',
+    );
+    if (!current) return renderCompanySettingsV94();
+    applyCompanyBrandingV94();
+    return true;
+  }
   window.renderCompanySettingsV94 = renderCompanySettingsV94;
   document.addEventListener(
     "submit",
@@ -38773,8 +39016,7 @@ async function init() {
   if (oldRenderSettings && !oldRenderSettings.__v94CompanyAddressPolish) {
     const wrapped = function () {
       const r = oldRenderSettings.apply(this, arguments);
-      setTimeout(renderCompanySettingsV94, 30);
-      setTimeout(applyCompanyBrandingV94, 40);
+      ensureCompanySettingsV94();
       return r;
     };
     wrapped.__v94CompanyAddressPolish = true;
@@ -38785,19 +39027,16 @@ async function init() {
   }
   document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
-      renderCompanySettingsV94();
-      applyCompanyBrandingV94();
+      ensureCompanySettingsV94();
     }, 120);
   });
   window.addEventListener("load", () =>
     setTimeout(() => {
-      renderCompanySettingsV94();
-      applyCompanyBrandingV94();
+      ensureCompanySettingsV94();
     }, 260),
   );
   setTimeout(() => {
-    renderCompanySettingsV94();
-    applyCompanyBrandingV94();
+    ensureCompanySettingsV94();
   }, 500);
 })();
 
@@ -45509,7 +45748,6 @@ async function init() {
     return Object.assign({}, run, {
       items: items,
       totals: totals(items),
-      updatedAt: new Date().toISOString(),
       liveRecalculated: true,
       liveRecalculatedReason: "absence-or-advance-change",
     });
@@ -45522,8 +45760,20 @@ async function init() {
       if (!run || String(run.monthKey) !== String(monthKey || run.monthKey))
         return run;
       if (isFinalRun(run)) return run;
+      var recalculated = recalcRun(run);
+      var before = JSON.stringify({
+        items: Array.isArray(run.items) ? run.items : [],
+        totals: run.totals || {},
+      });
+      var after = JSON.stringify({
+        items: Array.isArray(recalculated.items) ? recalculated.items : [],
+        totals: recalculated.totals || {},
+      });
+      if (before === after) return run;
       changed = true;
-      return recalcRun(run);
+      return Object.assign({}, recalculated, {
+        updatedAt: new Date().toISOString(),
+      });
     });
     if (changed) {
       try {
@@ -52604,34 +52854,45 @@ async function init() {
     if (!hasEmployeeArray(state))
       return false;
     var before = hasEmployees(employees) ? employees.length : 0;
+    var nextEmployees;
     try {
-      /* v222: this is an employee-only fast loader. Applying the entire cloud
-         snapshot here used to roll back newer leave/travel edits while the
-         normal cloud initializer was still running. */
-      employees = state.employees.map(function (emp, idx) {
+      nextEmployees = state.employees.map(function (emp, idx) {
         return typeof normalizeEmployee === "function"
           ? normalizeEmployee(emp, idx)
           : emp;
       });
-      window.employees = employees;
+    } catch (_) {
+      nextEmployees = state.employees.slice();
+    }
+    var employeeDataChanged = true;
+    try {
+      employeeDataChanged =
+        JSON.stringify(Array.isArray(employees) ? employees : []) !==
+        JSON.stringify(nextEmployees);
+    } catch (_) {}
+    try {
+      /* v222: this is an employee-only fast loader. Applying the entire cloud
+         snapshot here used to roll back newer leave/travel edits while the
+         normal cloud initializer was still running. */
+      if (employeeDataChanged) {
+        employees = nextEmployees;
+        window.employees = employees;
+      }
     } catch (e) {
       try {
-        employees = state.employees.map(function (emp, idx) {
-          return typeof normalizeEmployee === "function"
-            ? normalizeEmployee(emp, idx)
-            : emp;
-        });
+        if (employeeDataChanged) employees = nextEmployees;
       } catch (_) {}
       console.warn(
         "v151: تعذر تطبيق قائمة موظفي Supabase مباشرة.",
         e,
       );
     }
-    try {
-      if (typeof syncEmployeeLocalCache === "function")
-        syncEmployeeLocalCache(employees);
-      else localStorage.setItem("nawah-employees", JSON.stringify(employees || []));
-    } catch (_) {}
+    if (employeeDataChanged)
+      try {
+        if (typeof syncEmployeeLocalCache === "function")
+          syncEmployeeLocalCache(employees);
+        else localStorage.setItem("nawah-employees", JSON.stringify(employees || []));
+      } catch (_) {}
     try {
       window.__nawahEmployeesReady = true;
     } catch (_) {}
@@ -52641,7 +52902,7 @@ async function init() {
       window.__nawahCloudSourceReady = true;
     } catch (_) {}
     try {
-      if (db && typeof dbSaveEmployee === "function") {
+      if (employeeDataChanged && db && typeof dbSaveEmployee === "function") {
         employees.slice(0).forEach(function (emp) {
           try {
             dbSaveEmployee(emp);
@@ -52654,7 +52915,7 @@ async function init() {
         "v151: تم جلب بيانات الموظفين من Supabase. العدد:",
         employees.length,
       );
-    safeRender();
+    if (employeeDataChanged) safeRender();
     return true;
   }
   async function fetchCloudState() {
@@ -59229,7 +59490,7 @@ window.nawahV169Fixes = {
         const id = await previousSaveAttachment.apply(this, arguments);
         clearAttachmentCaches(id);
         if (input) scheduleClearUpload(input, 150);
-        scheduleRefreshAfterSave();
+        scheduleEnhanceAttachments();
         return id;
       } catch (error) {
         if (input) scheduleClearUpload(input, 150);
@@ -59248,7 +59509,8 @@ window.nawahV169Fixes = {
   if (previousSaveCloudStateNow && !previousSaveCloudStateNow.__v172Refresh) {
     const wrappedSaveCloudStateNow = async function wrappedSaveCloudStateNow() {
       const result = await previousSaveCloudStateNow.apply(this, arguments);
-      scheduleRefreshAfterSave();
+      if (result === false) scheduleRefreshAfterSave();
+      else scheduleEnhanceAttachments();
       return result;
     };
     wrappedSaveCloudStateNow.__v172Refresh = true;
@@ -66869,26 +67131,45 @@ window.nawahLeaveBalanceReportV185 = {
     clearTimeout(renderAfterCloudRefresh.timer);
     renderAfterCloudRefresh.timer = setTimeout(() => {
       try {
-        if (typeof renderAll === "function") renderAll();
         const activeView = document.querySelector(".view.active")?.id || "";
-        if (
+        if (activeView === "dashboardView" && typeof renderDashboard === "function")
+          renderDashboard();
+        else if (activeView === "employeesView" && typeof renderEmployees === "function")
+          renderEmployees();
+        else if (activeView === "attendanceView" && typeof renderAttendance === "function")
+          renderAttendance();
+        else if (activeView === "leavesView") {
+          if (typeof window.nawahRenderLeavesV78 === "function")
+            window.nawahRenderLeavesV78();
+          else if (typeof renderLeaves === "function") renderLeaves();
+        } else if (activeView === "payrollView" && typeof renderPayroll === "function")
+          renderPayroll();
+        else if (activeView === "advancesView" && typeof renderAdvancesPage === "function")
+          renderAdvancesPage();
+        else if (activeView === "financeView" && typeof renderFinance === "function")
+          renderFinance();
+        else if (
           activeView === "establishmentDocumentsView" &&
           typeof window.renderEstablishmentDocuments === "function"
         )
           window.renderEstablishmentDocuments();
-        const activeSettings = document.querySelector(
-          "#settingsNav [data-settings-section].active",
-        )?.dataset.settingsSection;
-        if (
-          ["company", "branches", "documentTypes"].includes(activeSettings) &&
-          typeof window.__stableSettingsRenderPanel === "function"
-        )
-          window.__stableSettingsRenderPanel(activeSettings);
-        if (
-          activeSettings === "managers" &&
-          typeof window.nawahV191?.renderManagers === "function"
-        )
-          window.nawahV191.renderManagers();
+        else if (activeView === "settingsView") {
+          const activeSettings = document.querySelector(
+            "#settingsNav [data-settings-section].active",
+          )?.dataset.settingsSection;
+          if (
+            activeSettings === "managers" &&
+            typeof window.nawahV191?.renderManagers === "function"
+          )
+            window.nawahV191.renderManagers();
+          else if (
+            activeSettings &&
+            activeSettings !== "financialAmounts" &&
+            typeof window.__stableSettingsRenderPanel === "function"
+          )
+            window.__stableSettingsRenderPanel(activeSettings);
+          else if (typeof renderSettings === "function") renderSettings();
+        } else if (typeof renderAll === "function") renderAll();
       } catch (error) {
         console.warn("v221: تعذر تحديث العرض بعد المزامنة.", error);
       }
