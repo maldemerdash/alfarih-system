@@ -38868,8 +38868,9 @@ async function init() {
           <div class="login-bg-preview v230-company-media-preview" id="loginBgPreview">${data.loginBackgroundDataUrl ? `<img src="${escape(data.loginBackgroundDataUrl)}" alt="خلفية تسجيل الدخول">` : "<span>خلفية</span>"}</div>
           <div class="v96-bg-actions v230-company-media-actions">
             <label class="secondary-btn company-logo-btn">رفع الصورة<input type="file" name="loginBackgroundFile" accept="image/png,image/jpeg,image/webp" hidden></label>
-            ${data.loginBackgroundAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="login-background" data-view-attachment="${escape(data.loginBackgroundAttachmentId)}" data-attachment-id="${escape(data.loginBackgroundAttachmentId)}" title="عرض خلفية الدخول"><span data-icon="eye"></span></button><button type="button" class="light-btn" id="removeLoginBackgroundBtn">حذف الخلفية</button>` : data.loginBackgroundDataUrl ? '<button type="button" class="light-btn" id="removeLoginBackgroundBtn">حذف الخلفية</button>' : ""}
+            ${data.loginBackgroundAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="login-background" data-view-attachment="${escape(data.loginBackgroundAttachmentId)}" data-attachment-id="${escape(data.loginBackgroundAttachmentId)}" title="عرض خلفية الدخول"><span data-icon="eye"></span></button>` : ""}
           </div>
+          ${data.loginBackgroundAttachmentId || data.loginBackgroundDataUrl ? '<button type="button" class="v232-login-bg-delete" id="removeLoginBackgroundBtn" data-v146-remove-login-bg="1" title="حذف خلفية الدخول" aria-label="حذف خلفية الدخول"><span data-icon="trash"></span></button>' : ""}
         </article>
         </div>
         <div class="form-grid company-real-grid">
@@ -39359,8 +39360,8 @@ async function init() {
         <div class="v96-bg-actions v230-company-media-actions">
           <label class="secondary-btn company-logo-btn">رفع الصورة<input type="file" name="loginBackgroundFile" accept="image/png,image/jpeg,image/webp" hidden></label>
           ${data.loginBackgroundAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="login-background" data-view-attachment="${esc(data.loginBackgroundAttachmentId)}" data-attachment-id="${esc(data.loginBackgroundAttachmentId)}" title="عرض خلفية الدخول"><span data-icon="eye"></span></button>` : ""}
-          ${data.loginBackgroundDataUrl ? '<button type="button" class="light-btn" id="removeLoginBackgroundBtn">حذف الخلفية</button>' : ""}
         </div>
+        ${data.loginBackgroundAttachmentId || data.loginBackgroundDataUrl ? '<button type="button" class="v232-login-bg-delete" id="removeLoginBackgroundBtn" data-v146-remove-login-bg="1" title="حذف خلفية الدخول" aria-label="حذف خلفية الدخول"><span data-icon="trash"></span></button>' : ""}
       </article>`;
     if (logoBlock) logoBlock.insertAdjacentHTML("afterend", html);
     else form.insertAdjacentHTML("afterbegin", html);
@@ -40396,8 +40397,11 @@ async function init() {
       "logo",
       "عرض شعار المنشأة",
     );
-    const backgroundActions = document.querySelector(
-      '[data-v230-company-media="login-background"] .v230-company-media-actions',
+    const backgroundCard = document.querySelector(
+      '[data-v230-company-media="login-background"]',
+    );
+    const backgroundActions = backgroundCard?.querySelector(
+      ".v230-company-media-actions",
     );
     syncViewButton(
       backgroundActions,
@@ -40405,19 +40409,27 @@ async function init() {
       "login-background",
       "عرض خلفية الدخول",
     );
-    let removeBackground = backgroundActions?.querySelector(
+    let removeBackground = backgroundCard?.querySelector(
       "#removeLoginBackgroundBtn,[data-v146-remove-login-bg]",
     );
     const hasBackground = Boolean(
       c.loginBackgroundAttachmentId || c.loginBackgroundDataUrl,
     );
-    if (hasBackground && backgroundActions && !removeBackground) {
+    if (hasBackground && backgroundCard && !removeBackground) {
       removeBackground = document.createElement("button");
       removeBackground.type = "button";
+      backgroundCard.appendChild(removeBackground);
+    }
+    if (hasBackground && removeBackground) {
       removeBackground.id = "removeLoginBackgroundBtn";
-      removeBackground.className = "light-btn";
-      removeBackground.textContent = "حذف الخلفية";
-      backgroundActions.appendChild(removeBackground);
+      removeBackground.className = "v232-login-bg-delete";
+      removeBackground.dataset.v146RemoveLoginBg = "1";
+      removeBackground.title = "حذف خلفية الدخول";
+      removeBackground.setAttribute("aria-label", "حذف خلفية الدخول");
+      removeBackground.innerHTML =
+        typeof iconSvg === "function"
+          ? iconSvg("trash")
+          : '<span data-icon="trash"></span>';
     } else if (!hasBackground && removeBackground) {
       removeBackground.remove();
     }
@@ -51678,17 +51690,25 @@ async function init() {
               '" alt="خلفية تسجيل الدخول" loading="lazy" decoding="async">'
             : "<span>خلفية</span>";
         }
-        var actions = card.querySelector(".v96-bg-actions") || card;
-        var old = actions.querySelector(
+        var old = card.querySelector(
           "#removeLoginBackgroundBtn,[data-v146-remove-login-bg]",
         );
         if (has && !old) {
           var btn = document.createElement("button");
           btn.type = "button";
-          btn.className = "light-btn";
-          btn.dataset.v146RemoveLoginBg = "1";
-          btn.textContent = "حذف الخلفية";
-          actions.appendChild(btn);
+          card.appendChild(btn);
+          old = btn;
+        }
+        if (has && old) {
+          old.id = "removeLoginBackgroundBtn";
+          old.className = "v232-login-bg-delete";
+          old.dataset.v146RemoveLoginBg = "1";
+          old.title = "حذف خلفية الدخول";
+          old.setAttribute("aria-label", "حذف خلفية الدخول");
+          old.innerHTML =
+            typeof iconSvg === "function"
+              ? iconSvg("trash")
+              : '<span data-icon="trash"></span>';
         }
         if (!has && old) old.remove();
         var copy = card.querySelector(".company-logo-copy span");

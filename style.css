@@ -7162,15 +7162,53 @@ body {
   height: 18px !important;
 }
 
-#settingsForm .v230-company-media-actions .light-btn {
-  flex: 1 1 100% !important;
-  min-height: 36px !important;
-  margin: 0 !important;
-}
-
 #settingsForm .v230-national-address-attachment {
   display: grid !important;
   gap: 7px !important;
+}
+
+/* v232 - unobtrusive cloud login-background deletion */
+#settingsForm [data-v230-company-media="login-background"] {
+  position: relative !important;
+}
+
+#settingsForm [data-v230-company-media="login-background"] .v232-login-bg-delete {
+  position: absolute !important;
+  top: 12px !important;
+  left: 12px !important;
+  right: auto !important;
+  z-index: 2 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  width: 30px !important;
+  min-width: 30px !important;
+  max-width: 30px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #dc2626 !important;
+  cursor: pointer !important;
+}
+
+#settingsForm [data-v230-company-media="login-background"] .v232-login-bg-delete svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke: currentColor !important;
+}
+
+#settingsForm [data-v230-company-media="login-background"] .v232-login-bg-delete:hover,
+#settingsForm [data-v230-company-media="login-background"] .v232-login-bg-delete:focus-visible {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #b91c1c !important;
+  opacity: .78 !important;
 }
 
 #settingsForm .v230-national-address-attachment > span {
