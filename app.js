@@ -19425,7 +19425,7 @@ async function init() {
         halfSalary: c,
         transfer: l < c ? c : l,
         required: l < c ? c - l : 0,
-        cardWithdraw: s > c,
+        cardWithdraw: l < c,
       };
     }
     function W(e) {
@@ -19491,11 +19491,11 @@ async function init() {
         items: t,
       };
     }
-    function K(e) {
+    function K(e, requiresCardWithdrawal = false) {
       const t = M(e.employeeId) || e.employee || {},
         n = t.name || "موظف",
         o = t.initials || (n || "م").slice(0, 1);
-      return `<div class="employee-cell payroll-name-only-cell">${`<div class="avatar avatar-${a(t.color || "teal")}">${a(o)}</div>`}<div><strong class="employee-name">${a(n)}</strong></div></div>`;
+      return `<div class="employee-cell payroll-name-only-cell">${`<div class="avatar avatar-${a(t.color || "teal")}">${a(o)}</div>`}<div class="payroll-employee-name-line"><strong class="employee-name">${a(n)}</strong>${requiresCardWithdrawal ? '<span class="payroll-card-withdraw-marker" role="img" aria-label="يتطلب سحب البطاقة" title="يتطلب سحب البطاقة"></span>' : ""}</div></div>`;
     }
     async function Y() {
       if (payrollRunInFlight) return !1;
@@ -19849,17 +19849,18 @@ async function init() {
 	          ? a
 	              .map((e) => {
 	                const n = e.line || {},
+	                  requiresCardWithdrawal = Number(n.required || 0) > 0,
 	                  requiredHtml =
-	                    Number(n.required || 0) > 0
+	                    requiresCardWithdrawal
 	                      ? `<strong class="payroll-required-amount">${o(n.required)}</strong>`
 	                      : "",
-	                  r = n.cardWithdraw
+	                  r = requiresCardWithdrawal
 	                    ? '<span class="payroll-card-withdraw-text">نعم</span>'
 	                    : "";
 	                const s = t
 	                  ? `<strong>${o(n.prepaidDeduction || 0)}</strong>`
 	                  : `<input class="payroll-prepaid-input" type="number" min="0" step="0.01" inputmode="decimal" data-payroll-prepaid="${safeHtml(e.employeeId)}" data-payroll-month="${safeHtml(d())}" value="${safeHtml(n.prepaidDeduction || "")}" aria-label="خصم مسبق للرواتب" />`;
-	                return `<tr class="${n.cardWithdraw ? "payroll-row-card-withdraw" : ""}"><td class="payroll-employee-cell">${K(e)}</td><td class="payroll-money-cell payroll-base-amount">${o(n.baseSalary)}</td><td class="payroll-money-cell payroll-allowance-amount">${o(n.allowance)}</td><td class="payroll-money-cell payroll-deduction-amount"><strong>${o(n.insuranceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong class="absence-money-deduction">${o(n.absenceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong>${o(n.advanceDeduction)}</strong></td><td class="payroll-money-cell payroll-prepaid-cell">${s}</td><td class="payroll-money-cell payroll-net-amount"><strong>${o(n.net)}</strong></td><td class="payroll-money-cell payroll-transfer-cell"><strong class="payroll-transfer-amount">${o(n.transfer)}</strong></td><td class="payroll-money-cell payroll-required-cell">${requiredHtml}</td><td class="payroll-card-withdraw-cell">${r}</td><td><span class="status-badge status-paid">${t ? "مصروف" : "جاهز للصرف"}</span></td></tr>`;
+	                return `<tr class="${requiresCardWithdrawal ? "payroll-row-card-withdraw" : ""}"><td class="payroll-employee-cell">${K(e, requiresCardWithdrawal)}</td><td class="payroll-money-cell payroll-base-amount">${o(n.baseSalary)}</td><td class="payroll-money-cell payroll-allowance-amount">${o(n.allowance)}</td><td class="payroll-money-cell payroll-deduction-amount"><strong>${o(n.insuranceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong class="absence-money-deduction">${o(n.absenceDeduction)}</strong></td><td class="payroll-money-cell payroll-deduction-amount"><strong>${o(n.advanceDeduction)}</strong></td><td class="payroll-money-cell payroll-prepaid-cell">${s}</td><td class="payroll-money-cell payroll-net-amount"><strong>${o(n.net)}</strong></td><td class="payroll-money-cell payroll-transfer-cell"><strong class="payroll-transfer-amount">${o(n.transfer)}</strong></td><td class="payroll-money-cell payroll-required-cell">${requiredHtml}</td><td class="payroll-card-withdraw-cell">${r}</td><td><span class="status-badge status-paid">${t ? "مصروف" : "جاهز للصرف"}</span></td></tr>`;
 	              })
 	              .join("")
 	          : '<tr><td colspan="12"><div class="empty-state"><strong>لا توجد بيانات مسير للعرض</strong></div></td></tr>';
@@ -19957,20 +19958,35 @@ async function init() {
       const a = z(n, t),
         r = e.closest("tr");
       if (r) {
-        r.classList.toggle("payroll-row-card-withdraw", Boolean(a.cardWithdraw));
+        const requiresCardWithdrawal = Number(a.required || 0) > 0;
+        r.classList.toggle(
+          "payroll-row-card-withdraw",
+          requiresCardWithdrawal,
+        );
         const e = r.querySelector(".payroll-net-amount strong"),
           t = r.querySelector(".payroll-transfer-amount"),
           n = r.querySelector(".payroll-required-cell"),
-          i = r.querySelector(".payroll-card-withdraw-cell");
+          i = r.querySelector(".payroll-card-withdraw-cell"),
+          s = r.querySelector(".payroll-employee-name-line");
         (e && (e.textContent = o(a.net)),
           t && (t.textContent = o(a.transfer)),
           n &&
             (n.innerHTML =
-              Number(a.required || 0) > 0
+              requiresCardWithdrawal
                 ? `<strong class="payroll-required-amount">${o(a.required)}</strong>`
                 : ""),
+          s &&
+            (function () {
+              const marker = s.querySelector(".payroll-card-withdraw-marker");
+              if (requiresCardWithdrawal && !marker)
+                s.insertAdjacentHTML(
+                  "beforeend",
+                  '<span class="payroll-card-withdraw-marker" role="img" aria-label="يتطلب سحب البطاقة" title="يتطلب سحب البطاقة"></span>',
+                );
+              else if (!requiresCardWithdrawal && marker) marker.remove();
+            })(),
           i &&
-            (i.innerHTML = a.cardWithdraw
+            (i.innerHTML = requiresCardWithdrawal
               ? '<span class="payroll-card-withdraw-text">نعم</span>'
               : ""));
       }
@@ -20178,8 +20194,9 @@ async function init() {
         c = t
           .map((e) => {
             const t = e.line || {},
-              n = Number(t.required || 0) > 0 ? o(t.required) : "";
-            return `<tr class="${t.cardWithdraw ? "payroll-row-card-withdraw" : ""}"><td class="payroll-report-employee">${t.cardWithdraw ? `<span class="payroll-risk-marker"></span><span class="payroll-risk-name">${a(ne(e))}</span>` : a(ne(e))}</td><td class="payroll-base-amount">${o(t.baseSalary)}</td><td class="payroll-allowance-amount">${o(t.allowance)}</td><td class="payroll-deduction-amount">${o(t.insuranceDeduction)}</td><td class="payroll-deduction-amount">${o(t.absenceDeduction)}</td><td class="payroll-deduction-amount">${o(t.advanceDeduction)}</td><td class="payroll-deduction-amount">${o(t.prepaidDeduction || 0)}</td><td class="payroll-net-amount">${o(t.net)}</td><td class="payroll-transfer-cell">${o(t.transfer)}</td><td class="payroll-required-cell">${n}</td><td class="payroll-card-withdraw-cell">${t.cardWithdraw ? "نعم" : ""}</td><td><span class="status-badge">${l ? "مصروف" : "جاهز للصرف"}</span></td></tr>`;
+              requiresCardWithdrawal = Number(t.required || 0) > 0,
+              n = requiresCardWithdrawal ? o(t.required) : "";
+            return `<tr class="${requiresCardWithdrawal ? "payroll-row-card-withdraw" : ""}"><td class="payroll-report-employee">${requiresCardWithdrawal ? `<span class="payroll-risk-marker"></span><span class="payroll-risk-name">${a(ne(e))}</span>` : a(ne(e))}</td><td class="payroll-base-amount">${o(t.baseSalary)}</td><td class="payroll-allowance-amount">${o(t.allowance)}</td><td class="payroll-deduction-amount">${o(t.insuranceDeduction)}</td><td class="payroll-deduction-amount">${o(t.absenceDeduction)}</td><td class="payroll-deduction-amount">${o(t.advanceDeduction)}</td><td class="payroll-deduction-amount">${o(t.prepaidDeduction || 0)}</td><td class="payroll-net-amount">${o(t.net)}</td><td class="payroll-transfer-cell">${o(t.transfer)}</td><td class="payroll-required-cell">${n}</td><td class="payroll-card-withdraw-cell">${requiresCardWithdrawal ? "نعم" : ""}</td><td><span class="status-badge">${l ? "مصروف" : "جاهز للصرف"}</span></td></tr>`;
           })
           .join("");
       const title = `مسير رواتب ${a(y(e))}`,
@@ -44223,7 +44240,7 @@ async function init() {
       net: net,
       transfer: transfer,
       required: required,
-      cardWithdraw: advances > half,
+      cardWithdraw: required > 0,
     };
   }
   function payrollReportRows() {
@@ -44270,7 +44287,7 @@ async function init() {
         payrollReportMoney(line.net || 0),
         payrollReportMoney("transfer" in line ? line.transfer || 0 : line.net || 0),
         Number(line.required || 0) > 0 ? payrollReportMoney(line.required) : "",
-        line.cardWithdraw ? "نعم" : "",
+        Number(line.required || 0) > 0 ? "نعم" : "",
         run ? "مصروف" : "جاهز للصرف",
       ];
     });
@@ -46141,7 +46158,7 @@ async function init() {
       halfSalary: half,
       transfer: net < half ? half : net,
       required: net < half ? half - net : 0,
-      cardWithdraw: adv > half,
+      cardWithdraw: net < half,
     };
   }
   function totals(items) {
