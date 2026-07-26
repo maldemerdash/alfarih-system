@@ -5811,29 +5811,28 @@ body {
 .salary-fields .salary-insurance-toggle {
   grid-column: 1;
   grid-row: 2;
-  align-self: start;
+  align-self: stretch;
 }
 
 .salary-fields .salary-insurance-value {
-  grid-column: 1;
-  grid-row: 3;
-  transition: opacity 0.16s ease;
+  grid-column: 2;
+  grid-row: 2;
+  transition: opacity 0.16s ease, filter 0.16s ease;
 }
 
-.salary-fields .salary-insurance-hidden {
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
+.salary-fields .salary-insurance-inactive {
+  opacity: 0.68;
+  filter: grayscale(0.18);
 }
 
 .salary-fields .salary-total-field {
-  grid-column: 2;
-  grid-row: 3;
+  grid-column: 3;
+  grid-row: 2;
 }
 
 .salary-fields .salary-total-words-field {
-  grid-column: 3 / span 2;
-  grid-row: 3;
+  grid-column: 4;
+  grid-row: 2;
 }
 
 @media (max-width: 1180px) and (min-width: 721px) {
@@ -5843,18 +5842,18 @@ body {
   }
 
   .salary-fields .salary-insurance-value {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .salary-fields .salary-total-field {
     grid-column: 1;
     grid-row: 4;
   }
 
-  .salary-fields .salary-total-field {
+  .salary-fields .salary-total-words-field {
     grid-column: 2;
     grid-row: 4;
-  }
-
-  .salary-fields .salary-total-words-field {
-    grid-column: 1 / -1;
-    grid-row: 5;
   }
 }
 
@@ -5867,8 +5866,57 @@ body {
     grid-row: auto;
   }
 
-  .salary-fields .salary-insurance-hidden {
-    display: none;
+}
+
+.salary-settings-card {
+  display: grid;
+  gap: 18px;
+}
+
+.salary-settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 760px;
+}
+
+.salary-setting-value-control {
+  position: relative;
+  display: block;
+}
+
+.salary-setting-value-control input {
+  padding-inline-end: 58px;
+}
+
+.salary-setting-value-control b {
+  position: absolute;
+  inset-inline-end: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.salary-settings-preview {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  border: 1px solid #dce7ec;
+  border-radius: 14px;
+  background: #f7fafb;
+  color: #52616b;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.salary-settings-preview strong {
+  color: var(--primary);
+}
+
+@media (max-width: 720px) {
+  .salary-settings-grid {
+    grid-template-columns: 1fr;
   }
 }
 

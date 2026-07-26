@@ -669,6 +669,81 @@ function loadLocalData(e, t) {
     return structuredClone(t);
   }
 }
+const SALARY_SETTINGS_KEY_V237 = "nawah-salary-settings-v237";
+const DEFAULT_SALARY_SETTINGS_V237 = Object.freeze({
+  insuranceDeductionType: "percentage",
+  insuranceDeductionValue: 9.95,
+  updatedAt: "",
+});
+let salarySettingsCacheRawV237 = null;
+let salarySettingsCacheV237 = null;
+function normalizeSalarySettingsV237(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const insuranceDeductionType =
+    source.insuranceDeductionType === "fixed" ? "fixed" : "percentage";
+  let insuranceDeductionValue = Number(source.insuranceDeductionValue);
+  if (!Number.isFinite(insuranceDeductionValue) || insuranceDeductionValue < 0)
+    insuranceDeductionValue =
+      DEFAULT_SALARY_SETTINGS_V237.insuranceDeductionValue;
+  if (insuranceDeductionType === "percentage")
+    insuranceDeductionValue = Math.min(100, insuranceDeductionValue);
+  return {
+    insuranceDeductionType,
+    insuranceDeductionValue,
+    updatedAt: String(source.updatedAt || ""),
+  };
+}
+function getSalarySettingsV237() {
+  let raw = "";
+  try {
+    raw = localStorage.getItem(SALARY_SETTINGS_KEY_V237) || "";
+  } catch (_) {}
+  if (salarySettingsCacheV237 && raw === salarySettingsCacheRawV237)
+    return salarySettingsCacheV237;
+  let parsed = DEFAULT_SALARY_SETTINGS_V237;
+  try {
+    parsed = raw ? JSON.parse(raw) : DEFAULT_SALARY_SETTINGS_V237;
+  } catch (_) {}
+  salarySettingsCacheRawV237 = raw;
+  salarySettingsCacheV237 = normalizeSalarySettingsV237(parsed);
+  return salarySettingsCacheV237;
+}
+function setSalarySettingsV237(value) {
+  const normalized = normalizeSalarySettingsV237(value);
+  const raw = JSON.stringify(normalized);
+  localStorage.setItem(SALARY_SETTINGS_KEY_V237, raw);
+  salarySettingsCacheRawV237 = raw;
+  salarySettingsCacheV237 = normalized;
+  return normalized;
+}
+function salarySettingsNumberV237(value) {
+  return Number(value || 0).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
+}
+function salaryInsuranceControlTextV237(settings = getSalarySettingsV237()) {
+  return settings.insuranceDeductionType === "fixed"
+    ? `تطبيق خصم التأمينات (${salarySettingsNumberV237(settings.insuranceDeductionValue)} ر.س ثابت)`
+    : `تطبيق خصم التأمينات (${salarySettingsNumberV237(settings.insuranceDeductionValue)}%)`;
+}
+function salaryInsuranceDescriptionV237(settings = getSalarySettingsV237()) {
+  return settings.insuranceDeductionType === "fixed"
+    ? `قيمة ثابتة قدرها ${salarySettingsNumberV237(settings.insuranceDeductionValue)} ر.س`
+    : `نسبة ${salarySettingsNumberV237(settings.insuranceDeductionValue)}% من إجمالي الاستحقاقات`;
+}
+function calculateInsuranceDeductionV237(
+  grossSalary,
+  enabled = true,
+  settings = getSalarySettingsV237(),
+) {
+  if (!enabled) return 0;
+  const gross = Math.max(0, Number(grossSalary) || 0);
+  const amount =
+    settings.insuranceDeductionType === "fixed"
+      ? Number(settings.insuranceDeductionValue) || 0
+      : (gross * (Number(settings.insuranceDeductionValue) || 0)) / 100;
+  return Math.min(gross, Math.max(0, amount));
+}
 function saveLocalMeta() {
   (localStorage.setItem("nawah-leaves", JSON.stringify(leaves)),
     localStorage.setItem("nawah-job-titles", JSON.stringify(jobTitles)),
@@ -1696,7 +1771,7 @@ function employeeTotalSalary(e) {
     Number(e.housingAllowance || 0) +
     Number(e.transportAllowance || 0) +
     Number(e.otherAllowances || 0);
-  return t - (e.insuranceEnabled ? 0.0995 * t : 0);
+  return t - calculateInsuranceDeductionV237(t, e.insuranceEnabled);
 }
 function renderPermissionsPreview() {
   const e = document.querySelector("#permissionsPreviewGrid");
@@ -2555,8 +2630,11 @@ function currentPayrollFinalDisbursement() {
   return employees
     .filter(employeeIsOnDutyForTransactions)
     .reduce((sum, employee) => {
-      const gross = Number(employeeTotalSalary(employee) || 0);
-      const insurance = employee.insuranceEnabled ? gross * 0.0995 : 0;
+      const gross = Number(employeeGrossSalary(employee) || 0);
+      const insurance = calculateInsuranceDeductionV237(
+        gross,
+        employee.insuranceEnabled,
+      );
       let absence = 0;
       try {
         if (typeof absenceDeductionForEmployeeInMonth === "function") {
@@ -3154,7 +3232,7 @@ function renderPayroll() {
       const a = employeeGrossSalary(n);
       return (
         t +
-        (n.insuranceEnabled ? 0.0995 * a : 0) +
+        calculateInsuranceDeductionV237(a, n.insuranceEnabled) +
         absenceDeductionForEmployeeInMonth(n.id, e) +
         Number(n.advanceDeduction || n.salaryAdvance || 0)
       );
@@ -3176,7 +3254,7 @@ function renderPayroll() {
             Number(t.transportAllowance || 0) +
             Number(t.otherAllowances || 0),
           a = employeeGrossSalary(t),
-          o = t.insuranceEnabled ? 0.0995 * a : 0,
+          o = calculateInsuranceDeductionV237(a, t.insuranceEnabled),
           r = absenceDeductionForEmployeeInMonth(t.id, e),
           i = Number(t.advanceDeduction || t.salaryAdvance || 0),
           s = o + r + i;
@@ -3971,7 +4049,10 @@ function calculateSalaryFromForm() {
     a = Number(e.elements.transportAllowance.value || 0),
     o = Number(e.elements.otherAllowances.value || 0),
     r = t + n + a + o,
-    i = e.elements.insuranceEnabled.checked ? 0.0995 * r : 0;
+    i = calculateInsuranceDeductionV237(
+      r,
+      e.elements.insuranceEnabled.checked,
+    );
   return {
     base: t,
     housing: n,
@@ -3997,7 +4078,7 @@ function calculateEmployeeSalary(e) {
     a = Number(e?.transportAllowance || 0),
     o = Number(e?.otherAllowances || 0),
     r = t + n + a + o,
-    i = e?.insuranceEnabled ? 0.0995 * r : 0;
+    i = calculateInsuranceDeductionV237(r, e?.insuranceEnabled);
   return {
     base: t,
     housing: n,
@@ -4035,17 +4116,16 @@ function updateSalaryCalculations() {
   const e = document.querySelector("#employeeForm"),
     t = calculateSalaryFromForm(),
     n = e.elements.insuranceEnabled.checked,
-    a = document.querySelector("#insuranceValueField");
-  (a.classList.toggle("salary-insurance-hidden", !n),
-    a.setAttribute("aria-hidden", String(!n)),
-    (e.elements.insuranceDeduction.tabIndex = n ? 0 : -1),
-    (e.elements.insuranceDeduction.value = n
-      ? formatNumberEn(t.insurance, 2)
-      : ""),
+    a = document.querySelector("#insuranceValueField"),
+    o = getSalarySettingsV237();
+  (a.classList.toggle("salary-insurance-inactive", !n),
+    a.setAttribute("aria-hidden", "false"),
+    (e.elements.insuranceDeduction.tabIndex = -1),
+    (e.elements.insuranceDeduction.value = formatNumberEn(t.insurance, 2)),
     (e.elements.totalSalary.value = formatNumberEn(t.total, 2)),
     (e.elements.totalSalaryWords.value = amountToWords(t.total)),
     (document.querySelector("#salaryCalculationNote").textContent = n
-      ? "إجمالي الراتب = الراتب الأساسي + بدل السكن + بدل المواصلات + البدلات الأخرى - خصم التأمينات 9.95%."
+      ? `إجمالي الراتب = الراتب الأساسي + بدل السكن + بدل المواصلات + البدلات الأخرى - خصم التأمينات (${salaryInsuranceDescriptionV237(o)}).`
       : "إجمالي الراتب = الراتب الأساسي + بدل السكن + بدل المواصلات + البدلات الأخرى."),
     updateCommissionCalculations());
 }
@@ -4491,6 +4571,8 @@ async function handleEmployeeSubmit(e) {
       transportAllowance: c.transport,
       otherAllowances: c.other,
       insuranceEnabled: t.elements.insuranceEnabled.checked,
+      insuranceDeduction: c.insurance,
+      totalSalary: c.total,
       phone: s,
       emergencyPhone: n.emergencyPhone.trim(),
       email: n.email.trim(),
@@ -4897,13 +4979,13 @@ async function openQuickView(e) {
         profileValue(
           "خصم التأمينات",
           t.insuranceEnabled
-            ? formatCurrencyEn(t.insuranceDeduction || c.insurance || 0)
+            ? formatCurrencyEn(c.insurance || 0)
             : "غير مفعل",
           { latin: !0 },
         ),
         profileValue(
           "إجمالي الراتب",
-          formatCurrencyEn(t.totalSalary || c.total || t.salary || 0),
+          formatCurrencyEn(c.total || 0),
           { latin: !0 },
         ),
       ],
@@ -6716,7 +6798,7 @@ function setupEvents() {
                 Number(t.transportAllowance || 0) +
                 Number(t.otherAllowances || 0),
               a = employeeGrossSalary(t),
-              o = t.insuranceEnabled ? 0.0995 * a : 0,
+              o = calculateInsuranceDeductionV237(a, t.insuranceEnabled),
               r = absenceDeductionForEmployeeInMonth(t.id, e),
               i = Number(t.advanceDeduction || t.salaryAdvance || 0);
             return [t.name, t.baseSalary, n, o, r, i, a - o - r - i];
@@ -19224,7 +19306,7 @@ async function init() {
           Number(e.otherAllowances || 0),
         a = x(e),
         o = Number(e.baseSalary || e.salary || a || 0),
-        r = e.insuranceEnabled ? 0.0995 * a : 0,
+        r = calculateInsuranceDeductionV237(a, e.insuranceEnabled),
         i =
           "function" == typeof absenceDeductionForEmployeeInMonth
             ? absenceDeductionForEmployeeInMonth(e.id, m())
@@ -43994,7 +44076,10 @@ async function init() {
         Number(emp.transportAllowance || 0) +
         Number(emp.otherAllowances || 0),
       base = Number(emp.baseSalary || emp.salary || gross || 0),
-      insurance = emp.insuranceEnabled ? gross * 0.0995 : 0,
+      insurance = calculateInsuranceDeductionV237(
+        gross,
+        emp.insuranceEnabled,
+      ),
       absence = 0;
     try {
       if (typeof absenceDeductionForEmployeeInMonth === "function") {
@@ -45930,7 +46015,10 @@ async function init() {
     var gross = employeeGross(emp);
     var base =
       Number((emp && (emp.baseSalary || emp.salary)) || gross || 0) || 0;
-    var ins = emp && emp.insuranceEnabled ? 0.0995 * gross : 0;
+    var ins = calculateInsuranceDeductionV237(
+      gross,
+      emp && emp.insuranceEnabled,
+    );
     var abs = absenceDeduction(emp && emp.id, monthKey);
     var adv = approvedAdvanceSum(emp && emp.id, monthKey);
     var net = gross - ins - abs - adv;
@@ -66016,6 +66104,7 @@ window.nawahLeaveBalanceReportV185 = {
     "nawah-leave-balance-reservations": ["leaveBalanceReservations"],
     "nawah-payroll-advances": ["payrollAdvances"],
     "nawah-payroll-runs": ["payrollRuns"],
+    "nawah-salary-settings-v237": ["salarySettings"],
     "nawah-finance-settings": ["financeSettings"],
     "nawah-finance-daily-open": ["financeDailyOpen", "financeDailyDays"],
     "nawah-finance-daily-days": ["financeDailyOpen", "financeDailyDays"],
@@ -66160,6 +66249,7 @@ window.nawahLeaveBalanceReportV185 = {
     if (value.includes("travel")) markDirty(["travelRequests", "leaveBalanceReservations"]);
     if (value.includes("advance")) markDirty(["payrollAdvances", "payrollRuns"]);
     if (value.includes("payroll")) markDirty(["payrollRuns", "payrollAdvances"]);
+    if (value.includes("salary-settings")) markDirty("salarySettings");
     if (value.includes("finance-settings")) markDirty("financeSettings");
     else if (value.includes("finance"))
       markDirty(["financeDailyOpen", "financeDailyDays"]);
@@ -66254,6 +66344,10 @@ window.nawahLeaveBalanceReportV185 = {
     );
     state.payrollAdvances = readJson("nawah-payroll-advances", []);
     state.payrollRuns = readJson("nawah-payroll-runs", []);
+    state.salarySettings = readJson(
+      SALARY_SETTINGS_KEY_V237,
+      DEFAULT_SALARY_SETTINGS_V237,
+    );
     state.financeSettings = readJson("nawah-finance-settings", {
       openingAmount: 0,
       custodyAmount: 0,
@@ -66349,6 +66443,7 @@ window.nawahLeaveBalanceReportV185 = {
         ["leaveBalanceReservations", "nawah-leave-balance-reservations"],
         ["payrollAdvances", "nawah-payroll-advances"],
         ["payrollRuns", "nawah-payroll-runs"],
+        ["salarySettings", SALARY_SETTINGS_KEY_V237],
         ["financeSettings", "nawah-finance-settings"],
         ["financeDailyOpen", "nawah-finance-daily-open"],
         ["financeDailyDays", "nawah-finance-daily-days"],
@@ -66846,7 +66941,9 @@ window.nawahLeaveBalanceReportV185 = {
         return;
       }
       if (
-        ["financeSettings", "companySettingsV92"].includes(field) &&
+        ["salarySettings", "financeSettings", "companySettingsV92"].includes(
+          field,
+        ) &&
         (deletedIds || upsertIds)
       ) {
         const remoteSettings =
@@ -67308,6 +67405,11 @@ window.nawahLeaveBalanceReportV185 = {
             "#settingsNav [data-settings-section].active",
           )?.dataset.settingsSection;
           if (
+            activeSettings === "salarySettings" &&
+            typeof window.renderSalarySettingsV237 === "function"
+          )
+            window.renderSalarySettingsV237();
+          else if (
             activeSettings === "managers" &&
             typeof window.nawahV191?.renderManagers === "function"
           )
@@ -67320,6 +67422,8 @@ window.nawahLeaveBalanceReportV185 = {
             window.__stableSettingsRenderPanel(activeSettings);
           else if (typeof renderSettings === "function") renderSettings();
         } else if (typeof renderAll === "function") renderAll();
+        if (typeof window.syncSalaryEmployeeUiV237 === "function")
+          window.syncSalaryEmployeeUiV237();
       } catch (error) {
         console.warn("v221: تعذر تحديث العرض بعد المزامنة.", error);
       }
@@ -67442,6 +67546,66 @@ window.nawahLeaveBalanceReportV185 = {
   window.nawahCloudSyncV226 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV227 = window.nawahCloudSyncV221;
   window.nawahCloudSyncV228 = window.nawahCloudSyncV221;
+  window.nawahSalarySettingsSyncV237 = {
+    schemaVersion: STATE_SCHEMA_VERSION,
+    prepare: async () => {
+      if (!activeSession() || !ensureClient()) return false;
+      clearTimeout(saveTimer);
+      for (let attempt = 0; attempt < 3 && dirtyFields.size; attempt += 1) {
+        const flushed = await saveCloudStateNowV221({
+          force: true,
+          reason: "salary-preflight-v237",
+        });
+        if (!flushed && dirtyFields.size) return false;
+      }
+      if (dirtyFields.size) return false;
+      try {
+        await refreshCloudStateV221(true);
+        return !dirtyFields.size;
+      } catch (_) {
+        return false;
+      }
+    },
+    save: (reason = "salary-settings-manual") =>
+      saveCloudStateNowV221({ force: true, reason }),
+    rollback: async (fallback = DEFAULT_SALARY_SETTINGS_V237) => {
+      clearTimeout(saveTimer);
+      dirtyFields.delete("salarySettings");
+      recordDeleteTombstones.delete("salarySettings");
+      recordUpsertMutations.delete("salarySettings");
+      let restoredFromCloud = false;
+      try {
+        const remote = await readCloudDirectV221();
+        if (remote.found && remote.state) {
+          applyCanonicalStateV221(clone(remote.state));
+          restoredFromCloud = Object.prototype.hasOwnProperty.call(
+            remote.state,
+            "salarySettings",
+          );
+          baselineState = clone(remote.state);
+          baselineUpdatedAt = remote.updatedAt || "";
+          renderAfterCloudRefresh();
+        }
+      } catch (_) {}
+      if (!restoredFromCloud) {
+        window.__nawahCloudApplyInProgressV221 = true;
+        try {
+          writeJson(
+            SALARY_SETTINGS_KEY_V237,
+            normalizeSalarySettingsV237(fallback),
+          );
+        } finally {
+          window.__nawahCloudApplyInProgressV221 = false;
+        }
+      }
+      return true;
+    },
+    trackUpserts: (fields) => {
+      const tracked = markRecordUpserts("salarySettings", fields);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
+  };
   window.nawahDocumentsSyncV227 = {
     schemaVersion: STATE_SCHEMA_VERSION,
     prepare: async () => {
@@ -68893,6 +69057,202 @@ window.nawahLeaveBalanceReportV185 = {
     },
     stopRealtime: stopProfileChannel,
   };
+})();
+
+/* v237 - cloud salary settings and compact two-row employee salary layout. */
+(function v237SalarySettings() {
+  if (window.__v237SalarySettings) return;
+  window.__v237SalarySettings = true;
+  let saveInFlight = false;
+
+  function form() {
+    return document.querySelector("#salarySettingsForm");
+  }
+
+  function typePresentation(type) {
+    const salaryForm = form();
+    if (!salaryForm) return;
+    const fixed = type === "fixed";
+    const input = salaryForm.elements.insuranceDeductionValue;
+    const label = document.querySelector("#salaryInsuranceValueLabel");
+    const suffix = document.querySelector("#salaryInsuranceValueSuffix");
+    if (label) label.textContent = fixed ? "قيمة الخصم الثابتة" : "نسبة الخصم";
+    if (suffix) suffix.textContent = fixed ? "ر.س" : "%";
+    if (input) {
+      input.min = "0";
+      input.step = "0.01";
+      if (fixed) input.removeAttribute("max");
+      else input.max = "100";
+    }
+  }
+
+  function formSettings() {
+    const salaryForm = form();
+    if (!salaryForm) return getSalarySettingsV237();
+    return normalizeSalarySettingsV237({
+      insuranceDeductionType:
+        salaryForm.elements.insuranceDeductionType?.value,
+      insuranceDeductionValue:
+        salaryForm.elements.insuranceDeductionValue?.value,
+      updatedAt: getSalarySettingsV237().updatedAt,
+    });
+  }
+
+  function renderPreview(settings = formSettings()) {
+    const preview = document.querySelector("#salarySettingsPreview");
+    if (!preview) return;
+    const exampleGross = 5000;
+    const exampleDeduction = calculateInsuranceDeductionV237(
+      exampleGross,
+      true,
+      settings,
+    );
+    preview.innerHTML =
+      settings.insuranceDeductionType === "fixed"
+        ? `عند تفعيل الخصم في ملف الموظف سيُخصم <strong>${salarySettingsNumberV237(settings.insuranceDeductionValue)} ر.س</strong>، وبحد أقصى إجمالي راتبه.`
+        : `عند تفعيل الخصم في ملف الموظف سيُخصم <strong>${salarySettingsNumberV237(settings.insuranceDeductionValue)}%</strong> من إجمالي الاستحقاقات. مثال: الخصم من 5,000 ر.س يساوي ${salarySettingsNumberV237(exampleDeduction)} ر.س.`;
+  }
+
+  function syncSalaryEmployeeUiV237() {
+    const settings = getSalarySettingsV237();
+    const toggleLabel = document.querySelector("#salaryInsuranceToggleLabel");
+    if (toggleLabel)
+      toggleLabel.textContent = salaryInsuranceControlTextV237(settings);
+    const employeeForm = document.querySelector("#employeeForm");
+    if (
+      employeeForm?.elements?.insuranceEnabled &&
+      employeeForm?.elements?.insuranceDeduction &&
+      typeof updateSalaryCalculations === "function"
+    ) {
+      try {
+        updateSalaryCalculations();
+      } catch (_) {}
+    }
+  }
+
+  function renderSalarySettingsV237() {
+    const salaryForm = form();
+    if (!salaryForm) return;
+    const settings = getSalarySettingsV237();
+    const typeInput = salaryForm.elements.insuranceDeductionType;
+    const valueInput = salaryForm.elements.insuranceDeductionValue;
+    if (document.activeElement !== typeInput)
+      typeInput.value = settings.insuranceDeductionType;
+    if (document.activeElement !== valueInput)
+      valueInput.value = String(settings.insuranceDeductionValue);
+    typePresentation(typeInput.value);
+    renderPreview(
+      document.activeElement === typeInput || document.activeElement === valueInput
+        ? formSettings()
+        : settings,
+    );
+    syncSalaryEmployeeUiV237();
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(salaryForm);
+    } catch (_) {}
+  }
+
+  async function saveSettings(event) {
+    if (event.target?.id !== "salarySettingsForm") return;
+    event.preventDefault();
+    if (saveInFlight) return;
+    const salaryForm = event.target;
+    if (!salaryForm.reportValidity()) return;
+    const requested = {
+      insuranceDeductionType:
+        salaryForm.elements.insuranceDeductionType.value,
+      insuranceDeductionValue:
+        salaryForm.elements.insuranceDeductionValue.value,
+    };
+    const submitButton = salaryForm.querySelector('button[type="submit"]');
+    const sync = window.nawahSalarySettingsSyncV237;
+    saveInFlight = true;
+    if (submitButton) submitButton.disabled = true;
+    let previous = getSalarySettingsV237();
+    try {
+      if (!sync?.prepare || !(await sync.prepare()))
+        throw new Error("salary-cloud-preflight-failed");
+      previous = getSalarySettingsV237();
+      const next = setSalarySettingsV237({
+        ...requested,
+        updatedAt: new Date().toISOString(),
+      });
+      sync.trackUpserts([
+        "insuranceDeductionType",
+        "insuranceDeductionValue",
+        "updatedAt",
+      ]);
+      const saved = await sync.save("confirmed-salary-settings-save");
+      if (saved === false) throw new Error("salary-cloud-save-failed");
+      renderSalarySettingsV237();
+      try {
+        if (typeof renderPayroll === "function") renderPayroll();
+      } catch (_) {}
+      showToast("تم حفظ إعداد الراتب سحابيًا وتحديث خصم التأمينات");
+      return next;
+    } catch (error) {
+      try {
+        if (sync?.rollback) await sync.rollback(previous);
+        else setSalarySettingsV237(previous);
+      } catch (_) {}
+      renderSalarySettingsV237();
+      showToast("تعذر تأكيد الحفظ السحابي؛ لم يتم تغيير إعداد الراتب");
+      console.warn("v237: تعذر حفظ إعداد الراتب سحابيًا.", error);
+      return false;
+    } finally {
+      saveInFlight = false;
+      if (submitButton) submitButton.disabled = false;
+    }
+  }
+
+  window.renderSalarySettingsV237 = renderSalarySettingsV237;
+  window.syncSalaryEmployeeUiV237 = syncSalaryEmployeeUiV237;
+  window.nawahSalarySettingsV237 = {
+    version: 237,
+    key: SALARY_SETTINGS_KEY_V237,
+    get: () => ({ ...getSalarySettingsV237() }),
+    calculate: calculateInsuranceDeductionV237,
+    render: renderSalarySettingsV237,
+  };
+
+  document.addEventListener("submit", saveSettings, true);
+  document.addEventListener(
+    "input",
+    function (event) {
+      if (!event.target?.closest?.("#salarySettingsForm")) return;
+      typePresentation(form()?.elements?.insuranceDeductionType?.value);
+      renderPreview();
+    },
+    true,
+  );
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (event.target?.name === "insuranceDeductionType") {
+        typePresentation(event.target.value);
+        renderPreview();
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (event.target?.closest?.('[data-settings-section="salarySettings"]'))
+        setTimeout(renderSalarySettingsV237, 0);
+    },
+    true,
+  );
+  window.addEventListener("storage", function (event) {
+    if (event.key === SALARY_SETTINGS_KEY_V237)
+      renderSalarySettingsV237();
+  });
+
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", renderSalarySettingsV237, {
+      once: true,
+    });
+  else renderSalarySettingsV237();
 })();
 
 /* v228 - final renderer lock (must remain the last application patch). */
