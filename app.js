@@ -61602,6 +61602,7 @@ window.nawahV169Fixes = {
   function setPreview(url) {
     const clean = text(url);
     document.querySelectorAll("#loginBgPreview,.login-bg-preview").forEach(function (box) {
+      if (box.dataset.v236PreviewKey === clean) return;
       if (clean) {
         box.innerHTML =
           '<img src="' +
@@ -61618,6 +61619,7 @@ window.nawahV169Fixes = {
       } else {
         box.innerHTML = "<span>خلفية</span>";
       }
+      box.dataset.v236PreviewKey = clean;
     });
   }
 
@@ -69875,6 +69877,160 @@ window.nawahLeaveBalanceReportV185 = {
     6200,
   );
   scheduleDailyRenewalV238();
+})();
+
+/* v239 - refined absence dialog presentation without changing cloud persistence. */
+(function v239AbsenceDialogPresentation() {
+  if (window.__v239AbsenceDialogPresentation) return;
+  window.__v239AbsenceDialogPresentation = true;
+
+  function absenceDialogElementsV239() {
+    const modal = document.querySelector("#absenceModal"),
+      form = document.querySelector("#absenceForm");
+    return { modal, form };
+  }
+
+  function absenceDayCountV239(from, to) {
+    if (!from || !to) return 0;
+    const start = new Date(`${String(from).slice(0, 10)}T12:00:00`),
+      end = new Date(`${String(to).slice(0, 10)}T12:00:00`);
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      start > end
+    )
+      return 0;
+    return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+  }
+
+  function absenceDurationLabelV239(days, hasDates) {
+    if (!hasDates) return "حدد الفترة";
+    if (!days) return "راجع التاريخ";
+    if (days === 1) return "يوم واحد";
+    if (days === 2) return "يومان";
+    const value =
+      typeof arabicNumber === "function" ? arabicNumber(days) : String(days);
+    return days >= 3 && days <= 10 ? `${value} أيام` : `${value} يومًا`;
+  }
+
+  function absencePolicyLabelV239() {
+    try {
+      if (typeof activeAbsencePolicyLabel === "function")
+        return activeAbsencePolicyLabel() || "سياسة الغياب";
+    } catch (_) {}
+    try {
+      return isEstablishmentAbsencePolicyActive()
+        ? "سياسة المنشأة"
+        : "قاعدة مكتب العمل";
+    } catch (_) {
+      return "سياسة الغياب";
+    }
+  }
+
+  function absenceDeductionLabelV239(form) {
+    const type = form?.elements?.type?.value || "unexcused";
+    if (type !== "unexcused") return "لا يوجد حسم آلي";
+    const record = {
+      employeeId: form.elements.employeeId?.value || "",
+      from: form.elements.from?.value || "",
+      to: form.elements.to?.value || "",
+      type,
+      establishmentRuleId:
+        form.elements.establishmentRuleId?.value || "",
+      periodSegment: "fullDay",
+    };
+    try {
+      const rule =
+        typeof getEstablishmentAbsenceRule === "function"
+          ? getEstablishmentAbsenceRule(record.establishmentRuleId)
+          : null;
+      if (rule?.legacySegment) record.periodSegment = rule.legacySegment;
+    } catch (_) {}
+    try {
+      if (typeof absencePenaltyDetails === "function") {
+        const details = absencePenaltyDetails(record),
+          days = Number(details?.deductionDays ?? details?.days ?? 0) || 0;
+        if (typeof formatDeductionDays === "function")
+          return formatDeductionDays(days);
+        return days > 0 ? `${days} يوم` : "لا يوجد حسم آلي";
+      }
+    } catch (_) {}
+    return "يُحسب تلقائيًا";
+  }
+
+  function syncAbsenceDialogV239() {
+    const { modal, form } = absenceDialogElementsV239();
+    if (!modal || !form) return false;
+    const from = form.elements.from?.value || "",
+      to = form.elements.to?.value || "",
+      days = absenceDayCountV239(from, to),
+      policyLabel = document.querySelector("#absenceModalPolicyLabel"),
+      durationLabel = document.querySelector("#absenceModalDuration"),
+      deductionLabel = document.querySelector("#absenceModalDeduction");
+    if (policyLabel) policyLabel.textContent = absencePolicyLabelV239();
+    if (durationLabel) {
+      durationLabel.textContent = absenceDurationLabelV239(
+        days,
+        Boolean(from && to),
+      );
+      durationLabel.dataset.days = String(days);
+    }
+    if (deductionLabel)
+      deductionLabel.textContent = absenceDeductionLabelV239(form);
+    modal.dataset.absenceType = form.elements.type?.value || "unexcused";
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(modal);
+    } catch (_) {}
+    return true;
+  }
+
+  function installAbsenceDialogV239() {
+    const { modal, form } = absenceDialogElementsV239();
+    if (!modal || !form || form.dataset.v239PresentationBound === "1")
+      return;
+    form.dataset.v239PresentationBound = "1";
+    form.addEventListener("input", syncAbsenceDialogV239);
+    form.addEventListener("change", function () {
+      setTimeout(syncAbsenceDialogV239, 0);
+    });
+    if (typeof MutationObserver === "function")
+      new MutationObserver(function (records) {
+        if (
+          records.some(
+            (record) =>
+              record.type === "attributes" &&
+              record.attributeName === "open",
+          ) &&
+          modal.open
+        )
+          syncAbsenceDialogV239();
+      }).observe(modal, { attributes: true, attributeFilter: ["open"] });
+    document.addEventListener(
+      "click",
+      function (event) {
+        if (
+          event.target?.closest?.(
+            "#newAbsenceBtn, #dashboardAbsenceBtn",
+          )
+        )
+          setTimeout(syncAbsenceDialogV239, 0);
+      },
+      true,
+    );
+    syncAbsenceDialogV239();
+  }
+
+  window.nawahAbsenceDialogV239 = {
+    version: 239,
+    sync: syncAbsenceDialogV239,
+    durationDays: absenceDayCountV239,
+  };
+
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", installAbsenceDialogV239, {
+      once: true,
+    });
+  else installAbsenceDialogV239();
 })();
 
 /* v228 - final renderer lock (must remain the last application patch). */

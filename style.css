@@ -19498,3 +19498,485 @@ html.has-initial-login-bg .auth-gate,
   background: #dcfce7;
   color: #15803d;
 }
+
+/* v239 - refined absence registration dialog. */
+#absenceModal.absence-entry-modal {
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(90vh, 820px);
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 24px;
+  background: #fff;
+  color: #172033;
+  box-shadow: 0 34px 100px rgba(15, 23, 42, 0.28);
+}
+
+#absenceModal.absence-entry-modal::backdrop {
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(6px);
+}
+
+#absenceModal .absence-entry-form {
+  display: flex;
+  max-height: min(90vh, 820px);
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#absenceModal .absence-entry-head {
+  position: relative;
+  display: flex;
+  min-height: 112px;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 26px;
+  overflow: hidden;
+  border-bottom: 1px solid #e4edf1;
+  background:
+    radial-gradient(circle at 9% 18%, rgba(34, 151, 197, 0.14), transparent 34%),
+    linear-gradient(135deg, #f5feff 0%, #ffffff 56%, #f2fbf8 100%);
+}
+
+#absenceModal .absence-entry-head::after {
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, #22c55e, #19b7bf, #2297c5);
+  content: "";
+}
+
+#absenceModal .absence-entry-heading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+#absenceModal .absence-entry-heading-icon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  place-items: center;
+  border: 1px solid rgba(34, 151, 197, 0.2);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #e8fbfd, #eefbf5);
+  color: #0b8095;
+  box-shadow: 0 12px 24px rgba(11, 128, 149, 0.1);
+}
+
+#absenceModal .absence-entry-heading-icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+#absenceModal .absence-entry-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #1593a5;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+#absenceModal .absence-entry-head h2 {
+  color: #172033;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+#absenceModal .absence-entry-head p {
+  max-width: 520px;
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+#absenceModal .absence-entry-close {
+  position: relative;
+  z-index: 2;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  margin-inline-start: auto;
+  border-color: #dce7ec;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #64748b;
+}
+
+#absenceModal .absence-entry-close:hover,
+#absenceModal .absence-entry-close:focus-visible {
+  border-color: #b9d6dc;
+  background: #fff;
+  color: #0b8095;
+  transform: none;
+}
+
+#absenceModal .absence-entry-body {
+  padding: 20px 24px 22px;
+  overflow-y: auto;
+  background: #f7fafb;
+}
+
+#absenceModal .absence-entry-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+#absenceModal .absence-summary-card {
+  display: flex;
+  min-width: 0;
+  min-height: 66px;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #e1eaee;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+}
+
+#absenceModal .absence-summary-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 12px;
+}
+
+#absenceModal .absence-summary-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+#absenceModal .absence-summary-icon.policy {
+  background: #e8f9f5;
+  color: #0f8b78;
+}
+
+#absenceModal .absence-summary-icon.duration {
+  background: #e9f7fb;
+  color: #138aa3;
+}
+
+#absenceModal .absence-summary-icon.deduction {
+  background: #fff4e5;
+  color: #d97706;
+}
+
+#absenceModal .absence-summary-card small,
+#absenceModal .absence-summary-card strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#absenceModal .absence-summary-card small {
+  color: #8a96a6;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+#absenceModal .absence-summary-card strong {
+  margin-top: 4px;
+  color: #263244;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#absenceModal .absence-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+#absenceModal .absence-span-all {
+  grid-column: 1 / -1;
+}
+
+#absenceModal .absence-entry-field {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  margin: 0;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#absenceModal .absence-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#absenceModal .absence-field-label svg {
+  width: 15px;
+  height: 15px;
+  color: #1593a5;
+}
+
+#absenceModal .absence-entry-field input,
+#absenceModal .absence-entry-field select,
+#absenceModal .absence-entry-field textarea {
+  width: 100%;
+  border: 1px solid #d9e4e9;
+  border-radius: 13px;
+  outline: none;
+  background: #fff;
+  color: #172033;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+#absenceModal .absence-entry-field input,
+#absenceModal .absence-entry-field select {
+  height: 46px;
+  padding: 0 12px;
+}
+
+#absenceModal .absence-entry-field textarea {
+  min-height: 92px;
+  padding: 12px;
+  line-height: 1.8;
+  resize: vertical;
+}
+
+#absenceModal .absence-entry-field input:focus,
+#absenceModal .absence-entry-field select:focus,
+#absenceModal .absence-entry-field textarea:focus {
+  border-color: #36aeb9;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(34, 151, 197, 0.11);
+}
+
+#absenceModal .absence-entry-employee select {
+  height: 50px;
+  border-color: #cfe1e7;
+  background: linear-gradient(180deg, #fff, #fbfdfe);
+  font-size: 13px;
+}
+
+#absenceModal .absence-date-card {
+  padding: 13px;
+  border: 1px solid #dce8ec;
+  border-radius: 17px;
+  background: #fff;
+}
+
+#absenceModal .absence-date-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+
+#absenceModal .absence-date-card-head > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 11px;
+  background: #edf9fb;
+  color: #138aa3;
+}
+
+#absenceModal .absence-date-card-head svg {
+  width: 17px;
+  height: 17px;
+}
+
+#absenceModal .absence-date-card-head strong,
+#absenceModal .absence-date-card-head small {
+  display: block;
+}
+
+#absenceModal .absence-date-card-head strong {
+  color: #263244;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#absenceModal .absence-date-card-head small {
+  margin-top: 3px;
+  color: #8a96a6;
+  font-size: 9px;
+}
+
+#absenceModal .absence-date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+#absenceModal #absencePeriodSegmentField[hidden] {
+  display: none !important;
+}
+
+#absenceModal .absence-modal-note {
+  min-height: 54px;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid #f5d8ab;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #fffaf1, #fffdf8);
+  color: #8a5a17;
+  font-size: 10px;
+  line-height: 1.8;
+}
+
+#absenceModal .absence-modal-note > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: #fff;
+  color: #d97706;
+}
+
+#absenceModal .absence-modal-note svg {
+  width: 16px;
+  height: 16px;
+}
+
+#absenceModal .absence-modal-note p,
+#absenceModal .absence-modal-note strong {
+  color: inherit;
+}
+
+#absenceModal .absence-entry-actions {
+  min-height: 74px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid #e3ebef;
+  background: #fff;
+}
+
+#absenceModal .absence-entry-actions button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 13px;
+  font-family: inherit;
+  font-weight: 900;
+}
+
+#absenceModal .absence-entry-actions button svg {
+  width: 17px;
+  height: 17px;
+}
+
+#absenceModal .absence-entry-cancel {
+  min-width: 100px;
+  border-color: #dce5ea;
+  background: #fff;
+  color: #64748b;
+}
+
+#absenceModal .absence-entry-save {
+  min-width: 170px;
+  margin-inline-start: auto;
+  background: linear-gradient(100deg, #2297c5, #22c55e);
+  box-shadow: 0 10px 22px rgba(20, 184, 166, 0.18);
+}
+
+#absenceModal .absence-entry-save:hover,
+#absenceModal .absence-entry-save:focus-visible {
+  transform: none;
+  box-shadow: 0 12px 25px rgba(20, 184, 166, 0.22);
+}
+
+#absenceModal .absence-entry-form[data-v224-saving="true"] .absence-entry-save {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+@media (max-width: 680px) {
+  #absenceModal.absence-entry-modal {
+    width: min(calc(100vw - 20px), 720px);
+    max-height: calc(100vh - 20px);
+    border-radius: 19px;
+  }
+
+  #absenceModal .absence-entry-form {
+    max-height: calc(100vh - 20px);
+  }
+
+  #absenceModal .absence-entry-head {
+    min-height: 94px;
+    padding: 17px;
+  }
+
+  #absenceModal .absence-entry-heading-icon {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+    border-radius: 15px;
+  }
+
+  #absenceModal .absence-entry-head h2 {
+    font-size: 17px;
+  }
+
+  #absenceModal .absence-entry-head p {
+    font-size: 9px;
+  }
+
+  #absenceModal .absence-entry-body {
+    padding: 15px;
+  }
+
+  #absenceModal .absence-entry-summary {
+    grid-template-columns: 1fr;
+  }
+
+  #absenceModal .absence-summary-card {
+    min-height: 58px;
+  }
+
+  #absenceModal .absence-entry-grid,
+  #absenceModal .absence-date-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #absenceModal .absence-span-all {
+    grid-column: auto;
+  }
+
+  #absenceModal .absence-entry-actions {
+    display: grid;
+    min-height: 0;
+    grid-template-columns: 1fr 1.35fr;
+    padding: 12px 15px;
+  }
+
+  #absenceModal .absence-entry-actions button,
+  #absenceModal .absence-entry-save,
+  #absenceModal .absence-entry-cancel {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+}

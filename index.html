@@ -1104,26 +1104,71 @@
     </dialog>
 
 
-    <dialog class="modal small-modal" id="absenceModal">
-      <form id="absenceForm">
-        <div class="modal-head">
-          <div><h2>تسجيل غياب موظف</h2><p>الحضور لا يسجل يدويًا؛ سجّل فقط الموظف الغائب ليتم استثناؤه من الحضور الآلي.</p></div>
-          <button type="button" class="icon-btn" data-close-modal="absenceModal"><span data-icon="x"></span></button>
-        </div>
-        <div class="modal-body">
-          <div class="form-grid one-column">
-            <label><span>الموظف</span><select name="employeeId" required></select></label>
-            <div class="form-grid">
-              <label><span>من تاريخ</span><input type="date" name="from" required /></label>
-              <label><span>إلى تاريخ</span><input type="date" name="to" required /></label>
+    <dialog class="modal small-modal absence-entry-modal" id="absenceModal" aria-labelledby="absenceModalTitle">
+      <form id="absenceForm" class="absence-entry-form">
+        <div class="modal-head absence-entry-head">
+          <div class="absence-entry-heading">
+            <span class="absence-entry-heading-icon"><span data-icon="user-x"></span></span>
+            <div>
+              <span class="absence-entry-eyebrow">الحضور والانصراف</span>
+              <h2 id="absenceModalTitle">تسجيل غياب موظف</h2>
+              <p>سجّل الاستثناء فقط، وسيبقى حضور بقية الموظفين محتسبًا آليًا.</p>
             </div>
-            <label><span>نوع الغياب</span><select name="type" required><option value="unexcused">غياب بدون عذر</option><option value="excused">غياب بعذر مقبول</option><option value="authorized">غياب بإذن مكتوب</option></select></label>
-            <label id="absencePeriodSegmentField"><span>سياسة الغياب</span><select name="establishmentRuleId" required></select></label>
-            <label><span>سبب أو ملاحظة</span><textarea name="reason" rows="3" placeholder="اكتب سبب الغياب أو الملاحظة المرتبطة به"></textarea></label>
-            <div class="absence-modal-note"><span data-icon="info"></span><p>عند اختيار غياب بدون عذر سيتم إنشاء محضر غياب مبدئي داخل الملاحظات والمحاضر للموظف.</p></div>
+          </div>
+          <button type="button" class="icon-btn absence-entry-close" data-close-modal="absenceModal" aria-label="إغلاق نافذة تسجيل الغياب"><span data-icon="x"></span></button>
+        </div>
+        <div class="modal-body absence-entry-body">
+          <div class="absence-entry-summary" aria-live="polite">
+            <div class="absence-summary-card">
+              <span class="absence-summary-icon policy"><span data-icon="shield"></span></span>
+              <div><small>السياسة المطبقة</small><strong id="absenceModalPolicyLabel">—</strong></div>
+            </div>
+            <div class="absence-summary-card">
+              <span class="absence-summary-icon duration"><span data-icon="calendar"></span></span>
+              <div><small>مدة الغياب</small><strong id="absenceModalDuration">يوم واحد</strong></div>
+            </div>
+            <div class="absence-summary-card">
+              <span class="absence-summary-icon deduction"><span data-icon="clock"></span></span>
+              <div><small>الحسم المتوقع</small><strong id="absenceModalDeduction">يُحسب تلقائيًا</strong></div>
+            </div>
+          </div>
+
+          <div class="absence-entry-grid">
+            <label class="absence-entry-field absence-entry-employee absence-span-all">
+              <span class="absence-field-label"><span data-icon="user"></span>الموظف</span>
+              <select name="employeeId" required></select>
+            </label>
+
+            <section class="absence-date-card absence-span-all" aria-labelledby="absenceDateRangeTitle">
+              <div class="absence-date-card-head">
+                <span><span data-icon="calendar"></span></span>
+                <div><strong id="absenceDateRangeTitle">فترة الغياب</strong><small>حدد أول وآخر يوم في الفترة المسجلة</small></div>
+              </div>
+              <div class="absence-date-grid">
+                <label class="absence-entry-field"><span class="absence-field-label">من تاريخ</span><input type="date" name="from" required /></label>
+                <label class="absence-entry-field"><span class="absence-field-label">إلى تاريخ</span><input type="date" name="to" required /></label>
+              </div>
+            </section>
+
+            <label class="absence-entry-field">
+              <span class="absence-field-label"><span data-icon="user-x"></span>نوع الغياب</span>
+              <select name="type" required><option value="unexcused">غياب بدون عذر</option><option value="excused">غياب بعذر مقبول</option><option value="authorized">غياب بإذن مكتوب</option></select>
+            </label>
+            <label class="absence-entry-field" id="absencePeriodSegmentField">
+              <span class="absence-field-label"><span data-icon="shield"></span>سياسة الغياب</span>
+              <select name="establishmentRuleId" required></select>
+            </label>
+            <label class="absence-entry-field absence-entry-reason absence-span-all">
+              <span class="absence-field-label"><span data-icon="notes"></span>سبب أو ملاحظة</span>
+              <textarea name="reason" rows="3" placeholder="اكتب سبب الغياب أو أي ملاحظة مرتبطة به"></textarea>
+            </label>
+            <div class="absence-modal-note absence-span-all"><span data-icon="info"></span><p><strong>تنبيه تشغيلي:</strong> عند اختيار غياب بدون عذر، ينشئ النظام محضر غياب مبدئيًا داخل ملاحظات ومحاضر الموظف.</p></div>
           </div>
         </div>
-        <div class="modal-actions"><button type="button" class="secondary-btn" data-close-modal="absenceModal">إلغاء</button><button type="submit" class="primary-btn">حفظ الغياب</button></div>
+        <div class="modal-actions absence-entry-actions">
+          <button type="button" class="secondary-btn absence-entry-cancel" data-close-modal="absenceModal"><span data-icon="x"></span>إلغاء</button>
+          <button type="submit" class="primary-btn absence-entry-save" id="absenceSaveBtn"><span data-icon="check"></span>حفظ الغياب</button>
+        </div>
       </form>
     </dialog>
 
