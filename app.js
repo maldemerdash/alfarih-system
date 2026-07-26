@@ -19495,7 +19495,7 @@ async function init() {
       const t = M(e.employeeId) || e.employee || {},
         n = t.name || "موظف",
         o = t.initials || (n || "م").slice(0, 1);
-      return `<div class="employee-cell payroll-name-only-cell">${`<div class="avatar avatar-${a(t.color || "teal")}">${a(o)}</div>`}<div class="payroll-employee-name-line"><strong class="employee-name">${a(n)}</strong>${requiresCardWithdrawal ? '<span class="payroll-card-withdraw-marker" role="img" aria-label="يتطلب سحب البطاقة" title="يتطلب سحب البطاقة"></span>' : ""}</div></div>`;
+      return `<div class="employee-cell payroll-name-only-cell">${`<div class="avatar avatar-${a(t.color || "teal")}">${a(o)}</div>`}<div class="payroll-employee-name-line">${requiresCardWithdrawal ? '<span class="payroll-card-withdraw-marker" role="img" aria-label="يتطلب سحب البطاقة" title="يتطلب سحب البطاقة"></span>' : ""}<strong class="employee-name">${a(n)}</strong></div></div>`;
     }
     async function Y() {
       if (payrollRunInFlight) return !1;
@@ -19980,7 +19980,7 @@ async function init() {
               const marker = s.querySelector(".payroll-card-withdraw-marker");
               if (requiresCardWithdrawal && !marker)
                 s.insertAdjacentHTML(
-                  "beforeend",
+                  "afterbegin",
                   '<span class="payroll-card-withdraw-marker" role="img" aria-label="يتطلب سحب البطاقة" title="يتطلب سحب البطاقة"></span>',
                 );
               else if (!requiresCardWithdrawal && marker) marker.remove();
@@ -20195,8 +20195,10 @@ async function init() {
           .map((e) => {
             const t = e.line || {},
               requiresCardWithdrawal = Number(t.required || 0) > 0,
-              n = requiresCardWithdrawal ? o(t.required) : "";
-            return `<tr class="${requiresCardWithdrawal ? "payroll-row-card-withdraw" : ""}"><td class="payroll-report-employee">${requiresCardWithdrawal ? `<span class="payroll-risk-marker"></span><span class="payroll-risk-name">${a(ne(e))}</span>` : a(ne(e))}</td><td class="payroll-base-amount">${o(t.baseSalary)}</td><td class="payroll-allowance-amount">${o(t.allowance)}</td><td class="payroll-deduction-amount">${o(t.insuranceDeduction)}</td><td class="payroll-deduction-amount">${o(t.absenceDeduction)}</td><td class="payroll-deduction-amount">${o(t.advanceDeduction)}</td><td class="payroll-deduction-amount">${o(t.prepaidDeduction || 0)}</td><td class="payroll-net-amount">${o(t.net)}</td><td class="payroll-transfer-cell">${o(t.transfer)}</td><td class="payroll-required-cell">${n}</td><td class="payroll-card-withdraw-cell">${requiresCardWithdrawal ? "نعم" : ""}</td><td><span class="status-badge">${l ? "مصروف" : "جاهز للصرف"}</span></td></tr>`;
+              n = requiresCardWithdrawal ? o(t.required) : "",
+              employeeName = a(ne(e)),
+              employeeHtml = `<span class="payroll-risk-inline">${requiresCardWithdrawal ? '<span class="payroll-risk-marker"></span>' : ""}<span class="${requiresCardWithdrawal ? "payroll-risk-name" : "payroll-report-name"}">${employeeName}</span></span>`;
+            return `<tr class="${requiresCardWithdrawal ? "payroll-row-card-withdraw" : ""}"><td class="payroll-report-employee">${employeeHtml}</td><td class="payroll-base-amount">${o(t.baseSalary)}</td><td class="payroll-allowance-amount">${o(t.allowance)}</td><td class="payroll-deduction-amount">${o(t.insuranceDeduction)}</td><td class="payroll-deduction-amount">${o(t.absenceDeduction)}</td><td class="payroll-deduction-amount">${o(t.advanceDeduction)}</td><td class="payroll-deduction-amount">${o(t.prepaidDeduction || 0)}</td><td class="payroll-net-amount">${o(t.net)}</td><td class="payroll-transfer-cell">${o(t.transfer)}</td><td class="payroll-required-cell">${n}</td><td class="payroll-card-withdraw-cell">${requiresCardWithdrawal ? "نعم" : ""}</td><td><span class="status-badge">${l ? "مصروف" : "جاهز للصرف"}</span></td></tr>`;
           })
           .join("");
       const title = `مسير رواتب ${a(y(e))}`,
@@ -20205,6 +20207,8 @@ async function init() {
     }
     const oe =
       "@page{size:A4 landscape;margin:7mm 7mm 14mm}*{box-sizing:border-box}html,body{margin:0;padding:0}body{direction:rtl;font-family:Almarai,Arial,Tahoma,sans-serif;color:#172226;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.payroll-print-sheet{width:100%;padding:0 0 24mm}.report-header{display:grid;grid-template-columns:62px 1fr;gap:12px;align-items:center;border-bottom:2px solid #13a3b7;padding-bottom:8px;margin-bottom:8px}.report-logo{width:54px;height:54px;border-radius:12px;object-fit:contain}.company-title h1{margin:0;color:#08758a;font-size:17px;font-weight:900;line-height:1.2}.company-title .meta{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:5px;color:#475569;font-size:8.5px;line-height:1.45}.report-name{margin:7px 0 7px;padding:6px 8px;border-bottom:1px solid #dbe3ef;display:flex;justify-content:space-between;gap:10px;align-items:flex-end}.report-name h2{margin:0;color:#172033;font-size:14px;font-weight:900}.report-name p{margin:2px 0 0;color:#64748b;font-size:8.5px}.report-name .date{white-space:nowrap;color:#0f5968;font-weight:800;font-size:8.5px}.payroll-print-title{margin:0 0 6px;text-align:center;color:#0f5f59;font-size:13px;font-weight:900;line-height:1.3}.payroll-print-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:7.5px;line-height:1.25;border:1px solid #dfe7e9;border-radius:9px;overflow:hidden}.payroll-print-table th{background:#f3f8f8;color:#0f5f59;font-weight:800;border-bottom:1px solid #dfe7e9;padding:5px 2px;text-align:center;white-space:normal}.payroll-print-table td{border-bottom:1px solid #edf2f3;padding:4px 2px;text-align:center;vertical-align:middle;white-space:normal;word-break:break-word}.payroll-print-table tr:last-child td{border-bottom:0}.payroll-print-table th:nth-child(1),.payroll-print-table td:nth-child(1){width:15%;text-align:right}.payroll-print-table th:nth-child(9),.payroll-print-table td:nth-child(9){width:9%}.payroll-print-table th:nth-child(10),.payroll-print-table td:nth-child(10){width:9%}.payroll-report-employee{font-weight:800;color:#172226}.payroll-base-amount,.payroll-allowance-amount{color:#0f5f59;font-weight:800}.payroll-deduction-amount,.payroll-required-cell{color:#b91c1c;font-weight:800}.payroll-net-amount{color:#1d4ed8;font-weight:900}.payroll-transfer-cell{color:#047857;font-weight:900}.status-badge{display:inline-block;font-size:7px;line-height:1;border-radius:999px;padding:3px 5px;background:#dcfce7;color:#166534;font-weight:800}.payroll-row-card-withdraw .payroll-report-employee{background:transparent;color:#991b1b}.payroll-row-card-withdraw .payroll-required-cell{background:transparent;color:#b91c1c}.payroll-risk-marker{display:inline-block;width:4px;height:18px;border-radius:999px;background:#dc2626;margin-left:6px;vertical-align:middle}.payroll-risk-name{display:inline-block;vertical-align:middle;color:#991b1b;font-weight:900}.payroll-card-withdraw-cell{font-weight:800;color:#991b1b}.payroll-report-stamp{margin:10px auto 0;padding-top:8px;border-top:1px solid #dbe3ef;min-width:82px;text-align:center;color:#0f5968;font-size:8px;font-weight:900;line-height:1.25;break-inside:avoid}.payroll-report-stamp strong{display:block;margin-bottom:2px}.payroll-report-stamp img{display:block;max-width:82px;max-height:42px;object-fit:contain;margin:0 auto}.payroll-report-stamp span{display:block;color:#94a3b8;font-size:7px}.payroll-print-footer{margin-top:6px;border-top:1.5px solid #172226;padding-top:5px;font-size:8px;color:#334155;text-align:center}.payroll-print-footer p{margin:0}.payroll-print-table tr.payroll-row-card-withdraw td{background:#fff!important;box-shadow:none!important}.payroll-print-table tr.payroll-row-card-withdraw td.payroll-report-employee,.payroll-print-table tr.payroll-row-card-withdraw td.payroll-required-cell{background:#fff!important;box-shadow:none!important}.payroll-risk-marker{display:inline-block!important;width:4px!important;height:18px!important;border-radius:999px!important;background:#dc2626!important;margin-left:10px!important;vertical-align:middle!important}.payroll-risk-name{display:inline-block!important;vertical-align:middle!important;color:#991b1b!important;font-weight:900!important}@media print{body{background:#fff}.payroll-print-table{font-size:7px}.payroll-print-table th{padding:4px 2px}.payroll-print-table td{padding:3px 2px}.payroll-print-footer{break-inside:avoid}}";
+    const payrollRiskAlignmentCssV242 =
+      ".payroll-print-table th:first-child,.payroll-print-table td.payroll-report-employee{text-align:center!important;vertical-align:middle!important}.payroll-risk-inline{display:flex!important;width:100%!important;min-height:18px!important;align-items:center!important;justify-content:center!important;flex-direction:row!important;flex-wrap:nowrap!important;gap:5px!important;direction:rtl!important;line-height:1.25!important}.payroll-risk-inline .payroll-risk-marker{display:block!important;width:6px!important;height:6px!important;min-width:6px!important;flex:0 0 6px!important;margin:0!important;align-self:center!important;border-radius:999px!important;background:#dc2626!important;box-shadow:0 0 0 2px rgba(220,38,38,.12)!important}.payroll-risk-inline .payroll-risk-name,.payroll-risk-inline .payroll-report-name{display:block!important;margin:0!important;line-height:1.25!important;vertical-align:middle!important;white-space:nowrap!important}";
     function re(e) {
       const t = (function () {
         let e = document.getElementById("payrollInlinePrintStyle");
@@ -20223,7 +20227,7 @@ async function init() {
           t
         );
       })();
-      ((t.innerHTML = `<style>${oe}</style>${e}`),
+      ((t.innerHTML = `<style>${oe}${payrollRiskAlignmentCssV242}</style>${e}`),
         document.body.classList.add("payroll-inline-printing"));
       let n = !1;
       const a = () => {
@@ -20267,7 +20271,7 @@ async function init() {
             r.document.open(),
             r.document.write(
               (function (e, t) {
-                return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${a(e)}</title><style>${oe}</style></head><body>${t}<script>window.addEventListener('load',function(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},300);});<\/script></body></html>`;
+                return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${a(e)}</title><style>${oe}${payrollRiskAlignmentCssV242}</style></head><body>${t}<script>window.addEventListener('load',function(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},300);});<\/script></body></html>`;
               })(o, n),
             ),
             void r.document.close()

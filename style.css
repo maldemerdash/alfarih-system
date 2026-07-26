@@ -19992,26 +19992,39 @@ html.has-initial-login-bg .auth-gate,
   }
 }
 
-/* Payroll card-withdrawal cue — v241 */
+/* Payroll card-withdrawal cue — v242 */
 #payrollTableBody .payroll-employee-name-line {
-  display: flex !important;
+  display: inline-flex !important;
   align-items: center !important;
+  justify-content: flex-start !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
   gap: 6px !important;
+  direction: rtl !important;
+  width: fit-content !important;
   min-width: 0 !important;
   max-width: 100% !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  line-height: 1.15 !important;
 }
 
 #payrollTableBody .payroll-employee-name-line .employee-name {
-  flex: 1 1 auto !important;
+  flex: 0 1 auto !important;
   min-width: 0 !important;
+  margin: 0 !important;
+  line-height: 1.15 !important;
 }
 
 #payrollTableBody .payroll-card-withdraw-marker {
-  display: inline-block !important;
+  display: block !important;
   width: 7px !important;
   height: 7px !important;
   min-width: 7px !important;
   flex: 0 0 7px !important;
+  order: 0 !important;
+  align-self: center !important;
+  margin: 0 !important;
   border-radius: 999px !important;
   background: #ef4444 !important;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.13) !important;
