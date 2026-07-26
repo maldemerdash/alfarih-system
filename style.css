@@ -10544,8 +10544,7 @@ body.auth-locked .app-shell {
 .finance-balance-status.is-match{border-color:rgba(22,163,74,.28);background:rgba(240,253,244,.88);color:#166534}
 .finance-balance-status.is-mismatch{border-color:rgba(220,38,38,.26);background:rgba(254,242,242,.90);color:#991b1b}
 .finance-balance-mini.is-match{color:#166534}.finance-balance-mini.is-mismatch{color:#991b1b}
-@media(max-width:1500px){.finance-linked-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:1200px){.finance-row-three{grid-template-columns:1fr}.finance-linked-grid{grid-template-columns:1fr}}
+@media(max-width:1200px){.finance-row-three{grid-template-columns:1fr}}
 
 .finance-summary-card span{
   font-size:12.5px;
@@ -11215,8 +11214,26 @@ body.auth-locked .app-shell {
 }
 
 #financeView .finance-linked-grid{
-  grid-template-columns:1.3fr 1.3fr .7fr .7fr!important;
+  grid-template-columns:
+    minmax(310px,1.3fr)
+    minmax(310px,1.3fr)
+    minmax(190px,.7fr)
+    minmax(190px,.7fr)!important;
+  grid-template-rows:minmax(0,auto)!important;
+  grid-auto-flow:column!important;
   align-items:stretch!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  overscroll-behavior-inline:contain;
+  padding:2px 1px 7px!important;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(14,138,160,.32) transparent;
+}
+#financeView .finance-linked-grid::-webkit-scrollbar{height:7px}
+#financeView .finance-linked-grid::-webkit-scrollbar-track{background:transparent}
+#financeView .finance-linked-grid::-webkit-scrollbar-thumb{
+  border-radius:999px;
+  background:rgba(14,138,160,.28);
 }
 #financeView .finance-linked-block{
   min-width:0!important;
@@ -11372,12 +11389,6 @@ body.auth-locked .app-shell {
 .finance-close-confirm-actions .primary-btn{
   background:linear-gradient(135deg,#0f766e,#14b8a6)!important;
   box-shadow:0 12px 24px rgba(20,184,166,.22)!important;
-}
-@media(max-width:1500px){
-  #financeView .finance-linked-grid{grid-template-columns:1fr 1fr!important;}
-}
-@media(max-width:1200px){
-  #financeView .finance-linked-grid{grid-template-columns:1fr!important;}
 }
 @media(max-width:620px){
   .finance-close-confirm-summary{grid-template-columns:1fr;}
