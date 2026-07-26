@@ -19382,3 +19382,7 @@ html.has-initial-login-bg .auth-gate,
     justify-content: flex-start !important;
   }
 }
+/* v236 - keep the obsolete company-settings shell out of the paint path. */
+#settingsView [data-settings-panel="company"][data-v236-company-state="pending"] {
+  visibility: hidden;
+}

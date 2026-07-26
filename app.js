@@ -38085,6 +38085,11 @@ async function init() {
       .querySelector("#resetCompanySettingsBtn")
       ?.addEventListener("click", () => renderCompanySettingsForm());
   }
+  function renderPreferredCompanySettings() {
+    if (typeof window.renderCompanySettingsV94 === "function")
+      return window.renderCompanySettingsV94();
+    return renderCompanySettingsForm();
+  }
   function collectCompanyForm(form) {
     return {
       company: form.elements.company?.value?.trim() || DEFAULT_COMPANY.company,
@@ -38198,7 +38203,7 @@ async function init() {
           );
       } catch (_) {}
       setTimeout(() => {
-        renderCompanySettingsForm();
+        renderPreferredCompanySettings();
         applyCompanyBranding();
       }, 0);
       return result;
@@ -38230,18 +38235,18 @@ async function init() {
   } catch (_) {}
   document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
-      renderCompanySettingsForm();
+      renderPreferredCompanySettings();
       applyCompanyBranding();
     }, 80);
   });
   window.addEventListener("load", () =>
     setTimeout(() => {
-      renderCompanySettingsForm();
+      renderPreferredCompanySettings();
       applyCompanyBranding();
     }, 160),
   );
   setTimeout(() => {
-    renderCompanySettingsForm();
+    renderPreferredCompanySettings();
     applyCompanyBranding();
   }, 400);
 })();
@@ -38846,18 +38851,39 @@ async function init() {
     );
     form.elements.district.disabled = !districts.length;
   }
-  function renderCompanySettingsV94() {
+  let lastCompanyRenderSignatureV236 = null;
+  let lastCompanyRenderSectionV236 = null;
+  function companyRenderSignatureV236(data) {
+    try {
+      return localStorage.getItem(STORAGE_KEY) || JSON.stringify(data);
+    } catch (_) {
+      return JSON.stringify(data);
+    }
+  }
+  function renderCompanySettingsV94(renderOptions = {}) {
     const section = document.querySelector('[data-settings-panel="company"]');
     if (!section) return;
     const data = getCompany(),
-      guide = guideNow();
+      guide = guideNow(),
+      signature = companyRenderSignatureV236(data),
+      current = section.querySelector('form[data-v94-company="1"]');
+    if (
+      !renderOptions?.forceUiRefreshV236 &&
+      current &&
+      lastCompanyRenderSectionV236 === section &&
+      lastCompanyRenderSignatureV236 === signature
+    ) {
+      section.dataset.v236CompanyState = "ready";
+      section.setAttribute("aria-busy", "false");
+      return true;
+    }
     section.innerHTML = `
       <div class="panel-head"><div><h3>بيانات المنشأة</h3><p>بيانات فعلية محفوظة وتظهر في هوية النظام وتسجيل الدخول.</p></div></div>
       <form id="settingsForm" class="settings-form company-settings-real-form v94-company-form" data-v92-company="1" data-v94-company="1" data-v96-login-background-ready="1">
         <div class="v230-company-media-grid" data-v230-company-media-grid="1">
         <article class="company-logo-upload company-logo-upload-real v94-logo-upload v230-company-media-card" data-v230-company-media="logo">
           <strong class="v230-company-media-title">شعار المنشأة</strong>
-          <div class="company-logo-preview v230-company-media-preview" id="companyLogoPreview"></div>
+          <div class="company-logo-preview v230-company-media-preview" id="companyLogoPreview" data-v236-preview-key="${escape(data.logoDataUrl || "")}"></div>
           <div class="v230-company-media-actions">
             <label class="secondary-btn company-logo-btn">رفع الشعار<input type="file" name="logoFile" accept="image/png,image/jpeg,image/webp" hidden></label>
             ${data.logoAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="logo" data-view-attachment="${escape(data.logoAttachmentId)}" data-attachment-id="${escape(data.logoAttachmentId)}" title="عرض شعار المنشأة"><span data-icon="eye"></span></button>` : ""}
@@ -38865,12 +38891,20 @@ async function init() {
         </article>
         <article class="company-logo-upload company-logo-upload-real v96-login-bg-upload v146-login-bg-card v230-company-media-card" data-v96-login-bg-control="1" data-v230-company-media="login-background">
           <strong class="v230-company-media-title">خلفية الدخول</strong>
-          <div class="login-bg-preview v230-company-media-preview" id="loginBgPreview">${data.loginBackgroundDataUrl ? `<img src="${escape(data.loginBackgroundDataUrl)}" alt="خلفية تسجيل الدخول">` : "<span>خلفية</span>"}</div>
+          <div class="login-bg-preview v230-company-media-preview" id="loginBgPreview" data-v236-preview-key="${escape(data.loginBackgroundDataUrl || "")}">${data.loginBackgroundDataUrl ? `<img src="${escape(data.loginBackgroundDataUrl)}" alt="خلفية تسجيل الدخول">` : "<span>خلفية</span>"}</div>
           <div class="v96-bg-actions v230-company-media-actions">
             <label class="secondary-btn company-logo-btn">رفع الصورة<input type="file" name="loginBackgroundFile" accept="image/png,image/jpeg,image/webp" hidden></label>
             ${data.loginBackgroundAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="login-background" data-view-attachment="${escape(data.loginBackgroundAttachmentId)}" data-attachment-id="${escape(data.loginBackgroundAttachmentId)}" title="عرض خلفية الدخول"><span data-icon="eye"></span></button>` : ""}
           </div>
-          ${data.loginBackgroundAttachmentId || data.loginBackgroundDataUrl ? '<button type="button" class="v232-login-bg-delete" id="removeLoginBackgroundBtn" data-v146-remove-login-bg="1" title="حذف خلفية الدخول" aria-label="حذف خلفية الدخول"><span data-icon="trash"></span></button>' : ""}
+          ${data.loginBackgroundAttachmentId || data.loginBackgroundDataUrl ? '<button type="button" class="v232-login-bg-delete" id="removeLoginBackgroundBtn" data-v146-remove-login-bg="1" data-v236-delete-ready="1" title="حذف خلفية الدخول" aria-label="حذف خلفية الدخول"><span data-icon="trash"></span></button>' : ""}
+        </article>
+        <article class="company-logo-upload company-logo-upload-real v192-site-favicon-card v230-company-media-card" data-v192-site-favicon-control="1" data-v230-company-media="favicon">
+          <strong class="v230-company-media-title">أيقونة التبويب</strong>
+          <div class="company-logo-preview v192-site-favicon-preview v230-company-media-preview" id="siteFaviconPreview">${data.siteFaviconDataUrl ? `<img src="${escape(data.siteFaviconDataUrl)}" alt="أيقونة تبويب الموقع">` : "<span>تبويب</span>"}</div>
+          <div class="v192-media-actions v230-company-media-actions">
+            <label class="secondary-btn company-logo-btn">رفع الأيقونة<input type="file" name="siteFaviconFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></label>
+            ${data.siteFaviconAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="favicon" data-view-attachment="${escape(data.siteFaviconAttachmentId)}" data-attachment-id="${escape(data.siteFaviconAttachmentId)}" title="عرض أيقونة التبويب"><span data-icon="eye"></span></button>` : ""}
+          </div>
         </article>
         </div>
         <div class="form-grid company-real-grid">
@@ -38894,13 +38928,13 @@ async function init() {
             <label><span>اسم الشارع</span><input name="street" value="${escape(data.street)}" placeholder="اكتب اسم الشارع" /></label>
             <label><span>الرقم الإضافي</span><input name="additionalNumber" value="${escape(data.additionalNumber)}" inputmode="numeric" maxlength="4" /></label>
             <label><span>الرمز البريدي</span><input name="postalCode" value="${escape(data.postalCode)}" inputmode="numeric" maxlength="5" /></label>
-            <div class="full-field national-address-attachment v230-national-address-attachment"><span>مرفق العنوان الوطني</span><div class="attachment-line v94-attachment-line"><strong id="nationalAddressFileName">${escape(data.nationalAddressFileName || "لم يتم إرفاق ملف")}</strong><div class="attachment-actions"><label class="secondary-btn">رفع المرفق<input type="file" name="nationalAddressFile" accept="application/pdf,image/png,image/jpeg,image/webp" hidden></label>${data.nationalAddressAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="national-address" data-view-attachment="${escape(data.nationalAddressAttachmentId)}" data-attachment-id="${escape(data.nationalAddressAttachmentId)}" title="معاينة مرفق العنوان الوطني"><span data-icon="eye"></span></button><button type="button" class="v233-cloud-media-delete v233-national-address-delete" data-v233-delete-company-media="national-address" title="حذف مرفق العنوان الوطني" aria-label="حذف مرفق العنوان الوطني"><span data-icon="trash"></span></button>` : data.nationalAddressFileDataUrl ? `<button type="button" class="secondary-btn v94-download-address" data-download-national-address="1"><span data-icon="download"></span> تنزيل</button>` : ""}</div></div></div>
+            <div class="full-field national-address-attachment v230-national-address-attachment"><span>مرفق العنوان الوطني</span><div class="attachment-line v94-attachment-line"><strong id="nationalAddressFileName">${escape(data.nationalAddressFileName || "لم يتم إرفاق ملف")}</strong><div class="attachment-actions"><label class="secondary-btn">رفع المرفق<input type="file" name="nationalAddressFile" accept="application/pdf,image/png,image/jpeg,image/webp" hidden></label>${data.nationalAddressAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="national-address" data-view-attachment="${escape(data.nationalAddressAttachmentId)}" data-attachment-id="${escape(data.nationalAddressAttachmentId)}" title="معاينة مرفق العنوان الوطني"><span data-icon="eye"></span></button><button type="button" class="v233-cloud-media-delete v233-national-address-delete" data-v233-delete-company-media="national-address" data-v236-delete-ready="1" title="حذف مرفق العنوان الوطني" aria-label="حذف مرفق العنوان الوطني"><span data-icon="trash"></span></button>` : data.nationalAddressFileDataUrl ? `<button type="button" class="secondary-btn v94-download-address" data-download-national-address="1"><span data-icon="download"></span> تنزيل</button>` : ""}</div></div></div>
           </div>
         </div>
-        <div class="company-logo-upload company-logo-upload-real company-stamp-upload-card v204-company-stamp-card v233-company-stamp-card" data-v191-company-stamp="1">
-          <div class="company-logo-preview company-stamp-preview" id="companyStampPreview"><span>ختم</span></div>
-          <div class="company-logo-copy"><strong>ختم المنشأة</strong><span>ختم مستقل عن شعار المنشأة، ويظهر أسفل الجداول في التقارير والخطابات المطبوعة.</span><small id="companyStampFileName">${escape(data.stampFileName || (data.stampAttachmentId ? "تم إرفاق ختم المنشأة" : "لم يتم إرفاق ختم"))}</small></div>
-          <div class="v204-stamp-actions v233-stamp-actions"><label class="secondary-btn company-logo-btn">رفع الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>${data.stampAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-view-attachment="${escape(data.stampAttachmentId)}" data-attachment-id="${escape(data.stampAttachmentId)}" title="عرض ختم المنشأة"><span data-icon="eye"></span></button><button type="button" class="v233-cloud-media-delete v233-stamp-delete" data-v233-delete-company-media="stamp" title="حذف ختم المنشأة" aria-label="حذف ختم المنشأة"><span data-icon="trash"></span></button>` : ""}</div>
+        <div class="company-logo-upload company-logo-upload-real company-stamp-upload-card v191-company-stamp v192-company-stamp-card v204-company-stamp-card v233-company-stamp-card" data-v191-company-stamp="1" data-v236-stamp-signature="${escape([data.stampAttachmentId || "", data.stampFileName || ""].join("|"))}">
+          <div class="company-logo-preview v192-stamp-preview" id="companyStampPreview"><span>ختم</span></div>
+          <div class="company-logo-copy"><strong>ختم المنشأة</strong><span>يستخدم في خطابات الإجازات والسفر بعد الاعتماد.</span><small id="companyStampFileName">${escape(data.stampFileName || (data.stampAttachmentId ? "تم إرفاق ختم المنشأة" : "لم يتم إرفاق ختم"))}</small></div>
+          <div class="v192-media-actions v233-stamp-actions"><label class="secondary-btn company-logo-btn">رفع الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>${data.stampAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-view-attachment="${escape(data.stampAttachmentId)}" data-attachment-id="${escape(data.stampAttachmentId)}" title="عرض الختم"><span data-icon="eye"></span></button><button type="button" class="v233-cloud-media-delete v233-stamp-delete" data-v233-delete-company-media="stamp" title="حذف ختم المنشأة" aria-label="حذف ختم المنشأة"><span data-icon="trash"></span></button>` : ""}</div>
         </div>
         <div class="form-actions"><button type="button" class="secondary-btn" id="resetCompanySettingsBtn">إلغاء التغييرات</button><button type="submit" class="primary-btn">حفظ بيانات المنشأة</button></div>
       </form>`;
@@ -38933,11 +38967,19 @@ async function init() {
       });
     section
       .querySelector("#resetCompanySettingsBtn")
-      ?.addEventListener("click", () => renderCompanySettingsV94());
+      ?.addEventListener("click", () =>
+        renderCompanySettingsV94({ forceUiRefreshV236: true }),
+      );
     try {
       if (typeof hydrateIcons === "function") hydrateIcons(section);
     } catch (_) {}
-    setTimeout(() => window.nawahV191?.companyStampControl?.(), 40);
+    try {
+      window.nawahV191?.companyStampControl?.();
+    } catch (_) {}
+    lastCompanyRenderSectionV236 = section;
+    lastCompanyRenderSignatureV236 = signature;
+    section.dataset.v236CompanyState = "ready";
+    section.setAttribute("aria-busy", "false");
     loadSaudiGuide().then((full) => {
       if (
         section.isConnected &&
@@ -39006,7 +39048,7 @@ async function init() {
       delete form.dataset.savingV228;
       submitButton && (submitButton.disabled = !1);
       if (!saved) {
-        renderCompanySettingsV94();
+        renderCompanySettingsV94({ forceUiRefreshV236: true });
         return;
       }
       applyCompanyBrandingV94();
@@ -39100,6 +39142,7 @@ async function init() {
       '#settingsForm[data-v94-company="1"],#settingsForm[data-v92-company="1"]',
     );
     if (!form) return;
+    if (form.matches('[data-v94-company="1"]')) return;
     const region = form.elements.region,
       city = form.elements.city,
       district = form.elements.district;
@@ -40396,22 +40439,30 @@ async function init() {
       }
       button.title = title;
       button.setAttribute("aria-label", title);
-      button.innerHTML =
-        typeof iconSvg === "function"
-          ? iconSvg("trash")
-          : '<span data-icon="trash"></span>';
+      if (button.dataset.v236DeleteReady !== "1") {
+        button.innerHTML =
+          typeof iconSvg === "function"
+            ? iconSvg("trash")
+            : '<span data-icon="trash"></span>';
+        button.dataset.v236DeleteReady = "1";
+      }
     }
     const logoBox = document.querySelector("#companyLogoPreview");
-    if (logoBox) {
+    if (
+      logoBox &&
+      logoBox.dataset.v236PreviewKey !== String(logoUrl || "")
+    ) {
       logoBox.innerHTML = logoUrl
         ? '<img src="' + esc(logoUrl) + '" alt="شعار المنشأة">'
         : "<span>شعار</span>";
+      logoBox.dataset.v236PreviewKey = String(logoUrl || "");
     }
     const bgBox = document.querySelector("#loginBgPreview");
-    if (bgBox) {
+    if (bgBox && bgBox.dataset.v236PreviewKey !== String(bgUrl || "")) {
       bgBox.innerHTML = bgUrl
         ? '<img src="' + esc(bgUrl) + '" alt="خلفية تسجيل الدخول">'
         : "<span>خلفية</span>";
+      bgBox.dataset.v236PreviewKey = String(bgUrl || "");
     }
     syncViewButton(
       document.querySelector(
@@ -40444,7 +40495,11 @@ async function init() {
       removeBackground.type = "button";
       backgroundCard.appendChild(removeBackground);
     }
-    if (hasBackground && removeBackground) {
+    if (
+      hasBackground &&
+      removeBackground &&
+      removeBackground.dataset.v236DeleteReady !== "1"
+    ) {
       removeBackground.id = "removeLoginBackgroundBtn";
       removeBackground.className = "v232-login-bg-delete";
       removeBackground.dataset.v146RemoveLoginBg = "1";
@@ -40454,12 +40509,16 @@ async function init() {
         typeof iconSvg === "function"
           ? iconSvg("trash")
           : '<span data-icon="trash"></span>';
+      removeBackground.dataset.v236DeleteReady = "1";
     } else if (!hasBackground && removeBackground) {
       removeBackground.remove();
     }
     const fileName = document.querySelector("#nationalAddressFileName");
     if (fileName) {
-      fileName.textContent = c.nationalAddressFileName || "لم يتم إرفاق ملف";
+      const nextFileName =
+        c.nationalAddressFileName || "لم يتم إرفاق ملف";
+      if (fileName.textContent !== nextFileName)
+        fileName.textContent = nextFileName;
       const actions = fileName
         .closest(".attachment-line")
         ?.querySelector(".attachment-actions");
@@ -51800,12 +51859,16 @@ async function init() {
       .forEach(function (card) {
         card.classList.add("v146-login-bg-card");
         var preview = card.querySelector("#loginBgPreview,.login-bg-preview");
-        if (preview) {
+        if (
+          preview &&
+          preview.dataset.v236PreviewKey !== String(url || "")
+        ) {
           preview.innerHTML = url
             ? '<img src="' +
               esc(url) +
               '" alt="خلفية تسجيل الدخول" loading="lazy" decoding="async">'
             : "<span>خلفية</span>";
+          preview.dataset.v236PreviewKey = String(url || "");
         }
         var old = card.querySelector(
           "#removeLoginBackgroundBtn,[data-v146-remove-login-bg]",
@@ -51816,7 +51879,7 @@ async function init() {
           card.appendChild(btn);
           old = btn;
         }
-        if (has && old) {
+        if (has && old && old.dataset.v236DeleteReady !== "1") {
           old.id = "removeLoginBackgroundBtn";
           old.className = "v232-login-bg-delete";
           old.dataset.v146RemoveLoginBg = "1";
@@ -51826,6 +51889,7 @@ async function init() {
             typeof iconSvg === "function"
               ? iconSvg("trash")
               : '<span data-icon="trash"></span>';
+          old.dataset.v236DeleteReady = "1";
         }
         if (!has && old) old.remove();
         var copy = card.querySelector(".company-logo-copy span");
@@ -54583,7 +54647,6 @@ async function init() {
   }
 
   async function renderForKey(key) {
-    await prefetchSettingsData();
     if (key === "company") {
       try {
         if (typeof renderCompanySettingsV94 === "function")
@@ -54591,48 +54654,52 @@ async function init() {
         else if (typeof renderCompanySettingsForm === "function")
           renderCompanySettingsForm();
       } catch (_) {}
-    } else if (key === "branches") renderBranchesPanel();
-    else if (key === "account") {
-      try {
-        if (
-          window.v136Settings &&
-          typeof window.v136Settings.renderAccountPanel === "function"
-        )
-          await window.v136Settings.renderAccountPanel();
-        else if (typeof renderAccountPanel === "function")
-          await renderAccountPanel();
-      } catch (e) {
-        console.warn("v155 account render failed", e);
-      }
-    } else if (key === "notifications") {
-      try {
-        if (
-          window.v136Settings &&
-          typeof window.v136Settings.renderNotificationsPanel === "function"
-        )
-          window.v136Settings.renderNotificationsPanel();
-        else if (typeof renderNotificationsPanel === "function")
-          renderNotificationsPanel();
-      } catch (e) {
-        console.warn("v155 notifications render failed", e);
-      }
-    } else if (key === "permissions") renderPermissionsPanel();
-    else if (key === "work") {
-      try {
-        if (typeof renderWorkSettings === "function") renderWorkSettings();
-      } catch (_) {}
-    } else if (key === "absence") {
-      try {
-        if (typeof renderAbsencePolicySettings === "function")
-          renderAbsencePolicySettings();
-      } catch (_) {}
-    } else if (key === "minuteSettings") {
-      try {
-        if (typeof renderMinuteTemplateSettings === "function")
-          renderMinuteTemplateSettings();
-      } catch (_) {}
-    } else if (key === "documentTypes") renderDocumentTypesPanel();
-    else if (key === "departmentsSettings") renderDepartmentsPanel();
+      void prefetchSettingsData();
+    } else {
+      await prefetchSettingsData();
+      if (key === "branches") renderBranchesPanel();
+      else if (key === "account") {
+        try {
+          if (
+            window.v136Settings &&
+            typeof window.v136Settings.renderAccountPanel === "function"
+          )
+            await window.v136Settings.renderAccountPanel();
+          else if (typeof renderAccountPanel === "function")
+            await renderAccountPanel();
+        } catch (e) {
+          console.warn("v155 account render failed", e);
+        }
+      } else if (key === "notifications") {
+        try {
+          if (
+            window.v136Settings &&
+            typeof window.v136Settings.renderNotificationsPanel === "function"
+          )
+            window.v136Settings.renderNotificationsPanel();
+          else if (typeof renderNotificationsPanel === "function")
+            renderNotificationsPanel();
+        } catch (e) {
+          console.warn("v155 notifications render failed", e);
+        }
+      } else if (key === "permissions") renderPermissionsPanel();
+      else if (key === "work") {
+        try {
+          if (typeof renderWorkSettings === "function") renderWorkSettings();
+        } catch (_) {}
+      } else if (key === "absence") {
+        try {
+          if (typeof renderAbsencePolicySettings === "function")
+            renderAbsencePolicySettings();
+        } catch (_) {}
+      } else if (key === "minuteSettings") {
+        try {
+          if (typeof renderMinuteTemplateSettings === "function")
+            renderMinuteTemplateSettings();
+        } catch (_) {}
+      } else if (key === "documentTypes") renderDocumentTypesPanel();
+      else if (key === "departmentsSettings") renderDepartmentsPanel();
+    }
     hydrate(
       document.querySelector('[data-settings-panel="' + key + '"]') ||
         document.getElementById("settingsView"),
@@ -64376,9 +64443,13 @@ window.nawahLeaveBalanceReportV185 = {
     else setSiteFaviconHref(FAVICON_PLACEHOLDER_V231, "pending");
     const preview = q("#siteFaviconPreview");
     if (preview) {
-      preview.innerHTML = url
-        ? '<img src="' + esc(url) + '" alt="أيقونة تبويب الموقع">'
-        : "<span>تبويب</span>";
+      const previewKey = String(url || "");
+      if (preview.dataset.v236PreviewKey !== previewKey) {
+        preview.innerHTML = url
+          ? '<img src="' + esc(url) + '" alt="أيقونة تبويب الموقع">'
+          : "<span>تبويب</span>";
+        preview.dataset.v236PreviewKey = previewKey;
+      }
     }
     return Boolean(url);
   }
@@ -64416,21 +64487,21 @@ window.nawahLeaveBalanceReportV185 = {
       anchor.parentNode?.insertBefore(mediaGrid, anchor);
     }
     if (mediaGrid) {
-      if (logo) {
-        logo.classList.add("v230-company-media-card");
-        logo.dataset.v230CompanyMedia = "logo";
-        mediaGrid.appendChild(logo);
-      }
-      if (bg) {
-        bg.classList.add("v230-company-media-card");
-        bg.dataset.v230CompanyMedia = "login-background";
-        mediaGrid.appendChild(bg);
-      }
-      if (favicon) {
-        favicon.classList.add("v230-company-media-card");
-        favicon.dataset.v230CompanyMedia = "favicon";
-        mediaGrid.appendChild(favicon);
-      }
+      const orderedCards = [logo, bg, favicon].filter(Boolean);
+      orderedCards.forEach(function (card, index) {
+        card.classList.add("v230-company-media-card");
+        if (card === logo) card.dataset.v230CompanyMedia = "logo";
+        else if (card === bg)
+          card.dataset.v230CompanyMedia = "login-background";
+        else card.dataset.v230CompanyMedia = "favicon";
+        const previousCard = index ? orderedCards[index - 1] : null;
+        const correctlyPlaced =
+          card.parentNode === mediaGrid &&
+          (previousCard
+            ? card.previousElementSibling === previousCard
+            : card === mediaGrid.firstElementChild);
+        if (!correctlyPlaced) mediaGrid.appendChild(card);
+      });
     }
     if (stamp) {
       if (address && stamp.previousElementSibling !== address)
@@ -64506,23 +64577,30 @@ window.nawahLeaveBalanceReportV185 = {
         "company-logo-upload company-logo-upload-real company-stamp-upload-card v191-company-stamp v192-company-stamp-card";
       stamp.dataset.v191CompanyStamp = "1";
     }
-    stamp.innerHTML =
-      '<div class="company-logo-preview v192-stamp-preview" id="companyStampPreview"><span>ختم</span></div>' +
-      '<div class="company-logo-copy"><strong>ختم المنشأة</strong><span>يستخدم في خطابات الإجازات والسفر بعد الاعتماد.</span><small id="companyStampFileName">' +
-      esc(company.stampFileName || (attachmentId ? "تم إرفاق ختم المنشأة" : "لم يتم إرفاق ختم")) +
-      '</small></div><div class="v192-media-actions v233-stamp-actions"><label class="secondary-btn company-logo-btn">رفع الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>' +
-      (attachmentId
-        ? '<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-view-attachment="' +
-          esc(attachmentId) +
-          '" data-attachment-id="' +
-          esc(attachmentId) +
-          '" title="عرض الختم">' +
-          icon("eye") +
-          '</button><button type="button" class="v233-cloud-media-delete v233-stamp-delete" data-v233-delete-company-media="stamp" title="حذف ختم المنشأة" aria-label="حذف ختم المنشأة">' +
-          icon("trash") +
-          "</button>"
-        : "") +
-      "</div>";
+    const stampSignature = [
+      attachmentId,
+      company.stampFileName || "",
+    ].join("|");
+    if (stamp.dataset.v236StampSignature !== stampSignature) {
+      stamp.innerHTML =
+        '<div class="company-logo-preview v192-stamp-preview" id="companyStampPreview"><span>ختم</span></div>' +
+        '<div class="company-logo-copy"><strong>ختم المنشأة</strong><span>يستخدم في خطابات الإجازات والسفر بعد الاعتماد.</span><small id="companyStampFileName">' +
+        esc(company.stampFileName || (attachmentId ? "تم إرفاق ختم المنشأة" : "لم يتم إرفاق ختم")) +
+        '</small></div><div class="v192-media-actions v233-stamp-actions"><label class="secondary-btn company-logo-btn">رفع الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>' +
+        (attachmentId
+          ? '<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-view-attachment="' +
+            esc(attachmentId) +
+            '" data-attachment-id="' +
+            esc(attachmentId) +
+            '" title="عرض الختم">' +
+            icon("eye") +
+            '</button><button type="button" class="v233-cloud-media-delete v233-stamp-delete" data-v233-delete-company-media="stamp" title="حذف ختم المنشأة" aria-label="حذف ختم المنشأة">' +
+            icon("trash") +
+            "</button>"
+          : "") +
+        "</div>";
+      stamp.dataset.v236StampSignature = stampSignature;
+    }
     if (!stamp.parentNode) {
       const address = form.querySelector(".national-address-card"),
         actions = form.querySelector(".form-actions");
@@ -64535,8 +64613,14 @@ window.nawahLeaveBalanceReportV185 = {
     if (attachmentId) {
       imageUrl(attachmentId).then(function (url) {
         const preview = q("#companyStampPreview");
-        if (preview && url)
+        if (
+          preview &&
+          url &&
+          preview.dataset.v236PreviewKey !== String(url)
+        ) {
           preview.innerHTML = '<img src="' + esc(url) + '" alt="ختم المنشأة">';
+          preview.dataset.v236PreviewKey = String(url);
+        }
       });
     }
     try {
