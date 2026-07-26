@@ -1363,6 +1363,8 @@ function normalizeEmployee(e, t = 0) {
     joinDate: l,
     contractMonths: Number(e.contractMonths || 0),
     renewalOption: e.renewalOption || "none",
+    autoRenewContract: Boolean(e.autoRenewContract),
+    contractDatesLockedAt: e.contractDatesLockedAt || "",
     baseSalary: d,
     housingAllowance: Number(e.housingAllowance || 0),
     transportAllowance: Number(e.transportAllowance || 0),
@@ -3782,7 +3784,7 @@ function populateFormOptions() {
     .querySelectorAll("[data-bank-name]")
     .forEach((e) => renderBankOptions(e, e.value));
 }
-function refreshEmployeeOrgOptions(e = "", t = "") {
+function refreshEmployeeOrgOptions(e = "", t = "", preservedManager = "") {
   const n = document.querySelector("#employeeForm");
   if (!n?.elements.department || !n?.elements.section || !n?.elements.role)
     return;
@@ -3813,6 +3815,21 @@ function refreshEmployeeOrgOptions(e = "", t = "") {
         ? []
         : legacyRoleOptions();
   const u = d.includes(t) ? t : d[0] || "";
+  const selectedEmployeeId = n.elements.employeeId?.value || "",
+    selectedEmployee = selectedEmployeeId
+      ? getEmployee(selectedEmployeeId)
+      : null,
+    savedManager =
+      selectedEmployee &&
+      String(selectedEmployee.department || "") === String(o || "") &&
+      String(selectedEmployee.section || "") === String(c || "")
+        ? selectedEmployee.directManager || ""
+        : "",
+    directManager =
+      getDirectManagerForSelection(o, c) ||
+      preservedManager ||
+      savedManager ||
+      "";
   ((n.elements.role.innerHTML = d.length
     ? d
         .map(
@@ -3821,7 +3838,7 @@ function refreshEmployeeOrgOptions(e = "", t = "") {
         .join("")
     : '<option value="">لا توجد مهن — أضف من شاشة الأقسام</option>'),
     (n.elements.role.value = u),
-    (n.elements.directManager.value = getDirectManagerForSelection(o, c)));
+    (n.elements.directManager.value = directManager));
 }
 function switchEmployeeSection(e) {
   const t = e || "personal";
@@ -4181,6 +4198,12 @@ function updateContractCalculations() {
   if (
     ((e.elements.contractMonths.disabled = !t),
     (e.elements.renewalOption.disabled = !t),
+    e.elements.autoRenewContract &&
+      ((e.elements.autoRenewContract.disabled = !t),
+      e
+        .elements.autoRenewContract.closest(".contract-auto-renew-toggle")
+        ?.classList.toggle("is-disabled", !t),
+      !t && (e.elements.autoRenewContract.checked = !1)),
     t)
   ) {
     const t = Math.max(0, Number(e.elements.contractMonths.value || 0));
@@ -4405,7 +4428,11 @@ async function openEmployeeModal(e = null) {
     "email",
     "homeCountryPhone",
   ].forEach((e) => setFormValue(t, e, n?.[e] ?? "")),
-    refreshEmployeeOrgOptions(n?.section || "", n?.role || ""),
+    refreshEmployeeOrgOptions(
+      n?.section || "",
+      n?.role || "",
+      n?.directManager || "",
+    ),
     setFormValue(t, "contractStartDate", n?.contractStartDate || a),
     setFormValue(
       t,
@@ -4426,6 +4453,8 @@ async function openEmployeeModal(e = null) {
     ),
     setFormValue(t, "gender", n?.gender || "male"),
     setRadioValue(t, "contractType", n?.contractType || "unlimited"),
+    t.elements.autoRenewContract &&
+      (t.elements.autoRenewContract.checked = Boolean(n?.autoRenewContract)),
     (t.elements.insuranceEnabled.checked = Boolean(n?.insuranceEnabled)),
     n?.role &&
       !jobTitles.includes(n.role) &&
@@ -4464,6 +4493,51 @@ async function openEmployeeModal(e = null) {
     switchEmployeeSection("personal"));
   const r = document.querySelector("#employeeModal");
   (r.showModal(), (r.scrollTop = 0));
+}
+function contractDatesForSaveV238(
+  existingEmployee,
+  requestedContractStartDate,
+  requestedWorkStartDate,
+) {
+  const contractStartDate =
+      existingEmployee?.contractStartDate ||
+      requestedContractStartDate ||
+      "",
+    workStartDate =
+      existingEmployee?.workStartDate ||
+      requestedWorkStartDate ||
+      contractStartDate ||
+      "";
+  return { contractStartDate, workStartDate };
+}
+function directManagerForSaveV238(
+  existingEmployee,
+  department,
+  section,
+  derivedManager,
+  requestedManager,
+) {
+  const unchangedSelection =
+    existingEmployee &&
+    String(existingEmployee.department || "") === String(department || "") &&
+    String(existingEmployee.section || "") === String(section || "");
+  return managerDisplayValueV238(
+    (unchangedSelection ? existingEmployee.directManager || "" : "") ||
+      derivedManager ||
+      requestedManager ||
+      "",
+  );
+}
+function managerDisplayValueV238(value) {
+  const manager = String(value || "").trim();
+  if (!manager) return "";
+  try {
+    const employee =
+      typeof getEmployee === "function" ? getEmployee(manager) : null;
+    return employee?.name || manager;
+  } catch (_) {
+    return manager;
+  }
 }
 async function handleEmployeeSubmit(e) {
   e.preventDefault();
@@ -4526,7 +4600,14 @@ async function handleEmployeeSubmit(e) {
     m = buildEmployeeNumber(i, s, u);
   if (employees.find((e) => e.employeeNumber === m && e.id !== n.employeeId))
     return void showToast("رقم الموظف مستخدم لموظف آخر");
-  const p = n.nationalityType,
+  const lockedDatesV238 = contractDatesForSaveV238(
+      d,
+      n.contractStartDate,
+      n.workStartDate,
+    ),
+    lockedContractStartDate = lockedDatesV238.contractStartDate,
+    lockedWorkStartDate = lockedDatesV238.workStartDate,
+    p = n.nationalityType,
     y = normalizeEmployee({
       id: n.employeeId || `employee-${Date.now()}`,
       firstName: n.firstName.trim(),
@@ -4554,18 +4635,35 @@ async function handleEmployeeSubmit(e) {
       department: n.department,
       branch: n.branch || "",
       section: n.section,
-      directManager:
-        getDirectManagerForSelection(n.department, n.section) ||
+      directManager: directManagerForSaveV238(
+        d,
+        n.department,
+        n.section,
+        getDirectManagerForSelection(n.department, n.section),
         n.directManager.trim(),
+      ),
       role: n.role,
       contractType: n.contractType,
-      contractStartDate: n.contractStartDate,
-      workStartDate: n.workStartDate || n.contractStartDate,
-      joinDate: n.contractStartDate,
+      contractStartDate: lockedContractStartDate,
+      workStartDate: lockedWorkStartDate,
+      joinDate: d?.joinDate || lockedContractStartDate,
       contractMonths: Number(n.contractMonths || 0),
       renewalOption: n.renewalOption,
+      autoRenewContract: Boolean(t.elements.autoRenewContract?.checked),
+      contractDatesLockedAt:
+        d?.contractDatesLockedAt ||
+        (lockedContractStartDate && lockedWorkStartDate
+          ? new Date().toISOString()
+          : ""),
       contractEndDate: n.contractEndDate,
       renewedContractEndDate: n.renewedContractEndDate,
+      contractExtensions: Array.isArray(employeeFormState.contractExtensions)
+        ? employeeFormState.contractExtensions.map((extension) => ({
+            ...extension,
+          }))
+        : Array.isArray(d?.contractExtensions)
+          ? d.contractExtensions
+          : [],
       baseSalary: c.base,
       housingAllowance: c.housing,
       transportAllowance: c.transport,
@@ -29263,7 +29361,7 @@ async function init() {
         ((e.id = "contractExtensionPanel"),
           (e.className = "contract-extension-panel span-all"),
           (e.innerHTML =
-            '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يعتمد تاريخ نهاية العقد الحالي على آخر تمديد دون تغيير تاريخ العقد الأساسي.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>النهاية السابقة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>'),
+            '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يعتمد تاريخ نهاية العقد الحالي على آخر تمديد دون تغيير تاريخ العقد الأساسي.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>النهاية السابقة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>نوع التمديد</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>'),
           a.closest("label")?.insertAdjacentElement("afterend", e));
       }
       const o = e.elements?.commissionStartDate;
@@ -29302,12 +29400,15 @@ async function init() {
         : [];
       t.innerHTML = a.length
         ? a
-            .map(
-              (e) =>
-                `<tr><td class="latin-number">${n(i(e.previousEndDate))}</td><td>${s(e.months || 0)} شهر</td><td class="latin-number">${n(i(e.newEndDate))}</td><td class="latin-number">${n(i(e.extendedAt ? String(e.extendedAt).slice(0, 10) : ""))}</td></tr>`,
-            )
+            .map((e) => {
+              const automatic =
+                e?.automatic === !0 ||
+                e?.kind === "automatic" ||
+                e?.source === "auto-renewal-v238";
+              return `<tr><td class="latin-number">${n(i(e.previousEndDate))}</td><td>${s(e.months || 0)} شهر</td><td class="latin-number">${n(i(e.newEndDate))}</td><td><span class="contract-extension-kind${automatic ? " is-automatic" : ""}">${automatic ? "تجديد آلي" : "تمديد يدوي"}</span></td><td class="latin-number">${n(i(e.extendedAt ? String(e.extendedAt).slice(0, 10) : ""))}</td></tr>`;
+            })
             .join("")
-        : '<tr><td colspan="4"><div class="employee-note-empty">لا توجد تمديدات مسجلة.</div></td></tr>';
+        : '<tr><td colspan="5"><div class="employee-note-empty">لا توجد تمديدات مسجلة.</div></td></tr>';
     }
     function D() {
       const e = p();
@@ -29632,6 +29733,9 @@ async function init() {
           newEndDate: r,
           extendedAt: new Date().toISOString(),
           extendedBy: void 0 !== currentUser ? currentUser : "",
+          kind: "manual",
+          automatic: !1,
+          source: "manual-extension",
         },
         s = {
           ...t,
@@ -29738,6 +29842,9 @@ async function init() {
                 newEndDate: o,
                 extendedAt: new Date().toISOString(),
                 extendedBy: void 0 !== currentUser ? currentUser : "",
+                kind: "manual",
+                automatic: !1,
+                source: "manual-extension",
               };
               ((employeeFormState.contractExtensions = [
                 ...(Array.isArray(employeeFormState.contractExtensions)
@@ -47581,8 +47688,27 @@ async function init() {
         (selectedDep && selectedDep.managerId) ||
         ""
       : "";
-    if (managerInput)
-      managerInput.value = managerId ? empDisplay(managerId) : "";
+    if (managerInput) {
+      let savedManager = "";
+      try {
+        const employeeId = form.elements.employeeId?.value || "",
+          employee =
+            employeeId && typeof getEmployee === "function"
+              ? getEmployee(employeeId)
+              : null;
+        if (
+          employee &&
+          String(employee.department || "") ===
+            String(form.elements.department?.value || "") &&
+          String(employee.section || "") ===
+            String(form.elements.section?.value || "")
+        )
+          savedManager = employee.directManager || "";
+      } catch (_) {}
+      managerInput.value = managerId
+        ? empDisplay(managerId)
+        : managerInput.value || savedManager;
+    }
   }
   function bindEmployeeOrgSelectors() {
     const form = document.getElementById("employeeForm");
@@ -51672,11 +51798,13 @@ async function init() {
     }
   }
   var empMap = null,
-    empSig = "";
+    empSig = "",
+    empListRef = null;
   function buildEmployeeMap() {
     var list = arrEmployees(),
       sig = empSignature(list);
-    if (empMap && sig === empSig) return empMap;
+    if (empMap && list === empListRef && sig === empSig) return empMap;
+    empListRef = list;
     empSig = sig;
     empMap = new Map();
     list.forEach(function (e) {
@@ -52339,7 +52467,11 @@ async function init() {
     typeof refreshEmployeeOrgOptions === "function"
       ? refreshEmployeeOrgOptions
       : null;
-  function refreshOrgSelectors(preferredSection = "", preferredRole = "") {
+  function refreshOrgSelectors(
+    preferredSection = "",
+    preferredRole = "",
+    preservedManager = "",
+  ) {
     const form = document.getElementById("employeeForm");
     if (!form || !form.elements) return;
     const org = getOrg();
@@ -52420,10 +52552,29 @@ async function init() {
     if (currentRole && professions.some((p) => p.name === currentRole))
       roleSelect.value = currentRole;
     else roleSelect.value = "";
-    if (managerInput)
-      managerInput.value = dep
-        ? getManager(depSelect.value, secSelect.value)
-        : "";
+    if (managerInput) {
+      let savedManager = "";
+      try {
+        const employeeId = form.elements.employeeId?.value || "",
+          employee =
+            employeeId && typeof getEmployee === "function"
+              ? getEmployee(employeeId)
+              : null;
+        if (
+          employee &&
+          String(employee.department || "") ===
+            String(depSelect.value || "") &&
+          String(employee.section || "") === String(secSelect.value || "")
+        )
+          savedManager = employee.directManager || "";
+      } catch (_) {}
+      managerInput.value = managerDisplayValueV238(
+        preservedManager ||
+          savedManager ||
+          (dep ? getManager(depSelect.value, secSelect.value) : "") ||
+          "",
+      );
+    }
   }
   window.v150RefreshEmployeeOrgOptions = refreshOrgSelectors;
   try {
@@ -53098,12 +53249,20 @@ async function init() {
         if (form?.elements.department)
           form.elements.department.value =
             emp?.department || form.elements.department.value || "";
-        refreshOrgSelectors(emp?.section || "", emp?.role || "");
+        refreshOrgSelectors(
+          emp?.section || "",
+          emp?.role || "",
+          emp?.directManager || "",
+        );
         if (form?.elements.section && emp?.section)
           form.elements.section.value = emp.section;
         if (form?.elements.role && emp?.role)
           form.elements.role.value = emp.role;
-        refreshOrgSelectors(emp?.section || "", emp?.role || "");
+        refreshOrgSelectors(
+          emp?.section || "",
+          emp?.role || "",
+          emp?.directManager || "",
+        );
       } catch (_) {}
       return result;
     };
@@ -59005,7 +59164,11 @@ window.nawahPrivateAlerts = {
     setValue(form, "contractType", employee.contractType || "unlimited");
     const insurance = inputByName(form, "insuranceEnabled");
     if (insurance) insurance.checked = Boolean(employee.insuranceEnabled);
-    call(refreshEmployeeOrgOptions, [employee.section || "", employee.role || ""]);
+    call(refreshEmployeeOrgOptions, [
+      employee.section || "",
+      employee.role || "",
+      employee.directManager || "",
+    ]);
     setValue(form, "department", employee.department || "");
     setValue(form, "branch", employee.branch || "");
     setValue(form, "section", employee.section || "");
@@ -65920,6 +66083,10 @@ window.nawahLeaveBalanceReportV185 = {
     body.innerHTML = rows.length
       ? rows
           .map(function (row) {
+            const automatic =
+              row?.automatic === true ||
+              row?.kind === "automatic" ||
+              row?.source === "auto-renewal-v238";
             return (
               '<tr><td class="latin-number">' +
               esc(dateLabel(row.previousEndDate)) +
@@ -65927,13 +66094,17 @@ window.nawahLeaveBalanceReportV185 = {
               esc(row.months || 0) +
               ' شهر</td><td class="latin-number">' +
               esc(dateLabel(row.newEndDate)) +
-              '</td><td class="latin-number">' +
+              '</td><td><span class="contract-extension-kind' +
+              (automatic ? " is-automatic" : "") +
+              '">' +
+              (automatic ? "تجديد آلي" : "تمديد يدوي") +
+              '</span></td><td class="latin-number">' +
               esc(dateLabel(row.extendedAt ? String(row.extendedAt).slice(0, 10) : "")) +
               "</td></tr>"
             );
           })
           .join("")
-      : '<tr><td colspan="4"><div class="employee-note-empty">لا توجد تمديدات مسجلة.</div></td></tr>';
+      : '<tr><td colspan="5"><div class="employee-note-empty">لا توجد تمديدات مسجلة.</div></td></tr>';
   }
 	  function ensureContractExtensionPanel() {
 	    const form = q("#employeeForm");
@@ -65946,7 +66117,7 @@ window.nawahLeaveBalanceReportV185 = {
       panel.id = "contractExtensionPanel";
       panel.className = "contract-extension-panel span-all";
       panel.innerHTML =
-        '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يعتمد تاريخ نهاية العقد الحالي على آخر تمديد دون تغيير تاريخ العقد الأساسي.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>النهاية السابقة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>';
+        '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يعتمد تاريخ نهاية العقد الحالي على آخر تمديد دون تغيير تاريخ العقد الأساسي.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>النهاية السابقة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>نوع التمديد</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>';
       form.elements.contractRemaining.closest("label")?.insertAdjacentElement("afterend", panel);
 	    }
 	    renderContractExtensionsBody();
@@ -67606,6 +67777,54 @@ window.nawahLeaveBalanceReportV185 = {
       return tracked;
     },
   };
+  window.nawahEmployeeContractSyncV238 = {
+    schemaVersion: STATE_SCHEMA_VERSION,
+    prepare: async () => {
+      if (!activeSession() || !ensureClient()) return false;
+      clearTimeout(saveTimer);
+      for (let attempt = 0; attempt < 3 && dirtyFields.size; attempt += 1) {
+        const flushed = await saveCloudStateNowV221({
+          force: true,
+          reason: "contract-preflight-v238",
+        });
+        if (!flushed && dirtyFields.size) return false;
+      }
+      if (dirtyFields.size) return false;
+      try {
+        await refreshCloudStateV221(true);
+        return !dirtyFields.size;
+      } catch (_) {
+        return false;
+      }
+    },
+    save: (reason = "employee-contract-v238") =>
+      saveCloudStateNowV221({ force: true, reason }),
+    rollback: async () => {
+      clearTimeout(saveTimer);
+      dirtyFields.delete("employees");
+      recordDeleteTombstones.delete("employees");
+      recordUpsertMutations.delete("employees");
+      try {
+        const remote = await readCloudDirectV221();
+        if (remote.found && remote.state) {
+          applyCanonicalStateV221(clone(remote.state));
+          baselineState = clone(remote.state);
+          baselineUpdatedAt = remote.updatedAt || "";
+          try {
+            if (typeof syncEmployeeLocalCache === "function")
+              await syncEmployeeLocalCache(currentEmployees());
+          } catch (_) {}
+          renderAfterCloudRefresh();
+        }
+      } catch (_) {}
+      return true;
+    },
+    trackUpserts: (employeeIds) => {
+      const tracked = markRecordUpserts("employees", employeeIds);
+      if (tracked) queueCloudStateSaveV221();
+      return tracked;
+    },
+  };
   window.nawahDocumentsSyncV227 = {
     schemaVersion: STATE_SCHEMA_VERSION,
     prepare: async () => {
@@ -69253,6 +69472,409 @@ window.nawahLeaveBalanceReportV185 = {
       once: true,
     });
   else renderSalarySettingsV237();
+})();
+
+/* v238 - direct-manager stability, immutable contract dates, and automatic renewals. */
+(function v238ContractIntegrityAndAutoRenewal() {
+  if (window.__v238ContractIntegrityAndAutoRenewal) return;
+  window.__v238ContractIntegrityAndAutoRenewal = true;
+
+  const DAY_MS = 86400000;
+  let renewalInFlight = false;
+  let dailyTimer = 0;
+  let lastRunAt = 0;
+  let activeRenewalSync = null;
+
+  function employeeList() {
+    try {
+      return Array.isArray(employees) ? employees : [];
+    } catch (_) {
+      return Array.isArray(window.employees) ? window.employees : [];
+    }
+  }
+
+  function employeeById(id) {
+    const value = String(id || "");
+    if (!value) return null;
+    try {
+      if (typeof getEmployee === "function") return getEmployee(value);
+    } catch (_) {}
+    return (
+      employeeList().find(
+        (employee) => String(employee?.id || "") === value,
+      ) || null
+    );
+  }
+
+  function parseDateV238(value) {
+    if (!value) return null;
+    const parsed = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function dateInputV238(value) {
+    return value instanceof Date && !Number.isNaN(value.getTime())
+      ? value.toISOString().slice(0, 10)
+      : "";
+  }
+
+  function todayV238() {
+    try {
+      return formatInputDate(todayAtNoon());
+    } catch (_) {
+      return new Date().toISOString().slice(0, 10);
+    }
+  }
+
+  function addMonthsV238(value, months) {
+    const parsed = parseDateV238(value);
+    if (!parsed) return "";
+    const originalDay = parsed.getDate();
+    parsed.setMonth(parsed.getMonth() + Number(months || 0));
+    if (parsed.getDate() !== originalDay) parsed.setDate(0);
+    return dateInputV238(parsed);
+  }
+
+  function contractExtensionsV238(employee) {
+    return Array.isArray(employee?.contractExtensions)
+      ? employee.contractExtensions.filter(Boolean)
+      : [];
+  }
+
+  function latestContractEndV238(employee) {
+    const dates = [
+      employee?.contractEndDate || "",
+      employee?.renewedContractEndDate || "",
+      ...contractExtensionsV238(employee).map(
+        (extension) => extension?.newEndDate || "",
+      ),
+    ]
+      .filter(Boolean)
+      .sort();
+    return dates.at(-1) || "";
+  }
+
+  function safeIdV238(value) {
+    return String(value || "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80);
+  }
+
+  function buildAutomaticRenewalV238(employee, today = todayV238()) {
+    if (
+      !employee?.id ||
+      employee.autoRenewContract !== true ||
+      employee.contractType !== "fixed" ||
+      employee.status === "terminated"
+    )
+      return null;
+    const months = Math.floor(Number(employee.contractMonths || 0));
+    let currentEnd = latestContractEndV238(employee);
+    if (!months || months < 1 || !parseDateV238(currentEnd)) return null;
+    const todayDate = parseDateV238(today);
+    if (!todayDate || parseDateV238(currentEnd) >= todayDate) return null;
+
+    const existing = contractExtensionsV238(employee).map((extension) => ({
+        ...extension,
+      })),
+      knownIds = new Set(existing.map((extension) => String(extension.id || ""))),
+      additions = [],
+      executedAt = new Date().toISOString();
+    let guard = 0;
+    while (
+      parseDateV238(currentEnd) < todayDate &&
+      guard < 120
+    ) {
+      const nextEnd = addMonthsV238(currentEnd, months);
+      if (!nextEnd || nextEnd === currentEnd) break;
+      const id = `contract-auto-${safeIdV238(employee.id)}-${currentEnd}-${months}`;
+      if (!knownIds.has(id)) {
+        additions.push({
+          id,
+          previousEndDate: currentEnd,
+          months,
+          newEndDate: nextEnd,
+          extendedAt: executedAt,
+          extendedBy: "النظام",
+          kind: "automatic",
+          automatic: true,
+          source: "auto-renewal-v238",
+        });
+        knownIds.add(id);
+      }
+      currentEnd = nextEnd;
+      guard += 1;
+    }
+    if (!additions.length) return null;
+    return {
+      ...employee,
+      autoRenewContract: true,
+      contractExtensions: [...existing, ...additions],
+      renewedContractEndDate: currentEnd,
+      contractCurrentEndDate: currentEnd,
+      lastAutoRenewedAt: executedAt,
+      contractDatesLockedAt:
+        employee.contractDatesLockedAt ||
+        (employee.contractStartDate && employee.workStartDate
+          ? executedAt
+          : ""),
+    };
+  }
+
+  function resolveDirectManagerV238(form, employee) {
+    if (!form?.elements?.directManager) return "";
+    const department = form.elements.department?.value || "",
+      section = form.elements.section?.value || "";
+    let derived = "";
+    try {
+      if (typeof getDirectManagerForSelection === "function")
+        derived = getDirectManagerForSelection(department, section) || "";
+    } catch (_) {}
+    return managerDisplayValueV238(
+      employee?.directManager ||
+        derived ||
+        form.elements.directManager.value ||
+        "",
+    );
+  }
+
+  function lockContractDateV238(form, employee, fieldName) {
+    const input = form?.elements?.[fieldName],
+      savedValue = employee?.[fieldName] || "",
+      label = form?.querySelector(
+        `[data-contract-lock-field="${fieldName}"]`,
+      );
+    if (!input || !label) return;
+    const locked = Boolean(employee?.id && savedValue);
+    if (locked) input.value = savedValue;
+    input.readOnly = locked;
+    input.setAttribute("aria-readonly", String(locked));
+    input.dataset.contractDateLockedV238 = locked ? "1" : "0";
+    input.title = locked
+      ? "هذا التاريخ مثبّت بعد الحفظ ولا يمكن تعديله"
+      : "";
+    label.classList.toggle("is-contract-date-locked", locked);
+  }
+
+  function applyEmployeeFormIntegrityV238(employeeId) {
+    const form = document.querySelector("#employeeForm");
+    if (!form) return;
+    const id =
+        employeeId ||
+        form.elements.employeeId?.value ||
+        "",
+      employee = employeeById(id);
+    if (form.elements.directManager)
+      form.elements.directManager.value = resolveDirectManagerV238(
+        form,
+        employee,
+      );
+    lockContractDateV238(form, employee, "contractStartDate");
+    lockContractDateV238(form, employee, "workStartDate");
+    if (form.elements.autoRenewContract)
+      form.elements.autoRenewContract.checked = Boolean(
+        employee?.autoRenewContract,
+      );
+    if (employee) {
+      try {
+        if (typeof employeeFormState === "object" && employeeFormState)
+          employeeFormState.contractExtensions = contractExtensionsV238(
+            employee,
+          ).map((extension) => ({ ...extension }));
+      } catch (_) {}
+      try {
+        if (typeof window.ensureContractExtensionPanel === "function")
+          window.ensureContractExtensionPanel();
+      } catch (_) {}
+    }
+    try {
+      if (typeof updateContractCalculations === "function")
+        updateContractCalculations();
+    } catch (_) {}
+  }
+
+  const previousOpenEmployeeModalV238 =
+    typeof openEmployeeModal === "function"
+      ? openEmployeeModal
+      : window.openEmployeeModal;
+  if (
+    typeof previousOpenEmployeeModalV238 === "function" &&
+    !previousOpenEmployeeModalV238.__v238ContractIntegrity
+  ) {
+    const wrappedOpenEmployeeModalV238 = async function (employeeId) {
+      const result = await previousOpenEmployeeModalV238.apply(
+        this,
+        arguments,
+      );
+      applyEmployeeFormIntegrityV238(employeeId || "");
+      setTimeout(
+        () => applyEmployeeFormIntegrityV238(employeeId || ""),
+        120,
+      );
+      setTimeout(
+        () => applyEmployeeFormIntegrityV238(employeeId || ""),
+        420,
+      );
+      return result;
+    };
+    wrappedOpenEmployeeModalV238.__v238ContractIntegrity = true;
+    try {
+      openEmployeeModal = wrappedOpenEmployeeModalV238;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpenEmployeeModalV238;
+  }
+
+  async function prepareRenewalCloudV238() {
+    const sync = window.nawahEmployeeContractSyncV238;
+    if (!sync?.prepare || !(await sync.prepare())) return null;
+    return sync;
+  }
+
+  async function writeEmployeesForRenewalV238(list, ids, sync) {
+    try {
+      employees = list;
+    } catch (_) {}
+    window.employees = list;
+    try {
+      localStorage.setItem("nawah-employees", JSON.stringify(list));
+    } catch (_) {}
+    try {
+      if (typeof syncEmployeeLocalCache === "function")
+        await syncEmployeeLocalCache(list);
+    } catch (_) {}
+    sync.trackUpserts?.(ids);
+    const saved = await sync.save("employee-auto-renewal-v238");
+    if (saved === false) throw new Error("auto-renewal-cloud-save-failed");
+    return true;
+  }
+
+  async function processAutomaticRenewalsV238(options = {}) {
+    if (renewalInFlight) return false;
+    if (
+      document.querySelector("#employeeModal[open]") ||
+      (!options.force && Date.now() - lastRunAt < 5000)
+    )
+      return false;
+    if (!window.__nawahEmployeesReady) return false;
+    renewalInFlight = true;
+    lastRunAt = Date.now();
+    try {
+      const sync = await prepareRenewalCloudV238();
+      if (!sync) return false;
+      activeRenewalSync = sync;
+      const current = employeeList(),
+        replacements = new Map();
+      current.forEach((employee) => {
+        const renewed = buildAutomaticRenewalV238(employee);
+        if (renewed) replacements.set(String(employee.id), renewed);
+      });
+      if (!replacements.size) return true;
+      const next = current.map(
+        (employee) =>
+          replacements.get(String(employee.id)) || employee,
+      );
+      await writeEmployeesForRenewalV238(
+        next,
+        Array.from(replacements.keys()),
+        sync,
+      );
+      try {
+        if (typeof renderAll === "function") renderAll();
+      } catch (_) {}
+      try {
+        showToast(
+          replacements.size === 1
+            ? "تم تجديد العقد المنتهي تلقائيًا وحفظه في سجل التمديدات"
+            : `تم تجديد ${replacements.size} عقود منتهية تلقائيًا وحفظها سحابيًا`,
+        );
+      } catch (_) {}
+      return true;
+    } catch (error) {
+      try {
+        await activeRenewalSync?.rollback?.();
+      } catch (_) {}
+      console.warn("v238: تعذر تأكيد التجديد التلقائي سحابيًا.", error);
+      return false;
+    } finally {
+      activeRenewalSync = null;
+      renewalInFlight = false;
+    }
+  }
+
+  function scheduleDailyRenewalV238() {
+    clearTimeout(dailyTimer);
+    const now = new Date(),
+      next = new Date(now.getTime());
+    next.setHours(24, 5, 0, 0);
+    const delay = Math.max(60000, next.getTime() - now.getTime());
+    dailyTimer = setTimeout(async function () {
+      await processAutomaticRenewalsV238({ force: true });
+      scheduleDailyRenewalV238();
+    }, delay);
+  }
+
+  document.addEventListener(
+    "submit",
+    function (event) {
+      if (event.target?.id === "employeeForm")
+        setTimeout(
+          () => processAutomaticRenewalsV238({ force: true }),
+          1800,
+        );
+    },
+    true,
+  );
+  window.addEventListener("focus", () =>
+    setTimeout(processAutomaticRenewalsV238, 180),
+  );
+  window.addEventListener("online", () =>
+    setTimeout(
+      () => processAutomaticRenewalsV238({ force: true }),
+      180,
+    ),
+  );
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible")
+      setTimeout(processAutomaticRenewalsV238, 180);
+  });
+
+  window.nawahContractAutomationV238 = {
+    version: 238,
+    run: (options) =>
+      processAutomaticRenewalsV238({ ...(options || {}), force: true }),
+    preview: (employee, today) =>
+      buildAutomaticRenewalV238(employee, today),
+    latestEnd: latestContractEndV238,
+    applyFormIntegrity: applyEmployeeFormIntegrityV238,
+    protectDates: (employee, contractStartDate, workStartDate) =>
+      contractDatesForSaveV238(
+        employee,
+        contractStartDate,
+        workStartDate,
+      ),
+    protectDirectManager: (
+      employee,
+      department,
+      section,
+      derivedManager,
+      requestedManager,
+    ) =>
+      directManagerForSaveV238(
+        employee,
+        department,
+        section,
+        derivedManager,
+        requestedManager,
+      ),
+  };
+
+  setTimeout(processAutomaticRenewalsV238, 2400);
+  setTimeout(
+    () => processAutomaticRenewalsV238({ force: true }),
+    6200,
+  );
+  scheduleDailyRenewalV238();
 })();
 
 /* v228 - final renderer lock (must remain the last application patch). */

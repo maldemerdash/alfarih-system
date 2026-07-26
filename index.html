@@ -955,19 +955,20 @@
 
             <section class="employee-tab-panel" data-section-panel="employment">
               <div class="form-section-title"><span data-icon="building"></span><div><h3>البيانات الوظيفية</h3><p>الإدارة والعقد ومدة الخدمة</p></div></div>
-              <div class="form-grid form-grid-4 employment-grid-v150">
+              <div class="form-grid form-grid-4 employment-grid-v150 employment-grid-v238">
                 <label class="v150-field-branch"><span>الفرع</span><select name="branch" id="employeeBranchSelect"><option value="">بدون فرع</option></select></label>
                 <div class="field-with-action v150-field-department"><label><span>الإدارة *</span><select name="department" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="department"><span data-icon="plus"></span>إضافة إدارة</button></div>
                 <div class="field-with-action v150-field-section"><label><span>القسم *</span><select name="section" id="employeeSectionSelect" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="section"><span data-icon="plus"></span>إضافة قسم</button></div>
                 <div class="field-with-action v150-field-role"><label><span>المهنة *</span><select name="role" id="jobTitleSelect" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="profession"><span data-icon="plus"></span>إضافة مهنة</button></div>
-                <label class="v150-field-manager span-all"><span>المدير المباشر</span><input name="directManager" class="calculated-field" readonly /></label>
+                <label class="v150-field-manager"><span>المدير المباشر</span><input name="directManager" class="calculated-field" readonly /></label>
                 <label class="v186-contract-type-field"><span>نوع العقد</span><select name="contractType"><option value="fixed">محدد المدة</option><option value="unlimited" selected>غير محدد المدة</option></select></label>
-                <label><span>تاريخ بداية العقد</span><input name="contractStartDate" type="date" /></label>
-                <label><span>تاريخ المباشرة</span><input name="workStartDate" type="date" /></label>
+                <label class="contract-date-field" data-contract-lock-field="contractStartDate"><span>تاريخ بداية العقد</span><input name="contractStartDate" type="date" /></label>
+                <label class="contract-date-field" data-contract-lock-field="workStartDate"><span>تاريخ المباشرة</span><input name="workStartDate" type="date" /></label>
                 <label><span>مدة العقد بالأشهر</span><input name="contractMonths" type="number" min="1" step="1" disabled /></label>
                 <label><span>إجمالي مدة العقد</span><input name="contractDurationText" class="calculated-field" readonly /></label>
                 <label><span>تاريخ انتهاء العقد</span><input name="contractEndDate" class="calculated-field" readonly /></label>
                 <label><span>تجديد العقد</span><select name="renewalOption" disabled><option value="none">عدم التجديد</option><option value="same">تجديد لمدة مماثلة</option></select></label>
+                <label class="insurance-toggle contract-auto-renew-toggle"><span>تجديد العقد تلقائيًا بعد انتهائه</span><input name="autoRenewContract" type="checkbox" disabled /></label>
                 <label><span>تاريخ الانتهاء الجديد</span><input name="renewedContractEndDate" class="calculated-field" readonly /></label>
                 <label class="contract-attachment-field"><span>مرفق صورة العقد</span><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق</span><input type="file" data-single-attachment="contract" accept="image/*,.pdf" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="contract" hidden>عرض</button></label>
                 <label class="contract-notice-field"><span>فترة الإشعار</span><input name="contractNoticeDays" type="number" min="1" step="1" inputmode="numeric" placeholder="مثال: 60" /></label>

@@ -19434,3 +19434,67 @@ html.has-initial-login-bg .auth-gate,
 #settingsView [data-settings-panel="company"][data-v236-company-state="pending"] {
   visibility: hidden;
 }
+
+/* v238 - stable employment row, immutable contract dates, and renewal source. */
+@media (min-width: 1101px) {
+  .employment-grid-v238 {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+.employment-grid-v238 .v150-field-manager {
+  min-width: 0;
+}
+
+.employment-grid-v238 .v150-field-manager input {
+  text-overflow: ellipsis;
+}
+
+.contract-date-field.is-contract-date-locked > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.contract-date-field.is-contract-date-locked > span::after {
+  content: "مثبّت";
+  color: #0f766e;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.contract-date-field.is-contract-date-locked input[readonly] {
+  cursor: not-allowed;
+  color: #475569;
+  background: #f1f5f7;
+  border-color: #d8e2e7;
+}
+
+.contract-auto-renew-toggle {
+  min-height: 44px;
+  align-self: end;
+}
+
+.contract-auto-renew-toggle.is-disabled {
+  opacity: 0.62;
+}
+
+.contract-extension-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.contract-extension-kind.is-automatic {
+  background: #dcfce7;
+  color: #15803d;
+}
