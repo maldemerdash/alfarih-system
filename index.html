@@ -1005,13 +1005,14 @@
 
             <section class="employee-tab-panel" data-section-panel="commissions">
               <div class="form-section-title section-title-with-action"><span data-icon="trend-up"></span><div><h3>العمولات</h3><p>احتساب العمولة وصرفها وإصدار المخالصة</p></div><button type="button" class="commission-pay-btn" id="payCommissionBtn" aria-label="صرف العمولة" hidden><span data-icon="wallet"></span></button></div>
-              <div class="form-grid form-grid-4">
-                <label class="commission-start-mode-field v183-commission-mode-fixed"><span>طريقة حساب العمولة</span><select name="commissionStartMode"><option value="auto">آلية</option><option value="manual">يدوية</option></select></label>
-                <label><span>تاريخ بداية استحقاق العمولة</span><input name="commissionStartDate" type="date" class="calculated-field" readonly /></label>
-                <label><span>قيمة العمولة</span><input name="commissionAmount" class="calculated-field latin-number" readonly /></label>
-                <label class="span-2"><span>حالة الاستحقاق</span><input name="commissionStatusText" class="calculated-field" readonly /></label>
-                <label class="span-2"><span>تفقيط قيمة العمولة</span><input name="commissionWords" type="text" class="calculated-field tafqeet-field" readonly /></label>
-                <label><span>تاريخ صرف العمولة</span><input name="commissionPaymentDate" class="calculated-field" readonly /></label>
+              <div class="form-grid commission-layout-v244" data-commission-layout="v244">
+                <label class="commission-start-mode-field v183-commission-mode-fixed commission-field-method-v244"><span>طريقة احتساب العمولة</span><select name="commissionStartMode"><option value="auto">آلية</option><option value="manual">يدوية</option></select></label>
+                <label class="commission-manual-payout-field commission-field-due-v244"><span>تاريخ الاستحقاق</span><input name="commissionManualPaymentDate" type="date" class="calculated-field latin-number" readonly /></label>
+                <label class="commission-field-start-v244"><span>بداية الاستحقاق</span><input name="commissionStartDate" type="date" class="calculated-field latin-number" readonly /></label>
+                <label class="commission-field-payment-v244"><span>تاريخ صرف العمولة</span><input name="commissionPaymentDate" type="date" class="calculated-field latin-number" readonly /></label>
+                <label class="commission-field-status-v244"><span>حالة الاستحقاق</span><input name="commissionStatusText" class="calculated-field" readonly /></label>
+                <label class="commission-field-amount-v244"><span>قيمة العمولة</span><input name="commissionAmount" class="calculated-field latin-number" readonly /></label>
+                <label class="commission-field-words-v244"><span>تفقيط قيمة العمولة</span><input name="commissionWords" type="text" class="calculated-field tafqeet-field" readonly /></label>
               </div>
               <div class="subsection-head section-title-with-action v110-delete-title-row v110-commission-record-row"><div><h4>سجل العمولات</h4><p>العمولات النقدية مستقلة ولا تدخل في مسير الرواتب</p></div><div class="v110-base-delete-actions"><button type="button" class="secondary-btn v102-delete-all v102-commission-delete-all v110-visible-delete-btn" data-v102-delete-commissions-all=""><span data-icon="trash"></span>حذف كامل سجل العمولات</button></div></div>
               <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>#</th><th>بداية الاستحقاق</th><th>عدد الأيام</th><th>القيمة</th><th>تاريخ الصرف</th><th>المخالصة</th></tr></thead><tbody id="commissionHistoryBody"></tbody></table></div>
@@ -1087,7 +1088,7 @@
 
     <dialog class="modal small-modal" id="commissionAuthModal">
       <div class="modal-head"><div><h2>اعتماد صرف العمولة</h2><p>اختر وسيلة إثبات استلام الموظف</p></div><button type="button" class="icon-btn" data-close-modal="commissionAuthModal"><span data-icon="x"></span></button></div>
-      <div class="modal-body"><div class="choice-cards three-choices"><label><input type="radio" name="commissionAuth" value="signature" checked /><span>توقيع الموظف</span></label><label><input type="radio" name="commissionAuth" value="fingerprint" /><span>بصمة الموظف</span></label><label><input type="radio" name="commissionAuth" value="both" /><span>التوقيع والبصمة</span></label></div></div>
+      <div class="modal-body"><div class="choice-cards commission-auth-choice-grid"><label><input type="radio" name="commissionAuth" value="signature" checked /><span>توقيع الموظف</span></label><label><input type="radio" name="commissionAuth" value="fingerprint" /><span>بصمة الموظف</span></label></div></div>
       <div class="modal-actions"><button type="button" class="secondary-btn" data-close-modal="commissionAuthModal">إلغاء</button><button type="button" class="primary-btn" id="previewClearanceBtn">متابعة</button></div>
     </dialog>
 

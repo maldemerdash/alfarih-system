@@ -5174,7 +5174,11 @@ async function buildClearanceMarkup(e) {
   const t = e.employee || {},
     company = (() => {
       try {
-        return JSON.parse(localStorage.getItem("nawah-company-settings-v92") || "{}") || {};
+        return (
+          JSON.parse(
+            localStorage.getItem("nawah-company-settings-v92") || "{}",
+          ) || {}
+        );
       } catch (_) {
         return {};
       }
@@ -5187,24 +5191,36 @@ async function buildClearanceMarkup(e) {
         return [];
       }
     })(),
+    directManager = String(t.directManager || "").trim(),
     manager =
-      managers.find((item) => String(item.name || "").trim() === String(t.directManager || "").trim()) ||
+      managers.find(
+        (item) =>
+          String(item.name || "").trim() === directManager ||
+          String(item.employeeId || "").trim() === directManager ||
+          String(item.id || "").trim() === directManager,
+      ) ||
       managers[0] ||
       {},
-    employeeSignature =
-      ("signature" === e.authType || "both" === e.authType) && t.signatureAttachmentId
-        ? await attachmentUrl(t.signatureAttachmentId)
-        : "",
-    employeeFingerprint =
-      ("fingerprint" === e.authType || "both" === e.authType) && t.fingerprintAttachmentId
-        ? await attachmentUrl(t.fingerprintAttachmentId)
-        : "",
-    managerSignature = manager.signatureAttachmentId ? await attachmentUrl(manager.signatureAttachmentId) : "",
-    companyStamp = company.stampAttachmentId ? await attachmentUrl(company.stampAttachmentId) : "",
+    authType = "fingerprint" === e.authType ? "fingerprint" : "signature",
+    employeeAuthAttachmentId =
+      "fingerprint" === authType
+        ? t.fingerprintAttachmentId
+        : t.signatureAttachmentId,
+    employeeAuth = employeeAuthAttachmentId
+      ? await attachmentUrl(employeeAuthAttachmentId)
+      : "",
+    managerSignature = manager.signatureAttachmentId
+      ? await attachmentUrl(manager.signatureAttachmentId)
+      : "",
+    companyStamp = company.stampAttachmentId
+      ? await attachmentUrl(company.stampAttachmentId)
+      : "",
     logo =
       company.logoDataUrl ||
       company.logo ||
-      (company.logoAttachmentId ? await attachmentUrl(company.logoAttachmentId) : "") ||
+      (company.logoAttachmentId
+        ? await attachmentUrl(company.logoAttachmentId)
+        : "") ||
       "sar-symbol.png",
     companyName = company.company || company.name || "المنشأة",
     companyMeta = [
@@ -5214,9 +5230,81 @@ async function buildClearanceMarkup(e) {
     ]
       .filter(Boolean)
       .join(" | "),
-    employeeAuth = employeeSignature || employeeFingerprint,
-    employeeAuthLabel = employeeSignature ? "توقيع الموظف" : "بصمة الموظف";
-  return `<article class="clearance-sheet">\n    <header class="clearance-report-head"><img src="${escapeHtml(logo)}" alt=""><div><h1>${escapeHtml(companyName)}</h1><p>${escapeHtml(companyMeta || "نظام إدارة الموظفين")}</p></div></header>\n    <h2 class="clearance-title">مخالصة استلام عمولة</h2>\n    <p class="clearance-subtitle">مستند صرف عمولة معتمد من النظام</p>\n    <section class="clearance-section"><h4>بيانات الموظف</h4><div class="clearance-grid">\n      <div><span>رقم الموظف</span><strong>${escapeHtml(t.employeeNumber)}</strong></div>\n      <div><span>الاسم</span><strong>${escapeHtml(t.name)}</strong></div>\n      <div><span>رقم الهوية</span><strong>${escapeHtml(t.identityNumber)}</strong></div>\n      <div><span>الجنسية</span><strong>${escapeHtml(t.nationality)}</strong></div>\n      <div><span>النوع</span><strong>${"female" === t.gender ? "أنثى" : "ذكر"}</strong></div>\n      <div><span>تاريخ الميلاد</span><strong class="latin-number">${formatDateEn(t.birthDate)}</strong></div>\n      <div><span>رقم الجوال</span><strong class="latin-number">${escapeHtml(t.phone || "—")}</strong></div>\n      <div><span>انتهاء الهوية</span><strong class="latin-number">${formatDateEn(t.identityExpiryGregorian)}</strong></div>\n    </div></section>\n    <section class="clearance-section"><h4>البيانات الوظيفية</h4><div class="clearance-grid">\n      <div><span>الإدارة</span><strong>${escapeHtml(t.department)}</strong></div>\n      <div><span>المدير المباشر</span><strong>${escapeHtml(t.directManager || "—")}</strong></div>\n      <div><span>المسمى الوظيفي</span><strong>${escapeHtml(t.role)}</strong></div>\n      <div><span>نوع العقد</span><strong>${"fixed" === t.contractType ? "محدد المدة" : "غير محدد المدة"}</strong></div>\n      <div><span>تاريخ بداية العقد</span><strong class="latin-number">${formatDateEn(t.contractStartDate)}</strong></div>\n      <div><span>تاريخ المباشرة</span><strong class="latin-number">${formatDateEn(t.workStartDate)}</strong></div>\n      <div><span>مدة العقد بالأشهر</span><strong class="latin-number">${"fixed" === t.contractType ? t.contractMonths : "—"}</strong></div>\n      <div><span>تاريخ انتهاء العقد</span><strong class="latin-number">${formatDateEn(t.contractEndDate)}</strong></div>\n      <div><span>التجديد / الانتهاء الجديد</span><strong>${"same" === t.renewalOption ? `مدة مماثلة - ${formatDateEn(t.renewedContractEndDate)}` : "عدم التجديد"}</strong></div>\n    </div></section>\n    <section class="clearance-section"><h4>تفاصيل الراتب</h4><div class="clearance-grid">\n      <div><span>الراتب الأساسي</span><strong>${formatCurrencyEn(t.baseSalary)}</strong></div>\n      <div><span>بدل السكن</span><strong>${formatCurrencyEn(t.housingAllowance)}</strong></div>\n      <div><span>بدل المواصلات</span><strong>${formatCurrencyEn(t.transportAllowance)}</strong></div>\n      <div><span>بدلات أخرى</span><strong>${formatCurrencyEn(t.otherAllowances)}</strong></div>\n      <div><span>خصم التأمينات</span><strong>${formatCurrencyEn(t.insuranceDeduction)}</strong></div>\n      <div><span>إجمالي الراتب</span><strong>${formatCurrencyEn(t.totalSalary)}</strong></div>\n    </div></section>\n    <section class="clearance-section"><h4>تفاصيل العمولة</h4><div class="clearance-grid clearance-commission-grid">\n      <div><span>بداية الاستحقاق</span><strong class="latin-number">${formatDateEn(e.startDate)}</strong></div>\n      <div><span>نهاية الاستحقاق</span><strong class="latin-number">${formatDateEn(e.endDate)}</strong></div>\n      <div><span>الأيام المستحقة</span><strong>${e.days}</strong></div>\n      <div><span>أساس الاحتساب</span><strong>${formatCurrencyEn(t.baseSalary)}</strong></div>\n      <div><span>قيمة العمولة</span><strong>${formatCurrencyEn(e.amount)}</strong></div>\n      <div><span>تاريخ الصرف</span><strong class="latin-number">${formatDateTimeEn(e.paymentDate)}</strong></div>\n      <div class="clearance-wide"><span>تفقيط العمولة</span><strong>${amountToWords(e.amount)}</strong></div>\n    </div><p class="clearance-declaration">أقر أنا الموظف الموضحة بياناتي أعلاه بأنني استلمت كامل قيمة العمولة المبينة في هذه المخالصة، وأقر باستلام جميع حقوقي المالية المستحقة حتى تاريخ صرف العمولة، ولا توجد لي مطالبات مالية متعلقة بهذه العمولة تجاه المنشأة.</p></section>\n    <footer class="clearance-auth">\n      <div><small>الموظف</small><strong>${escapeHtml(t.name || "—")}</strong><small>${employeeAuthLabel}</small>${employeeAuth ? `<img src="${employeeAuth}" alt="${employeeAuthLabel}" />` : ""}</div>\n      <div><small>ختم المنشأة</small><strong>${escapeHtml(companyName)}</strong>${companyStamp ? `<img src="${companyStamp}" alt="ختم المنشأة" />` : ""}</div>\n      <div><small>المدير</small><strong>${escapeHtml(manager.name || t.directManager || "المدير")}</strong><small>توقيع المدير</small>${managerSignature ? `<img src="${managerSignature}" alt="توقيع المدير" />` : ""}</div>\n    </footer>\n  </article>`;
+    employeeAuthLabel =
+      "fingerprint" === authType ? "البصمة" : "التوقيع",
+    managerName = manager.name || t.directManager || "المدير",
+    operationNumber = String(e.id || "—");
+  return `<article class="clearance-sheet clearance-sheet-v244">
+    <header class="clearance-report-head clearance-report-head-v244">
+      <div class="clearance-brand-v244">
+        <div class="clearance-logo-frame-v244"><img src="${escapeHtml(logo)}" alt="شعار ${escapeHtml(companyName)}" /></div>
+        <div class="clearance-brand-copy-v244"><span>نظام إدارة الموظفين</span><h1>${escapeHtml(companyName)}</h1><p>${escapeHtml(companyMeta || "مستندات الموارد البشرية والمالية")}</p></div>
+      </div>
+      <div class="clearance-document-id-v244"><span>مستند مالي معتمد</span><strong>مخالصة استلام عمولة</strong><small>رقم العملية: ${escapeHtml(operationNumber)}</small></div>
+    </header>
+    <section class="clearance-hero-v244">
+      <div><span class="clearance-kicker-v244">اعتماد صرف عمولة</span><h2 class="clearance-title">مخالصة استلام عمولة</h2><p class="clearance-subtitle">إثبات استلام الموظف لقيمة العمولة المعتمدة</p></div>
+      <div class="clearance-amount-v244"><span>قيمة العمولة</span><strong>${formatCurrencyEn(e.amount)}</strong><small>${escapeHtml(amountToWords(e.amount))}</small></div>
+    </section>
+    <section class="clearance-section"><h4><span>01</span> بيانات الموظف</h4><div class="clearance-grid">
+      <div><span>رقم الموظف</span><strong>${escapeHtml(t.employeeNumber)}</strong></div>
+      <div><span>الاسم</span><strong>${escapeHtml(t.name)}</strong></div>
+      <div><span>رقم الهوية</span><strong>${escapeHtml(t.identityNumber)}</strong></div>
+      <div><span>الجنسية</span><strong>${escapeHtml(t.nationality)}</strong></div>
+      <div><span>النوع</span><strong>${"female" === t.gender ? "أنثى" : "ذكر"}</strong></div>
+      <div><span>تاريخ الميلاد</span><strong class="latin-number">${formatDateEn(t.birthDate)}</strong></div>
+      <div><span>رقم الجوال</span><strong class="latin-number">${escapeHtml(t.phone || "—")}</strong></div>
+      <div><span>انتهاء الهوية</span><strong class="latin-number">${formatDateEn(t.identityExpiryGregorian)}</strong></div>
+    </div></section>
+    <section class="clearance-section"><h4><span>02</span> البيانات الوظيفية</h4><div class="clearance-grid">
+      <div><span>الإدارة</span><strong>${escapeHtml(t.department)}</strong></div>
+      <div><span>المدير المباشر</span><strong>${escapeHtml(t.directManager || "—")}</strong></div>
+      <div><span>المسمى الوظيفي</span><strong>${escapeHtml(t.role)}</strong></div>
+      <div><span>نوع العقد</span><strong>${"fixed" === t.contractType ? "محدد المدة" : "غير محدد المدة"}</strong></div>
+      <div><span>تاريخ بداية العقد</span><strong class="latin-number">${formatDateEn(t.contractStartDate)}</strong></div>
+      <div><span>تاريخ المباشرة</span><strong class="latin-number">${formatDateEn(t.workStartDate)}</strong></div>
+      <div><span>مدة العقد بالأشهر</span><strong class="latin-number">${"fixed" === t.contractType ? t.contractMonths : "—"}</strong></div>
+      <div><span>تاريخ انتهاء العقد</span><strong class="latin-number">${formatDateEn(t.contractEndDate)}</strong></div>
+      <div class="clearance-wide"><span>التجديد / الانتهاء الجديد</span><strong>${"same" === t.renewalOption ? `مدة مماثلة - ${formatDateEn(t.renewedContractEndDate)}` : "عدم التجديد"}</strong></div>
+    </div></section>
+    <div class="clearance-sections-row-v244">
+      <section class="clearance-section"><h4><span>03</span> تفاصيل الراتب</h4><div class="clearance-grid clearance-grid-2-v244">
+        <div><span>الراتب الأساسي</span><strong>${formatCurrencyEn(t.baseSalary)}</strong></div>
+        <div><span>بدل السكن</span><strong>${formatCurrencyEn(t.housingAllowance)}</strong></div>
+        <div><span>بدل المواصلات</span><strong>${formatCurrencyEn(t.transportAllowance)}</strong></div>
+        <div><span>بدلات أخرى</span><strong>${formatCurrencyEn(t.otherAllowances)}</strong></div>
+        <div><span>خصم التأمينات</span><strong>${formatCurrencyEn(t.insuranceDeduction)}</strong></div>
+        <div><span>إجمالي الراتب</span><strong>${formatCurrencyEn(t.totalSalary)}</strong></div>
+      </div></section>
+      <section class="clearance-section"><h4><span>04</span> تفاصيل العمولة</h4><div class="clearance-grid clearance-grid-2-v244 clearance-commission-grid">
+        <div><span>بداية الاستحقاق</span><strong class="latin-number">${formatDateEn(e.startDate)}</strong></div>
+        <div><span>نهاية الاستحقاق</span><strong class="latin-number">${formatDateEn(e.endDate)}</strong></div>
+        <div><span>الأيام المستحقة</span><strong>${e.days}</strong></div>
+        <div><span>أساس الاحتساب</span><strong>${formatCurrencyEn(t.baseSalary)}</strong></div>
+        <div><span>قيمة العمولة</span><strong>${formatCurrencyEn(e.amount)}</strong></div>
+        <div><span>تاريخ الصرف</span><strong class="latin-number">${formatDateTimeEn(e.paymentDate)}</strong></div>
+      </div></section>
+    </div>
+    <p class="clearance-declaration">أقر أنا الموظف الموضحة بياناتي أعلاه بأنني استلمت كامل قيمة العمولة المبينة في هذه المخالصة، وأقر باستلام جميع حقوقي المالية المستحقة حتى تاريخ صرف العمولة، ولا توجد لي مطالبات مالية متعلقة بهذه العمولة تجاه المنشأة.</p>
+    <footer class="clearance-auth clearance-auth-v244">
+      <section class="clearance-auth-card-v244" data-clearance-party="employee">
+        <span class="clearance-auth-role-v244">الموظف</span>
+        <strong class="clearance-auth-name-v244">${escapeHtml(t.name || "—")}</strong>
+        <span class="clearance-auth-label-v244">${employeeAuthLabel}</span>
+        <div class="clearance-auth-asset-v244">${employeeAuth ? `<img src="${escapeHtml(employeeAuth)}" alt="${employeeAuthLabel}" />` : `<span>غير مرفق</span>`}</div>
+      </section>
+      <section class="clearance-auth-card-v244" data-clearance-party="stamp">
+        <span class="clearance-auth-role-v244">ختم المنشأة</span>
+        <div class="clearance-auth-asset-v244 clearance-stamp-asset-v244">${companyStamp ? `<img src="${escapeHtml(companyStamp)}" alt="ختم المنشأة" />` : `<span>الختم غير مرفق</span>`}</div>
+      </section>
+      <section class="clearance-auth-card-v244" data-clearance-party="manager">
+        <span class="clearance-auth-role-v244">المدير</span>
+        <strong class="clearance-auth-name-v244">${escapeHtml(managerName)}</strong>
+        <span class="clearance-auth-label-v244">التوقيع</span>
+        <div class="clearance-auth-asset-v244">${managerSignature ? `<img src="${escapeHtml(managerSignature)}" alt="توقيع المدير" />` : `<span>توقيع المدير غير مرفق</span>`}</div>
+      </section>
+    </footer>
+  </article>`;
 }
 async function startCommissionPayment() {
   const e = document.querySelector("#employeeForm"),
@@ -5246,19 +5334,26 @@ async function startCommissionPayment() {
 }
 async function previewClearance() {
   if (!pendingClearance) return;
-  const e = document.querySelector('[name="commissionAuth"]:checked').value,
-    t = "fingerprint" === e || "both" === e;
-  !("signature" === e || "both" === e) ||
-  employeeFormState.signatureAttachmentId
-    ? !t || employeeFormState.fingerprintAttachmentId
-      ? ((pendingClearance.authType = e),
-        (pendingClearance.employee = currentFormEmployeeSnapshot()),
-        document.querySelector("#commissionAuthModal").close(),
-        (document.querySelector("#clearancePreview").innerHTML =
-          await buildClearanceMarkup(pendingClearance)),
-        document.querySelector("#clearanceModal").showModal())
-      : showToast("أرفق بصمة الموظف من قسم التوثيق أولًا")
-    : showToast("أرفق توقيع الموظف من قسم التوثيق أولًا");
+  const selected =
+      document.querySelector('[name="commissionAuth"]:checked')?.value ||
+      "signature",
+    authType = "fingerprint" === selected ? "fingerprint" : "signature",
+    attachmentId =
+      "fingerprint" === authType
+        ? employeeFormState.fingerprintAttachmentId
+        : employeeFormState.signatureAttachmentId;
+  if (!attachmentId)
+    return showToast(
+      "fingerprint" === authType
+        ? "أرفق بصمة الموظف من قسم التوثيق أولًا"
+        : "أرفق توقيع الموظف من قسم التوثيق أولًا",
+    );
+  ((pendingClearance.authType = authType),
+    (pendingClearance.employee = currentFormEmployeeSnapshot()),
+    document.querySelector("#commissionAuthModal").close(),
+    (document.querySelector("#clearancePreview").innerHTML =
+      await buildClearanceMarkup(pendingClearance)),
+    document.querySelector("#clearanceModal").showModal());
 }
 async function issueClearance() {
   if (!pendingClearance) return;
@@ -5330,7 +5425,7 @@ async function issueClearance() {
     } catch (e) {}
   }));
 const clearancePrintStyle =
-  "@page{size:A4;margin:9mm}*{box-sizing:border-box}body{margin:0;font-family:Almarai,Arial,sans-serif;color:#172226;background:#fff}.clearance-sheet{min-height:278mm;padding:7mm;border:1px solid #dfe7e9;border-radius:10px}.clearance-report-head{display:grid;grid-template-columns:66px 1fr;gap:12px;align-items:center;border-bottom:2px solid #0f766e;padding-bottom:9px;margin-bottom:12px}.clearance-report-head img{width:58px;height:58px;object-fit:contain;border:1px solid #dbe8ef;border-radius:14px;background:#fff}.clearance-report-head h1{margin:0;color:#0f766e;font-size:18px}.clearance-report-head p{margin:4px 0 0;color:#64748b;font-size:9px}.clearance-title{margin:0;text-align:center;font-size:19px;color:#0f5f59}.clearance-subtitle{text-align:center;color:#718084;font-size:9px;margin:4px 0 10px}.clearance-section{margin-top:8px}.clearance-section h4{font-size:10px;margin:0 0 5px;padding-bottom:5px;border-bottom:1px solid #e5ebed;color:#172033}.clearance-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.clearance-grid div{padding:6px;background:#f7fafb;border:1px solid #e6eef2;border-radius:7px}.clearance-grid .clearance-wide{grid-column:1/-1}.clearance-grid span{display:block;color:#748287;font-size:7px}.clearance-grid strong{display:block;margin-top:2px;font-size:8.6px;line-height:1.55}.clearance-commission-grid strong{font-size:9.4px}.clearance-declaration{font-size:8.5px;line-height:1.85;text-align:justify;margin:9px 0;padding:8px 10px;border:1px solid #ccfbf1;background:#f0fdfa;border-radius:8px}.clearance-auth{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;min-height:88px;margin-top:22px;text-align:center;align-items:end}.clearance-auth>div{border-top:1px solid #94a3b8;padding-top:7px;min-height:82px}.clearance-auth img{display:block;max-width:112px;max-height:48px;margin:5px auto 0;object-fit:contain}.clearance-auth strong,.clearance-auth small{display:block;font-size:8px}.clearance-auth strong{margin:3px 0;color:#172033}.clearance-auth small{color:#748287}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}";
+  "@page{size:A4;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Almarai,Arial,sans-serif;color:#172033;background:#fff;direction:rtl}.clearance-sheet-v244{min-height:279mm;padding:7mm;border:1px solid #d9e6ec;border-radius:14px;background:#fff}.clearance-report-head-v244{display:grid;grid-template-columns:minmax(0,1fr) 168px;gap:10px;align-items:center;padding:8px 10px;margin:0 0 8px;border:1px solid #d8edf0;border-right:4px solid #13a8bf;border-radius:12px;background:linear-gradient(135deg,#f7fcfd,#f0fbf6)}.clearance-brand-v244{display:flex;align-items:center;gap:10px;min-width:0}.clearance-logo-frame-v244{display:flex;width:58px;height:58px;min-width:58px;align-items:center;justify-content:center;padding:4px;border:1px solid #d8e7ed;border-radius:13px;background:#fff;overflow:hidden}.clearance-logo-frame-v244 img{display:block!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;object-fit:contain!important}.clearance-brand-copy-v244{min-width:0}.clearance-brand-copy-v244 span,.clearance-document-id-v244 span{display:block;color:#1296ad;font-size:7px;font-weight:800}.clearance-brand-copy-v244 h1{margin:2px 0;color:#0d7188;font-size:15px}.clearance-brand-copy-v244 p{margin:0;color:#64748b;font-size:7px;line-height:1.5}.clearance-document-id-v244{padding:7px 9px;border-radius:9px;background:#fff;text-align:center}.clearance-document-id-v244 strong{display:block;margin:3px 0;color:#102a43;font-size:11px}.clearance-document-id-v244 small{color:#64748b;font-size:7px}.clearance-hero-v244{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:8px;align-items:center;margin-bottom:7px;padding:9px 11px;border-radius:12px;background:linear-gradient(115deg,#083f4b,#0b6b69);color:#fff}.clearance-kicker-v244{font-size:7px;color:#8be7dd}.clearance-title{margin:2px 0;font-size:17px;color:#fff}.clearance-subtitle{margin:0;color:#d8f3f0;font-size:8px}.clearance-amount-v244{padding:7px 9px;border:1px solid rgba(255,255,255,.25);border-radius:10px;background:rgba(255,255,255,.09);text-align:center}.clearance-amount-v244 span,.clearance-amount-v244 small{display:block;font-size:7px;color:#d8f3f0}.clearance-amount-v244 strong{display:block;margin:3px 0;font-size:17px;color:#fff}.clearance-section{margin-top:6px;break-inside:avoid}.clearance-section h4{display:flex;align-items:center;gap:5px;margin:0 0 4px;padding-bottom:4px;border-bottom:1px solid #dbe7ec;color:#0d7188;font-size:9px}.clearance-section h4>span{display:inline-flex;width:19px;height:19px;align-items:center;justify-content:center;border-radius:7px;background:#e5f7f8;color:#0e8497;font-size:6px}.clearance-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.clearance-grid>div{min-width:0;padding:5px 6px;border:1px solid #e3edf1;border-radius:7px;background:#f7fafb}.clearance-grid .clearance-wide{grid-column:1/-1}.clearance-grid span{display:block;color:#718096;font-size:6.5px}.clearance-grid strong{display:block;margin-top:1px;color:#172033;font-size:7.7px;line-height:1.45;overflow-wrap:anywhere}.clearance-sections-row-v244{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.clearance-grid-2-v244{grid-template-columns:repeat(2,minmax(0,1fr))}.clearance-commission-grid strong{font-size:8px}.clearance-declaration{margin:7px 0 6px;padding:7px 9px;border:1px solid #bfe9df;border-radius:9px;background:#f0fdfa;color:#275a59;font-size:7.4px;line-height:1.7;text-align:justify;break-inside:avoid}.clearance-auth-v244{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px;align-items:stretch;text-align:center;break-inside:avoid}.clearance-auth-card-v244{display:flex;min-height:96px;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;padding:7px 8px;border:1px solid #dbe8ed;border-top:3px solid #13a8bf;border-radius:10px;background:#fbfdfe}.clearance-auth-role-v244{color:#0d7188;font-size:7px;font-weight:800}.clearance-auth-name-v244{min-height:12px;color:#172033;font-size:7.5px;line-height:1.35}.clearance-auth-label-v244{color:#64748b;font-size:6.5px}.clearance-auth-asset-v244{display:flex;width:100%;height:54px;align-items:center;justify-content:center;overflow:hidden}.clearance-auth-asset-v244 img{display:block!important;width:auto!important;height:auto!important;max-width:120px!important;max-height:50px!important;margin:0 auto!important;object-fit:contain!important}.clearance-auth-asset-v244>span{color:#94a3b8;font-size:6.5px}.clearance-stamp-asset-v244 img{max-width:78px!important;max-height:52px!important}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.clearance-sheet-v244{page-break-inside:avoid}}";
 async function printCommission(e) {
   try {
     const t = e.employee
@@ -29552,30 +29647,20 @@ async function init() {
             "signature";
           if (
             await (async function (e) {
-              const t = "fingerprint" === e || "both" === e;
-              if ("signature" === e || "both" === e) {
-                const e = employeeFormState?.signatureAttachmentId || "";
-                if (!e)
-                  return (a("أرفق توقيع الموظف من قسم التوثيق أولًا"), !1);
-                if (!(await attachmentUrl(e)))
-                  return (
-                    a(
-                      "تعذر تحميل صورة توقيع الموظف. تأكد من أن المرفق محفوظ ثم أعد المحاولة.",
-                    ),
-                    !1
-                  );
-              }
-              if (t) {
-                const e = employeeFormState?.fingerprintAttachmentId || "";
-                if (!e) return (a("أرفق بصمة الموظف من قسم التوثيق أولًا"), !1);
-                if (!(await attachmentUrl(e)))
-                  return (
-                    a(
-                      "تعذر تحميل صورة بصمة الموظف. تأكد من أن المرفق محفوظ ثم أعد المحاولة.",
-                    ),
-                    !1
-                  );
-              }
+              const t =
+                  "fingerprint" === e
+                    ? employeeFormState?.fingerprintAttachmentId || ""
+                    : employeeFormState?.signatureAttachmentId || "",
+                n = "fingerprint" === e ? "بصمة" : "توقيع";
+              if (!t)
+                return (a(`أرفق ${n} الموظف من قسم التوثيق أولًا`), !1);
+              if (!(await attachmentUrl(t)))
+                return (
+                  a(
+                    `تعذر تحميل صورة ${n} الموظف. تأكد من أن المرفق محفوظ ثم أعد المحاولة.`,
+                  ),
+                  !1
+                );
               return !0;
             })(t)
           )
@@ -30858,7 +30943,11 @@ async function init() {
         "click",
         function (e) {
           const t = e.target?.closest?.("#payCommissionBtn");
-          t && (e.preventDefault(), e.stopImmediatePropagation(), l());
+          if (t) {
+            (e.preventDefault(), e.stopImmediatePropagation());
+            const action = window.startCommissionPayment;
+            "function" == typeof action && action();
+          }
         },
         !0,
       )),
@@ -31462,6 +31551,473 @@ async function init() {
         "dashboard",
     );
   }, 250);
+})();
+
+/* Commission payout dates, layout and clearance flow — v244 */
+(function v244CommissionPayoutAndClearance() {
+  if (window.__v244CommissionPayoutAndClearance) return;
+  window.__v244CommissionPayoutAndClearance = true;
+
+  function form() {
+    return document.querySelector("#employeeForm");
+  }
+
+  function today() {
+    try {
+      return formatInputDate(todayAtNoon());
+    } catch (_) {
+      return new Date().toISOString().slice(0, 10);
+    }
+  }
+
+  function mode(currentForm) {
+    return currentForm?.elements?.commissionStartMode?.value === "manual"
+      ? "manual"
+      : "auto";
+  }
+
+  function dateToIso(value) {
+    const parsed = new Date(String(value || "").slice(0, 10) + "T12:00:00");
+    return Number.isNaN(parsed.getTime())
+      ? new Date().toISOString()
+      : parsed.toISOString();
+  }
+
+  function setEditable(input, editable) {
+    if (!input) return;
+    input.readOnly = !editable;
+    input.classList.toggle("manual-field", editable);
+    input.classList.toggle("calculated-field", !editable);
+    input.setAttribute("aria-readonly", String(!editable));
+  }
+
+  function employeeStateDate(name, fallback) {
+    try {
+      return String(employeeFormState?.[name] || fallback || "");
+    } catch (_) {
+      return String(fallback || "");
+    }
+  }
+
+  function ensureLayout(options = {}) {
+    const currentForm = form();
+    if (!currentForm) return null;
+    const grid = currentForm.querySelector(
+      '[data-section-panel="commissions"] .form-grid',
+    );
+    const method = currentForm.elements?.commissionStartMode?.closest("label");
+    const due = currentForm.elements?.commissionManualPaymentDate;
+    const start = currentForm.elements?.commissionStartDate;
+    const payment = currentForm.elements?.commissionPaymentDate;
+    const status = currentForm.elements?.commissionStatusText;
+    const amount = currentForm.elements?.commissionAmount;
+    const words = currentForm.elements?.commissionWords;
+    if (!grid || !method || !due || !start || !payment || !status || !amount || !words)
+      return null;
+
+    grid.classList.add("commission-layout-v244");
+    grid.dataset.commissionLayout = "v244";
+    [
+      [method, "commission-field-method-v244"],
+      [due.closest("label"), "commission-field-due-v244"],
+      [start.closest("label"), "commission-field-start-v244"],
+      [payment.closest("label"), "commission-field-payment-v244"],
+      [status.closest("label"), "commission-field-status-v244"],
+      [amount.closest("label"), "commission-field-amount-v244"],
+      [words.closest("label"), "commission-field-words-v244"],
+    ].forEach(([field, className]) => {
+      field?.classList.add(className);
+      field?.classList.remove("span-2", "span-all");
+      if (field) {
+        field.hidden = false;
+        field.removeAttribute("hidden");
+      }
+    });
+
+    const labels = [
+      [method, "طريقة احتساب العمولة"],
+      [due.closest("label"), "تاريخ الاستحقاق"],
+      [start.closest("label"), "بداية الاستحقاق"],
+      [payment.closest("label"), "تاريخ صرف العمولة"],
+      [status.closest("label"), "حالة الاستحقاق"],
+      [amount.closest("label"), "قيمة العمولة"],
+      [words.closest("label"), "تفقيط قيمة العمولة"],
+    ];
+    labels.forEach(([field, text]) => {
+      const label = field?.querySelector(":scope > span");
+      if (label) label.textContent = text;
+    });
+
+    const select = currentForm.elements.commissionStartMode;
+    const autoOption = select.querySelector('option[value="auto"]');
+    const manualOption = select.querySelector('option[value="manual"]');
+    if (autoOption) autoOption.textContent = "آلية";
+    if (manualOption) manualOption.textContent = "يدوية";
+
+    due.type = "date";
+    payment.type = "date";
+    start.type = "date";
+    const isManual = mode(currentForm) === "manual";
+    const currentToday = today();
+    if (!isManual) {
+      due.value = currentToday;
+      payment.value = currentToday;
+    } else if (options.initializeManual !== false) {
+      if (!due.value)
+        due.value = employeeStateDate(
+          "commissionManualDueDate",
+          employeeStateDate("commissionManualPaymentDate", currentToday),
+        );
+      if (!payment.value)
+        payment.value = employeeStateDate(
+          "commissionManualPaymentDate",
+          currentToday,
+        );
+    }
+    setEditable(due, isManual);
+    setEditable(payment, isManual);
+    setEditable(start, false);
+
+    [
+      method,
+      due.closest("label"),
+      start.closest("label"),
+      payment.closest("label"),
+      status.closest("label"),
+      amount.closest("label"),
+      words.closest("label"),
+    ].forEach((field) => field && grid.appendChild(field));
+
+    try {
+      if (employeeFormState) {
+        employeeFormState.commissionStartMode = isManual ? "manual" : "auto";
+        employeeFormState.commissionManualDueDate = isManual ? due.value : "";
+        employeeFormState.commissionManualPaymentDate = isManual
+          ? payment.value
+          : "";
+      }
+    } catch (_) {}
+    return { currentForm, select, due, start, payment, status, amount, words };
+  }
+
+  function updateCommissionV244() {
+    const fields = ensureLayout();
+    if (!fields) return;
+    const {
+      currentForm,
+      due,
+      start,
+      payment,
+      status,
+      amount,
+      words,
+    } = fields;
+    const payButton = document.querySelector("#payCommissionBtn");
+    const allowPayment = (allowed) => {
+      if (!payButton) return;
+      payButton.hidden = !allowed;
+      payButton.disabled = !allowed;
+    };
+    const salary = calculateSalaryFromForm();
+    const employmentStart =
+      currentForm.elements.workStartDate.value ||
+      currentForm.elements.contractStartDate.value;
+    if (
+      !employeeFormState.commissions.length &&
+      !employeeFormState.commissionPausedByLeaveId &&
+      employmentStart
+    )
+      employeeFormState.commissionAccrualStartDate = employmentStart;
+    const accrualStart =
+      employeeFormState.commissionAccrualStartDate ||
+      employmentStart ||
+      start.value;
+    start.value = accrualStart || "";
+
+    if (employeeFormState.commissionPaused) {
+      amount.value = formatNumberEn(0, 2);
+      words.value = "";
+      status.value =
+        employeeFormState.commissionPauseReason || "متوقف بسبب إجازة";
+      allowPayment(false);
+      return ensureLayout({ initializeManual: false });
+    }
+    if (currentForm.elements.status.value !== "active") {
+      amount.value = formatNumberEn(0, 2);
+      words.value = "";
+      status.value = "متوقف لأن حالة العمل ليست على رأس العمل";
+      allowPayment(false);
+      return ensureLayout({ initializeManual: false });
+    }
+
+    const manual = mode(currentForm) === "manual";
+    const dueDate = due.value;
+    const paymentDate = payment.value;
+    if (!accrualStart) {
+      amount.value = formatNumberEn(0, 2);
+      words.value = "";
+      status.value = "أدخل تاريخ المباشرة لبدء الاستحقاق";
+      allowPayment(false);
+      return ensureLayout({ initializeManual: false });
+    }
+    if (manual && (!dueDate || !paymentDate)) {
+      amount.value = formatNumberEn(0, 2);
+      words.value = "";
+      status.value = "أدخل تاريخ الاستحقاق وتاريخ صرف العمولة";
+      allowPayment(false);
+      return ensureLayout({ initializeManual: false });
+    }
+
+    const calculation = calculateCommission(
+      salary.base,
+      accrualStart,
+      dueDate || today(),
+    );
+    amount.value = formatNumberEn(calculation.amount, 2);
+    words.value = calculation.amount ? amountToWords(calculation.amount) : "";
+    status.value =
+      calculation.days > 0
+        ? `نشط من ${formatDate(accrualStart)} حتى ${formatDate(dueDate || today())} - ${arabicNumber(calculation.days)} يوم مستحق`
+        : "تاريخ الاستحقاق يجب أن يكون بعد بداية الاستحقاق";
+    allowPayment(
+      Boolean(
+        accrualStart &&
+          dueDate &&
+          paymentDate &&
+          calculation.days > 0 &&
+          calculation.amount > 0 &&
+          Number(salary.base || 0) > 0,
+      ),
+    );
+    ensureLayout({ initializeManual: false });
+  }
+
+  async function startCommissionPaymentV244() {
+    const fields = ensureLayout();
+    if (!fields) return;
+    updateCommissionV244();
+    const { currentForm, due, start, payment } = fields;
+    const manual = mode(currentForm) === "manual";
+    const dueDate = due.value;
+    const paymentDate = payment.value;
+    if (
+      employeeFormState.commissionPaused ||
+      currentForm.elements.status.value !== "active"
+    )
+      return showToast(
+        "لا يمكن صرف العمولة إلا لموظف على رأس العمل واستحقاقه نشط",
+      );
+    if (!start.value)
+      return showToast(
+        "لا توجد بداية استحقاق. تأكد من تاريخ المباشرة أو بداية العقد",
+      );
+    if (!dueDate)
+      return showToast("أدخل تاريخ استحقاق صرف العمولة");
+    if (!paymentDate)
+      return showToast("أدخل تاريخ صرف العمولة");
+    const salary = calculateSalaryFromForm();
+    const calculation = calculateCommission(
+      salary.base,
+      start.value,
+      dueDate,
+    );
+    if (calculation.days <= 0)
+      return showToast(
+        "تاريخ الاستحقاق يجب أن يكون بعد بداية استحقاق العمولة",
+      );
+    if (calculation.amount <= 0)
+      return showToast(
+        "لا توجد قيمة عمولة مستحقة. تأكد من الراتب الأساسي والتواريخ",
+      );
+    pendingClearance = {
+      id: `commission-${Date.now()}`,
+      startDate: start.value,
+      endDate: dueDate,
+      dueDate,
+      days: calculation.days,
+      amount: calculation.amount,
+      paymentDate: dateToIso(paymentDate),
+      employee: currentFormEmployeeSnapshot(),
+      authType: "signature",
+      source: manual ? "manual-payout-dates" : "automatic-payout",
+      payoutMode: manual ? "manual" : "auto",
+      manualDueDate: manual ? dueDate : "",
+      manualPayoutDate: manual ? paymentDate : "",
+    };
+    const signatureChoice = document.querySelector(
+      '[name="commissionAuth"][value="signature"]',
+    );
+    if (signatureChoice) signatureChoice.checked = true;
+    document.querySelector("#commissionAuthModal")?.showModal();
+  }
+
+  const previousNormalize =
+    typeof normalizeEmployee === "function" ? normalizeEmployee : null;
+  if (previousNormalize && !previousNormalize.__v244CommissionDates) {
+    const wrappedNormalize = function (employee, index) {
+      const normalized = previousNormalize.call(this, employee, index);
+      let state = {};
+      try {
+        state = employeeFormState || {};
+      } catch (_) {}
+      normalized.commissionStartMode =
+        (employee?.commissionStartMode || state.commissionStartMode) ===
+        "manual"
+          ? "manual"
+          : "auto";
+      normalized.commissionManualDueDate =
+        employee?.commissionManualDueDate ||
+        state.commissionManualDueDate ||
+        "";
+      normalized.commissionManualPaymentDate =
+        employee?.commissionManualPaymentDate ||
+        state.commissionManualPaymentDate ||
+        "";
+      return normalized;
+    };
+    wrappedNormalize.__v244CommissionDates = true;
+    try {
+      normalizeEmployee = wrappedNormalize;
+    } catch (_) {}
+    window.normalizeEmployee = wrappedNormalize;
+  }
+
+  function hydrateSavedCommissionDates(employeeId) {
+    const employee = employeeId ? getEmployee(employeeId) : null;
+    const currentForm = form();
+    if (!currentForm) return;
+    const savedMode =
+      employee?.commissionStartMode === "manual" ? "manual" : "auto";
+    currentForm.elements.commissionStartMode.value = savedMode;
+    try {
+      employeeFormState.commissionStartMode = savedMode;
+      employeeFormState.commissionManualDueDate =
+        employee?.commissionManualDueDate ||
+        employee?.commissionManualPaymentDate ||
+        "";
+      employeeFormState.commissionManualPaymentDate =
+        employee?.commissionManualPaymentDate || "";
+    } catch (_) {}
+    const fields = ensureLayout();
+    if (fields && savedMode === "manual") {
+      fields.due.value =
+        employee?.commissionManualDueDate ||
+        employee?.commissionManualPaymentDate ||
+        fields.due.value ||
+        today();
+      fields.payment.value =
+        employee?.commissionManualPaymentDate ||
+        fields.payment.value ||
+        today();
+    }
+    updateCommissionV244();
+  }
+
+  const previousOpen =
+    typeof openEmployeeModal === "function" ? openEmployeeModal : null;
+  if (previousOpen && !previousOpen.__v244CommissionDates) {
+    const wrappedOpen = async function (employeeId) {
+      const result = await previousOpen.apply(this, arguments);
+      hydrateSavedCommissionDates(employeeId);
+      return result;
+    };
+    wrappedOpen.__v244CommissionDates = true;
+    try {
+      openEmployeeModal = wrappedOpen;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpen;
+  }
+
+  const previousIssue =
+    typeof issueClearance === "function" ? issueClearance : null;
+  if (previousIssue && !previousIssue.__v244CommissionDates) {
+    const wrappedIssue = async function () {
+      const result = await previousIssue.apply(this, arguments);
+      ensureLayout();
+      updateCommissionV244();
+      return result;
+    };
+    wrappedIssue.__v244CommissionDates = true;
+    try {
+      issueClearance = wrappedIssue;
+    } catch (_) {}
+    window.issueClearance = wrappedIssue;
+  }
+
+  try {
+    updateCommissionCalculations = updateCommissionV244;
+  } catch (_) {}
+  window.updateCommissionCalculations = updateCommissionV244;
+  try {
+    startCommissionPayment = startCommissionPaymentV244;
+  } catch (_) {}
+  window.startCommissionPayment = startCommissionPaymentV244;
+  window.nawahCommissionV244 = {
+    version: 244,
+    ensureLayout,
+    update: updateCommissionV244,
+    startPayment: startCommissionPaymentV244,
+    hydrateEmployee: hydrateSavedCommissionDates,
+    pending: () =>
+      pendingClearance ? structuredClone(pendingClearance) : null,
+  };
+
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (event.target?.matches?.('[name="commissionStartMode"]')) {
+        const fields = ensureLayout();
+        if (fields && mode(fields.currentForm) === "manual") {
+          if (!fields.due.value) fields.due.value = today();
+          if (!fields.payment.value) fields.payment.value = today();
+        }
+        updateCommissionV244();
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "input",
+    function (event) {
+      if (
+        event.target?.matches?.(
+          '[name="commissionManualPaymentDate"], [name="commissionPaymentDate"]',
+        )
+      ) {
+        try {
+          if (employeeFormState) {
+            employeeFormState.commissionManualDueDate =
+              form()?.elements?.commissionManualPaymentDate?.value || "";
+            employeeFormState.commissionManualPaymentDate =
+              form()?.elements?.commissionPaymentDate?.value || "";
+          }
+        } catch (_) {}
+        updateCommissionV244();
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (
+        event.target?.closest?.(
+          '[data-employee-section="commissions"], #payCommissionBtn',
+        )
+      )
+        setTimeout(function () {
+          ensureLayout();
+          updateCommissionV244();
+        }, 0);
+    },
+    true,
+  );
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(function () {
+      ensureLayout();
+      updateCommissionV244();
+    }, 0);
+  });
 })();
 
 /* v243 - immutable employment dates and cloud-backed contract timeline. */
@@ -70696,4 +71252,47 @@ window.nawahLeaveBalanceReportV185 = {
       });
     }).observe(view, { childList: true });
   }
+})();
+
+/* v244 - absolute final commission lock. */
+(function v244AbsoluteFinalCommissionLock() {
+  if (window.__v244AbsoluteFinalCommissionLock) return;
+  window.__v244AbsoluteFinalCommissionLock = true;
+  const api = window.nawahCommissionV244;
+  if (!api) return;
+
+  try {
+    updateCommissionCalculations = api.update;
+  } catch (_) {}
+  window.updateCommissionCalculations = api.update;
+  try {
+    startCommissionPayment = api.startPayment;
+  } catch (_) {}
+  window.startCommissionPayment = api.startPayment;
+
+  const previousOpen =
+    typeof openEmployeeModal === "function"
+      ? openEmployeeModal
+      : window.openEmployeeModal;
+  if (
+    typeof previousOpen === "function" &&
+    !previousOpen.__v244AbsoluteFinalCommissionLock
+  ) {
+    const wrappedOpen = async function (employeeId) {
+      const result = await previousOpen.apply(this, arguments);
+      api.hydrateEmployee(employeeId || "");
+      setTimeout(() => api.hydrateEmployee(employeeId || ""), 140);
+      return result;
+    };
+    wrappedOpen.__v244AbsoluteFinalCommissionLock = true;
+    try {
+      openEmployeeModal = wrappedOpen;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpen;
+  }
+
+  setTimeout(function () {
+    api.ensureLayout();
+    api.update();
+  }, 0);
 })();

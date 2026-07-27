@@ -20042,3 +20042,442 @@ html.has-initial-login-bg .auth-gate,
   background: #f4f7f8 !important;
   color: #475569 !important;
 }
+
+/* Commission editor and clearance — v244 */
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-layout-v244 {
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  align-items: end !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-layout-v244
+  > label {
+  display: flex !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-method-v244,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-due-v244,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-start-v244,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-payment-v244 {
+  grid-column: span 3 !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-status-v244,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-amount-v244,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-words-v244 {
+  grid-column: span 4 !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-layout-v244
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-layout-v244
+  select {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-layout-v244
+  input.manual-field {
+  border-color: rgba(18, 148, 184, 0.65) !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 3px rgba(18, 148, 184, 0.08) !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-layout-v244
+  input[readonly] {
+  cursor: not-allowed;
+}
+
+.commission-auth-choice-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.clearance-modal {
+  width: min(980px, calc(100vw - 28px)) !important;
+}
+
+.clearance-sheet-v244 {
+  width: 100%;
+  padding: 22px;
+  color: #172033;
+  border: 1px solid #d9e6ec;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.clearance-report-head-v244 {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 210px !important;
+  gap: 16px !important;
+  align-items: center !important;
+  margin: 0 0 14px !important;
+  padding: 14px 16px !important;
+  border: 1px solid #d8edf0 !important;
+  border-right: 5px solid #13a8bf !important;
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, #f7fcfd, #f0fbf6) !important;
+}
+
+.clearance-brand-v244 {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+}
+
+.clearance-logo-frame-v244 {
+  display: flex !important;
+  width: 72px !important;
+  height: 72px !important;
+  min-width: 72px !important;
+  flex: 0 0 72px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 6px !important;
+  overflow: hidden !important;
+  border: 1px solid #d8e7ed !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+}
+
+.clearance-logo-frame-v244 img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  object-fit: contain !important;
+}
+
+.clearance-brand-copy-v244 {
+  min-width: 0;
+}
+
+.clearance-brand-copy-v244 > span,
+.clearance-document-id-v244 > span {
+  display: block;
+  color: #1296ad;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.clearance-brand-copy-v244 h1 {
+  margin: 4px 0;
+  color: #0d7188;
+  font-size: 21px;
+}
+
+.clearance-brand-copy-v244 p {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.clearance-document-id-v244 {
+  padding: 12px;
+  border: 1px solid #e3edf1;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.9);
+  text-align: center;
+}
+
+.clearance-document-id-v244 strong {
+  display: block;
+  margin: 5px 0;
+  color: #102a43;
+  font-size: 14px;
+}
+
+.clearance-document-id-v244 small {
+  color: #64748b;
+  font-size: 9px;
+}
+
+.clearance-hero-v244 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 13px;
+  padding: 17px 19px;
+  border-radius: 16px;
+  background: linear-gradient(110deg, #083f4b, #0b6b69);
+  color: #fff;
+}
+
+.clearance-kicker-v244 {
+  color: #8be7dd;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.clearance-sheet-v244 .clearance-title {
+  margin: 4px 0;
+  color: #fff;
+  font-size: 22px;
+  text-align: right;
+}
+
+.clearance-sheet-v244 .clearance-subtitle {
+  margin: 0;
+  color: #d8f3f0;
+  font-size: 10px;
+  text-align: right;
+}
+
+.clearance-amount-v244 {
+  padding: 11px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.09);
+  text-align: center;
+}
+
+.clearance-amount-v244 span,
+.clearance-amount-v244 small {
+  display: block;
+  color: #d8f3f0;
+  font-size: 9px;
+}
+
+.clearance-amount-v244 strong {
+  display: block;
+  margin: 5px 0;
+  color: #fff;
+  font-size: 21px;
+}
+
+.clearance-sheet-v244 .clearance-section {
+  margin-top: 11px;
+}
+
+.clearance-sheet-v244 .clearance-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 7px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #dbe7ec;
+  color: #0d7188;
+  font-size: 11px;
+}
+
+.clearance-sheet-v244 .clearance-section h4 > span {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #e5f7f8;
+  color: #0e8497;
+  font-size: 8px;
+}
+
+.clearance-sheet-v244 .clearance-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.clearance-sheet-v244 .clearance-grid > div {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #e3edf1;
+  border-radius: 9px;
+  background: #f7fafb;
+}
+
+.clearance-sheet-v244 .clearance-grid .clearance-wide {
+  grid-column: 1 / -1;
+}
+
+.clearance-sheet-v244 .clearance-grid span {
+  display: block;
+  color: #718096;
+  font-size: 8px;
+}
+
+.clearance-sheet-v244 .clearance-grid strong {
+  display: block;
+  margin-top: 3px;
+  color: #172033;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.clearance-sections-row-v244 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.clearance-sheet-v244 .clearance-grid-2-v244 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.clearance-sheet-v244 .clearance-declaration {
+  margin: 12px 0 10px;
+  padding: 11px 13px;
+  border: 1px solid #bfe9df;
+  border-radius: 11px;
+  background: #f0fdfa;
+  color: #275a59;
+  font-size: 9px;
+  line-height: 1.8;
+}
+
+.clearance-auth-v244 {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 11px !important;
+  min-height: 0 !important;
+  margin-top: 10px !important;
+  align-items: stretch !important;
+  text-align: center !important;
+}
+
+.clearance-auth-card-v244 {
+  display: flex !important;
+  min-height: 142px !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 5px !important;
+  padding: 11px 12px !important;
+  border: 1px solid #dbe8ed !important;
+  border-top: 4px solid #13a8bf !important;
+  border-radius: 13px !important;
+  background: #fbfdfe !important;
+}
+
+.clearance-auth-role-v244 {
+  display: block;
+  color: #0d7188;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.clearance-auth-name-v244 {
+  display: block;
+  min-height: 18px;
+  margin: 0 !important;
+  color: #172033;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.clearance-auth-label-v244 {
+  display: block;
+  color: #64748b;
+  font-size: 9px;
+}
+
+.clearance-auth-asset-v244 {
+  display: flex;
+  width: 100%;
+  height: 76px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.clearance-auth-asset-v244 img {
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: 160px !important;
+  max-height: 70px !important;
+  margin: 0 auto !important;
+  object-fit: contain !important;
+}
+
+.clearance-auth-asset-v244 > span {
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.clearance-stamp-asset-v244 img {
+  max-width: 110px !important;
+  max-height: 72px !important;
+}
+
+@media (max-width: 900px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-field-method-v244,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-field-due-v244,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-field-start-v244,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-field-payment-v244,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-field-status-v244,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-field-amount-v244,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-field-words-v244 {
+    grid-column: span 6 !important;
+  }
+
+  .clearance-report-head-v244,
+  .clearance-hero-v244,
+  .clearance-sections-row-v244 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 620px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-layout-v244
+    > label {
+    grid-column: 1 / -1 !important;
+  }
+
+  .commission-auth-choice-grid,
+  .clearance-auth-v244,
+  .clearance-sheet-v244 .clearance-grid,
+  .clearance-sheet-v244 .clearance-grid-2-v244 {
+    grid-template-columns: 1fr !important;
+  }
+}
