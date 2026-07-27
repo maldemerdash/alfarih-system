@@ -20029,3 +20029,16 @@ html.has-initial-login-bg .auth-gate,
   background: #ef4444 !important;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.13) !important;
 }
+
+/* Contract timeline — v243 */
+.contract-extension-kind.is-initial {
+  color: #0f766e !important;
+  background: rgba(20, 184, 166, 0.12) !important;
+  border-color: rgba(13, 148, 136, 0.24) !important;
+}
+
+.contract-date-field.is-contract-date-locked input {
+  cursor: not-allowed;
+  background: #f4f7f8 !important;
+  color: #475569 !important;
+}

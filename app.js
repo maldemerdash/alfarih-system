@@ -4705,9 +4705,15 @@ async function handleEmployeeSubmit(e) {
         ["teal", "blue", "violet", "amber", "rose"][employees.length % 5],
       attendance: d?.attendance ?? ("active" === n.status ? "08:00" : null),
     });
+  if (window.nawahContractAutomationV243?.prepareForSave) {
+    const preparedContractV243 =
+      window.nawahContractAutomationV243.prepareForSave(y, d);
+    if (preparedContractV243) Object.assign(y, preparedContractV243);
+  }
   ((employees = d
     ? employees.map((e) => (e.id === y.id ? y : e))
     : [y, ...employees]),
+    window.nawahEmployeeContractSyncV238?.trackUpserts?.([y.id]),
     await dbSaveEmployee(y),
     "function" == typeof window.persistEmployeeStateV179
       ? await window.persistEmployeeStateV179("employee-save")
@@ -29382,7 +29388,7 @@ async function init() {
         ((e.id = "contractExtensionPanel"),
           (e.className = "contract-extension-panel span-all"),
           (e.innerHTML =
-            '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يعتمد تاريخ نهاية العقد الحالي على آخر تمديد دون تغيير تاريخ العقد الأساسي.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>النهاية السابقة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>نوع التمديد</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>'),
+            '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يبدأ السجل من تاريخ المباشرة، وتُضاف فترات التجديد التلقائي بترتيبها الزمني.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>بداية الفترة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>نوع التمديد</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>'),
           a.closest("label")?.insertAdjacentElement("afterend", e));
       }
       const o = e.elements?.commissionStartDate;
@@ -29422,11 +29428,25 @@ async function init() {
       t.innerHTML = a.length
         ? a
             .map((e) => {
-              const automatic =
-                e?.automatic === !0 ||
-                e?.kind === "automatic" ||
-                e?.source === "auto-renewal-v238";
-              return `<tr><td class="latin-number">${n(i(e.previousEndDate))}</td><td>${s(e.months || 0)} شهر</td><td class="latin-number">${n(i(e.newEndDate))}</td><td><span class="contract-extension-kind${automatic ? " is-automatic" : ""}">${automatic ? "تجديد آلي" : "تمديد يدوي"}</span></td><td class="latin-number">${n(i(e.extendedAt ? String(e.extendedAt).slice(0, 10) : ""))}</td></tr>`;
+              const initial =
+                  e?.kind === "initial" ||
+                  e?.source === "contract-period-v243",
+                automatic =
+                  !initial &&
+                  (e?.automatic === !0 ||
+                    e?.kind === "automatic" ||
+                    String(e?.source || "").startsWith("auto-renewal-")),
+                kindClass = initial
+                  ? " is-initial"
+                  : automatic
+                    ? " is-automatic"
+                    : "",
+                kindLabel = initial
+                  ? "الفترة الأساسية"
+                  : automatic
+                    ? "تجديد آلي"
+                    : "تمديد يدوي";
+              return `<tr><td class="latin-number">${n(i(e.periodStartDate || e.previousEndDate))}</td><td>${s(e.months || 0)} شهر</td><td class="latin-number">${n(i(e.newEndDate))}</td><td><span class="contract-extension-kind${kindClass}">${kindLabel}</span></td><td class="latin-number">${n(i(e.extendedAt ? String(e.extendedAt).slice(0, 10) : ""))}</td></tr>`;
             })
             .join("")
         : '<tr><td colspan="5"><div class="employee-note-empty">لا توجد تمديدات مسجلة.</div></td></tr>';
@@ -31442,6 +31462,543 @@ async function init() {
         "dashboard",
     );
   }, 250);
+})();
+
+/* v243 - immutable employment dates and cloud-backed contract timeline. */
+(function v243ContractTimelineAndPersistence() {
+  if (window.__v243ContractTimelineAndPersistence) return;
+  window.__v243ContractTimelineAndPersistence = true;
+
+  const DAY_MS_V243 = 86400000;
+  const GENERATED_SOURCES_V243 = new Set([
+    "auto-renewal-v238",
+    "auto-renewal-v243",
+    "contract-period-v243",
+  ]);
+  let processInFlightV243 = false;
+  let lastProcessAtV243 = 0;
+  let dailyTimerV243 = 0;
+
+  function employeeListV243() {
+    try {
+      return Array.isArray(employees) ? employees : [];
+    } catch (_) {
+      return Array.isArray(window.employees) ? window.employees : [];
+    }
+  }
+
+  function employeeByIdV243(id) {
+    const value = String(id || "");
+    if (!value) return null;
+    try {
+      if (typeof getEmployee === "function") return getEmployee(value);
+    } catch (_) {}
+    return (
+      employeeListV243().find(
+        (employee) => String(employee?.id || "") === value,
+      ) || null
+    );
+  }
+
+  function parseDateV243(value) {
+    const match = String(value || "")
+      .slice(0, 10)
+      .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const date = new Date(
+      Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+    );
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function dateInputV243(value) {
+    return value instanceof Date && !Number.isNaN(value.getTime())
+      ? value.toISOString().slice(0, 10)
+      : "";
+  }
+
+  function todayV243() {
+    try {
+      return formatInputDate(todayAtNoon());
+    } catch (_) {
+      const date = new Date();
+      date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+      return date.toISOString().slice(0, 10);
+    }
+  }
+
+  function addDaysV243(value, days) {
+    const date = parseDateV243(value);
+    if (!date) return "";
+    date.setUTCDate(date.getUTCDate() + Number(days || 0));
+    return dateInputV243(date);
+  }
+
+  function addMonthsV243(value, months) {
+    const date = parseDateV243(value);
+    if (!date) return "";
+    const originalDay = date.getUTCDate();
+    date.setUTCDate(1);
+    date.setUTCMonth(date.getUTCMonth() + Number(months || 0));
+    const lastDay = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+    date.setUTCDate(Math.min(originalDay, lastDay));
+    return dateInputV243(date);
+  }
+
+  function periodEndV243(startDate, months) {
+    const nextStart = addMonthsV243(startDate, months);
+    return nextStart ? addDaysV243(nextStart, -1) : "";
+  }
+
+  function safeIdV243(value) {
+    return String(value || "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80);
+  }
+
+  function extensionListV243(employee) {
+    return Array.isArray(employee?.contractExtensions)
+      ? employee.contractExtensions.filter(Boolean).map((row) => ({ ...row }))
+      : [];
+  }
+
+  function isGeneratedExtensionV243(extension) {
+    return (
+      GENERATED_SOURCES_V243.has(String(extension?.source || "")) ||
+      extension?.kind === "initial"
+    );
+  }
+
+  function buildContractTimelineV243(employee, today = todayV243()) {
+    if (
+      !employee ||
+      employee.contractType !== "fixed" ||
+      employee.status === "terminated"
+    )
+      return { ...employee };
+
+    const months = Math.floor(Number(employee.contractMonths || 0)),
+      anchor =
+        String(employee.workStartDate || employee.contractStartDate || "").slice(
+          0,
+          10,
+        ),
+      todayDate = parseDateV243(today);
+    if (months < 1 || !parseDateV243(anchor) || !todayDate)
+      return { ...employee };
+
+    const existing = extensionListV243(employee),
+      priorGeneratedByEnd = new Map(
+        existing
+          .filter(isGeneratedExtensionV243)
+          .map((extension) => [
+            String(extension.newEndDate || ""),
+            extension,
+          ]),
+      ),
+      manualExtensions = existing
+        .filter((extension) => !isGeneratedExtensionV243(extension))
+        .map((extension) => ({
+          ...extension,
+          periodStartDate:
+            extension.periodStartDate ||
+            addDaysV243(extension.previousEndDate, 1) ||
+            extension.previousEndDate ||
+            "",
+        })),
+      executedAt = new Date().toISOString(),
+      automaticRenewal =
+        employee.autoRenewContract === true &&
+        String(employee.renewalOption || "") === "same",
+      generated = [];
+
+    let periodStart = anchor,
+      previousEnd = "",
+      guard = 0;
+    while (guard < 600 && parseDateV243(periodStart)) {
+      const newEndDate = periodEndV243(periodStart, months);
+      if (!newEndDate) break;
+      const initial = guard === 0,
+        prior = priorGeneratedByEnd.get(newEndDate) || {},
+        automatic = !initial;
+      generated.push({
+        ...prior,
+        id: initial
+          ? `contract-base-${safeIdV243(employee.id)}-${periodStart}-${months}`
+          : `contract-auto-${safeIdV243(employee.id)}-${periodStart}-${months}`,
+        periodStartDate: periodStart,
+        previousEndDate: initial ? periodStart : previousEnd,
+        months,
+        newEndDate,
+        extendedAt:
+          prior.extendedAt ||
+          employee.contractDatesLockedAt ||
+          executedAt,
+        extendedBy: initial
+          ? prior.extendedBy || "النظام"
+          : prior.extendedBy || "النظام",
+        kind: initial ? "initial" : "automatic",
+        automatic,
+        source: initial ? "contract-period-v243" : "auto-renewal-v243",
+      });
+      if (!automaticRenewal || newEndDate >= today) break;
+      previousEnd = newEndDate;
+      periodStart = addDaysV243(newEndDate, 1);
+      guard += 1;
+    }
+
+    const contractExtensions = [...generated, ...manualExtensions].sort(
+        (left, right) =>
+          String(
+            left.periodStartDate || left.previousEndDate || left.newEndDate || "",
+          ).localeCompare(
+            String(
+              right.periodStartDate ||
+                right.previousEndDate ||
+                right.newEndDate ||
+                "",
+            ),
+          ) ||
+          String(left.newEndDate || "").localeCompare(
+            String(right.newEndDate || ""),
+          ),
+      ),
+      generatedEnd = generated.at(-1)?.newEndDate || "",
+      manualEnd = manualExtensions
+        .map((extension) => String(extension.newEndDate || ""))
+        .filter(Boolean)
+        .sort()
+        .at(-1),
+      currentEnd = [generatedEnd, manualEnd || ""].filter(Boolean).sort().at(-1) || "",
+      hasAutomaticPeriod = generated.some(
+        (extension) => extension.kind === "automatic",
+      ),
+      lockedAt =
+        employee.contractDatesLockedAt ||
+        (employee.id && employee.contractStartDate && employee.workStartDate
+          ? executedAt
+          : "");
+
+    return {
+      ...employee,
+      autoRenewContract: employee.autoRenewContract === true,
+      contractDatesLockedAt: lockedAt,
+      contractPeriodAnchor: anchor,
+      contractTimelineVersion: 243,
+      contractExtensions,
+      renewedContractEndDate: currentEnd,
+      contractCurrentEndDate: currentEnd,
+      lastAutoRenewedAt: hasAutomaticPeriod
+        ? employee.lastAutoRenewedAt || executedAt
+        : employee.lastAutoRenewedAt || "",
+    };
+  }
+
+  function prepareEmployeeForSaveV243(employee, existingEmployee) {
+    if (!employee) return employee;
+    const lockedContractStartDate =
+        existingEmployee?.contractStartDate ||
+        employee.contractStartDate ||
+        "",
+      lockedWorkStartDate =
+        existingEmployee?.workStartDate ||
+        employee.workStartDate ||
+        lockedContractStartDate ||
+        "";
+    return buildContractTimelineV243({
+      ...employee,
+      contractStartDate: lockedContractStartDate,
+      workStartDate: lockedWorkStartDate,
+      joinDate: existingEmployee?.joinDate || employee.joinDate || lockedContractStartDate,
+      autoRenewContract: employee.autoRenewContract === true,
+      contractDatesLockedAt:
+        existingEmployee?.contractDatesLockedAt ||
+        employee.contractDatesLockedAt ||
+        (employee.id && lockedContractStartDate && lockedWorkStartDate
+          ? new Date().toISOString()
+          : ""),
+    });
+  }
+
+  function contractStateChangedV243(previous, next) {
+    return (
+      Boolean(previous?.autoRenewContract) !==
+        Boolean(next?.autoRenewContract) ||
+      String(previous?.contractDatesLockedAt || "") !==
+        String(next?.contractDatesLockedAt || "") ||
+      String(previous?.contractPeriodAnchor || "") !==
+        String(next?.contractPeriodAnchor || "") ||
+      Number(previous?.contractTimelineVersion || 0) !==
+        Number(next?.contractTimelineVersion || 0) ||
+      String(previous?.renewedContractEndDate || "") !==
+        String(next?.renewedContractEndDate || "") ||
+      JSON.stringify(extensionListV243(previous)) !==
+        JSON.stringify(extensionListV243(next))
+    );
+  }
+
+  function formatHistoryDateV243(value) {
+    try {
+      if (typeof formatDate === "function") return formatDate(value);
+    } catch (_) {}
+    return String(value || "—");
+  }
+
+  function escapeHistoryV243(value) {
+    try {
+      if (typeof escapeHtml === "function") return escapeHtml(value);
+    } catch (_) {}
+    const node = document.createElement("div");
+    node.textContent = String(value ?? "");
+    return node.innerHTML;
+  }
+
+  function renderContractTimelineV243() {
+    const form = document.querySelector("#employeeForm"),
+      panel = form?.querySelector("#contractExtensionPanel"),
+      body = form?.querySelector("#contractExtensionsBody");
+    if (!panel || !body) return;
+    const heading = panel.querySelector(".contract-extension-head small");
+    if (heading)
+      heading.textContent =
+        "يبدأ السجل من تاريخ المباشرة، وتُضاف فترات التجديد التلقائي بترتيبها الزمني.";
+    const firstHeading = panel.querySelector("thead th:first-child");
+    if (firstHeading) firstHeading.textContent = "بداية الفترة";
+
+    let rows = [];
+    try {
+      rows = Array.isArray(employeeFormState?.contractExtensions)
+        ? employeeFormState.contractExtensions
+        : [];
+    } catch (_) {}
+    body.innerHTML = rows.length
+      ? rows
+          .map((row) => {
+            const initial =
+                row?.kind === "initial" ||
+                row?.source === "contract-period-v243",
+              automatic =
+                !initial &&
+                (row?.automatic === true ||
+                  row?.kind === "automatic" ||
+                  String(row?.source || "").startsWith("auto-renewal-")),
+              kindClass = initial
+                ? " is-initial"
+                : automatic
+                  ? " is-automatic"
+                  : "",
+              kindLabel = initial
+                ? "الفترة الأساسية"
+                : automatic
+                  ? "تجديد آلي"
+                  : "تمديد يدوي";
+            return `<tr><td class="latin-number">${escapeHistoryV243(
+              formatHistoryDateV243(
+                row.periodStartDate || row.previousEndDate,
+              ),
+            )}</td><td>${escapeHistoryV243(row.months || 0)} شهر</td><td class="latin-number">${escapeHistoryV243(
+              formatHistoryDateV243(row.newEndDate),
+            )}</td><td><span class="contract-extension-kind${kindClass}">${kindLabel}</span></td><td class="latin-number">${escapeHistoryV243(
+              formatHistoryDateV243(
+                row.extendedAt ? String(row.extendedAt).slice(0, 10) : "",
+              ),
+            )}</td></tr>`;
+          })
+          .join("")
+      : '<tr><td colspan="5"><div class="employee-note-empty">لا توجد مدد عقد مسجلة.</div></td></tr>';
+  }
+
+  function lockDateFieldV243(form, employee, fieldName) {
+    const input = form?.elements?.[fieldName],
+      value = employee?.[fieldName] || "",
+      label = form?.querySelector(
+        `[data-contract-lock-field="${fieldName}"]`,
+      ),
+      locked = Boolean(employee?.id && value);
+    if (!input) return;
+    if (locked) input.value = value;
+    input.readOnly = locked;
+    input.setAttribute("aria-readonly", String(locked));
+    input.dataset.contractDateLockedV243 = locked ? "1" : "0";
+    input.title = locked
+      ? "هذا التاريخ مثبّت بعد الحفظ الأول ولا يمكن تعديله"
+      : "";
+    label?.classList.toggle("is-contract-date-locked", locked);
+  }
+
+  function applyFormIntegrityV243(employeeId) {
+    const form = document.querySelector("#employeeForm");
+    if (!form) return;
+    const id = employeeId || form.elements?.employeeId?.value || "",
+      employee = employeeByIdV243(id);
+    if (!employee) return;
+    lockDateFieldV243(form, employee, "contractStartDate");
+    lockDateFieldV243(form, employee, "workStartDate");
+    if (form.elements?.autoRenewContract)
+      form.elements.autoRenewContract.checked =
+        employee.autoRenewContract === true;
+    try {
+      if (employeeFormState)
+        employeeFormState.contractExtensions = extensionListV243(employee);
+    } catch (_) {}
+    try {
+      if (typeof window.ensureContractExtensionPanel === "function")
+        window.ensureContractExtensionPanel();
+    } catch (_) {}
+    renderContractTimelineV243();
+  }
+
+  async function syncEmployeeListV243(list) {
+    try {
+      employees = list;
+    } catch (_) {}
+    window.employees = list;
+    try {
+      localStorage.setItem("nawah-employees", JSON.stringify(list));
+    } catch (_) {}
+    try {
+      if (typeof syncEmployeeLocalCache === "function")
+        await syncEmployeeLocalCache(list);
+    } catch (_) {}
+  }
+
+  async function processContractTimelinesV243(options = {}) {
+    if (processInFlightV243) return false;
+    if (
+      document.querySelector("#employeeModal[open]") ||
+      (!options.force && Date.now() - lastProcessAtV243 < 5000) ||
+      !window.__nawahEmployeesReady
+    )
+      return false;
+    processInFlightV243 = true;
+    lastProcessAtV243 = Date.now();
+    const sync = window.nawahEmployeeContractSyncV238;
+    try {
+      const localNeedsUpdate = employeeListV243().some((employee) => {
+        const next = prepareEmployeeForSaveV243(employee, employee);
+        return contractStateChangedV243(employee, next);
+      });
+      if (!localNeedsUpdate) return true;
+      if (!sync?.prepare || !(await sync.prepare())) return false;
+      const current = employeeListV243(),
+        replacements = new Map();
+      current.forEach((employee) => {
+        const next = prepareEmployeeForSaveV243(employee, employee);
+        if (contractStateChangedV243(employee, next))
+          replacements.set(String(employee.id), next);
+      });
+      if (!replacements.size) return true;
+      const nextList = current.map(
+        (employee) =>
+          replacements.get(String(employee?.id || "")) || employee,
+      );
+      await syncEmployeeListV243(nextList);
+      sync.trackUpserts?.(Array.from(replacements.keys()));
+      const saved = await sync.save("employee-contract-timeline-v243");
+      if (saved === false) throw new Error("contract-timeline-cloud-save-failed");
+      try {
+        if (typeof renderAll === "function") renderAll();
+      } catch (_) {}
+      return true;
+    } catch (error) {
+      try {
+        await sync?.rollback?.();
+      } catch (_) {}
+      console.warn("v243: تعذر تأكيد سجل مدد العقود سحابيًا.", error);
+      return false;
+    } finally {
+      processInFlightV243 = false;
+    }
+  }
+
+  function scheduleDailyV243() {
+    clearTimeout(dailyTimerV243);
+    const now = new Date(),
+      next = new Date(now.getTime());
+    next.setDate(next.getDate() + 1);
+    next.setHours(0, 10, 0, 0);
+    dailyTimerV243 = setTimeout(async () => {
+      await processContractTimelinesV243({ force: true });
+      scheduleDailyV243();
+    }, Math.max(60000, next.getTime() - now.getTime()));
+  }
+
+  const previousEnsurePanelV243 = window.ensureContractExtensionPanel;
+  if (
+    typeof previousEnsurePanelV243 === "function" &&
+    !previousEnsurePanelV243.__v243TimelineRenderer
+  ) {
+    const wrappedEnsurePanelV243 = function () {
+      const result = previousEnsurePanelV243.apply(this, arguments);
+      renderContractTimelineV243();
+      return result;
+    };
+    wrappedEnsurePanelV243.__v243TimelineRenderer = true;
+    window.ensureContractExtensionPanel = wrappedEnsurePanelV243;
+  }
+
+  const modalV243 = document.querySelector("#employeeModal");
+  if (modalV243 && typeof MutationObserver === "function")
+    new MutationObserver(() => {
+      if (!modalV243.open && !modalV243.hasAttribute("open")) return;
+      const id =
+        document.querySelector("#employeeForm")?.elements?.employeeId?.value ||
+        "";
+      queueMicrotask(() => applyFormIntegrityV243(id));
+      setTimeout(() => applyFormIntegrityV243(id), 140);
+      setTimeout(() => applyFormIntegrityV243(id), 480);
+    }).observe(modalV243, {
+      attributes: true,
+      attributeFilter: ["open"],
+    });
+
+  document.addEventListener(
+    "input",
+    (event) => {
+      const input = event.target;
+      if (
+        !input?.matches?.(
+          '#employeeForm [name="contractStartDate"], #employeeForm [name="workStartDate"]',
+        ) ||
+        input.dataset.contractDateLockedV243 !== "1"
+      )
+        return;
+      const employee = employeeByIdV243(
+        document.querySelector("#employeeForm")?.elements?.employeeId?.value,
+      );
+      if (employee?.[input.name]) input.value = employee[input.name];
+    },
+    true,
+  );
+
+  window.nawahContractAutomationV243 = {
+    version: 243,
+    buildTimeline: buildContractTimelineV243,
+    prepareForSave: prepareEmployeeForSaveV243,
+    applyFormIntegrity: applyFormIntegrityV243,
+    renderHistory: renderContractTimelineV243,
+    run: (options) =>
+      processContractTimelinesV243({ ...(options || {}), force: true }),
+  };
+
+  setTimeout(processContractTimelinesV243, 900);
+  setTimeout(
+    () => processContractTimelinesV243({ force: true }),
+    3800,
+  );
+  window.addEventListener("focus", () =>
+    setTimeout(processContractTimelinesV243, 180),
+  );
+  window.addEventListener("online", () =>
+    setTimeout(
+      () => processContractTimelinesV243({ force: true }),
+      180,
+    ),
+  );
+  scheduleDailyV243();
 })();
 
 /* v229 - stable visible screens: dedupe identical redraws without changing cloud persistence. */
@@ -59183,6 +59740,11 @@ window.nawahPrivateAlerts = {
     setValue(form, "nationality", employee.nationality || "سعودي");
     setValue(form, "gender", employee.gender || "male");
     setValue(form, "contractType", employee.contractType || "unlimited");
+    setValue(
+      form,
+      "autoRenewContract",
+      Boolean(employee.autoRenewContract),
+    );
     const insurance = inputByName(form, "insuranceEnabled");
     if (insurance) insurance.checked = Boolean(employee.insuranceEnabled);
     call(refreshEmployeeOrgOptions, [
@@ -66106,21 +66668,35 @@ window.nawahLeaveBalanceReportV185 = {
     body.innerHTML = rows.length
       ? rows
           .map(function (row) {
-            const automatic =
-              row?.automatic === true ||
-              row?.kind === "automatic" ||
-              row?.source === "auto-renewal-v238";
+            const initial =
+                row?.kind === "initial" ||
+                row?.source === "contract-period-v243",
+              automatic =
+                !initial &&
+                (row?.automatic === true ||
+                  row?.kind === "automatic" ||
+                  String(row?.source || "").startsWith("auto-renewal-")),
+              kindClass = initial
+                ? " is-initial"
+                : automatic
+                  ? " is-automatic"
+                  : "",
+              kindLabel = initial
+                ? "الفترة الأساسية"
+                : automatic
+                  ? "تجديد آلي"
+                  : "تمديد يدوي";
             return (
               '<tr><td class="latin-number">' +
-              esc(dateLabel(row.previousEndDate)) +
+              esc(dateLabel(row.periodStartDate || row.previousEndDate)) +
               "</td><td>" +
               esc(row.months || 0) +
               ' شهر</td><td class="latin-number">' +
               esc(dateLabel(row.newEndDate)) +
               '</td><td><span class="contract-extension-kind' +
-              (automatic ? " is-automatic" : "") +
+              kindClass +
               '">' +
-              (automatic ? "تجديد آلي" : "تمديد يدوي") +
+              kindLabel +
               '</span></td><td class="latin-number">' +
               esc(dateLabel(row.extendedAt ? String(row.extendedAt).slice(0, 10) : "")) +
               "</td></tr>"
@@ -66140,7 +66716,7 @@ window.nawahLeaveBalanceReportV185 = {
       panel.id = "contractExtensionPanel";
       panel.className = "contract-extension-panel span-all";
       panel.innerHTML =
-        '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يعتمد تاريخ نهاية العقد الحالي على آخر تمديد دون تغيير تاريخ العقد الأساسي.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>النهاية السابقة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>نوع التمديد</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>';
+        '<div class="contract-extension-head"><div><strong>سجل تمديدات العقد</strong><small>يبدأ السجل من تاريخ المباشرة، وتُضاف فترات التجديد التلقائي بترتيبها الزمني.</small></div><button type="button" class="secondary-btn" id="extendContractBtn">تمديد</button></div><div class="table-wrap"><table class="compact-data-table"><thead><tr><th>بداية الفترة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>نوع التمديد</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>';
       form.elements.contractRemaining.closest("label")?.insertAdjacentElement("afterend", panel);
 	    }
 	    renderContractExtensionsBody();
@@ -69773,6 +70349,7 @@ window.nawahLeaveBalanceReportV185 = {
   }
 
   async function processAutomaticRenewalsV238(options = {}) {
+    if (window.nawahContractAutomationV243?.version >= 243) return true;
     if (renewalInFlight) return false;
     if (
       document.querySelector("#employeeModal[open]") ||
