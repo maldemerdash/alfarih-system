@@ -31704,6 +31704,18 @@ async function init() {
     payment.type = "date";
     start.type = "date";
     const isManual = mode(currentForm) === "manual";
+    const modeBadge = currentForm.querySelector(
+      '[data-section-panel="commissions"] .commission-live-badge-v256',
+    );
+    const workspace = currentForm.querySelector(
+      '[data-section-panel="commissions"]',
+    );
+    if (modeBadge) {
+      modeBadge.textContent = isManual ? "احتساب يدوي" : "احتساب آلي";
+      modeBadge.classList.toggle("is-manual", isManual);
+    }
+    if (workspace)
+      workspace.dataset.commissionMode = isManual ? "manual" : "auto";
     const currentToday = today();
     if (!isManual) {
       due.value = currentToday;

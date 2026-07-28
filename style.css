@@ -24020,3 +24020,533 @@ html.has-initial-login-bg .auth-gate,
     grid-template-columns: 1fr;
   }
 }
+
+/* v256 — Commission workspace */
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"].commission-workspace-v256 {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"].commission-workspace-v256.active {
+  display: flex;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-page-head-v256 {
+  position: relative;
+  min-height: 78px;
+  overflow: hidden;
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid #d9e9ec;
+  border-radius: 17px;
+  background:
+    radial-gradient(
+      circle at 88% -35%,
+      rgba(34, 151, 197, 0.17),
+      transparent 38%
+    ),
+    linear-gradient(135deg, #f1fbfc, #fff 68%);
+  box-shadow: 0 8px 24px rgba(15, 65, 78, 0.055);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-page-head-v256::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #2297c5, #14b8a6, #22c55e);
+  content: "";
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-page-icon-v256 {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  flex: 0 0 43px;
+  place-items: center;
+  border: 1px solid #bce4e4;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #e6f7fb, #e6faef);
+  color: #087d87;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-page-icon-v256
+  svg {
+  width: 20px;
+  height: 20px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-page-head-v256
+  h3 {
+  color: #0b7280;
+  font-size: 15px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-page-head-v256
+  p {
+  color: #72858c;
+  font-size: 7px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-pay-btn-v256 {
+  position: static;
+  display: inline-flex;
+  width: auto;
+  min-width: 122px;
+  height: 40px;
+  min-height: 40px;
+  margin-inline-start: auto;
+  padding: 0 15px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #169fc0, #19bd78);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(21, 165, 159, 0.2);
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-pay-btn-v256[hidden] {
+  display: none !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-pay-btn-v256:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 21px rgba(21, 165, 159, 0.25);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-pay-btn-v256
+  svg {
+  width: 17px;
+  height: 17px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-cards-v256 {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-card-v256 {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dce9ec;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 65, 78, 0.05);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-card-v256::before {
+  position: absolute;
+  z-index: 3;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #2297c5, #14b8a6, #22c55e);
+  content: "";
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-card-head-v256 {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #e5edef;
+  background: linear-gradient(135deg, #f7fbfc, #fff);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-card-icon-v256 {
+  display: grid;
+  width: 39px;
+  height: 39px;
+  flex: 0 0 39px;
+  place-items: center;
+  border: 1px solid #cae8e7;
+  border-radius: 12px;
+  background: #eaf8f7;
+  color: #0a8388;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-card-icon-v256
+  svg {
+  width: 18px;
+  height: 18px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-card-head-v256
+  > div {
+  min-width: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-card-head-v256
+  h4,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-title-v256
+  h4 {
+  margin: 0;
+  color: #263d44;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-card-head-v256
+  p,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-title-v256
+  p {
+  margin: 4px 0 0;
+  color: #7b8d93;
+  font-size: 7px;
+  line-height: 1.65;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-live-badge-v256 {
+  display: inline-flex;
+  min-height: 27px;
+  margin-inline-start: auto;
+  padding: 0 10px;
+  align-items: center;
+  border: 1px solid #b9e5d5;
+  border-radius: 999px;
+  background: #eaf9f2;
+  color: #14815f;
+  font-size: 7px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-live-badge-v256.is-manual {
+  border-color: #b9dff0;
+  background: #eef8fc;
+  color: #137697;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-fields-v256 {
+  padding: 14px 16px 16px;
+  background:
+    radial-gradient(
+      circle at 6% 100%,
+      rgba(20, 184, 166, 0.045),
+      transparent 28%
+    ),
+    #fff;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-fields-v256
+  > label {
+  min-height: 82px;
+  padding: 11px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 7px;
+  border: 1px solid #e0e9ec;
+  border-radius: 13px;
+  background: #fbfdfd;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-fields-v256
+  > label
+  > span {
+  color: #63777d;
+  font-size: 7px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-fields-v256
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-fields-v256
+  select {
+  min-height: 41px;
+  border-color: #d5e5e8;
+  border-radius: 11px;
+  background: #fff;
+  color: #2c4147;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-fields-v256
+  input:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-fields-v256
+  select:focus {
+  border-color: #56bfbd !important;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1) !important;
+  outline: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-fields-v256
+  input[readonly] {
+  border-color: #dce7e9;
+  background: #f3f7f8;
+  color: #5a6e74;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-fields-v256
+  input.manual-field {
+  border-color: #74c5d9 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  cursor: text;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-status-v244 {
+  border-color: #cfe8e3 !important;
+  background: linear-gradient(135deg, #f1faf7, #fbfdfd) !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-status-v244
+  input {
+  color: #197a66 !important;
+  font-size: 7px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-amount-v244 {
+  border-color: #bfe5d3 !important;
+  background: linear-gradient(135deg, #eaf9f2, #f8fcfb) !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-amount-v244
+  input {
+  border-color: #b9decf;
+  background: #fff;
+  color: #11805e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-words-v244
+  input {
+  color: #4d6268;
+  font-size: 7px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-card-v256 {
+  padding: 0 14px 14px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-card-v256
+  .v114-commission-record-row,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-card-v256
+  .v110-commission-record-row {
+  min-height: 72px;
+  margin: 0 -14px 12px !important;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #e5edef;
+  background: linear-gradient(135deg, #f7fbfc, #fff);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-title-v256 {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-table-wrap-v256 {
+  overflow: auto;
+  border: 1px solid #dee9eb;
+  border-radius: 13px;
+  background: #fff;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-table-v256 {
+  min-width: 720px;
+  margin: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-table-v256
+  thead
+  th {
+  padding: 10px 9px;
+  border-bottom-color: #dce8ea;
+  background: #f1f7f8;
+  color: #176d73;
+  font-size: 7px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-table-v256
+  tbody
+  td {
+  padding: 10px 9px;
+  color: #41565c;
+  font-size: 7px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-table-v256
+  tbody
+  tr:hover
+  td {
+  background: #f8fbfb;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-card-v256
+  [data-v102-delete-commissions-all] {
+  min-height: 36px !important;
+  padding-inline: 11px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #d24343 !important;
+  font-size: 7px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-card-v256
+  [data-v102-delete-commissions-all]:hover {
+  background: #fff0f0 !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 900px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-page-head-v256 {
+    flex-wrap: wrap;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-pay-btn-v256 {
+    margin-inline-start: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-page-head-v256 {
+    align-items: flex-start;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-pay-btn-v256 {
+    width: 100%;
+    margin-inline-start: 0;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-card-head-v256 {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-live-badge-v256 {
+    margin-inline-start: 0;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-history-card-v256
+    .v114-commission-record-row,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="commissions"]
+    .commission-history-card-v256
+    .v110-commission-record-row {
+    align-items: stretch !important;
+  }
+}

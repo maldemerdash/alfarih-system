@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=255" />
+    <link rel="stylesheet" href="style.css?v=256" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -1137,19 +1137,35 @@
               <div class="v81-form-history-holder"></div>
             </section>
 
-            <section class="employee-tab-panel" data-section-panel="commissions">
-              <div class="form-section-title section-title-with-action"><span data-icon="trend-up"></span><div><h3>العمولات</h3><p>احتساب العمولة وصرفها وإصدار المخالصة</p></div><button type="button" class="commission-pay-btn" id="payCommissionBtn" aria-label="صرف العمولة" hidden><span data-icon="wallet"></span></button></div>
-              <div class="form-grid commission-layout-v244" data-commission-layout="v244">
-                <label class="commission-start-mode-field v183-commission-mode-fixed commission-field-method-v244"><span>طريقة احتساب العمولة</span><select name="commissionStartMode"><option value="auto">آلية</option><option value="manual">يدوية</option></select></label>
-                <label class="commission-manual-payout-field commission-field-due-v244"><span>تاريخ الاستحقاق</span><input name="commissionManualPaymentDate" type="date" class="calculated-field latin-number" readonly /></label>
-                <label class="commission-field-start-v244"><span>بداية الاستحقاق</span><input name="commissionStartDate" type="date" class="calculated-field latin-number" readonly /></label>
-                <label class="commission-field-payment-v244"><span>تاريخ صرف العمولة</span><input name="commissionPaymentDate" type="date" class="calculated-field latin-number" readonly /></label>
-                <label class="commission-field-status-v244"><span>حالة الاستحقاق</span><input name="commissionStatusText" class="calculated-field" readonly /></label>
-                <label class="commission-field-amount-v244"><span>قيمة العمولة</span><input name="commissionAmount" class="calculated-field latin-number" readonly /></label>
-                <label class="commission-field-words-v244"><span>تفقيط قيمة العمولة</span><input name="commissionWords" type="text" class="calculated-field tafqeet-field" readonly /></label>
+            <section class="employee-tab-panel commission-workspace-v256" data-section-panel="commissions" data-commission-workspace="v256">
+              <div class="form-section-title section-title-with-action commission-page-head-v256">
+                <span class="commission-page-icon-v256" data-icon="trend-up"></span>
+                <div><h3>العمولات</h3><p>احتساب الاستحقاق وصرف العمولة وإصدار المخالصة</p></div>
+                <button type="button" class="commission-pay-btn commission-pay-btn-v256" id="payCommissionBtn" aria-label="صرف العمولة" hidden><span data-icon="wallet"></span><span class="commission-pay-text-v256">صرف العمولة</span></button>
               </div>
-              <div class="subsection-head section-title-with-action v110-delete-title-row v110-commission-record-row"><div><h4>سجل العمولات</h4><p>العمولات النقدية مستقلة ولا تدخل في مسير الرواتب</p></div><div class="v110-base-delete-actions"><button type="button" class="secondary-btn v102-delete-all v102-commission-delete-all v110-visible-delete-btn" data-v102-delete-commissions-all=""><span data-icon="trash"></span>حذف كامل سجل العمولات</button></div></div>
-              <div class="table-wrap"><table class="compact-data-table"><thead><tr><th>#</th><th>بداية الاستحقاق</th><th>عدد الأيام</th><th>القيمة</th><th>تاريخ الصرف</th><th>المخالصة</th></tr></thead><tbody id="commissionHistoryBody"></tbody></table></div>
+              <div class="commission-cards-v256" data-commission-layout-shell="v256">
+                <article class="commission-card-v256 commission-calculation-card-v256" data-commission-card="calculation">
+                  <header class="commission-card-head-v256">
+                    <span class="commission-card-icon-v256" data-icon="wallet"></span>
+                    <div><h4>بيانات الاستحقاق</h4><p>التواريخ والقيمة المحتسبة وفق طريقة العمولة المختارة</p></div>
+                    <span class="commission-live-badge-v256">احتساب آلي</span>
+                  </header>
+                  <div class="form-grid commission-layout-v244 commission-fields-v256" data-commission-layout="v244">
+                    <label class="commission-start-mode-field v183-commission-mode-fixed commission-field-method-v244"><span>طريقة احتساب العمولة</span><select name="commissionStartMode"><option value="auto">آلية</option><option value="manual">يدوية</option></select></label>
+                    <label class="commission-manual-payout-field commission-field-due-v244"><span>تاريخ الاستحقاق</span><input name="commissionManualPaymentDate" type="date" class="calculated-field latin-number" readonly /></label>
+                    <label class="commission-field-start-v244"><span>بداية الاستحقاق</span><input name="commissionStartDate" type="date" class="calculated-field latin-number" readonly /></label>
+                    <label class="commission-field-payment-v244"><span>تاريخ صرف العمولة</span><input name="commissionPaymentDate" type="date" class="calculated-field latin-number" readonly /></label>
+                    <label class="commission-field-status-v244"><span>حالة الاستحقاق</span><input name="commissionStatusText" class="calculated-field" readonly /></label>
+                    <label class="commission-field-amount-v244"><span>قيمة العمولة</span><input name="commissionAmount" class="calculated-field latin-number" readonly /></label>
+                    <label class="commission-field-words-v244"><span>تفقيط قيمة العمولة</span><input name="commissionWords" type="text" class="calculated-field tafqeet-field" readonly /></label>
+                  </div>
+                </article>
+
+                <article class="commission-card-v256 commission-history-card-v256" data-commission-card="history">
+                  <div class="subsection-head section-title-with-action v110-delete-title-row v110-commission-record-row"><div class="commission-history-title-v256"><span class="commission-card-icon-v256" data-icon="notes"></span><div><h4>سجل العمولات</h4><p>العمولات المصروفة والمخالصات المعتمدة للموظف</p></div></div><div class="v110-base-delete-actions"><button type="button" class="secondary-btn v102-delete-all v102-commission-delete-all v110-visible-delete-btn" data-v102-delete-commissions-all=""><span data-icon="trash"></span>حذف كامل سجل العمولات</button></div></div>
+                  <div class="table-wrap commission-history-table-wrap-v256"><table class="compact-data-table commission-history-table-v256"><thead><tr><th>#</th><th>بداية الاستحقاق</th><th>عدد الأيام</th><th>القيمة</th><th>تاريخ الصرف</th><th>المخالصة</th></tr></thead><tbody id="commissionHistoryBody"></tbody></table></div>
+                </article>
+              </div>
             </section>
 
             <section class="employee-tab-panel" data-section-panel="banking">
@@ -1435,6 +1451,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=255"></script>
+    <script src="app.js?v=256"></script>
   </body>
 </html>
