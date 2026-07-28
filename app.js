@@ -38370,6 +38370,152 @@ async function init() {
       return "اعتماد فقط";
     return r.commissionNote || "—";
   }
+  function todayValue() {
+    try {
+      if (typeof dateInputNow === "function") return dateInputNow();
+    } catch (_) {}
+    try {
+      if (typeof formatInputDate === "function")
+        return formatInputDate(new Date());
+    } catch (_) {}
+    var now = new Date(),
+      month = String(now.getMonth() + 1).padStart(2, "0"),
+      day = String(now.getDate()).padStart(2, "0");
+    return now.getFullYear() + "-" + month + "-" + day;
+  }
+  function latinNumber(v) {
+    var value = Number(v || 0);
+    if (!isFinite(value)) value = 0;
+    return value.toLocaleString("en-US", {
+      minimumFractionDigits: value % 1 ? 1 : 0,
+      maximumFractionDigits: 2,
+    });
+  }
+  function historyCounts(empId) {
+    var travel = readTravels().filter(function (r) {
+        return String(r.employeeId || "") === String(empId || "");
+      }).length,
+      leave = readLeaves().filter(function (r) {
+        return (
+          String(r.employeeId || "") === String(empId || "") &&
+          !r.sourceTravelId &&
+          !r.generatedFromTravel
+        );
+      }).length;
+    return { travel: travel, leave: leave };
+  }
+  function leaveBalanceDetails(empId) {
+    var employee = getEmp(empId);
+    if (!employee)
+      return {
+        available: false,
+        remaining: 0,
+        accrued: 0,
+        opening: 0,
+        used: 0,
+        reserved: 0,
+        annualEntitlement: 0,
+        startDate: "",
+      };
+    try {
+      if (
+        window.leaveBalanceV49 &&
+        typeof window.leaveBalanceV49.leaveBalance === "function"
+      ) {
+        var details = window.leaveBalanceV49.leaveBalance(
+          employee,
+          todayValue(),
+          {},
+        );
+        if (details && typeof details === "object")
+          return {
+            available: Boolean(
+              details.startDate ||
+                employee.workStartDate ||
+                employee.contractStartDate,
+            ),
+            remaining: Number(details.remaining || 0) || 0,
+            accrued: Number(details.accrued || 0) || 0,
+            opening: Number(details.opening || 0) || 0,
+            used: Number(details.used || 0) || 0,
+            reserved: Number(details.reserved || 0) || 0,
+            annualEntitlement:
+              Number(details.annualEntitlement || 0) || 0,
+            startDate:
+              details.startDate ||
+              employee.workStartDate ||
+              employee.contractStartDate ||
+              "",
+          };
+      }
+    } catch (_) {}
+    var remaining =
+      Number(
+        employee.remainingLeaveBalance ||
+          employee.leaveBalanceAfter ||
+          employee.leaveBalance ||
+          employee.leaveBalanceOpening ||
+          0,
+      ) || 0;
+    return {
+      available: Boolean(employee.workStartDate || employee.contractStartDate),
+      remaining: remaining,
+      accrued: remaining,
+      opening: 0,
+      used: 0,
+      reserved: 0,
+      annualEntitlement: 0,
+      startDate: employee.workStartDate || employee.contractStartDate || "",
+    };
+  }
+  function leaveBalanceTone(value) {
+    return value < 0
+      ? "is-negative"
+      : value <= 3
+        ? "is-warning"
+        : "is-good";
+  }
+  function leaveBalanceCard(empId) {
+    var details = leaveBalanceDetails(empId);
+    if (!empId || !details.available)
+      return (
+        '<section class="v255-leave-balance-card is-empty" data-v255-leave-balance>' +
+        '<div class="v255-balance-main"><span class="v255-balance-icon">' +
+        icon("pie") +
+        '</span><div class="v255-balance-copy"><strong>رصيد الإجازات</strong><small>' +
+        (empId
+          ? "يظهر الرصيد بعد تحديد تاريخ المباشرة."
+          : "يظهر الرصيد بعد حفظ بيانات الموظف.") +
+        '</small></div><div class="v255-balance-value"><strong>—</strong><span>يوم</span></div></div>' +
+        "</section>"
+      );
+    var entitled = details.opening + details.accrued;
+    return (
+      '<section class="v255-leave-balance-card ' +
+      leaveBalanceTone(details.remaining) +
+      '" data-v255-leave-balance>' +
+      '<div class="v255-balance-main"><span class="v255-balance-icon">' +
+      icon("pie") +
+      '</span><div class="v255-balance-copy"><strong>رصيد الإجازات</strong><small>الرصيد المحتسب تلقائيًا حتى اليوم</small></div>' +
+      '<div class="v255-balance-value"><strong class="latin-number">' +
+      latinNumber(details.remaining) +
+      '</strong><span>يوم متبقي</span></div></div>' +
+      '<div class="v255-balance-metrics"><div><span>الرصيد المستحق</span><strong class="latin-number">' +
+      latinNumber(entitled) +
+      '</strong><small>يوم</small></div><div><span>المستخدم</span><strong class="latin-number">' +
+      latinNumber(details.used) +
+      '</strong><small>يوم</small></div><div><span>الاستحقاق السنوي</span><strong class="latin-number">' +
+      latinNumber(details.annualEntitlement) +
+      '</strong><small>يوم</small></div><div><span>الرصيد المحجوز</span><strong class="latin-number">' +
+      latinNumber(details.reserved) +
+      '</strong><small>يوم</small></div></div>' +
+      '<p class="v255-balance-note"><span>' +
+      icon("info") +
+      "</span>بداية احتساب الرصيد: <strong>" +
+      esc(fmt(details.startDate)) +
+      "</strong></p></section>"
+    );
+  }
   function filterRows(rows, filter, keyFn) {
     if (!filter || filter === "all") return rows;
     return rows.filter(function (r) {
@@ -38509,16 +38655,25 @@ async function init() {
     );
   }
   function historyCard(empId, variant) {
+    var counts = historyCounts(empId);
     return (
-      '<section class="employee-profile-card v81-employee-history-card ' +
+      '<section class="employee-profile-card v81-employee-history-card v255-employee-history-card ' +
       (variant === "form"
         ? "v81-form-history-card"
         : "v81-quick-history-card") +
       '" data-v81-emp-id="' +
       esc(empId || "") +
-      '"><div class="v81-history-head"><div><h3>سجل الإجازات والسفر</h3><p>سجل خاص بهذا الموظف لعرض المرفقات وطباعة مستندات الطلبات.</p></div><div class="v112-history-delete-actions"><button type="button" class="secondary-btn v102-delete-all v110-visible-delete-btn v112-history-delete-btn" data-v102-delete-all="travel" data-v112-history-delete="true"><span data-icon="trash"></span><span class="v102-delete-all-text">حذف كامل سجل السفر</span></button></div></div><div class="v81-history-tabs"><button type="button" class="active" data-v81-history-tab="travel">السفر</button><button type="button" data-v81-history-tab="leave">الإجازات</button></div><div class="v81-history-filters"><button class="active" type="button" data-v81-filter="all">الكل</button><button type="button" data-v81-filter="pending">بانتظار الاعتماد</button><button type="button" data-v81-filter="active">معتمد / مسافر</button><button type="button" data-v81-filter="finished">منتهي</button><button type="button" data-v81-filter="rejected">مرفوض</button></div><div class="v81-history-table-shell" data-v81-history-table>' +
+      '"><div class="v81-history-head"><div class="v255-history-heading"><span class="v255-history-heading-icon">' +
+      icon("calendar") +
+      '</span><div><h3>سجل الإجازات والسفر</h3><p>ملخص الرصيد والسجلات والمرفقات الخاصة بالموظف.</p></div></div><div class="v112-history-delete-actions"><button type="button" class="secondary-btn v102-delete-all v110-visible-delete-btn v112-history-delete-btn" data-v102-delete-all="travel" data-v112-history-delete="true"><span data-icon="trash"></span><span class="v102-delete-all-text">حذف كامل سجل السفر</span></button></div></div>' +
+      leaveBalanceCard(empId) +
+      '<div class="v255-history-records"><div class="v81-history-tabs" aria-label="نوع السجل"><button type="button" class="active" data-v81-history-tab="travel"><span>سجل السفر</span><b class="latin-number" data-v255-history-count="travel">' +
+      latinNumber(counts.travel) +
+      '</b></button><button type="button" data-v81-history-tab="leave"><span>سجل الإجازات</span><b class="latin-number" data-v255-history-count="leave">' +
+      latinNumber(counts.leave) +
+      '</b></button></div><div class="v81-history-filters"><button class="active" type="button" data-v81-filter="all">الكل</button><button type="button" data-v81-filter="pending">بانتظار الاعتماد</button><button type="button" data-v81-filter="active">معتمد / مسافر</button><button type="button" data-v81-filter="finished">منتهي</button><button type="button" data-v81-filter="rejected">مرفوض</button></div><div class="v81-history-table-shell" data-v81-history-table>' +
       tableHtml("travel", empId, "all") +
-      "</div></section>"
+      "</div></div></section>"
     );
   }
   function refresh(card) {
@@ -38548,6 +38703,15 @@ async function init() {
     }
     var shell = card.querySelector("[data-v81-history-table]");
     if (shell) shell.innerHTML = tableHtml(kind, empId, filter || "all");
+    var currentBalance = card.querySelector("[data-v255-leave-balance]");
+    if (currentBalance) currentBalance.outerHTML = leaveBalanceCard(empId);
+    var counts = historyCounts(empId);
+    var travelCount = card.querySelector(
+        '[data-v255-history-count="travel"]',
+      ),
+      leaveCount = card.querySelector('[data-v255-history-count="leave"]');
+    if (travelCount) travelCount.textContent = latinNumber(counts.travel);
+    if (leaveCount) leaveCount.textContent = latinNumber(counts.leave);
   }
   function installQuick(emp) {
     var content = q("#quickViewContent");
