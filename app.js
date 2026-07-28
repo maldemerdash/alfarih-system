@@ -32038,7 +32038,9 @@ async function init() {
     "input",
     function (event) {
       if (event.target?.matches?.('[data-document-field="number"]'))
-        setTimeout(decorateDocuments, 0);
+        setTimeout(function () {
+          window.nawahEmployeeRecordsV259?.documents?.();
+        }, 0);
     },
     true,
   );
@@ -72146,6 +72148,10 @@ window.nawahLeaveBalanceReportV185 = {
       return { key: "passport-start", section: "identity" };
     if (input.matches('[data-passport-field="expiryDate"]'))
       return { key: "passport-expiry", section: "identity" };
+    if (input.matches('[data-document-field="startDate"]'))
+      return { key: "document-start", section: "documents" };
+    if (input.matches('[data-document-field="expiryDate"]'))
+      return { key: "document-expiry", section: "documents" };
     if (input.name === "contractStartDate")
       return { key: "contract-start", section: "employment" };
     if (input.name === "workStartDate")
@@ -72270,6 +72276,9 @@ window.nawahLeaveBalanceReportV185 = {
       employeeForm.elements?.commissionPaymentDate,
       ...employeeForm.querySelectorAll(
         '[data-passport-field="startDate"], [data-passport-field="expiryDate"]',
+      ),
+      ...employeeForm.querySelectorAll(
+        '[data-document-field="startDate"], [data-document-field="expiryDate"]',
       ),
     ]
       .filter(Boolean)
@@ -72590,7 +72599,7 @@ window.nawahLeaveBalanceReportV185 = {
     function (event) {
       if (
         event.target?.closest?.(
-          "[data-employee-section], #addPassportBtn, [data-remove-passport]",
+          "[data-employee-section], #addPassportBtn, [data-remove-passport], #addDocumentBtn, [data-remove-document]",
         )
       ) {
         closeCalendar(false);
@@ -72680,6 +72689,7 @@ window.nawahLeaveBalanceReportV185 = {
   };
   window.nawahEmployeeDatePickersV257 = datePickerApi;
   window.nawahEmployeeDatePickersV258 = datePickerApi;
+  window.nawahEmployeeDatePickersV260 = datePickerApi;
 })();
 
 /* v259 - polished banking, notes/minutes and employee documents workspaces. */
