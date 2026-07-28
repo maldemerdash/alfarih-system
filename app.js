@@ -72007,3 +72007,658 @@ window.nawahLeaveBalanceReportV185 = {
   window.nawahBirthDateV249 = calendarApi;
   window.nawahBirthDateV250 = calendarApi;
 })();
+
+/* v257 - one lightweight branded calendar for editable employee dates. */
+(function v257UnifiedEmployeeDatePickers() {
+  if (window.__v257UnifiedEmployeeDatePickers) return;
+  window.__v257UnifiedEmployeeDatePickers = true;
+
+  const employeeForm = document.querySelector("#employeeForm");
+  const modal = document.querySelector("#employeeModal");
+  if (!employeeForm || !modal) return;
+
+  const months = [
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
+  ];
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const minimumYear = today.getFullYear() - 120;
+  const maximumYear = today.getFullYear() + 50;
+  let activeInput = null;
+  let activeRoot = null;
+  let viewYear = today.getFullYear();
+  let viewMonth = today.getMonth();
+  let positionFrame = 0;
+  let syncFrame = 0;
+
+  const backdrop = document.createElement("span");
+  backdrop.className = "employee-date-backdrop-v257";
+  backdrop.hidden = true;
+  backdrop.setAttribute("aria-hidden", "true");
+
+  const calendar = document.createElement("span");
+  calendar.className = "employee-date-calendar-v257";
+  calendar.hidden = true;
+  calendar.setAttribute("role", "dialog");
+  calendar.setAttribute("aria-modal", "false");
+  calendar.setAttribute("aria-label", "اختيار التاريخ");
+  calendar.innerHTML = `
+    <span class="employee-date-calendar-head-v257">
+      <button type="button" class="employee-date-nav-v257" aria-label="الشهر السابق" data-date-prev-v257><span data-icon="chevron-right"></span></button>
+      <span class="employee-date-period-v257">
+        <select aria-label="اختيار الشهر" data-date-month-v257></select>
+        <select aria-label="اختيار السنة" data-date-year-v257></select>
+      </span>
+      <button type="button" class="employee-date-nav-v257" aria-label="الشهر التالي" data-date-next-v257><span data-icon="chevron-left"></span></button>
+    </span>
+    <span class="employee-date-weekdays-v257" aria-hidden="true"><span>ح</span><span>ن</span><span>ث</span><span>ر</span><span>خ</span><span>ج</span><span>س</span></span>
+    <span class="employee-date-days-v257" data-date-days-v257></span>
+    <span class="employee-date-calendar-foot-v257">
+      <button type="button" data-date-clear-v257>مسح التاريخ</button>
+      <button type="button" data-date-close-v257>إغلاق</button>
+    </span>`;
+  modal.append(backdrop, calendar);
+
+  const monthSelect = calendar.querySelector("[data-date-month-v257]");
+  const yearSelect = calendar.querySelector("[data-date-year-v257]");
+  const daysRoot = calendar.querySelector("[data-date-days-v257]");
+  const previousButton = calendar.querySelector("[data-date-prev-v257]");
+  const nextButton = calendar.querySelector("[data-date-next-v257]");
+
+  try {
+    if (typeof hydrateIcons === "function") hydrateIcons(calendar);
+  } catch (_) {}
+
+  function englishDigits(value) {
+    return String(value || "")
+      .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+      .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+  }
+
+  function draftValue(value) {
+    const digits = englishDigits(value).replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 6)
+      return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+  }
+
+  function parse(value) {
+    const match = englishDigits(value)
+      .trim()
+      .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    )
+      return null;
+    return date;
+  }
+
+  function format(date) {
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+  }
+
+  function sameDate(first, second) {
+    return Boolean(
+      first &&
+        second &&
+        first.getFullYear() === second.getFullYear() &&
+        first.getMonth() === second.getMonth() &&
+        first.getDate() === second.getDate(),
+    );
+  }
+
+  function fieldConfig(input) {
+    if (!input || !employeeForm.contains(input)) return null;
+    if (input.name === "identityExpiryGregorian")
+      return { key: "identity-expiry", section: "identity" };
+    if (input.matches('[data-passport-field="startDate"]'))
+      return { key: "passport-start", section: "identity" };
+    if (input.matches('[data-passport-field="expiryDate"]'))
+      return { key: "passport-expiry", section: "identity" };
+    if (input.name === "contractStartDate")
+      return { key: "contract-start", section: "employment" };
+    if (input.name === "workStartDate")
+      return { key: "work-start", section: "employment" };
+    if (input.name === "commissionPaymentDate")
+      return {
+        key: "commission-payment",
+        section: "commissions",
+        manualOnly: true,
+      };
+    return null;
+  }
+
+  function isManualCommission() {
+    return (
+      employeeForm.elements?.commissionStartMode?.value === "manual"
+    );
+  }
+
+  function isEditable(input, config = fieldConfig(input)) {
+    if (!input || !config || input.disabled || input.readOnly) return false;
+    return !config.manualOnly || isManualCommission();
+  }
+
+  function validate(input, markInvalid = true) {
+    const value = String(input?.value || "").trim();
+    const date = parse(value);
+    const valid =
+      !value ||
+      Boolean(
+        date &&
+          date.getFullYear() >= minimumYear &&
+          date.getFullYear() <= maximumYear,
+      );
+    input?.classList.toggle("is-invalid", markInvalid && !valid);
+    input?.setCustomValidity(
+      valid
+        ? ""
+        : `أدخل تاريخًا صحيحًا بين ${minimumYear}-01-01 و${maximumYear}-12-31`,
+    );
+    return valid;
+  }
+
+  function wrapperFor(input) {
+    return input?.closest?.("[data-date-picker-v257]") || null;
+  }
+
+  function enhance(input) {
+    const config = fieldConfig(input);
+    if (!config) return null;
+    let root = wrapperFor(input);
+    if (!root) {
+      root = document.createElement("span");
+      root.className = "employee-date-picker-v257";
+      root.dataset.datePickerV257 = config.key;
+      input.before(root);
+      root.appendChild(input);
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "employee-date-trigger-v257";
+      toggle.dataset.dateToggleV257 = "";
+      toggle.setAttribute("aria-label", "فتح تقويم التاريخ");
+      toggle.setAttribute("aria-haspopup", "dialog");
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.innerHTML = '<span data-icon="calendar"></span>';
+      root.appendChild(toggle);
+      input.dataset.dateInputV257 = config.key;
+      input.inputMode = "numeric";
+      input.autocomplete = "off";
+      input.maxLength = 10;
+      input.pattern = "\\d{4}-\\d{2}-\\d{2}";
+      input.placeholder = "YYYY-MM-DD";
+      input.addEventListener("input", function () {
+        const formatted = draftValue(input.value);
+        if (input.value !== formatted) input.value = formatted;
+        validate(input, false);
+      });
+      input.addEventListener("blur", function () {
+        validate(input, true);
+      });
+      try {
+        if (typeof hydrateIcons === "function") hydrateIcons(root);
+      } catch (_) {}
+    }
+    syncRoot(root, input, config);
+    return root;
+  }
+
+  function syncRoot(root, input, config = fieldConfig(input)) {
+    if (!root || !input || !config) return;
+    const toggle = root.querySelector("[data-date-toggle-v257]");
+    const editable = isEditable(input, config);
+    if (input.type !== "text") input.type = "text";
+    root.classList.toggle("is-locked-v257", !editable);
+    root.classList.toggle(
+      "is-manual-only-v257",
+      Boolean(config.manualOnly),
+    );
+    root.dataset.dateEditableV257 = editable ? "1" : "0";
+    if (toggle) {
+      toggle.disabled = !editable;
+      toggle.hidden = Boolean(config.manualOnly && !isManualCommission());
+      toggle.setAttribute("aria-disabled", String(!editable));
+      if (toggle.hidden) root.classList.add("is-trigger-hidden-v257");
+      else root.classList.remove("is-trigger-hidden-v257");
+    }
+    if (!editable && activeInput === input) closeCalendar(false);
+  }
+
+  function syncAll() {
+    [
+      employeeForm.elements?.identityExpiryGregorian,
+      employeeForm.elements?.contractStartDate,
+      employeeForm.elements?.workStartDate,
+      employeeForm.elements?.commissionPaymentDate,
+      ...employeeForm.querySelectorAll(
+        '[data-passport-field="startDate"], [data-passport-field="expiryDate"]',
+      ),
+    ]
+      .filter(Boolean)
+      .forEach(enhance);
+  }
+
+  function scheduleSync() {
+    if (syncFrame) cancelAnimationFrame(syncFrame);
+    syncFrame = requestAnimationFrame(function () {
+      syncFrame = 0;
+      syncAll();
+    });
+  }
+
+  function syncSelectors() {
+    monthSelect.innerHTML = months
+      .map(
+        (month, index) =>
+          `<option value="${index}"${index === viewMonth ? " selected" : ""}>${month}</option>`,
+      )
+      .join("");
+    yearSelect.innerHTML = Array.from(
+      { length: maximumYear - minimumYear + 1 },
+      (_, index) => maximumYear - index,
+    )
+      .map(
+        (year) =>
+          `<option value="${year}"${year === viewYear ? " selected" : ""}>${year}</option>`,
+      )
+      .join("");
+  }
+
+  function render() {
+    viewYear = Math.max(minimumYear, Math.min(maximumYear, viewYear));
+    viewMonth = Math.max(0, Math.min(11, viewMonth));
+    syncSelectors();
+    const selected = parse(activeInput?.value);
+    const firstDay = new Date(viewYear, viewMonth, 1, 12, 0, 0, 0);
+    const gridStart = new Date(firstDay);
+    gridStart.setDate(firstDay.getDate() - firstDay.getDay());
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < 42; index += 1) {
+      const date = new Date(gridStart);
+      date.setDate(gridStart.getDate() + index);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = [
+        "employee-date-day-v257",
+        date.getMonth() !== viewMonth ? "is-outside" : "",
+        sameDate(date, today) ? "is-today" : "",
+        sameDate(date, selected) ? "is-selected" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      button.textContent = String(date.getDate());
+      button.dataset.dateValueV257 = format(date);
+      button.setAttribute(
+        "aria-label",
+        `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`,
+      );
+      button.setAttribute("aria-pressed", String(sameDate(date, selected)));
+      button.disabled =
+        date.getFullYear() < minimumYear ||
+        date.getFullYear() > maximumYear;
+      fragment.appendChild(button);
+    }
+    daysRoot.replaceChildren(fragment);
+    previousButton.disabled = viewYear === minimumYear && viewMonth === 0;
+    nextButton.disabled = viewYear === maximumYear && viewMonth === 11;
+    if (!calendar.hidden) schedulePosition();
+  }
+
+  function compactViewport() {
+    return Number(window.innerWidth || 1024) <= 680;
+  }
+
+  function positionCalendar() {
+    if (calendar.hidden || !activeRoot) return;
+    if (compactViewport()) {
+      calendar.classList.add("is-mobile-v257");
+      calendar.classList.remove("is-above-v257", "is-below-v257");
+      calendar.dataset.placement = "center";
+      calendar.style.removeProperty("--employee-date-anchor-x");
+      calendar.style.left = "50%";
+      calendar.style.top = "50%";
+      calendar.style.width = "";
+      calendar.style.maxHeight = "calc(100vh - 28px)";
+      calendar.style.overflowY = "auto";
+      calendar.style.transform = "translate(-50%, -50%)";
+      calendar.style.visibility = "visible";
+      backdrop.hidden = false;
+      return;
+    }
+    backdrop.hidden = true;
+    calendar.classList.remove("is-mobile-v257");
+    calendar.style.transform = "none";
+    calendar.style.visibility = "hidden";
+    calendar.style.removeProperty("max-height");
+    calendar.style.removeProperty("overflow-y");
+    const viewportWidth = Math.max(
+      320,
+      Number(window.innerWidth || document.documentElement.clientWidth || 0),
+    );
+    const viewportHeight = Math.max(
+      320,
+      Number(window.innerHeight || document.documentElement.clientHeight || 0),
+    );
+    const fieldRect = activeRoot.getBoundingClientRect();
+    const triggerRect =
+      activeRoot
+        .querySelector("[data-date-toggle-v257]")
+        ?.getBoundingClientRect() || fieldRect;
+    const width = Math.min(324, Math.max(280, viewportWidth - 24));
+    const edge = 12;
+    const gap = 10;
+    const left = Math.max(
+      edge,
+      Math.min(fieldRect.right - width, viewportWidth - width - edge),
+    );
+    calendar.style.width = `${width}px`;
+    calendar.style.left = `${left}px`;
+    calendar.style.top = `${edge}px`;
+    const measuredRect = calendar.getBoundingClientRect();
+    const measuredHeight = Math.max(
+      Number(measuredRect.height || 0),
+      Number(calendar.scrollHeight || 0),
+      310,
+    );
+    const belowSpace = viewportHeight - fieldRect.bottom - gap - edge;
+    const aboveSpace = fieldRect.top - gap - edge;
+    const placeAbove = belowSpace < measuredHeight && aboveSpace > belowSpace;
+    const availableSpace = Math.max(
+      220,
+      placeAbove ? aboveSpace : belowSpace,
+    );
+    if (availableSpace < measuredHeight) {
+      calendar.style.maxHeight = `${availableSpace}px`;
+      calendar.style.overflowY = "auto";
+    }
+    const renderedHeight = Math.min(measuredHeight, availableSpace);
+    const top = placeAbove
+      ? Math.max(edge, fieldRect.top - renderedHeight - gap)
+      : Math.min(
+          viewportHeight - renderedHeight - edge,
+          fieldRect.bottom + gap,
+        );
+    calendar.style.top = `${Math.max(edge, top)}px`;
+    calendar.classList.toggle("is-above-v257", placeAbove);
+    calendar.classList.toggle("is-below-v257", !placeAbove);
+    calendar.dataset.placement = placeAbove ? "above" : "below";
+    const triggerCenter = triggerRect.left + triggerRect.width / 2 - left;
+    const anchor = Math.max(22, Math.min(width - 22, triggerCenter));
+    calendar.style.setProperty(
+      "--employee-date-anchor-x",
+      `${anchor}px`,
+    );
+    calendar.style.visibility = "visible";
+  }
+
+  function schedulePosition() {
+    if (positionFrame) cancelAnimationFrame(positionFrame);
+    positionFrame = requestAnimationFrame(function () {
+      positionFrame = 0;
+      positionCalendar();
+    });
+  }
+
+  function closeCalendar(focusToggle = true) {
+    if (calendar.hidden) return;
+    const formerRoot = activeRoot;
+    calendar.hidden = true;
+    backdrop.hidden = true;
+    calendar.style.visibility = "";
+    calendar.classList.remove(
+      "is-mobile-v257",
+      "is-above-v257",
+      "is-below-v257",
+    );
+    calendar.removeAttribute("data-placement");
+    formerRoot?.classList.remove("is-open-v257");
+    const toggle = formerRoot?.querySelector("[data-date-toggle-v257]");
+    toggle?.setAttribute("aria-expanded", "false");
+    activeInput = null;
+    activeRoot = null;
+    if (focusToggle && toggle && !toggle.disabled)
+      toggle.focus({ preventScroll: true });
+  }
+
+  function openCalendar(input) {
+    const config = fieldConfig(input);
+    const root = wrapperFor(input);
+    if (!root || !isEditable(input, config)) return false;
+    if (!calendar.hidden) closeCalendar(false);
+    activeInput = input;
+    activeRoot = root;
+    const selected = parse(input.value);
+    viewYear = selected?.getFullYear() || today.getFullYear();
+    viewMonth = selected?.getMonth() ?? today.getMonth();
+    calendar.hidden = false;
+    root.classList.add("is-open-v257");
+    root
+      .querySelector("[data-date-toggle-v257]")
+      ?.setAttribute("aria-expanded", "true");
+    render();
+    positionCalendar();
+    schedulePosition();
+    setTimeout(function () {
+      positionCalendar();
+      monthSelect.focus();
+    }, 0);
+    return true;
+  }
+
+  function emitValue(value) {
+    if (!activeInput) return;
+    const input = activeInput;
+    input.value = value;
+    input.classList.remove("is-invalid");
+    input.setCustomValidity("");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    scheduleSync();
+  }
+
+  employeeForm.addEventListener(
+    "click",
+    function (event) {
+      const toggle = event.target?.closest?.("[data-date-toggle-v257]");
+      if (!toggle) return;
+      event.preventDefault();
+      const root = toggle.closest("[data-date-picker-v257]");
+      const input = root?.querySelector("[data-date-input-v257]");
+      if (!input || toggle.disabled) return;
+      if (!calendar.hidden && activeInput === input) closeCalendar();
+      else openCalendar(input);
+    },
+    true,
+  );
+
+  previousButton.addEventListener("click", function () {
+    viewMonth -= 1;
+    if (viewMonth < 0) {
+      viewMonth = 11;
+      viewYear -= 1;
+    }
+    render();
+  });
+  nextButton.addEventListener("click", function () {
+    viewMonth += 1;
+    if (viewMonth > 11) {
+      viewMonth = 0;
+      viewYear += 1;
+    }
+    render();
+  });
+  monthSelect.addEventListener("change", function () {
+    viewMonth = Number(monthSelect.value);
+    render();
+  });
+  yearSelect.addEventListener("change", function () {
+    viewYear = Number(yearSelect.value);
+    render();
+  });
+  daysRoot.addEventListener("click", function (event) {
+    const button = event.target?.closest?.("[data-date-value-v257]");
+    if (!button || button.disabled) return;
+    emitValue(button.dataset.dateValueV257);
+    closeCalendar();
+  });
+  calendar
+    .querySelector("[data-date-clear-v257]")
+    ?.addEventListener("click", function () {
+      emitValue("");
+      closeCalendar();
+    });
+  calendar
+    .querySelector("[data-date-close-v257]")
+    ?.addEventListener("click", function () {
+      closeCalendar();
+    });
+  backdrop.addEventListener("click", () => closeCalendar());
+
+  document.addEventListener("pointerdown", function (event) {
+    if (
+      !calendar.hidden &&
+      !calendar.contains(event.target) &&
+      !activeRoot?.contains(event.target)
+    )
+      closeCalendar(false);
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !calendar.hidden) {
+      event.preventDefault();
+      closeCalendar();
+    }
+  });
+  window.addEventListener("resize", schedulePosition);
+  document
+    .querySelector(".employee-section-content")
+    ?.addEventListener("scroll", schedulePosition, { passive: true });
+
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (
+        event.target?.matches?.(
+          '[name="commissionStartMode"], [name="contractType"]',
+        )
+      )
+        setTimeout(scheduleSync, 0);
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (
+        event.target?.closest?.(
+          "[data-employee-section], #addPassportBtn, [data-remove-passport]",
+        )
+      ) {
+        closeCalendar(false);
+        setTimeout(scheduleSync, 0);
+      }
+    },
+    true,
+  );
+
+  if (typeof MutationObserver === "function") {
+    new MutationObserver(function (records) {
+      if (
+        records.some(
+          (record) =>
+            record.type === "childList" ||
+            (record.type === "attributes" &&
+              ["readonly", "disabled", "type"].includes(
+                record.attributeName,
+              )),
+        )
+      )
+        scheduleSync();
+    }).observe(employeeForm, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["readonly", "disabled", "type"],
+    });
+  }
+
+  const previousOpen =
+    typeof openEmployeeModal === "function"
+      ? openEmployeeModal
+      : window.openEmployeeModal;
+  if (
+    typeof previousOpen === "function" &&
+    !previousOpen.__v257UnifiedEmployeeDatePickers
+  ) {
+    const wrappedOpen = async function () {
+      const result = await previousOpen.apply(this, arguments);
+      syncAll();
+      setTimeout(syncAll, 180);
+      setTimeout(syncAll, 480);
+      return result;
+    };
+    wrappedOpen.__v257UnifiedEmployeeDatePickers = true;
+    try {
+      openEmployeeModal = wrappedOpen;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpen;
+  }
+
+  employeeForm.addEventListener(
+    "submit",
+    function (event) {
+      const invalid = Array.from(
+        employeeForm.querySelectorAll("[data-date-input-v257]"),
+      ).find((input) => !validate(input, true));
+      if (!invalid) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const config = fieldConfig(invalid);
+      try {
+        if (config?.section && typeof switchEmployeeSection === "function")
+          switchEmployeeSection(config.section);
+        if (typeof showToast === "function")
+          showToast("يرجى إدخال التاريخ بصيغة صحيحة");
+      } catch (_) {}
+      invalid.focus();
+    },
+    true,
+  );
+
+  syncAll();
+  window.nawahEmployeeDatePickersV257 = {
+    version: 257,
+    sync: syncAll,
+    open: openCalendar,
+    close: closeCalendar,
+    parse,
+    validate,
+    minYear: minimumYear,
+    maxYear: maximumYear,
+    active: () => activeInput?.name || "",
+    portalCount: () =>
+      modal.querySelectorAll(":scope > .employee-date-calendar-v257").length,
+  };
+})();

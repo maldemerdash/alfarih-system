@@ -11144,9 +11144,355 @@ body {
     transform: translate(-50%, -50%) !important;
   }
 
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250.is-mobile-v250::before {
+    display: none;
+  }
+}
+
+/* v257 — Unified editable employee date calendar */
+#employeeModal.employee-profile-modal .employee-date-picker-v257 {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  direction: ltr;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-picker-v257
+  > [data-date-input-v257] {
+  width: 100%;
+  min-width: 0;
+  padding-right: 12px;
+  padding-left: 12px;
+  border-radius: 12px 0 0 12px !important;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  text-align: left;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-picker-v257
+  > [data-date-input-v257].is-invalid {
+  border-color: #ef4444 !important;
+  background: #fff7f7;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.08);
+}
+
+#employeeModal.employee-profile-modal .employee-date-trigger-v257 {
+  display: inline-grid;
+  min-width: 44px;
+  min-height: 46px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #20a7b4;
+  border-left: 0;
+  border-radius: 0 12px 12px 0;
+  background: linear-gradient(145deg, #2297c5, #14b8a6);
+  color: #fff;
+  cursor: pointer;
+  transition:
+    filter 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-trigger-v257:hover,
+#employeeModal.employee-profile-modal
+  .employee-date-trigger-v257:focus-visible {
+  filter: brightness(0.97);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.13);
+  outline: none;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-trigger-v257
+  svg {
+  width: 18px;
+  height: 18px;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-picker-v257.is-locked-v257
+  .employee-date-trigger-v257 {
+  border-color: #cfdee4;
+  background: #edf3f5;
+  box-shadow: none;
+  color: #9aadb6;
+  cursor: not-allowed;
+  filter: none;
+  opacity: 0.85;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-picker-v257.is-trigger-hidden-v257 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-picker-v257.is-trigger-hidden-v257
+  > [data-date-input-v257] {
+  border-radius: 12px !important;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-picker-v257
+  > .employee-date-trigger-v257[hidden] {
+  display: none !important;
+}
+
+#employeeModal.employee-profile-modal > .employee-date-calendar-v257 {
+  position: fixed;
+  z-index: 3060;
+  display: block;
+  width: 324px;
+  max-width: calc(100vw - 24px);
+  padding: 13px;
+  overflow: visible;
+  border: 1px solid rgba(34, 151, 197, 0.25);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(34, 151, 197, 0.07), transparent 38%),
+    rgba(255, 255, 255, 0.99);
+  box-shadow:
+    0 24px 60px rgba(15, 52, 75, 0.22),
+    0 5px 16px rgba(34, 151, 197, 0.1);
+  direction: rtl;
+  isolation: isolate;
+  backdrop-filter: blur(14px);
+}
+
+#employeeModal.employee-profile-modal
+  > .employee-date-calendar-v257[hidden] {
+  display: none !important;
+}
+
+#employeeModal.employee-profile-modal
+  > .employee-date-calendar-v257::before {
+  position: absolute;
+  z-index: -1;
+  left: var(--employee-date-anchor-x, calc(100% - 28px));
+  width: 11px;
+  height: 11px;
+  background: #fff;
+  content: "";
+  transform: translateX(-50%) rotate(45deg);
+}
+
+#employeeModal.employee-profile-modal
+  > .employee-date-calendar-v257.is-below-v257::before {
+  top: -6px;
+  border-top: 1px solid rgba(34, 151, 197, 0.22);
+  border-left: 1px solid rgba(34, 151, 197, 0.22);
+}
+
+#employeeModal.employee-profile-modal
+  > .employee-date-calendar-v257.is-above-v257::before {
+  bottom: -6px;
+  border-right: 1px solid rgba(34, 151, 197, 0.22);
+  border-bottom: 1px solid rgba(34, 151, 197, 0.22);
+}
+
+#employeeModal.employee-profile-modal .employee-date-calendar-head-v257 {
+  display: grid;
+  min-height: 38px;
+  align-items: center;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 8px;
+}
+
+#employeeModal.employee-profile-modal .employee-date-nav-v257 {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #d7e8ed;
+  border-radius: 11px;
+  background: #f3fafb;
+  color: #168ca2;
+  cursor: pointer;
+}
+
+#employeeModal.employee-profile-modal .employee-date-nav-v257:hover,
+#employeeModal.employee-profile-modal .employee-date-nav-v257:focus-visible {
+  border-color: #20a7b4;
+  background: #eaf9fa;
+  outline: none;
+}
+
+#employeeModal.employee-profile-modal .employee-date-nav-v257:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+#employeeModal.employee-profile-modal .employee-date-nav-v257 svg {
+  width: 16px;
+  height: 16px;
+}
+
+#employeeModal.employee-profile-modal .employee-date-period-v257 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  gap: 7px;
+}
+
+#employeeModal.employee-profile-modal .employee-date-period-v257 select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d8e7ec;
+  border-radius: 11px;
+  outline: none;
+  background-color: #fff;
+  color: #174354;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-period-v257
+  select:focus {
+  border-color: #20a7b4;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+
+#employeeModal.employee-profile-modal .employee-date-weekdays-v257,
+#employeeModal.employee-profile-modal .employee-date-days-v257 {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+#employeeModal.employee-profile-modal .employee-date-weekdays-v257 {
+  margin: 11px 0 6px;
+  color: #879da8;
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+}
+
+#employeeModal.employee-profile-modal .employee-date-day-v257 {
+  display: inline-grid;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #254b5a;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#employeeModal.employee-profile-modal .employee-date-day-v257:hover,
+#employeeModal.employee-profile-modal .employee-date-day-v257:focus-visible {
+  background: #eaf9fa;
+  color: #0f7f91;
+  outline: none;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-day-v257.is-outside {
+  color: #bcc8ce;
+}
+
+#employeeModal.employee-profile-modal .employee-date-day-v257.is-today {
+  box-shadow: inset 0 0 0 1px #20a7b4;
+  color: #0f7f91;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-day-v257.is-selected {
+  background: linear-gradient(145deg, #2297c5, #14b8a6);
+  box-shadow: 0 6px 13px rgba(20, 184, 166, 0.2);
+  color: #fff;
+}
+
+#employeeModal.employee-profile-modal .employee-date-day-v257:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+#employeeModal.employee-profile-modal .employee-date-calendar-foot-v257 {
+  display: flex;
+  margin-top: 10px;
+  padding-top: 10px;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #e6eff2;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-calendar-foot-v257
+  button {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #d9e8ed;
+  border-radius: 9px;
+  background: #f5fafb;
+  color: #52707d;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  .employee-date-calendar-foot-v257
+  button:first-child {
+  border-color: rgba(239, 68, 68, 0.17);
+  background: #fff6f6;
+  color: #dc3d3d;
+}
+
+#employeeModal.employee-profile-modal > .employee-date-backdrop-v257 {
+  position: fixed;
+  z-index: 3050;
+  inset: 0;
+  display: none;
+  background: rgba(8, 31, 43, 0.28);
+  backdrop-filter: blur(2px);
+}
+
+#employeeModal.employee-profile-modal
+  > .employee-date-backdrop-v257[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 680px) {
   #employeeModal.employee-profile-modal
-    [data-section-panel="personal"]
-    > .birthdate-calendar-portal-v250.is-mobile-v250::before {
+    > .employee-date-backdrop-v257:not([hidden]) {
+    display: block;
+  }
+
+  #employeeModal.employee-profile-modal
+    > .employee-date-calendar-v257.is-mobile-v257 {
+    position: fixed;
+    z-index: 3060;
+    top: 50% !important;
+    left: 50% !important;
+    width: min(340px, calc(100vw - 28px)) !important;
+    max-width: none;
+    max-height: calc(100vh - 28px) !important;
+    overflow-y: auto !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  #employeeModal.employee-profile-modal
+    > .employee-date-calendar-v257.is-mobile-v257::before {
     display: none;
   }
 }
