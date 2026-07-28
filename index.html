@@ -1062,12 +1062,27 @@
 
             <section class="employee-tab-panel" data-section-panel="documentation">
               <div class="form-section-title"><span data-icon="check-circle"></span><div><h3>التوثيق</h3><p>توقيع وبصمة الموظف وإقرار استخدامها</p></div></div>
-              <div class="documentation-grid">
-                <label><span>توقيع الموظف</span><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق التوقيع</span><input type="file" data-single-attachment="signature" accept="image/*" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="signature" hidden>عرض</button></label>
-                <label><span>بصمة الموظف</span><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق البصمة</span><input type="file" data-single-attachment="fingerprint" accept="image/*" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="fingerprint" hidden>عرض</button></label>
+              <div class="documentation-grid documentation-cards-v246">
+                <article class="documentation-card-v246" data-documentation-card="signature">
+                  <header class="documentation-card-head-v246"><span class="documentation-card-icon-v246" data-icon="edit"></span><div><h4>توقيع الموظف</h4><p>صورة التوقيع المعتمد</p></div></header>
+                  <div class="documentation-card-body-v246">
+                    <label class="documentation-upload-v246"><span>مرفق التوقيع</span><span class="documentation-actions-v246"><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق التوقيع</span><input type="file" data-single-attachment="signature" accept="image/*" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="signature" hidden>عرض</button></span></label>
+                  </div>
+                </article>
+                <article class="documentation-card-v246" data-documentation-card="fingerprint">
+                  <header class="documentation-card-head-v246"><span class="documentation-card-icon-v246" data-icon="user-check"></span><div><h4>بصمة الموظف</h4><p>صورة البصمة المعتمدة</p></div></header>
+                  <div class="documentation-card-body-v246">
+                    <label class="documentation-upload-v246"><span>مرفق البصمة</span><span class="documentation-actions-v246"><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق البصمة</span><input type="file" data-single-attachment="fingerprint" accept="image/*" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="fingerprint" hidden>عرض</button></span></label>
+                  </div>
+                </article>
+                <article class="documentation-card-v246 documentation-consent-card-v246" data-documentation-card="consent">
+                  <header class="documentation-card-head-v246"><span class="documentation-card-icon-v246" data-icon="check-circle"></span><div><h4>إقرار الاستخدام</h4><p>اعتماد التوقيع والبصمة</p></div></header>
+                  <div class="documentation-card-body-v246">
+                    <label class="consent-check"><input type="checkbox" id="documentationConsentCheck" /><span>موافقة الموظف على استخدام توقيعه وبصمته في النماذج المطلوبة</span></label>
+                    <div class="consent-issued-card" id="consentIssuedCard" hidden></div>
+                  </div>
+                </article>
               </div>
-              <label class="consent-check"><input type="checkbox" id="documentationConsentCheck" /><span>إقرار الموظف بالموافقة على استخدام توقيعه وبصمته في النماذج المطلوبة</span></label>
-              <div class="consent-issued-card" id="consentIssuedCard" hidden></div>
             </section>
           </div>
         </div>

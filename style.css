@@ -20434,6 +20434,250 @@ html.has-initial-login-bg .auth-gate,
   max-height: 72px !important;
 }
 
+/* Documentation cards — v246 */
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-cards-v246 {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-card-v246 {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 218px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #dce9ed;
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 14% 4%, rgba(34, 197, 94, 0.08), transparent 34%),
+    linear-gradient(145deg, #ffffff 0%, #f8fcfd 100%);
+  box-shadow: 0 11px 28px rgba(15, 77, 91, 0.07);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-card-v246::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #2297c5, #14b8a6, #22c55e);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-card-head-v246 {
+  display: flex;
+  min-height: 82px;
+  align-items: center;
+  gap: 11px;
+  padding: 17px 16px 13px;
+  border-bottom: 1px solid #e7eff2;
+  background: rgba(247, 252, 253, 0.72);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-card-icon-v246 {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  place-items: center;
+  border: 1px solid rgba(34, 151, 197, 0.18);
+  border-radius: 14px;
+  background: linear-gradient(145deg, #e9f8fc, #eafbf2);
+  color: #0e8398;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-card-icon-v246
+  svg {
+  width: 20px;
+  height: 20px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-card-head-v246
+  h4 {
+  margin: 0;
+  color: #123b48;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-card-head-v246
+  p {
+  margin: 4px 0 0;
+  color: #7a8a91;
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-card-body-v246 {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-upload-v246 {
+  display: flex !important;
+  min-width: 0;
+  flex-direction: column;
+  gap: 9px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-upload-v246
+  > span:first-child {
+  color: #60727a;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-actions-v246,
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .employee-attachment-inline-wrap {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-actions-v246
+  .compact-file-control,
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .employee-attachment-inline-wrap
+  .compact-file-control {
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  flex: 1 1 auto !important;
+  border-radius: 12px !important;
+  background: #fff;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-actions-v246
+  .attachment-view-btn,
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .employee-attachment-inline-wrap
+  .attachment-view-btn {
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  flex: 0 0 44px !important;
+  margin: 0 !important;
+  border-radius: 12px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-consent-card-v246
+  .documentation-card-body-v246 {
+  justify-content: flex-start;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-consent-card-v246
+  .consent-check {
+  min-height: 74px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 12px;
+  border-color: #dce9ed;
+  border-radius: 12px;
+  background: #fff;
+  color: #53666e;
+  font-size: 8px;
+  line-height: 1.75;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-consent-card-v246
+  .consent-check
+  input {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  margin-top: 1px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-consent-card-v246
+  .consent-issued-card {
+  width: 100%;
+  margin: 0;
+  padding: 10px 11px;
+  border-radius: 11px;
+  font-size: 8px;
+  line-height: 1.75;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="documentation"]
+  .documentation-consent-card-v246
+  .consent-issued-card
+  .attachment-view-btn {
+  display: inline-grid;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  margin-inline-start: 6px;
+  place-items: center;
+  border: 1px solid rgba(14, 165, 183, 0.2);
+  border-radius: 10px;
+  background: #e9f9fc;
+}
+
+@media (max-width: 820px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="documentation"]
+    .documentation-cards-v246 {
+    grid-template-columns: 1fr !important;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="documentation"]
+    .documentation-card-v246 {
+    min-height: 0;
+  }
+}
+
 @media (max-width: 900px) {
   #employeeModal.employee-profile-modal
     [data-section-panel="commissions"]
