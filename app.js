@@ -71352,6 +71352,18 @@ window.nawahLeaveBalanceReportV185 = {
   )
     return;
 
+  const personalPanel = root.closest('[data-section-panel="personal"]');
+  const portalHost = personalPanel || document.querySelector("#employeeModal");
+  const backdrop = document.createElement("span");
+  backdrop.className = "birthdate-backdrop-v250";
+  backdrop.hidden = true;
+  backdrop.setAttribute("aria-hidden", "true");
+  calendar.classList.add("birthdate-calendar-portal-v250");
+  if (portalHost) {
+    portalHost.appendChild(backdrop);
+    portalHost.appendChild(calendar);
+  }
+
   const months = [
     "يناير",
     "فبراير",
@@ -71372,6 +71384,7 @@ window.nawahLeaveBalanceReportV185 = {
   const minimumYear = maximumYear - 120;
   let viewYear = maximumYear - 25;
   let viewMonth = today.getMonth();
+  let positionFrame = 0;
 
   function englishDigits(value) {
     return String(value || "")
@@ -71478,6 +71491,101 @@ window.nawahLeaveBalanceReportV185 = {
       .join("");
   }
 
+  function compactViewport() {
+    return window.innerWidth <= 680;
+  }
+
+  function positionCalendar() {
+    if (calendar.hidden) return;
+    if (compactViewport()) {
+      calendar.classList.add("is-mobile-v250");
+      calendar.classList.remove("is-above-v250", "is-below-v250");
+      calendar.dataset.placement = "center";
+      calendar.style.removeProperty("--birthdate-anchor-x");
+      calendar.style.removeProperty("max-height");
+      calendar.style.removeProperty("overflow-y");
+      calendar.style.removeProperty("width");
+      calendar.style.left = "50%";
+      calendar.style.top = "50%";
+      calendar.style.transform = "translate(-50%, -50%)";
+      calendar.style.visibility = "visible";
+      backdrop.hidden = false;
+      return;
+    }
+
+    backdrop.hidden = true;
+    calendar.classList.remove("is-mobile-v250");
+    calendar.style.transform = "none";
+    calendar.style.visibility = "hidden";
+    calendar.style.removeProperty("max-height");
+    calendar.style.removeProperty("overflow-y");
+    const viewportWidth = Math.max(
+      320,
+      Number(window.innerWidth || document.documentElement.clientWidth || 0),
+    );
+    const viewportHeight = Math.max(
+      320,
+      Number(window.innerHeight || document.documentElement.clientHeight || 0),
+    );
+    const fieldRect = root.getBoundingClientRect();
+    const triggerRect = toggle.getBoundingClientRect();
+    const width = Math.min(324, Math.max(280, viewportWidth - 24));
+    const edge = 12;
+    const gap = 10;
+    const left = Math.max(
+      edge,
+      Math.min(
+        fieldRect.right - width,
+        viewportWidth - width - edge,
+      ),
+    );
+    calendar.style.width = `${width}px`;
+    calendar.style.left = `${left}px`;
+    calendar.style.top = `${edge}px`;
+    const measuredRect = calendar.getBoundingClientRect();
+    const measuredHeight = Math.max(
+      Number(measuredRect.height || 0),
+      Number(calendar.scrollHeight || 0),
+      310,
+    );
+    const belowSpace = viewportHeight - fieldRect.bottom - gap - edge;
+    const aboveSpace = fieldRect.top - gap - edge;
+    const placeAbove =
+      belowSpace < measuredHeight && aboveSpace > belowSpace;
+    const availableSpace = Math.max(
+      220,
+      placeAbove ? aboveSpace : belowSpace,
+    );
+    if (availableSpace < measuredHeight) {
+      calendar.style.maxHeight = `${availableSpace}px`;
+      calendar.style.overflowY = "auto";
+    }
+    const renderedHeight = Math.min(measuredHeight, availableSpace);
+    const top = placeAbove
+      ? Math.max(edge, fieldRect.top - renderedHeight - gap)
+      : Math.min(
+          viewportHeight - renderedHeight - edge,
+          fieldRect.bottom + gap,
+        );
+    calendar.style.top = `${Math.max(edge, top)}px`;
+    calendar.classList.toggle("is-above-v250", placeAbove);
+    calendar.classList.toggle("is-below-v250", !placeAbove);
+    calendar.dataset.placement = placeAbove ? "above" : "below";
+    const triggerCenter =
+      triggerRect.left + triggerRect.width / 2 - left;
+    const anchor = Math.max(22, Math.min(width - 22, triggerCenter));
+    calendar.style.setProperty("--birthdate-anchor-x", `${anchor}px`);
+    calendar.style.visibility = "visible";
+  }
+
+  function schedulePosition() {
+    if (positionFrame) cancelAnimationFrame(positionFrame);
+    positionFrame = requestAnimationFrame(function () {
+      positionFrame = 0;
+      positionCalendar();
+    });
+  }
+
   function render() {
     viewYear = Math.max(minimumYear, Math.min(maximumYear, viewYear));
     viewMonth = Math.max(0, Math.min(11, viewMonth));
@@ -71521,6 +71629,7 @@ window.nawahLeaveBalanceReportV185 = {
       viewYear === maximumYear && viewMonth >= today.getMonth();
     if (previousButton) previousButton.disabled = atMinimum;
     if (nextButton) nextButton.disabled = atMaximum;
+    if (!calendar.hidden) schedulePosition();
   }
 
   function setOpen(open) {
@@ -71537,8 +71646,23 @@ window.nawahLeaveBalanceReportV185 = {
         viewMonth = today.getMonth();
       }
       render();
-      setTimeout(() => monthSelect.focus(), 0);
-    } else toggle.focus({ preventScroll: true });
+      positionCalendar();
+      schedulePosition();
+      setTimeout(() => {
+        positionCalendar();
+        monthSelect.focus();
+      }, 0);
+    } else {
+      backdrop.hidden = true;
+      calendar.style.visibility = "";
+      calendar.classList.remove(
+        "is-mobile-v250",
+        "is-above-v250",
+        "is-below-v250",
+      );
+      calendar.removeAttribute("data-placement");
+      toggle.focus({ preventScroll: true });
+    }
   }
 
   function emitValue(value) {
@@ -71627,7 +71751,12 @@ window.nawahLeaveBalanceReportV185 = {
   );
 
   document.addEventListener("pointerdown", function (event) {
-    if (!calendar.hidden && !root.contains(event.target)) setOpen(false);
+    if (
+      !calendar.hidden &&
+      !root.contains(event.target) &&
+      !calendar.contains(event.target)
+    )
+      setOpen(false);
   });
 
   document.addEventListener("keydown", function (event) {
@@ -71636,6 +71765,18 @@ window.nawahLeaveBalanceReportV185 = {
       setOpen(false);
     }
   });
+
+  window.addEventListener("resize", schedulePosition);
+  document
+    .querySelector(".employee-section-content")
+    ?.addEventListener("scroll", schedulePosition, { passive: true });
+  document
+    .querySelectorAll("[data-employee-section]")
+    .forEach((button) =>
+      button.addEventListener("click", function () {
+        if (!calendar.hidden) setOpen(false);
+      }),
+    );
 
   const previousOpenEmployeeModal =
     typeof openEmployeeModal === "function"
@@ -71658,13 +71799,17 @@ window.nawahLeaveBalanceReportV185 = {
     window.openEmployeeModal = wrappedOpenEmployeeModal;
   }
 
-  window.nawahBirthDateV249 = {
+  const calendarApi = {
     open: () => setOpen(true),
     close: () => setOpen(false),
     render,
+    position: positionCalendar,
     parse,
     validate,
     syncAge,
+    placement: () => calendar.dataset.placement || "",
     value: () => input.value,
   };
+  window.nawahBirthDateV249 = calendarApi;
+  window.nawahBirthDateV250 = calendarApi;
 })();

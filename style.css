@@ -9110,6 +9110,236 @@ body {
   }
 }
 
+/* Floating birth-date calendar correction — v250 */
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .birthdate-picker-v249
+  > input {
+  border-radius: 12px 0 0 12px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .birthdate-trigger-v249 {
+  border-radius: 0 12px 12px 0 !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250 {
+  position: fixed !important;
+  z-index: 3000 !important;
+  display: block;
+  width: 324px;
+  max-width: calc(100vw - 24px);
+  padding: 13px;
+  overflow: visible;
+  border: 1px solid rgba(34, 151, 197, 0.25);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow:
+    0 24px 60px rgba(15, 52, 75, 0.22),
+    0 5px 16px rgba(34, 151, 197, 0.1);
+  direction: rtl;
+  isolation: isolate;
+  transform: none;
+  backdrop-filter: blur(14px);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250[hidden] {
+  display: none !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250::before {
+  position: absolute;
+  z-index: -1;
+  left: var(--birthdate-anchor-x, calc(100% - 28px)) !important;
+  width: 11px;
+  height: 11px;
+  background: #fff;
+  content: "";
+  transform: translateX(-50%) rotate(45deg);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250.is-below-v250::before {
+  top: -6px !important;
+  bottom: auto;
+  border-top: 1px solid rgba(34, 151, 197, 0.22);
+  border-left: 1px solid rgba(34, 151, 197, 0.22);
+  border-right: 0;
+  border-bottom: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250.is-above-v250::before {
+  top: auto !important;
+  bottom: -6px;
+  border-right: 1px solid rgba(34, 151, 197, 0.22);
+  border-bottom: 1px solid rgba(34, 151, 197, 0.22);
+  border-top: 0;
+  border-left: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-calendar-head-v249 {
+  display: grid;
+  min-height: 38px;
+  align-items: center;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 8px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-nav-v249 {
+  width: 36px;
+  height: 36px;
+  border-color: #d7e8ed;
+  border-radius: 11px;
+  background: #f3fafb;
+  color: #168ca2;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-nav-v249:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-period-v249 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  gap: 7px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-period-v249
+  select {
+  min-height: 36px;
+  padding: 0 10px;
+  border-color: #d8e7ec;
+  border-radius: 11px;
+  background-color: #fff;
+  color: #174354;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-weekdays-v249,
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-days-v249 {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-weekdays-v249 {
+  margin: 11px 0 6px;
+  color: #879da8;
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-day-v249 {
+  width: 100%;
+  height: 32px;
+  min-width: 0;
+  padding: 0;
+  aspect-ratio: auto !important;
+  border-radius: 9px;
+  font-size: 10px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-day-v249:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-calendar-portal-v250
+  .birthdate-calendar-foot-v249 {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-backdrop-v250 {
+  position: fixed;
+  z-index: 2990;
+  inset: 0;
+  display: none;
+  background: rgba(8, 31, 43, 0.28);
+  backdrop-filter: blur(2px);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  > .birthdate-backdrop-v250[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 680px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    > .birthdate-backdrop-v250:not([hidden]) {
+    display: block;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    > .birthdate-calendar-portal-v250.is-mobile-v250 {
+    position: fixed !important;
+    z-index: 3000 !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: min(340px, calc(100vw - 28px)) !important;
+    max-width: none;
+    max-height: calc(100vh - 28px) !important;
+    overflow-y: auto !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    > .birthdate-calendar-portal-v250.is-mobile-v250::before {
+    display: none;
+  }
+}
+
 /* Contact information cards — v247 */
 #employeeModal.employee-profile-modal
   [data-section-panel="contact"]
