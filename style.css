@@ -23030,3 +23030,394 @@ html.has-initial-login-bg .auth-gate,
   > .field-with-action {
   align-self: start !important;
 }
+
+/* v254 — Salary details workspace */
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-cards-v254 {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: stretch;
+  gap: 14px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-card-v254 {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dce9ed;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(247, 252, 253, 0.96), #fff 72%),
+    #fff;
+  box-shadow: 0 8px 22px rgba(15, 65, 78, 0.055);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-card-v254::before {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #2297c5, #14b8a6, #22c55e);
+  content: "";
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-earnings-card-v254 {
+  grid-column: 1 / -1;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-card-head-v254 {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #e7eff2;
+  background: rgba(247, 252, 253, 0.74);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-card-icon-v254 {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  place-items: center;
+  border: 1px solid rgba(34, 151, 197, 0.18);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #e9f8fc, #eafbf2);
+  color: #0e8398;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-icon-v254 {
+  background: linear-gradient(145deg, #eef7ff, #eafbf6);
+  color: #17899f;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-icon-v254 {
+  background: linear-gradient(145deg, #e8faf5, #effbfd);
+  color: #13866f;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-card-icon-v254
+  svg {
+  width: 19px;
+  height: 19px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-card-head-v254
+  > div {
+  min-width: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-card-head-v254
+  h4 {
+  margin: 0;
+  color: #123b48;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-card-head-v254
+  p {
+  margin: 4px 0 0;
+  color: #7a8a91;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-card-note-v254 {
+  margin-inline-start: auto;
+  padding: 6px 9px;
+  border: 1px solid #d8ecf0;
+  border-radius: 999px;
+  background: #f0fafb;
+  color: #0e8398;
+  font-size: 7px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-earnings-grid-v254,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-grid-v254 {
+  gap: 13px;
+  align-items: end;
+  padding: 16px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-earnings-grid-v254 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254 {
+  grid-template-columns: 1fr;
+  align-content: start;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-grid-v254 {
+  grid-template-columns: minmax(150px, 0.75fr) minmax(230px, 1.25fr);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-earnings-grid-v254
+  label,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254
+  label,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-grid-v254
+  label {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-earnings-grid-v254
+  label
+  > span:first-child,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254
+  label
+  > span:first-child,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-grid-v254
+  label
+  > span:first-child {
+  color: #5d7077;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-earnings-grid-v254
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-grid-v254
+  input {
+  width: 100%;
+  min-height: 43px;
+  padding: 9px 11px;
+  border: 1px solid #d9e6ea;
+  border-radius: 11px;
+  outline: 0;
+  background: #fff;
+  color: #203c45;
+  font-size: 9px;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-earnings-grid-v254
+  input:focus {
+  border-color: rgba(34, 151, 197, 0.62);
+  box-shadow: 0 0 0 3px rgba(34, 151, 197, 0.09);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254
+  .salary-insurance-toggle,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254
+  .salary-insurance-value,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-grid-v254
+  .salary-total-field,
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-grid-v254
+  .salary-total-words-field {
+  grid-column: auto !important;
+  grid-row: auto !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254
+  .salary-insurance-toggle {
+  display: flex !important;
+  min-height: 58px;
+  align-items: center !important;
+  justify-content: space-between;
+  flex-direction: row !important;
+  gap: 14px !important;
+  padding: 12px 14px;
+  border: 1px solid #d7ebe7;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f3fbf8, #f4fafc);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254
+  .salary-insurance-toggle
+  > span:first-child {
+  color: #176f68;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1.6;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254
+  .salary-insurance-toggle
+  input[type="checkbox"] {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  flex: 0 0 20px;
+  padding: 0;
+  accent-color: #14a891;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-insurance-grid-v254
+  .salary-insurance-value
+  input {
+  border-color: #eadfcb;
+  background: linear-gradient(90deg, #fffaf2, #fbfcfc);
+  color: #9a6519;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-grid-v254
+  .salary-total-field
+  input {
+  border-color: #cfe8e1;
+  background: linear-gradient(90deg, #effaf6, #f6fbfc);
+  color: #127765;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-summary-grid-v254
+  .salary-total-words-field
+  input {
+  border-color: #d8e8ec;
+  background: #f7fafb;
+  color: #4b626a;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-calculation-note-v254 {
+  min-height: 46px;
+  margin: 0 16px 16px;
+  padding: 11px 12px;
+  border: 1px solid #e1eaed;
+  border-radius: 11px;
+  background: #f8fbfc;
+  color: #6c7f86;
+  font-size: 7px;
+  line-height: 1.75;
+}
+
+@media (max-width: 1100px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="salary"]
+    .salary-cards-v254 {
+    grid-template-columns: 1fr;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="salary"]
+    .salary-earnings-card-v254 {
+    grid-column: auto;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="salary"]
+    .salary-earnings-grid-v254 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="salary"]
+    .salary-card-head-v254 {
+    align-items: flex-start;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="salary"]
+    .salary-card-note-v254 {
+    display: none;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="salary"]
+    .salary-earnings-grid-v254,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="salary"]
+    .salary-summary-grid-v254 {
+    grid-template-columns: 1fr;
+  }
+}

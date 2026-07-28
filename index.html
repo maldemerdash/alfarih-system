@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=253" />
+    <link rel="stylesheet" href="style.css?v=254" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -1093,17 +1093,44 @@
 
             <section class="employee-tab-panel" data-section-panel="salary">
               <div class="form-section-title"><span data-icon="wallet"></span><div><h3>تفاصيل الراتب</h3><p>تفاصيل الاستحقاقات والخصومات</p></div></div>
-              <div class="form-grid form-grid-4 salary-fields">
-                <label><span>الراتب الأساسي</span><input name="baseSalary" type="number" min="0" step="0.01" /></label>
-                <label><span>بدل السكن</span><input name="housingAllowance" type="number" min="0" step="0.01" /></label>
-                <label><span>بدل المواصلات</span><input name="transportAllowance" type="number" min="0" step="0.01" /></label>
-                <label><span>بدلات أخرى</span><input name="otherAllowances" type="number" min="0" step="0.01" /></label>
-                <label class="insurance-toggle salary-insurance-toggle"><span id="salaryInsuranceToggleLabel">تطبيق خصم التأمينات</span><input name="insuranceEnabled" type="checkbox" /></label>
-                <label id="insuranceValueField" class="salary-insurance-value salary-insurance-inactive" aria-hidden="false"><span>قيمة خصم التأمينات</span><input name="insuranceDeduction" class="calculated-field" readonly tabindex="-1" /></label>
-                <label class="salary-total-field"><span>إجمالي الراتب</span><input name="totalSalary" class="calculated-field" readonly /></label>
-                <label class="salary-total-words-field"><span>تفقيط إجمالي الراتب</span><input name="totalSalaryWords" type="text" class="calculated-field tafqeet-field" readonly /></label>
+              <div class="salary-fields salary-cards-v254" data-salary-layout="v254">
+                <article class="salary-card-v254 salary-earnings-card-v254" data-salary-card="earnings">
+                  <header class="salary-card-head-v254">
+                    <span class="salary-card-icon-v254" data-icon="wallet"></span>
+                    <div><h4>مكونات الراتب</h4><p>الراتب الأساسي والبدلات الشهرية المعتمدة</p></div>
+                    <span class="salary-card-note-v254">الاستحقاقات</span>
+                  </header>
+                  <div class="form-grid salary-earnings-grid-v254">
+                    <label><span>الراتب الأساسي</span><input name="baseSalary" type="number" min="0" step="0.01" /></label>
+                    <label><span>بدل السكن</span><input name="housingAllowance" type="number" min="0" step="0.01" /></label>
+                    <label><span>بدل المواصلات</span><input name="transportAllowance" type="number" min="0" step="0.01" /></label>
+                    <label><span>بدلات أخرى</span><input name="otherAllowances" type="number" min="0" step="0.01" /></label>
+                  </div>
+                </article>
+
+                <article class="salary-card-v254 salary-insurance-card-v254" data-salary-card="insurance">
+                  <header class="salary-card-head-v254">
+                    <span class="salary-card-icon-v254 salary-insurance-icon-v254" data-icon="shield"></span>
+                    <div><h4>خصم التأمينات</h4><p>يُحتسب وفق إعداد الراتب المعتمد في النظام</p></div>
+                  </header>
+                  <div class="form-grid salary-insurance-grid-v254">
+                    <label class="insurance-toggle salary-insurance-toggle"><span id="salaryInsuranceToggleLabel">تطبيق خصم التأمينات</span><input name="insuranceEnabled" type="checkbox" /></label>
+                    <label id="insuranceValueField" class="salary-insurance-value salary-insurance-inactive" aria-hidden="false"><span>قيمة خصم التأمينات</span><input name="insuranceDeduction" class="calculated-field" readonly tabindex="-1" /></label>
+                  </div>
+                </article>
+
+                <article class="salary-card-v254 salary-summary-card-v254" data-salary-card="summary">
+                  <header class="salary-card-head-v254">
+                    <span class="salary-card-icon-v254 salary-summary-icon-v254" data-icon="trend-up"></span>
+                    <div><h4>صافي الراتب</h4><p>الإجمالي النهائي بعد تطبيق الخصومات</p></div>
+                  </header>
+                  <div class="form-grid salary-summary-grid-v254">
+                    <label class="salary-total-field"><span>إجمالي الراتب</span><input name="totalSalary" class="calculated-field" readonly /></label>
+                    <label class="salary-total-words-field"><span>تفقيط إجمالي الراتب</span><input name="totalSalaryWords" type="text" class="calculated-field tafqeet-field" readonly /></label>
+                  </div>
+                  <p class="calculation-note salary-calculation-note-v254" id="salaryCalculationNote"></p>
+                </article>
               </div>
-              <p class="calculation-note" id="salaryCalculationNote"></p>
             </section>
 
             <section class="employee-tab-panel" data-section-panel="leaveTravelHistory">
@@ -1416,6 +1443,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=253"></script>
+    <script src="app.js?v=254"></script>
   </body>
 </html>
