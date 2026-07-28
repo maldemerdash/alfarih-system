@@ -8469,6 +8469,202 @@ body {
   }
 }
 
+/* Contact information cards — v247 */
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-cards-v247 {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  align-items: stretch;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-card-v247 {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 206px;
+  overflow: hidden;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid #dce9ef;
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(34, 151, 197, 0.08), transparent 42%),
+    linear-gradient(145deg, #ffffff 0%, #fbfdfe 100%);
+  box-shadow: 0 9px 24px rgba(15, 52, 75, 0.06);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-card-v247::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #2297c5, #14b8a6, #22c55e);
+  content: "";
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-card-v247.is-primary {
+  border-color: rgba(34, 151, 197, 0.3);
+  background:
+    radial-gradient(circle at 100% 0, rgba(20, 184, 166, 0.11), transparent 45%),
+    linear-gradient(145deg, #ffffff 0%, #f8fcfd 100%);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-card-head-v247 {
+  display: flex;
+  min-height: 78px;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-card-icon-v247 {
+  display: inline-grid;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(34, 151, 197, 0.2);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #eaf8fc, #e9fbf6);
+  color: #138ba7;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-card-icon-v247
+  svg {
+  width: 19px;
+  height: 19px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-card-head-v247
+  > div {
+  min-width: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-card-head-v247
+  h4 {
+  margin: 2px 0 4px;
+  color: #163a4d;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-card-head-v247
+  p {
+  margin: 0;
+  color: #8499a6;
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-required-v247 {
+  margin-inline-start: auto;
+  padding: 4px 7px;
+  border: 1px solid rgba(239, 68, 68, 0.16);
+  border-radius: 999px;
+  background: #fff5f5;
+  color: #dc3d3d;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-field-v247 {
+  display: flex;
+  margin-top: auto;
+  flex-direction: column;
+  gap: 7px;
+  color: #4a6574;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-field-v247
+  input {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 13px;
+  border: 1px solid #d8e5eb;
+  border-radius: 12px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: #17394a;
+  direction: ltr;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-field-v247
+  input::placeholder {
+  color: #adbbc3;
+  font-weight: 500;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="contact"]
+  .contact-field-v247
+  input:focus {
+  border-color: #20a7b4;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.11);
+}
+
+@media (max-width: 1180px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="contact"]
+    .contact-cards-v247 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 680px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="contact"]
+    .contact-cards-v247 {
+    grid-template-columns: 1fr !important;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="contact"]
+    .contact-card-v247 {
+    min-height: 0;
+  }
+}
+
 .warnings-area-card{border-color:#fde68a;background:linear-gradient(180deg,#fff,#fffbeb)}
 .warnings-table .warning-status-badge{display:inline-flex;align-items:center;justify-content:center;min-width:54px;padding:5px 10px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:800;font-size:11px}
 .warnings-table td{vertical-align:middle}

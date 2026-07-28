@@ -1025,11 +1025,23 @@
 
             <section class="employee-tab-panel" data-section-panel="contact">
               <div class="form-section-title"><span data-icon="phone"></span><div><h3>بيانات الاتصال</h3><p>وسائل التواصل والطوارئ</p></div></div>
-              <div class="form-grid form-grid-3">
-                <label><span>رقم الجوال *</span><input name="phone" required inputmode="tel" maxlength="15" /></label>
-                <label><span>رقم جوال الطوارئ</span><input name="emergencyPhone" inputmode="tel" /></label>
-                <label><span>البريد الإلكتروني</span><input name="email" type="email" /></label>
-                <label><span>رقم الجوال في البلد الأم</span><input name="homeCountryPhone" inputmode="tel" /></label>
+              <div class="contact-cards-v247" data-contact-layout="v247">
+                <article class="contact-card-v247 is-primary" data-contact-card="phone">
+                  <header class="contact-card-head-v247"><span class="contact-card-icon-v247" data-icon="phone"></span><div><h4>الجوال الأساسي</h4><p>الرقم المعتمد للتواصل</p></div><span class="contact-required-v247">إلزامي</span></header>
+                  <label class="contact-field-v247"><span>رقم الجوال</span><input name="phone" required inputmode="tel" autocomplete="tel" maxlength="15" placeholder="05xxxxxxxx" /></label>
+                </article>
+                <article class="contact-card-v247" data-contact-card="emergencyPhone">
+                  <header class="contact-card-head-v247"><span class="contact-card-icon-v247" data-icon="user-check"></span><div><h4>اتصال الطوارئ</h4><p>رقم بديل عند الحاجة</p></div></header>
+                  <label class="contact-field-v247"><span>رقم جوال الطوارئ</span><input name="emergencyPhone" inputmode="tel" autocomplete="tel" placeholder="05xxxxxxxx" /></label>
+                </article>
+                <article class="contact-card-v247" data-contact-card="email">
+                  <header class="contact-card-head-v247"><span class="contact-card-icon-v247" data-icon="mail"></span><div><h4>البريد الإلكتروني</h4><p>المراسلات والإشعارات</p></div></header>
+                  <label class="contact-field-v247"><span>البريد الإلكتروني</span><input name="email" type="email" autocomplete="email" placeholder="name@example.com" /></label>
+                </article>
+                <article class="contact-card-v247" data-contact-card="homeCountryPhone">
+                  <header class="contact-card-head-v247"><span class="contact-card-icon-v247" data-icon="home"></span><div><h4>التواصل الدولي</h4><p>رقم الجوال في البلد الأم</p></div></header>
+                  <label class="contact-field-v247"><span>رقم البلد الأم</span><input name="homeCountryPhone" inputmode="tel" autocomplete="tel" placeholder="+xxx xxxxxxxxx" /></label>
+                </article>
               </div>
             </section>
 
