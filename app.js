@@ -72142,6 +72142,12 @@ window.nawahLeaveBalanceReportV185 = {
       return { key: "contract-start", section: "employment" };
     if (input.name === "workStartDate")
       return { key: "work-start", section: "employment" };
+    if (input.name === "commissionManualPaymentDate")
+      return {
+        key: "commission-due",
+        section: "commissions",
+        manualOnly: true,
+      };
     if (input.name === "commissionPaymentDate")
       return {
         key: "commission-payment",
@@ -72252,6 +72258,7 @@ window.nawahLeaveBalanceReportV185 = {
       employeeForm.elements?.identityExpiryGregorian,
       employeeForm.elements?.contractStartDate,
       employeeForm.elements?.workStartDate,
+      employeeForm.elements?.commissionManualPaymentDate,
       employeeForm.elements?.commissionPaymentDate,
       ...employeeForm.querySelectorAll(
         '[data-passport-field="startDate"], [data-passport-field="expiryDate"]',
@@ -72563,8 +72570,10 @@ window.nawahLeaveBalanceReportV185 = {
         event.target?.matches?.(
           '[name="commissionStartMode"], [name="contractType"]',
         )
-      )
-        setTimeout(scheduleSync, 0);
+      ) {
+        setTimeout(syncAll, 0);
+        setTimeout(syncAll, 120);
+      }
     },
     true,
   );
@@ -72648,8 +72657,8 @@ window.nawahLeaveBalanceReportV185 = {
   );
 
   syncAll();
-  window.nawahEmployeeDatePickersV257 = {
-    version: 257,
+  const datePickerApi = {
+    version: 258,
     sync: syncAll,
     open: openCalendar,
     close: closeCalendar,
@@ -72661,4 +72670,6 @@ window.nawahLeaveBalanceReportV185 = {
     portalCount: () =>
       modal.querySelectorAll(":scope > .employee-date-calendar-v257").length,
   };
+  window.nawahEmployeeDatePickersV257 = datePickerApi;
+  window.nawahEmployeeDatePickersV258 = datePickerApi;
 })();

@@ -22685,18 +22685,24 @@ html.has-initial-login-bg .auth-gate,
   text-overflow: ellipsis;
 }
 
-.contract-date-field.is-contract-date-locked > span {
+.contract-date-field.is-contract-date-locked > span:first-child {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
-.contract-date-field.is-contract-date-locked > span::after {
+.contract-date-field.is-contract-date-locked > span:first-child::after {
   content: "مثبّت";
   color: #0f766e;
   font-size: 9px;
   font-weight: 800;
+}
+
+/* v258 - keep the lock badge on the caption only; the date control stays a grid. */
+.contract-date-field.is-contract-date-locked
+  > .employee-date-picker-v257 {
+  display: grid;
 }
 
 .contract-date-field.is-contract-date-locked input[readonly] {
