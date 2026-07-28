@@ -6357,21 +6357,18 @@ body {
 }
 
 /* v255 — Employee leave and travel history workspace */
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   > .v255-history-static-title {
   display: none !important;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v81-form-history-holder {
   min-height: 430px;
   margin-top: 0;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-employee-history-card {
   position: relative;
   overflow: hidden;
@@ -6385,8 +6382,7 @@ body {
   box-shadow: 0 9px 26px rgba(15, 65, 78, 0.06);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-employee-history-card::before {
   position: absolute;
   z-index: 3;
@@ -6396,8 +6392,7 @@ body {
   content: "";
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-employee-history-card
   .v81-history-head {
   min-height: 76px;
@@ -6413,8 +6408,7 @@ body {
     linear-gradient(135deg, rgba(240, 251, 252, 0.96), #fff);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-heading {
   display: flex;
   min-width: 0;
@@ -6422,8 +6416,7 @@ body {
   gap: 11px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-heading-icon {
   display: grid;
   width: 42px;
@@ -6436,24 +6429,21 @@ body {
   color: #087e88;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-heading-icon
   svg {
   width: 19px;
   height: 19px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-heading
   h3 {
   color: #0c7180;
   font-size: 14px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-heading
   p {
   margin-top: 4px;
@@ -6461,8 +6451,7 @@ body {
   font-size: 7px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-leave-balance-card {
   position: relative;
   display: grid;
@@ -6484,8 +6473,7 @@ body {
   box-shadow: 0 11px 25px rgba(12, 125, 136, 0.15);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-leave-balance-card.is-warning {
   background:
     radial-gradient(
@@ -6496,8 +6484,7 @@ body {
     linear-gradient(135deg, #9a6808, #d49413 54%, #12a59b);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-leave-balance-card.is-negative {
   background:
     radial-gradient(
@@ -6508,8 +6495,7 @@ body {
     linear-gradient(135deg, #a63232, #d24e4e 54%, #aa761a);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-leave-balance-card.is-empty {
   display: block;
   border-color: #d9e8eb;
@@ -6518,8 +6504,7 @@ body {
   box-shadow: none;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-main {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
@@ -6528,8 +6513,7 @@ body {
   min-width: 0;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-icon {
   display: grid;
   width: 44px;
@@ -6540,8 +6524,7 @@ body {
   background: rgba(255, 255, 255, 0.16);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-leave-balance-card.is-empty
   .v255-balance-icon {
   border-color: #cde9e8;
@@ -6549,16 +6532,14 @@ body {
   color: #0b858c;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-icon
   svg {
   width: 20px;
   height: 20px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-copy {
   display: flex;
   min-width: 0;
@@ -6566,8 +6547,7 @@ body {
   gap: 4px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-copy
   strong {
   color: inherit;
@@ -6575,8 +6555,7 @@ body {
   font-weight: 900;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-copy
   small {
   color: rgba(255, 255, 255, 0.76);
@@ -6584,16 +6563,14 @@ body {
   line-height: 1.65;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-leave-balance-card.is-empty
   .v255-balance-copy
   small {
   color: #80949a;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-value {
   display: flex;
   min-width: 78px;
@@ -6604,15 +6581,13 @@ body {
   border-inline-start: 1px solid rgba(255, 255, 255, 0.22);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-leave-balance-card.is-empty
   .v255-balance-value {
   border-inline-start-color: #d8e7ea;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-value
   strong {
   color: inherit;
@@ -6621,8 +6596,7 @@ body {
   line-height: 1;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-value
   span {
   margin-top: 6px;
@@ -6631,16 +6605,14 @@ body {
   font-weight: 800;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-metrics
   > div {
   display: grid;
@@ -6655,8 +6627,7 @@ body {
   background: rgba(255, 255, 255, 0.13);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-metrics
   span {
   grid-column: 1 / -1;
@@ -6665,8 +6636,7 @@ body {
   font-weight: 700;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-metrics
   strong {
   align-self: end;
@@ -6675,8 +6645,7 @@ body {
   font-weight: 900;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-metrics
   small {
   align-self: end;
@@ -6684,8 +6653,7 @@ body {
   font-size: 7px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-note {
   display: flex;
   grid-column: 1 / -1;
@@ -6696,23 +6664,20 @@ body {
   font-size: 7px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-note
   svg {
   width: 13px;
   height: 13px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-balance-note
   strong {
   color: #fff;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records {
   padding: 12px;
   border: 1px solid #e0eaed;
@@ -6720,8 +6685,7 @@ body {
   background: #fff;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-tabs {
   margin: 0 0 10px;
@@ -6731,8 +6695,7 @@ body {
   background: #f2f8f9;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-tabs
   button {
@@ -6746,8 +6709,7 @@ body {
   font-size: 8px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-tabs
   button.active {
@@ -6756,8 +6718,7 @@ body {
   box-shadow: 0 6px 15px rgba(20, 153, 189, 0.15);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-tabs
   b {
@@ -6772,8 +6733,7 @@ body {
   font-weight: 900;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-tabs
   button.active
@@ -6782,16 +6742,14 @@ body {
   color: #fff;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-filters {
   gap: 6px;
   margin: 0 0 10px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-filters
   button {
@@ -6801,8 +6759,7 @@ body {
   font-size: 7px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-filters
   button.active {
@@ -6812,8 +6769,7 @@ body {
   box-shadow: none;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-table-shell {
   max-height: min(42vh, 380px);
@@ -6822,8 +6778,7 @@ body {
   box-shadow: inset 0 1px 0 rgba(15, 65, 78, 0.025);
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-table
   thead
@@ -6833,8 +6788,7 @@ body {
   font-size: 7px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-table
   tbody
@@ -6843,8 +6797,7 @@ body {
   font-size: 7px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-table
   td
@@ -6852,8 +6805,7 @@ body {
   font-size: 8px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-history-table
   td
@@ -6861,8 +6813,7 @@ body {
   font-size: 6px;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-history-records
   .v81-icon-action {
   width: 28px;
@@ -6872,12 +6823,10 @@ body {
   color: #0a858a;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-employee-history-card
   .v114-history-delete-btn,
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-employee-history-card
   .v112-history-delete-btn {
   min-height: 36px !important;
@@ -6888,12 +6837,10 @@ body {
   font-size: 7px !important;
 }
 
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-employee-history-card
   .v114-history-delete-btn:hover,
-#employeeModal.employee-profile-modal
-  [data-section-panel="leaveTravelHistory"]
+:is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   .v255-employee-history-card
   .v112-history-delete-btn:hover {
   background: #fff0f0 !important;
@@ -6901,22 +6848,19 @@ body {
 }
 
 @media (max-width: 1100px) {
-  #employeeModal.employee-profile-modal
-    [data-section-panel="leaveTravelHistory"]
+  :is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
     .v255-leave-balance-card {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 680px) {
-  #employeeModal.employee-profile-modal
-    [data-section-panel="leaveTravelHistory"]
+  :is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
     .v255-employee-history-card {
     padding-inline: 12px;
   }
 
-  #employeeModal.employee-profile-modal
-    [data-section-panel="leaveTravelHistory"]
+  :is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
     .v255-employee-history-card
     .v81-history-head {
     align-items: stretch;
@@ -6924,14 +6868,12 @@ body {
     padding-inline: 14px;
   }
 
-  #employeeModal.employee-profile-modal
-    [data-section-panel="leaveTravelHistory"]
+  :is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
     .v255-balance-main {
     grid-template-columns: 40px minmax(0, 1fr);
   }
 
-  #employeeModal.employee-profile-modal
-    [data-section-panel="leaveTravelHistory"]
+  :is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
     .v255-balance-value {
     grid-column: 1 / -1;
     flex-direction: row;
@@ -6942,14 +6884,12 @@ body {
     border-top: 1px solid rgba(255, 255, 255, 0.2);
   }
 
-  #employeeModal.employee-profile-modal
-    [data-section-panel="leaveTravelHistory"]
+  :is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
     .v255-balance-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  #employeeModal.employee-profile-modal
-    [data-section-panel="leaveTravelHistory"]
+  :is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
     .v255-history-records {
     padding: 9px;
   }
@@ -26011,4 +25951,81 @@ html.has-initial-login-bg .auth-gate,
     select {
     min-height: 46px;
   }
+}
+
+/* v262 — Keep shared leave/travel SVG icons contained in both employee modals. */
+:is(
+    #employeeModal.employee-profile-modal
+      [data-section-panel="leaveTravelHistory"],
+    #quickViewModal .employee-profile-main
+  )
+  .v255-history-heading-icon {
+  width: 42px !important;
+  min-width: 42px !important;
+  max-width: 42px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  flex: 0 0 42px !important;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+:is(
+    #employeeModal.employee-profile-modal
+      [data-section-panel="leaveTravelHistory"],
+    #quickViewModal .employee-profile-main
+  )
+  .v255-history-heading-icon
+  svg {
+  display: block;
+  width: 19px !important;
+  min-width: 19px !important;
+  max-width: 19px !important;
+  height: 19px !important;
+  min-height: 19px !important;
+  max-height: 19px !important;
+  flex: 0 0 19px !important;
+}
+
+:is(
+    #employeeModal.employee-profile-modal
+      [data-section-panel="leaveTravelHistory"],
+    #quickViewModal .employee-profile-main
+  )
+  .v255-balance-icon {
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  flex: 0 0 44px !important;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+:is(
+    #employeeModal.employee-profile-modal
+      [data-section-panel="leaveTravelHistory"],
+    #quickViewModal .employee-profile-main
+  )
+  .v255-balance-icon
+  svg {
+  display: block;
+  width: 20px !important;
+  min-width: 20px !important;
+  max-width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  max-height: 20px !important;
+  flex: 0 0 20px !important;
+}
+
+#quickViewModal
+  .employee-profile-main
+  > .v255-employee-history-card {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
