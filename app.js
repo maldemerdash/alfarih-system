@@ -4029,6 +4029,22 @@ function renderCommissionHistory() {
     : '<tr><td colspan="6"><div class="employee-note-empty">لم يتم صرف عمولات بعد.</div></td></tr>'),
     hydrateIcons(e));
 }
+function consentEmployeeName() {
+  const e = document.querySelector("#employeeForm"),
+    t = [
+      e?.elements?.firstName?.value,
+      e?.elements?.fatherName?.value,
+      e?.elements?.grandName?.value,
+      e?.elements?.familyName?.value,
+    ]
+      .map((e) => String(e || "").trim())
+      .filter(Boolean)
+      .join(" "),
+    n = e?.elements?.employeeId?.value
+      ? getEmployee(e.elements.employeeId.value)
+      : null;
+  return t || n?.name || "الموظف";
+}
 function renderDocumentation() {
   [
     ["signature", employeeFormState.signatureAttachmentId],
@@ -4048,17 +4064,37 @@ function renderDocumentation() {
       (a.dataset.attachmentId = t || ""));
   });
   const e = document.querySelector("#documentationConsentCheck"),
-    t = document.querySelector("#consentIssuedCard");
+    t = document.querySelector("#consentIssuedCard"),
+    n = consentEmployeeName();
   employeeFormState.consent?.issuedAt
-    ? ((e.checked = !0),
+    ? (((employeeFormState.consent.issuedBy = n),
+      (employeeFormState.consent.employeeName = n)),
+      (e.checked = !0),
       (e.disabled = !0),
       (t.hidden = !1),
-      (t.innerHTML = `تم إصدار الإقرار بتاريخ <strong>${formatDateTime(employeeFormState.consent.issuedAt)}</strong> بواسطة ${escapeHtml(employeeFormState.consent.issuedBy || currentUser)} ${employeeFormState.consent.attachmentId ? `<button type="button" class="attachment-view-btn" data-view-attachment="${employeeFormState.consent.attachmentId}">عرض المرفق</button>` : ""}`))
+      (t.innerHTML = `تم إصدار الإقرار بتاريخ <strong>${formatDateTime(employeeFormState.consent.issuedAt)}</strong> بواسطة <strong>${escapeHtml(n)}</strong> ${employeeFormState.consent.attachmentId ? `<button type="button" class="attachment-view-btn" data-view-attachment="${employeeFormState.consent.attachmentId}">عرض المرفق</button>` : ""}`))
     : ((e.checked = !1),
       (e.disabled = !1),
       (t.hidden = !0),
       (t.innerHTML = ""));
 }
+function issueDocumentationConsent() {
+  const e = consentEmployeeName();
+  ((employeeFormState.consent = {
+    issuedAt: new Date().toISOString(),
+    issuedBy: e,
+    employeeName: e,
+    employeeId:
+      document.querySelector("#employeeForm")?.elements?.employeeId?.value ||
+      "",
+    attachmentId: pendingConsentAttachmentId,
+  }),
+    (pendingConsentAttachmentId = ""),
+    document.querySelector("#consentModal").close(),
+    renderDocumentation(),
+    showToast("تم إصدار الإقرار"));
+}
+window.issueDocumentationConsent = issueDocumentationConsent;
 function calculateSalaryFromForm() {
   const e = document.querySelector("#employeeForm"),
     t = Number(e.elements.baseSalary.value || 0),
@@ -6604,17 +6640,9 @@ function setupEvents() {
           ? await saveAttachment(t, "consent")
           : "";
       }),
-    document.querySelector("#issueConsentBtn").addEventListener("click", () => {
-      ((employeeFormState.consent = {
-        issuedAt: new Date().toISOString(),
-        issuedBy: currentUser,
-        attachmentId: pendingConsentAttachmentId,
-      }),
-        (pendingConsentAttachmentId = ""),
-        document.querySelector("#consentModal").close(),
-        renderDocumentation(),
-        showToast("تم إصدار الإقرار"));
-    }),
+    document
+      .querySelector("#issueConsentBtn")
+      .addEventListener("click", issueDocumentationConsent),
     document
       .querySelector("#leaveForm")
       .addEventListener("submit", handleLeaveSubmit),
