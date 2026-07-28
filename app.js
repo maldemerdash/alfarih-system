@@ -71324,3 +71324,347 @@ window.nawahLeaveBalanceReportV185 = {
     api.update();
   }, 0);
 })();
+
+/* v249 - branded birth-date calendar with fast month/year navigation. */
+(function v249BirthDateCalendar() {
+  if (window.__v249BirthDateCalendar) return;
+  window.__v249BirthDateCalendar = true;
+
+  const root = document.querySelector("[data-birthdate-picker]");
+  if (!root) return;
+  const input = root.querySelector("[data-birthdate-input]");
+  const toggle = root.querySelector("[data-birthdate-toggle]");
+  const calendar = root.querySelector("[data-birthdate-calendar]");
+  const monthSelect = root.querySelector("[data-birthdate-month]");
+  const yearSelect = root.querySelector("[data-birthdate-year]");
+  const daysRoot = root.querySelector("[data-birthdate-days]");
+  const previousButton = root.querySelector("[data-birthdate-prev]");
+  const nextButton = root.querySelector("[data-birthdate-next]");
+  const clearButton = root.querySelector("[data-birthdate-clear]");
+  const closeButton = root.querySelector("[data-birthdate-close]");
+  if (
+    !input ||
+    !toggle ||
+    !calendar ||
+    !monthSelect ||
+    !yearSelect ||
+    !daysRoot
+  )
+    return;
+
+  const months = [
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
+  ];
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const maximumYear = today.getFullYear();
+  const minimumYear = maximumYear - 120;
+  let viewYear = maximumYear - 25;
+  let viewMonth = today.getMonth();
+
+  function englishDigits(value) {
+    return String(value || "")
+      .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+      .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+  }
+
+  function draftValue(value) {
+    const digits = englishDigits(value).replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 6)
+      return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+  }
+
+  function parse(value) {
+    const match = englishDigits(value)
+      .trim()
+      .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    )
+      return null;
+    return date;
+  }
+
+  function format(date) {
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+  }
+
+  function sameDate(first, second) {
+    return Boolean(
+      first &&
+        second &&
+        first.getFullYear() === second.getFullYear() &&
+        first.getMonth() === second.getMonth() &&
+        first.getDate() === second.getDate(),
+    );
+  }
+
+  function validate(markInvalid = true) {
+    const value = input.value.trim();
+    const date = parse(value);
+    const valid =
+      !value ||
+      Boolean(
+        date &&
+          date <= today &&
+          date.getFullYear() >= minimumYear &&
+          date.getFullYear() <= maximumYear,
+      );
+    input.classList.toggle("is-invalid", markInvalid && !valid);
+    input.setCustomValidity(
+      valid
+        ? ""
+        : `أدخل تاريخًا صحيحًا بين ${minimumYear}-01-01 و${format(today)}`,
+    );
+    return valid;
+  }
+
+  function syncAge() {
+    const ageInput = input.form?.elements?.age;
+    if (!ageInput) return;
+    const date = parse(input.value);
+    if (!date || date > today) {
+      ageInput.value = "";
+      return;
+    }
+    let years = today.getFullYear() - date.getFullYear();
+    const birthdayPending =
+      today.getMonth() < date.getMonth() ||
+      (today.getMonth() === date.getMonth() &&
+        today.getDate() < date.getDate());
+    if (birthdayPending) years -= 1;
+    ageInput.value = `${Math.max(0, years)} سنة`;
+  }
+
+  function syncSelectors() {
+    monthSelect.innerHTML = months
+      .map(
+        (month, index) =>
+          `<option value="${index}"${index === viewMonth ? " selected" : ""}>${month}</option>`,
+      )
+      .join("");
+    yearSelect.innerHTML = Array.from(
+      { length: maximumYear - minimumYear + 1 },
+      (_, index) => maximumYear - index,
+    )
+      .map(
+        (year) =>
+          `<option value="${year}"${year === viewYear ? " selected" : ""}>${year}</option>`,
+      )
+      .join("");
+  }
+
+  function render() {
+    viewYear = Math.max(minimumYear, Math.min(maximumYear, viewYear));
+    viewMonth = Math.max(0, Math.min(11, viewMonth));
+    syncSelectors();
+    const selected = parse(input.value);
+    const firstDay = new Date(viewYear, viewMonth, 1, 12, 0, 0, 0);
+    const gridStart = new Date(firstDay);
+    gridStart.setDate(firstDay.getDate() - firstDay.getDay());
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < 42; index += 1) {
+      const date = new Date(gridStart);
+      date.setDate(gridStart.getDate() + index);
+      const button = document.createElement("button");
+      const outside = date.getMonth() !== viewMonth;
+      const future = date > today;
+      button.type = "button";
+      button.className = [
+        "birthdate-day-v249",
+        outside ? "is-outside" : "",
+        sameDate(date, today) ? "is-today" : "",
+        sameDate(date, selected) ? "is-selected" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      button.textContent = String(date.getDate());
+      button.dataset.birthdateValue = format(date);
+      button.setAttribute(
+        "aria-label",
+        `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`,
+      );
+      button.setAttribute("aria-pressed", String(sameDate(date, selected)));
+      button.disabled =
+        future ||
+        date.getFullYear() < minimumYear ||
+        date.getFullYear() > maximumYear;
+      fragment.appendChild(button);
+    }
+    daysRoot.replaceChildren(fragment);
+    const atMinimum = viewYear === minimumYear && viewMonth === 0;
+    const atMaximum =
+      viewYear === maximumYear && viewMonth >= today.getMonth();
+    if (previousButton) previousButton.disabled = atMinimum;
+    if (nextButton) nextButton.disabled = atMaximum;
+  }
+
+  function setOpen(open) {
+    calendar.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    root.classList.toggle("is-open", open);
+    if (open) {
+      const selected = parse(input.value);
+      if (selected) {
+        viewYear = selected.getFullYear();
+        viewMonth = selected.getMonth();
+      } else {
+        viewYear = maximumYear - 25;
+        viewMonth = today.getMonth();
+      }
+      render();
+      setTimeout(() => monthSelect.focus(), 0);
+    } else toggle.focus({ preventScroll: true });
+  }
+
+  function emitValue(value) {
+    input.value = value;
+    input.classList.remove("is-invalid");
+    input.setCustomValidity("");
+    syncAge();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  toggle.addEventListener("click", function () {
+    setOpen(calendar.hidden);
+  });
+
+  previousButton?.addEventListener("click", function () {
+    viewMonth -= 1;
+    if (viewMonth < 0) {
+      viewMonth = 11;
+      viewYear -= 1;
+    }
+    render();
+  });
+
+  nextButton?.addEventListener("click", function () {
+    viewMonth += 1;
+    if (viewMonth > 11) {
+      viewMonth = 0;
+      viewYear += 1;
+    }
+    render();
+  });
+
+  monthSelect.addEventListener("change", function () {
+    viewMonth = Number(monthSelect.value);
+    render();
+  });
+
+  yearSelect.addEventListener("change", function () {
+    viewYear = Number(yearSelect.value);
+    render();
+  });
+
+  daysRoot.addEventListener("click", function (event) {
+    const button = event.target.closest("[data-birthdate-value]");
+    if (!button || button.disabled) return;
+    emitValue(button.dataset.birthdateValue);
+    setOpen(false);
+  });
+
+  clearButton?.addEventListener("click", function () {
+    emitValue("");
+    setOpen(false);
+  });
+
+  closeButton?.addEventListener("click", function () {
+    setOpen(false);
+  });
+
+  input.addEventListener("input", function () {
+    const formatted = draftValue(input.value);
+    if (input.value !== formatted) input.value = formatted;
+    syncAge();
+    validate(false);
+  });
+
+  input.addEventListener("blur", function () {
+    validate(true);
+  });
+
+  input.form?.addEventListener(
+    "submit",
+    function (event) {
+      if (validate(true)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      try {
+        if (typeof switchEmployeeSection === "function")
+          switchEmployeeSection("personal");
+        if (typeof showToast === "function")
+          showToast("يرجى إدخال تاريخ ميلاد صحيح");
+      } catch (_) {}
+      input.focus();
+    },
+    true,
+  );
+
+  document.addEventListener("pointerdown", function (event) {
+    if (!calendar.hidden && !root.contains(event.target)) setOpen(false);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if ("Escape" === event.key && !calendar.hidden) {
+      event.preventDefault();
+      setOpen(false);
+    }
+  });
+
+  const previousOpenEmployeeModal =
+    typeof openEmployeeModal === "function"
+      ? openEmployeeModal
+      : window.openEmployeeModal;
+  if (
+    typeof previousOpenEmployeeModal === "function" &&
+    !previousOpenEmployeeModal.__v249BirthDateCalendar
+  ) {
+    const wrappedOpenEmployeeModal = async function () {
+      const result = await previousOpenEmployeeModal.apply(this, arguments);
+      syncAge();
+      setTimeout(syncAge, 180);
+      return result;
+    };
+    wrappedOpenEmployeeModal.__v249BirthDateCalendar = true;
+    try {
+      openEmployeeModal = wrappedOpenEmployeeModal;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpenEmployeeModal;
+  }
+
+  window.nawahBirthDateV249 = {
+    open: () => setOpen(true),
+    close: () => setOpen(false),
+    render,
+    parse,
+    validate,
+    syncAge,
+    value: () => input.value,
+  };
+})();

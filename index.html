@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=242" />
+    <link rel="stylesheet" href="style.css?v=249" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -948,7 +948,30 @@
                     <label class="nationality-type-field"><span>الجنسية</span><select name="nationalityType"><option value="saudi" selected>سعودي</option><option value="nonSaudi">غير سعودي</option></select></label>
                     <label id="nonSaudiNationalityField" class="nationality-select-field"><span>الجنسية المختارة</span><select name="nationality"></select></label>
                     <label class="gender-field"><span>النوع</span><select name="gender"><option value="male" selected>ذكر</option><option value="female">أنثى</option></select></label>
-                    <label class="birth-date-field"><span>تاريخ الميلاد</span><input name="birthDate" type="date" /></label>
+                    <label class="birth-date-field birthdate-field-v249">
+                      <span>تاريخ الميلاد</span>
+                      <span class="birthdate-picker-v249" data-birthdate-picker>
+                        <input name="birthDate" type="text" inputmode="numeric" autocomplete="bday" maxlength="10" pattern="\d{4}-\d{2}-\d{2}" placeholder="YYYY-MM-DD" aria-describedby="birthDateHint" data-birthdate-input />
+                        <button type="button" class="birthdate-trigger-v249" aria-label="فتح تقويم تاريخ الميلاد" aria-haspopup="dialog" aria-expanded="false" data-birthdate-toggle><span data-icon="calendar"></span></button>
+                        <span class="birthdate-calendar-v249" role="dialog" aria-label="اختيار تاريخ الميلاد" data-birthdate-calendar hidden>
+                          <span class="birthdate-calendar-head-v249">
+                            <button type="button" class="birthdate-nav-v249" aria-label="الشهر السابق" data-birthdate-prev><span data-icon="chevron-right"></span></button>
+                            <span class="birthdate-period-v249">
+                              <select aria-label="اختيار الشهر" data-birthdate-month></select>
+                              <select aria-label="اختيار السنة" data-birthdate-year></select>
+                            </span>
+                            <button type="button" class="birthdate-nav-v249" aria-label="الشهر التالي" data-birthdate-next><span data-icon="chevron-left"></span></button>
+                          </span>
+                          <span class="birthdate-weekdays-v249" aria-hidden="true"><span>ح</span><span>ن</span><span>ث</span><span>ر</span><span>خ</span><span>ج</span><span>س</span></span>
+                          <span class="birthdate-days-v249" data-birthdate-days></span>
+                          <span class="birthdate-calendar-foot-v249">
+                            <button type="button" data-birthdate-clear>مسح التاريخ</button>
+                            <button type="button" data-birthdate-close>إغلاق</button>
+                          </span>
+                        </span>
+                      </span>
+                      <small id="birthDateHint" class="birthdate-hint-v249">يمكنك الكتابة بصيغة YYYY-MM-DD أو الاختيار من التقويم</small>
+                    </label>
                   </div>
                 </article>
 
@@ -1328,6 +1351,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=242"></script>
+    <script src="app.js?v=249"></script>
   </body>
 </html>
