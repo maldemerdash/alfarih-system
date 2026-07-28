@@ -6362,6 +6362,308 @@ body {
   }
 }
 
+/* Employee personal information cards — v248 */
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-cards-v248 {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  align-items: stretch;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248 {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  padding: 16px;
+  border: 1px solid #dce9ef;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(34, 151, 197, 0.08), transparent 40%),
+    linear-gradient(145deg, #ffffff 0%, #fbfdfe 100%);
+  box-shadow: 0 9px 24px rgba(15, 52, 75, 0.06);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #2297c5, #14b8a6, #22c55e);
+  content: "";
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-name-card-v248 {
+  grid-column: 1 / -1;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-head-v248 {
+  display: flex;
+  min-height: 64px;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-icon-v248 {
+  display: inline-grid;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(34, 151, 197, 0.2);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #eaf8fc, #e9fbf6);
+  color: #138ba7;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-icon-v248
+  svg {
+  width: 19px;
+  height: 19px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-head-v248
+  > div {
+  min-width: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-head-v248
+  h4 {
+  margin: 2px 0 4px;
+  color: #163a4d;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-head-v248
+  p {
+  margin: 0;
+  color: #8499a6;
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-required-v248 {
+  margin-inline-start: auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(239, 68, 68, 0.16);
+  border-radius: 999px;
+  background: #fff5f5;
+  color: #dc3d3d;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248
+  .form-grid {
+  display: grid !important;
+  gap: 13px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-name-grid-v248 {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-details-grid-v248,
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-status-grid-v248 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248
+  .form-grid
+  > label {
+  min-width: 0;
+  grid-column: auto !important;
+  grid-row: auto !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248
+  .form-grid
+  label
+  > span {
+  margin-bottom: 1px;
+  color: #4a6574;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248
+  .form-grid
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248
+  .form-grid
+  select {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid #d8e5eb;
+  border-radius: 12px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.94);
+  color: #17394a;
+  font-size: 11px;
+  font-weight: 700;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248
+  .form-grid
+  input:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248
+  .form-grid
+  select:focus {
+  border-color: #20a7b4;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.11);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-card-v248
+  .form-grid
+  input.calculated-field {
+  border-color: #dce9ed;
+  background: #f3f8fa;
+  color: #0f7385;
+  cursor: default;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-status-grid-v248
+  .age-field
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-status-grid-v248
+  .service-duration-field
+  input {
+  min-height: 46px;
+  text-align: center;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-status-grid-v248
+  .work-status-field {
+  min-width: 0;
+  grid-column: 1 / -1 !important;
+  padding: 11px;
+  border: 1px solid rgba(34, 151, 197, 0.24);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f0fbff 0%, #f2fff8 100%);
+  box-shadow: none;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-status-grid-v248
+  .work-status-field
+  select {
+  min-height: 44px;
+  border-color: rgba(34, 151, 197, 0.3) !important;
+}
+
+@media (max-width: 1180px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    .personal-cards-v248 {
+    grid-template-columns: 1fr !important;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    .personal-name-card-v248 {
+    grid-column: auto;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    .personal-name-grid-v248 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 680px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    .personal-card-v248 {
+    padding: 14px;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    .personal-name-grid-v248,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    .personal-details-grid-v248,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    .personal-status-grid-v248 {
+    grid-template-columns: 1fr !important;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    .personal-card-head-v248 {
+    min-height: 58px;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="personal"]
+    .personal-required-v248 {
+    display: none;
+  }
+}
+
 .employee-profile-stats-bottom {
   grid-column: 1 / -1;
   margin-top: 2px;

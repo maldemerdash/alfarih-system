@@ -924,18 +924,45 @@
           <div class="employee-section-content">
             <section class="employee-tab-panel active" data-section-panel="personal">
               <div class="form-section-title"><span data-icon="user"></span><div><h3>بيانات الموظف</h3><p>البيانات الشخصية الأساسية</p></div></div>
-              <div class="form-grid form-grid-4 employee-personal-grid">
-                <label><span>الاسم الأول *</span><input name="firstName" required /></label>
-                <label><span>اسم الأب</span><input name="fatherName" /></label>
-                <label><span>اسم الجد</span><input name="grandName" /></label>
-                <label><span>اسم العائلة *</span><input name="familyName" required /></label>
-                <label class="nationality-type-field"><span>الجنسية</span><select name="nationalityType"><option value="saudi" selected>سعودي</option><option value="nonSaudi">غير سعودي</option></select></label>
-                <label id="nonSaudiNationalityField" class="nationality-select-field"><span>الجنسية المختارة</span><select name="nationality"></select></label>
-                <label class="gender-field"><span>النوع</span><select name="gender"><option value="male" selected>ذكر</option><option value="female">أنثى</option></select></label>
-                <label class="birth-date-field"><span>تاريخ الميلاد</span><input name="birthDate" type="date" /></label>
-                <label class="age-field"><span>العمر</span><input name="age" class="calculated-field" readonly /></label>
-                <label class="service-duration-field"><span>مدة الخدمة</span><input name="serviceDuration" id="employeeServiceDuration" class="calculated-field" readonly /></label>
-                <label class="work-status-field"><span>حالة العمل</span><select name="status"><option value="active">على رأس العمل</option><option value="suspended">متوقف عن العمل</option><option value="leave">إجازة</option><option value="travel">مسافر</option><option value="terminated">تم إنهاء خدماته</option></select></label>
+              <div class="employee-personal-grid personal-cards-v248" data-personal-layout="v248">
+                <article class="personal-card-v248 personal-name-card-v248" data-personal-card="name">
+                  <header class="personal-card-head-v248">
+                    <span class="personal-card-icon-v248" data-icon="user"></span>
+                    <div><h4>الاسم الكامل</h4><p>بيانات الاسم المعتمدة في ملف الموظف</p></div>
+                    <span class="personal-required-v248">الأول والعائلة إلزاميان</span>
+                  </header>
+                  <div class="form-grid personal-name-grid-v248">
+                    <label><span>الاسم الأول *</span><input name="firstName" required autocomplete="given-name" /></label>
+                    <label><span>اسم الأب</span><input name="fatherName" /></label>
+                    <label><span>اسم الجد</span><input name="grandName" /></label>
+                    <label><span>اسم العائلة *</span><input name="familyName" required autocomplete="family-name" /></label>
+                  </div>
+                </article>
+
+                <article class="personal-card-v248 personal-details-card-v248" data-personal-card="details">
+                  <header class="personal-card-head-v248">
+                    <span class="personal-card-icon-v248" data-icon="shield"></span>
+                    <div><h4>البيانات الشخصية</h4><p>الجنسية والنوع وتاريخ الميلاد</p></div>
+                  </header>
+                  <div class="form-grid personal-details-grid-v248">
+                    <label class="nationality-type-field"><span>الجنسية</span><select name="nationalityType"><option value="saudi" selected>سعودي</option><option value="nonSaudi">غير سعودي</option></select></label>
+                    <label id="nonSaudiNationalityField" class="nationality-select-field"><span>الجنسية المختارة</span><select name="nationality"></select></label>
+                    <label class="gender-field"><span>النوع</span><select name="gender"><option value="male" selected>ذكر</option><option value="female">أنثى</option></select></label>
+                    <label class="birth-date-field"><span>تاريخ الميلاد</span><input name="birthDate" type="date" /></label>
+                  </div>
+                </article>
+
+                <article class="personal-card-v248 personal-status-card-v248" data-personal-card="status">
+                  <header class="personal-card-head-v248">
+                    <span class="personal-card-icon-v248" data-icon="user-check"></span>
+                    <div><h4>الحالة والمؤشرات</h4><p>بيانات محسوبة وحالة الموظف الحالية</p></div>
+                  </header>
+                  <div class="form-grid personal-status-grid-v248">
+                    <label class="age-field"><span>العمر</span><input name="age" class="calculated-field" readonly /></label>
+                    <label class="service-duration-field"><span>مدة الخدمة</span><input name="serviceDuration" id="employeeServiceDuration" class="calculated-field" readonly /></label>
+                    <label class="work-status-field"><span>حالة العمل</span><select name="status"><option value="active">على رأس العمل</option><option value="suspended">متوقف عن العمل</option><option value="leave">إجازة</option><option value="travel">مسافر</option><option value="terminated">تم إنهاء خدماته</option></select></label>
+                  </div>
+                </article>
               </div>
             </section>
 
