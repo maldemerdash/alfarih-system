@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=263" />
+    <link rel="stylesheet" href="style.css?v=264" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -274,7 +274,23 @@
           </section>
 
           <section class="view" id="employeesView">
-            <div class="section-toolbar">
+            <div class="employee-directory-header-v264">
+              <div class="employee-directory-title-v264">
+                <span class="employee-directory-title-icon-v264" data-icon="users"></span>
+                <div>
+                  <h2>دليل الموظفين</h2>
+                  <p>عرض بيانات الموظفين والبحث والتصفية وإدارة الملفات الوظيفية.</p>
+                </div>
+              </div>
+              <div class="toolbar-actions">
+                <button type="button" class="primary-btn add-employee-btn" data-open-employee-modal="new">
+                  <span data-icon="plus"></span>
+                  إضافة موظف
+                </button>
+              </div>
+            </div>
+
+            <div class="section-toolbar employee-directory-toolbar-v264">
               <div class="toolbar-filters">
                 <label class="search-field">
                   <span data-icon="search"></span>
@@ -292,11 +308,9 @@
                   <option value="terminated">تم إنهاء خدماته</option>
                 </select>
               </div>
-              <div class="toolbar-actions">
-                <button type="button" class="primary-btn add-employee-btn" data-open-employee-modal="new">
-                  <span data-icon="plus"></span>
-                  إضافة موظف
-                </button>
+              <div class="employee-directory-filter-note-v264">
+                <span data-icon="list"></span>
+                <span>تُحدّث النتائج مباشرة حسب البحث والتصفية</span>
               </div>
             </div>
 
@@ -1485,6 +1499,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=263"></script>
+    <script src="app.js?v=264"></script>
   </body>
 </html>
