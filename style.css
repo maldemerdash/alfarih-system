@@ -23012,3 +23012,21 @@ html.has-initial-login-bg .auth-gate,
   margin: 0 !important;
   padding: 0 !important;
 }
+
+/* v253 — align all organization fields from the same top baseline. */
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252 {
+  align-items: start !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  > label,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  > .field-with-action {
+  align-self: start !important;
+}
