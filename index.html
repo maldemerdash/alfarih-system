@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=251" />
+    <link rel="stylesheet" href="style.css?v=252" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -1035,24 +1035,59 @@
 
             <section class="employee-tab-panel" data-section-panel="employment">
               <div class="form-section-title"><span data-icon="building"></span><div><h3>البيانات الوظيفية</h3><p>الإدارة والعقد ومدة الخدمة</p></div></div>
-              <div class="form-grid form-grid-4 employment-grid-v150 employment-grid-v238">
-                <label class="v150-field-branch"><span>الفرع</span><select name="branch" id="employeeBranchSelect"><option value="">بدون فرع</option></select></label>
-                <div class="field-with-action v150-field-department"><label><span>الإدارة *</span><select name="department" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="department"><span data-icon="plus"></span>إضافة إدارة</button></div>
-                <div class="field-with-action v150-field-section"><label><span>القسم *</span><select name="section" id="employeeSectionSelect" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="section"><span data-icon="plus"></span>إضافة قسم</button></div>
-                <div class="field-with-action v150-field-role"><label><span>المهنة *</span><select name="role" id="jobTitleSelect" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="profession"><span data-icon="plus"></span>إضافة مهنة</button></div>
-                <label class="v150-field-manager"><span>المدير المباشر</span><input name="directManager" class="calculated-field" readonly /></label>
-                <label class="v186-contract-type-field"><span>نوع العقد</span><select name="contractType"><option value="fixed">محدد المدة</option><option value="unlimited" selected>غير محدد المدة</option></select></label>
-                <label class="contract-date-field" data-contract-lock-field="contractStartDate"><span>تاريخ بداية العقد</span><input name="contractStartDate" type="date" /></label>
-                <label class="contract-date-field" data-contract-lock-field="workStartDate"><span>تاريخ المباشرة</span><input name="workStartDate" type="date" /></label>
-                <label><span>مدة العقد بالأشهر</span><input name="contractMonths" type="number" min="1" step="1" disabled /></label>
-                <label><span>إجمالي مدة العقد</span><input name="contractDurationText" class="calculated-field" readonly /></label>
-                <label><span>تاريخ انتهاء العقد</span><input name="contractEndDate" class="calculated-field" readonly /></label>
-                <label><span>تجديد العقد</span><select name="renewalOption" disabled><option value="none">عدم التجديد</option><option value="same">تجديد لمدة مماثلة</option></select></label>
-                <label class="insurance-toggle contract-auto-renew-toggle"><span>تجديد العقد تلقائيًا بعد انتهائه</span><input name="autoRenewContract" type="checkbox" disabled /></label>
-                <label><span>تاريخ الانتهاء الجديد</span><input name="renewedContractEndDate" class="calculated-field" readonly /></label>
-                <label class="contract-attachment-field"><span>مرفق صورة العقد</span><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق</span><input type="file" data-single-attachment="contract" accept="image/*,.pdf" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="contract" hidden>عرض</button></label>
-                <label class="contract-notice-field"><span>فترة الإشعار</span><input name="contractNoticeDays" type="number" min="1" step="1" inputmode="numeric" placeholder="مثال: 60" /></label>
-                <label class="span-all"><span>المدة المتبقية لانتهاء العقد</span><input name="contractRemaining" class="calculated-field expiry-state" readonly /></label>
+              <div class="employment-cards-v252" data-employment-layout="v252">
+                <article class="employment-card-v252 employment-organization-card-v252" data-employment-card="organization">
+                  <header class="employment-card-head-v252">
+                    <span class="employment-card-icon-v252" data-icon="building"></span>
+                    <div><h4>التنظيم الإداري</h4><p>الفرع والإدارة والقسم والمهنة والمدير المباشر</p></div>
+                    <span class="employment-card-note-v252">مرتبط بالهيكل الإداري</span>
+                  </header>
+                  <div class="form-grid employment-grid-v150 employment-grid-v238 employment-org-grid-v252">
+                    <label class="v150-field-branch"><span>الفرع</span><select name="branch" id="employeeBranchSelect"><option value="">بدون فرع</option></select></label>
+                    <div class="field-with-action v150-field-department"><label><span>الإدارة *</span><select name="department" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="department"><span data-icon="plus"></span>إضافة إدارة</button></div>
+                    <div class="field-with-action v150-field-section"><label><span>القسم *</span><select name="section" id="employeeSectionSelect" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="section"><span data-icon="plus"></span>إضافة قسم</button></div>
+                    <div class="field-with-action v150-field-role"><label><span>المهنة *</span><select name="role" id="jobTitleSelect" required></select></label><button type="button" class="inline-add-btn" data-v150-org-add="profession"><span data-icon="plus"></span>إضافة مهنة</button></div>
+                    <label class="v150-field-manager"><span>المدير المباشر</span><input name="directManager" class="calculated-field" readonly /></label>
+                  </div>
+                </article>
+
+                <article class="employment-card-v252 employment-contract-card-v252" data-employment-card="contract">
+                  <header class="employment-card-head-v252">
+                    <span class="employment-card-icon-v252" data-icon="calendar"></span>
+                    <div><h4>إعداد العقد</h4><p>نوع العقد ومدته وتواريخ البداية والانتهاء والتجديد</p></div>
+                  </header>
+                  <div class="form-grid employment-contract-grid-v252">
+                    <label class="v186-contract-type-field"><span>نوع العقد</span><select name="contractType"><option value="fixed">محدد المدة</option><option value="unlimited" selected>غير محدد المدة</option></select></label>
+                    <label class="contract-date-field" data-contract-lock-field="contractStartDate"><span>تاريخ بداية العقد</span><input name="contractStartDate" type="date" /></label>
+                    <label class="contract-date-field" data-contract-lock-field="workStartDate"><span>تاريخ المباشرة</span><input name="workStartDate" type="date" /></label>
+                    <label><span>مدة العقد بالأشهر</span><input name="contractMonths" type="number" min="1" step="1" disabled /></label>
+                    <label><span>إجمالي مدة العقد</span><input name="contractDurationText" class="calculated-field" readonly /></label>
+                    <label><span>تاريخ انتهاء العقد</span><input name="contractEndDate" class="calculated-field" readonly /></label>
+                    <label><span>تجديد العقد</span><select name="renewalOption" disabled><option value="none">عدم التجديد</option><option value="same">تجديد لمدة مماثلة</option></select></label>
+                    <label><span>تاريخ الانتهاء الجديد</span><input name="renewedContractEndDate" class="calculated-field" readonly /></label>
+                    <label class="insurance-toggle contract-auto-renew-toggle contract-auto-renew-v252"><span>تجديد العقد تلقائيًا بعد انتهائه</span><input name="autoRenewContract" type="checkbox" disabled /></label>
+                  </div>
+                </article>
+
+                <article class="employment-card-v252 employment-status-card-v252" data-employment-card="status">
+                  <header class="employment-card-head-v252">
+                    <span class="employment-card-icon-v252 employment-file-icon-v252" data-icon="file"></span>
+                    <div><h4>المرفق وحالة العقد</h4><p>نسخة العقد وفترة الإشعار والمدة المتبقية</p></div>
+                  </header>
+                  <div class="form-grid employment-status-grid-v252">
+                    <label class="contract-attachment-field employment-contract-attachment-v252"><span>مرفق صورة العقد</span><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق</span><input type="file" data-single-attachment="contract" accept="image/*,.pdf" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="contract" hidden>عرض</button></label>
+                    <label class="contract-notice-field"><span>فترة الإشعار</span><input name="contractNoticeDays" type="number" min="1" step="1" inputmode="numeric" placeholder="مثال: 60" /></label>
+                    <label class="contract-remaining-field-v252"><span>المدة المتبقية لانتهاء العقد</span><input name="contractRemaining" class="calculated-field expiry-state" readonly /></label>
+                  </div>
+                </article>
+
+                <article id="contractExtensionPanel" class="contract-extension-panel employment-card-v252 employment-extension-card-v252" data-employment-card="extensions">
+                  <div class="contract-extension-head employment-extension-head-v252">
+                    <div class="employment-extension-title-v252"><span class="employment-card-icon-v252" data-icon="trend-up"></span><div><strong>سجل تمديدات العقد</strong><small>يبدأ السجل من تاريخ المباشرة، وتُضاف فترات التجديد التلقائي بترتيبها الزمني.</small></div></div>
+                    <button type="button" class="secondary-btn employment-extend-btn-v252" id="extendContractBtn"><span data-icon="plus"></span>تمديد العقد</button>
+                  </div>
+                  <div class="table-wrap employment-extension-table-v252"><table class="compact-data-table"><thead><tr><th>بداية الفترة</th><th>مدة التمديد</th><th>النهاية الجديدة</th><th>نوع التمديد</th><th>تاريخ التنفيذ</th></tr></thead><tbody id="contractExtensionsBody"></tbody></table></div>
+                </article>
               </div>
             </section>
 
@@ -1381,6 +1416,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=251"></script>
+    <script src="app.js?v=252"></script>
   </body>
 </html>

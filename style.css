@@ -6356,6 +6356,618 @@ body {
   }
 }
 
+/* v252 — Employment workspace */
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-cards-v252 {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-card-v252 {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #dce9ed;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(247, 252, 253, 0.96), #fff 70%),
+    #fff;
+  box-shadow: 0 8px 22px rgba(15, 65, 78, 0.055);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-card-v252::before {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #2297c5, #14b8a6, #22c55e);
+  content: "";
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-card-head-v252 {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #e7eff2;
+  background: rgba(247, 252, 253, 0.74);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-card-icon-v252 {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  place-items: center;
+  border: 1px solid rgba(34, 151, 197, 0.18);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #e9f8fc, #eafbf2);
+  color: #0e8398;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-file-icon-v252 {
+  background: linear-gradient(145deg, #eef7ff, #eafbf6);
+  color: #17899f;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-card-icon-v252
+  svg {
+  width: 19px;
+  height: 19px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-card-head-v252
+  > div {
+  min-width: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-card-head-v252
+  h4 {
+  margin: 0;
+  color: #123b48;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-card-head-v252
+  p {
+  margin: 4px 0 0;
+  color: #7a8a91;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-card-note-v252 {
+  margin-inline-start: auto;
+  padding: 6px 9px;
+  border: 1px solid #d8ecf0;
+  border-radius: 999px;
+  background: #f0fafb;
+  color: #0e8398;
+  font-size: 7px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-grid-v252,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-status-grid-v252 {
+  gap: 13px;
+  align-items: end;
+  padding: 16px;
+}
+
+@media (min-width: 1101px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-org-grid-v252 {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-grid-v252 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-status-grid-v252 {
+  grid-template-columns: minmax(230px, 1.2fr) minmax(130px, 0.6fr) minmax(
+      220px,
+      1.2fr
+    );
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  > label,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  > .field-with-action,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-grid-v252
+  > label,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-status-grid-v252
+  > label {
+  min-width: 0;
+  margin: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  label,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-grid-v252
+  label,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-status-grid-v252
+  label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  label
+  > span:first-child,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-grid-v252
+  label
+  > span:first-child,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-status-grid-v252
+  label
+  > span:first-child {
+  color: #5d7077;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  select,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-grid-v252
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-grid-v252
+  select,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-status-grid-v252
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-status-grid-v252
+  select {
+  width: 100%;
+  min-height: 43px;
+  padding: 9px 11px;
+  border: 1px solid #d9e6ea;
+  border-radius: 11px;
+  outline: 0;
+  background: #fff;
+  color: #203c45;
+  font-size: 9px;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  input:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  select:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-grid-v252
+  input:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-grid-v252
+  select:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-status-grid-v252
+  input:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-status-grid-v252
+  select:focus {
+  border-color: rgba(34, 151, 197, 0.62);
+  box-shadow: 0 0 0 3px rgba(34, 151, 197, 0.09);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  .field-with-action {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: stretch;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  .field-with-action
+  > label {
+  flex: 1 1 auto;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  .inline-add-btn {
+  display: inline-flex;
+  min-height: 18px;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: #0d8da5;
+  box-shadow: none;
+  font-size: 7px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  .inline-add-btn:hover {
+  color: #0f766e;
+  text-decoration: none;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-org-grid-v252
+  .inline-add-btn
+  svg {
+  width: 12px;
+  height: 12px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .contract-auto-renew-v252 {
+  grid-column: 1 / -1;
+  display: flex !important;
+  min-height: 58px;
+  align-items: center !important;
+  justify-content: space-between;
+  flex-direction: row !important;
+  gap: 14px !important;
+  padding: 12px 14px;
+  border: 1px solid #d7ebe7;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f3fbf8, #f4fafc);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .contract-auto-renew-v252
+  > span:first-child {
+  color: #176f68;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .contract-auto-renew-v252
+  input[type="checkbox"] {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  flex: 0 0 20px;
+  padding: 0;
+  accent-color: #14a891;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-attachment-v252
+  .employee-attachment-inline-wrap,
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-attachment-v252
+  .employee-single-attachment-inline-wrap {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-attachment-v252
+  .compact-file-control {
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 43px !important;
+  flex: 1 1 auto !important;
+  border-radius: 11px !important;
+  background: #fff;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-attachment-v252
+  .attachment-view-btn {
+  display: grid;
+  width: 43px !important;
+  min-width: 43px !important;
+  height: 43px !important;
+  min-height: 43px !important;
+  flex: 0 0 43px !important;
+  margin: 0 !important;
+  place-items: center;
+  border-radius: 11px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-contract-attachment-v252
+  .attachment-view-btn[hidden] {
+  display: none !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .contract-remaining-field-v252
+  input {
+  border-color: #d4ebe4;
+  background: linear-gradient(90deg, #f3fbf8, #f7fbfc);
+  color: #167c68;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-card-v252 {
+  background: #fff;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-head-v252 {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0;
+  padding: 15px 16px 12px;
+  border-bottom: 1px solid #e7eff2;
+  background: rgba(247, 252, 253, 0.76);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-title-v252 {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-title-v252
+  > div {
+  min-width: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-title-v252
+  strong {
+  display: block;
+  margin: 0;
+  color: #123b48;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-title-v252
+  small {
+  display: block;
+  margin-top: 4px;
+  color: #7a8a91;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extend-btn-v252 {
+  min-height: 40px;
+  flex: 0 0 auto;
+  border-color: rgba(34, 151, 197, 0.2);
+  border-radius: 11px;
+  background: linear-gradient(135deg, #1ea7c6, #20c57a);
+  color: #fff;
+  box-shadow: 0 7px 16px rgba(20, 161, 165, 0.16);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-table-v252 {
+  margin: 0;
+  padding: 14px;
+  overflow-x: auto;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-table-v252
+  table {
+  min-width: 650px;
+  overflow: hidden;
+  border: 1px solid #e0eaed;
+  border-radius: 12px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-table-v252
+  thead {
+  background: #f3f8fa;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-table-v252
+  th {
+  color: #557078;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-table-v252
+  td {
+  font-size: 8px;
+}
+
+@media (max-width: 1100px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-org-grid-v252,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-contract-grid-v252,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-status-grid-v252 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .contract-remaining-field-v252 {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-card-head-v252,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-extension-head-v252 {
+    align-items: flex-start;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-card-note-v252 {
+    display: none;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-org-grid-v252,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-contract-grid-v252,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-status-grid-v252 {
+    grid-template-columns: 1fr !important;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .contract-remaining-field-v252 {
+    grid-column: auto;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-extension-head-v252 {
+    flex-direction: column;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="employment"]
+    .employment-extend-btn-v252 {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* Branded employee birth-date calendar — v249 */
 #employeeModal.employee-profile-modal
   [data-section-panel="personal"]
@@ -22391,4 +23003,12 @@ html.has-initial-login-bg .auth-gate,
   .clearance-sheet-v244 .clearance-grid-2-v244 {
     grid-template-columns: 1fr !important;
   }
+}
+
+/* v252 final guard — keep the extension card flush with the card workspace. */
+#employeeModal.employee-profile-modal
+  [data-section-panel="employment"]
+  .employment-extension-card-v252 {
+  margin: 0 !important;
+  padding: 0 !important;
 }
