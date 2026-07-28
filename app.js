@@ -32037,6 +32037,14 @@ async function init() {
   document.addEventListener(
     "input",
     function (event) {
+      if (event.target?.matches?.('[data-document-field="number"]'))
+        setTimeout(decorateDocuments, 0);
+    },
+    true,
+  );
+  document.addEventListener(
+    "input",
+    function (event) {
       if (
         event.target?.matches?.(
           '[name="commissionManualPaymentDate"], [name="commissionPaymentDate"]',
@@ -72672,4 +72680,342 @@ window.nawahLeaveBalanceReportV185 = {
   };
   window.nawahEmployeeDatePickersV257 = datePickerApi;
   window.nawahEmployeeDatePickersV258 = datePickerApi;
+})();
+
+/* v259 - polished banking, notes/minutes and employee documents workspaces. */
+(function v259EmployeeRecordsPresentation() {
+  if (window.__v259EmployeeRecordsPresentation) return;
+  window.__v259EmployeeRecordsPresentation = true;
+
+  function stateList(name) {
+    try {
+      return Array.isArray(employeeFormState?.[name])
+        ? employeeFormState[name]
+        : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function countText(count, singular, plural) {
+    const value = Number(count || 0);
+    return `${value} ${value === 1 ? singular : plural}`;
+  }
+
+  function setCount(selector, value, singular, plural) {
+    const node = document.querySelector(selector);
+    if (node) node.textContent = countText(value, singular, plural);
+  }
+
+  function iconMarkup(name) {
+    try {
+      return typeof iconSvg === "function" ? iconSvg(name) : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function hydrate(root) {
+    try {
+      if (root && typeof hydrateIcons === "function") hydrateIcons(root);
+    } catch (_) {}
+  }
+
+  function polishEmptyState(root, icon, title, description) {
+    const empty = root?.querySelector(":scope > .employee-note-empty");
+    if (!empty || empty.dataset.recordsEmptyV259 === "1") return;
+    empty.dataset.recordsEmptyV259 = "1";
+    empty.classList.add("employee-records-empty-v259");
+    empty.innerHTML = `
+      <span class="employee-records-empty-icon-v259">${iconMarkup(icon)}</span>
+      <strong>${title}</strong>
+      <small>${description}</small>`;
+    hydrate(empty);
+  }
+
+  function decorateBankAccounts() {
+    const root = document.querySelector("#bankAccountsList");
+    if (!root) return;
+    const accounts = stateList("bankAccounts");
+    setCount(
+      "#bankAccountsCountV259",
+      accounts.length,
+      "حساب",
+      "حسابات",
+    );
+    root.querySelectorAll(".bank-account-card").forEach((card, index) => {
+      card.classList.add("bank-account-card-v259");
+      card.dataset.bankCardV259 = String(index);
+      const head = card.querySelector(".bank-account-head");
+      const fields = card.querySelector(".bank-fields");
+      if (!head || !fields) return;
+      head.classList.add("bank-account-head-v259");
+      fields.classList.add("bank-fields-v259");
+
+      const indexNode = head.querySelector(
+        ":scope > span:not(.bank-account-icon-v259)",
+      );
+      if (indexNode) indexNode.classList.add("bank-account-index-v259");
+      let icon = head.querySelector(".bank-account-icon-v259");
+      if (!icon) {
+        icon = document.createElement("span");
+        icon.className = "bank-account-icon-v259";
+        icon.innerHTML = iconMarkup("wallet");
+        head.prepend(icon);
+      }
+      const title = head.querySelector(":scope > strong");
+      if (title && !head.querySelector(".bank-account-title-v259")) {
+        const titleWrap = document.createElement("div");
+        titleWrap.className = "bank-account-title-v259";
+        title.before(titleWrap);
+        titleWrap.appendChild(title);
+        const hint = document.createElement("small");
+        hint.textContent = "حساب معتمد لتحويل الراتب";
+        titleWrap.appendChild(hint);
+      }
+      const remove = card.querySelector("[data-remove-bank]");
+      if (remove) {
+        remove.classList.add("bank-account-delete-v259");
+        head.appendChild(remove);
+      }
+
+      fields.querySelectorAll(":scope > label").forEach((label) => {
+        const field = label.querySelector(
+          "[data-bank-field], [data-bank-certificate-attachment], [data-bank-approval-attachment]",
+        );
+        label.classList.add("bank-field-v259");
+        if (field?.matches?.('[data-bank-field="bankName"]'))
+          label.classList.add("bank-name-field-v259");
+        if (field?.matches?.('[data-bank-field="iban"]'))
+          label.classList.add("bank-iban-field-v259");
+        if (field?.matches?.("[data-bank-certificate-attachment]"))
+          label.classList.add("bank-attachment-field-v259");
+        if (field?.matches?.("[data-bank-approval-attachment]"))
+          label.classList.add("bank-attachment-field-v259");
+        label.classList.toggle(
+          "has-preview-v259",
+          Boolean(label.querySelector("[data-view-attachment]")),
+        );
+      });
+    });
+    if (!accounts.length)
+      polishEmptyState(
+        root,
+        "wallet",
+        "لا توجد حسابات بنكية",
+        "اضغط «إضافة حساب بنكي» لتسجيل حساب تحويل الراتب.",
+      );
+    hydrate(root);
+  }
+
+  function documentTypeLabel(row) {
+    const select = row.querySelector('[data-document-field="typeId"]');
+    const number = row.querySelector('[data-document-field="number"]')?.value;
+    const type =
+      select?.selectedOptions?.[0]?.textContent?.trim() ||
+      select?.options?.[select.selectedIndex]?.textContent?.trim() ||
+      "";
+    if (type && type !== "اختر نوع الوثيقة")
+      return number ? `${type} · رقم ${number}` : type;
+    return number ? `رقم ${number}` : "أدخل نوع الوثيقة وبياناتها";
+  }
+
+  function decorateDocuments() {
+    const root = document.querySelector("#documentsList");
+    if (!root) return;
+    const documents = stateList("documents");
+    setCount(
+      "#employeeDocumentsCountV259",
+      documents.length,
+      "وثيقة",
+      "وثائق",
+    );
+    root
+      .querySelectorAll(".repeatable-row.document-row")
+      .forEach((row, index) => {
+        row.classList.add("employee-document-card-v259");
+        row.dataset.documentCardV259 = String(index);
+        const existingHead = row.querySelector(
+          ":scope > .employee-document-head-v259",
+        );
+        if (existingHead) {
+          const hint = existingHead.querySelector(
+            ".employee-document-title-v259 small",
+          );
+          if (hint) hint.textContent = documentTypeLabel(row);
+          return;
+        }
+        const remove = row.querySelector("[data-remove-document]");
+        const labels = Array.from(row.querySelectorAll(":scope > label"));
+        const head = document.createElement("header");
+        head.className = "employee-document-head-v259";
+        head.innerHTML = `
+          <span class="employee-document-icon-v259">${iconMarkup("file")}</span>
+          <span class="employee-document-index-v259">${index + 1}</span>
+          <div class="employee-document-title-v259">
+            <strong>الوثيقة ${index + 1}</strong>
+            <small>${documentTypeLabel(row)}</small>
+          </div>`;
+        if (remove) {
+          remove.classList.add("employee-document-delete-v259");
+          head.appendChild(remove);
+        }
+        const fields = document.createElement("div");
+        fields.className = "employee-document-fields-v259";
+        labels.forEach((label) => {
+          label.classList.add("employee-document-field-v259");
+          const input = label.querySelector("[data-document-field]");
+          if (input?.dataset.documentField)
+            label.dataset.documentFieldV259 = input.dataset.documentField;
+          if (label.querySelector("[data-document-attachment]"))
+            label.classList.add("employee-document-attachment-v259");
+          label.classList.toggle(
+            "has-preview-v259",
+            Boolean(label.querySelector("[data-view-attachment]")),
+          );
+          fields.appendChild(label);
+        });
+        row.prepend(head);
+        row.appendChild(fields);
+      });
+    if (!documents.length)
+      polishEmptyState(
+        root,
+        "file",
+        "لا توجد وثائق مضافة",
+        "اضغط «إضافة وثيقة» لاختيار النوع وإرفاق نسخة الوثيقة.",
+      );
+    hydrate(root);
+  }
+
+  function decorateNotes() {
+    const notes = stateList("notes");
+    const body = document.querySelector("#employeeNotesBody");
+    setCount(
+      "#employeeNotesCountV259",
+      notes.length,
+      "ملاحظة",
+      "ملاحظات",
+    );
+    body?.querySelectorAll("tr").forEach((row) => {
+      row.classList.toggle(
+        "employee-records-empty-row-v259",
+        Boolean(row.querySelector(".employee-note-empty")),
+      );
+      if (!row.querySelector(".employee-note-empty"))
+        row.classList.add("employee-note-row-v259");
+    });
+    hydrate(document.querySelector('[data-section-panel="notes"]'));
+  }
+
+  function decorateMinutes() {
+    const minutes = stateList("minutes");
+    const body = document.querySelector("#employeeMinutesBody");
+    setCount(
+      "#employeeMinutesCountV259",
+      minutes.length,
+      "محضر",
+      "محاضر",
+    );
+    body?.querySelectorAll("tr").forEach((row) => {
+      row.classList.toggle(
+        "employee-records-empty-row-v259",
+        Boolean(row.querySelector(".employee-note-empty")),
+      );
+      if (!row.querySelector(".employee-note-empty"))
+        row.classList.add("employee-minute-row-v259");
+    });
+    hydrate(document.querySelector('[data-section-panel="notes"]'));
+  }
+
+  function wrapRenderer(name, decorator) {
+    const previous = window[name];
+    if (
+      typeof previous !== "function" ||
+      previous.__v259EmployeeRecordsPresentation
+    )
+      return;
+    const wrapped = function () {
+      const result = previous.apply(this, arguments);
+      decorator();
+      return result;
+    };
+    wrapped.__v259EmployeeRecordsPresentation = true;
+    try {
+      window[name] = wrapped;
+      if (name === "renderBankAccounts") renderBankAccounts = wrapped;
+      if (name === "renderDocuments") renderDocuments = wrapped;
+      if (name === "renderEmployeeNotes") renderEmployeeNotes = wrapped;
+      if (name === "renderEmployeeMinutes") renderEmployeeMinutes = wrapped;
+    } catch (_) {}
+  }
+
+  function decorateAll() {
+    decorateBankAccounts();
+    decorateDocuments();
+    decorateNotes();
+    decorateMinutes();
+    hydrate(document.querySelector("#employeeModal"));
+  }
+
+  wrapRenderer("renderBankAccounts", decorateBankAccounts);
+  wrapRenderer("renderDocuments", decorateDocuments);
+  wrapRenderer("renderEmployeeNotes", decorateNotes);
+  wrapRenderer("renderEmployeeMinutes", decorateMinutes);
+
+  const previousOpen =
+    typeof openEmployeeModal === "function"
+      ? openEmployeeModal
+      : window.openEmployeeModal;
+  if (
+    typeof previousOpen === "function" &&
+    !previousOpen.__v259EmployeeRecordsPresentation
+  ) {
+    const wrappedOpen = async function () {
+      const result = await previousOpen.apply(this, arguments);
+      decorateAll();
+      setTimeout(decorateAll, 180);
+      return result;
+    };
+    wrappedOpen.__v259EmployeeRecordsPresentation = true;
+    try {
+      openEmployeeModal = wrappedOpen;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpen;
+  }
+
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (
+        event.target?.matches?.(
+          '[data-document-field="typeId"], [data-document-field="number"]',
+        )
+      )
+        setTimeout(decorateDocuments, 0);
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (
+        event.target?.closest?.(
+          '[data-employee-section="banking"], [data-employee-section="notes"], [data-employee-section="documents"]',
+        )
+      )
+        setTimeout(decorateAll, 0);
+    },
+    true,
+  );
+
+  window.nawahEmployeeRecordsV259 = {
+    version: 259,
+    decorate: decorateAll,
+    banking: decorateBankAccounts,
+    documents: decorateDocuments,
+    notes: decorateNotes,
+    minutes: decorateMinutes,
+  };
+  decorateAll();
 })();

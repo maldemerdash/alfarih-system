@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=258" />
+    <link rel="stylesheet" href="style.css?v=259" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -1168,9 +1168,20 @@
               </div>
             </section>
 
-            <section class="employee-tab-panel" data-section-panel="banking">
-              <div class="form-section-title section-title-with-action"><span data-icon="wallet"></span><div><h3>البيانات البنكية</h3><p>حسابات تحويل الراتب دون حد أعلى</p></div><button type="button" class="secondary-btn" id="addBankAccountBtn"><span data-icon="plus"></span>إضافة حساب بنكي جديد</button></div>
-              <div class="bank-accounts-list" id="bankAccountsList"></div>
+            <section class="employee-tab-panel banking-workspace-v259" data-section-panel="banking" data-banking-workspace="v259">
+              <div class="form-section-title section-title-with-action employee-workspace-head-v259">
+                <span class="employee-workspace-icon-v259" data-icon="wallet"></span>
+                <div><h3>البيانات البنكية</h3><p>الحسابات المعتمدة لتحويل الراتب ومرفقات الموافقة</p></div>
+                <button type="button" class="secondary-btn workspace-add-btn-v259" id="addBankAccountBtn"><span data-icon="plus"></span>إضافة حساب بنكي</button>
+              </div>
+              <article class="employee-records-card-v259 banking-records-card-v259">
+                <header class="employee-records-head-v259">
+                  <span class="employee-records-icon-v259" data-icon="wallet"></span>
+                  <div><h4>حسابات الموظف</h4><p>يمكن إضافة أكثر من حساب مع شهادة الآيبان وموافقة الموظف</p></div>
+                  <span class="employee-records-count-v259" id="bankAccountsCountV259">0 حساب</span>
+                </header>
+                <div class="bank-accounts-list banking-list-v259" id="bankAccountsList"></div>
+              </article>
             </section>
 
             <section class="employee-tab-panel" data-section-panel="contact">
@@ -1195,16 +1206,28 @@
               </div>
             </section>
 
-            <section class="employee-tab-panel" data-section-panel="notes">
-              <div class="form-section-title"><span data-icon="notes"></span><div><h3>الملاحظات والمحاضر</h3><p>ملاحظات الموظف ومحاضر المخالفات والجزاءات</p></div></div>
-              <div class="notes-records-panel">
-                <section class="notes-records-card notes-area-card">
-                  <div class="notes-records-head"><div><h4>الملاحظات</h4><p>سجل زمني باسم المستخدم الحالي</p></div></div>
-                  <div class="note-composer inline-note-composer"><textarea id="employeeNoteInput" rows="2" placeholder="اكتب الملاحظة هنا..."></textarea><button type="button" class="primary-btn" id="addEmployeeNoteBtn">إضافة ملاحظة</button></div>
-                  <div class="table-wrap"><table class="compact-data-table notes-table"><thead><tr><th>#</th><th>الملاحظة</th><th>التاريخ والوقت</th><th>تمت الإضافة بواسطة</th></tr></thead><tbody id="employeeNotesBody"></tbody></table></div>
+            <section class="employee-tab-panel notes-workspace-v259" data-section-panel="notes" data-notes-workspace="v259">
+              <div class="form-section-title employee-workspace-head-v259">
+                <span class="employee-workspace-icon-v259" data-icon="notes"></span>
+                <div><h3>الملاحظات والمحاضر</h3><p>سجل منظم لملاحظات الموظف ومحاضر المخالفات والجزاءات</p></div>
+              </div>
+              <div class="notes-records-panel notes-records-panel-v259">
+                <section class="notes-records-card notes-area-card employee-records-card-v259">
+                  <div class="notes-records-head employee-records-head-v259">
+                    <span class="employee-records-icon-v259" data-icon="notes"></span>
+                    <div><h4>الملاحظات</h4><p>سجل زمني باسم المستخدم الذي أضاف الملاحظة</p></div>
+                    <span class="employee-records-count-v259" id="employeeNotesCountV259">0 ملاحظة</span>
+                  </div>
+                  <div class="note-composer inline-note-composer note-composer-v259"><textarea id="employeeNoteInput" rows="2" placeholder="اكتب الملاحظة بوضوح هنا..."></textarea><button type="button" class="primary-btn" id="addEmployeeNoteBtn"><span data-icon="plus"></span>إضافة ملاحظة</button></div>
+                  <div class="table-wrap employee-records-table-v259"><table class="compact-data-table notes-table"><thead><tr><th>#</th><th>الملاحظة</th><th>التاريخ والوقت</th><th>تمت الإضافة بواسطة</th></tr></thead><tbody id="employeeNotesBody"></tbody></table></div>
                 </section>
-                <section class="notes-records-card minutes-area-card">
-                  <div class="notes-records-head section-title-with-action"><div><h4>المحاضر</h4><p>اختر نوع المحضر لتظهر الخانات المعرفة له من إعداد المحاضر.</p></div><button type="button" class="primary-btn" id="showEmployeeMinuteFormBtn"><span data-icon="plus"></span>إضافة محضر</button></div>
+                <section class="notes-records-card minutes-area-card employee-records-card-v259">
+                  <div class="notes-records-head section-title-with-action employee-records-head-v259">
+                    <span class="employee-records-icon-v259" data-icon="file"></span>
+                    <div><h4>المحاضر</h4><p>محاضر الموظف المعرفة من إعداد المحاضر مع الطباعة والجزاءات</p></div>
+                    <span class="employee-records-count-v259" id="employeeMinutesCountV259">0 محضر</span>
+                    <button type="button" class="primary-btn workspace-add-btn-v259" id="showEmployeeMinuteFormBtn"><span data-icon="plus"></span>إضافة محضر</button>
+                  </div>
                   <div class="employee-minute-form" id="employeeMinuteForm" hidden>
                     <div class="minute-type-picker">
                       <label><span>نوع المحضر</span><select id="employeeMinuteType"></select></label>
@@ -1212,14 +1235,25 @@
                     <div class="form-grid form-grid-3 minutes-form-grid" id="employeeMinuteDynamicFields"></div>
                     <div class="minute-form-actions"><button type="button" class="primary-btn" id="saveEmployeeMinuteBtn">حفظ المحضر</button><button type="button" class="secondary-btn" id="cancelEmployeeMinuteBtn">إلغاء</button></div>
                   </div>
-                  <div class="table-wrap"><table class="compact-data-table minutes-table"><thead><tr><th>#</th><th>نوع المحضر</th><th>تفصيل المحضر</th><th>الجزاء الموقع</th><th>الحسم</th><th>التاريخ والوقت</th><th>تمت الإضافة بواسطة</th><th>طباعة</th></tr></thead><tbody id="employeeMinutesBody"></tbody></table></div>
+                  <div class="table-wrap employee-records-table-v259"><table class="compact-data-table minutes-table"><thead><tr><th>#</th><th>نوع المحضر</th><th>تفصيل المحضر</th><th>الجزاء الموقع</th><th>الحسم</th><th>التاريخ والوقت</th><th>تمت الإضافة بواسطة</th><th>طباعة</th></tr></thead><tbody id="employeeMinutesBody"></tbody></table></div>
                 </section>
               </div>
             </section>
 
-            <section class="employee-tab-panel" data-section-panel="documents">
-              <div class="form-section-title section-title-with-action"><span data-icon="file"></span><div><h3>الوثائق</h3><p>إضافة وثائق متعددة ومرفقاتها</p></div><button type="button" class="secondary-btn" id="addDocumentBtn"><span data-icon="plus"></span>إضافة وثيقة</button></div>
-              <div id="documentsList" class="repeatable-list"></div>
+            <section class="employee-tab-panel documents-workspace-v259" data-section-panel="documents" data-documents-workspace="v259">
+              <div class="form-section-title section-title-with-action employee-workspace-head-v259">
+                <span class="employee-workspace-icon-v259" data-icon="file"></span>
+                <div><h3>الوثائق</h3><p>وثائق الموظف وتواريخها ومرفقاتها المعتمدة</p></div>
+                <button type="button" class="secondary-btn workspace-add-btn-v259" id="addDocumentBtn"><span data-icon="plus"></span>إضافة وثيقة</button>
+              </div>
+              <article class="employee-records-card-v259 documents-records-card-v259">
+                <header class="employee-records-head-v259">
+                  <span class="employee-records-icon-v259" data-icon="file"></span>
+                  <div><h4>سجل الوثائق</h4><p>أنواع الوثائق المتاحة مرتبطة بإعدادات وثائق الموظفين</p></div>
+                  <span class="employee-records-count-v259" id="employeeDocumentsCountV259">0 وثيقة</span>
+                </header>
+                <div id="documentsList" class="repeatable-list documents-list-v259"></div>
+              </article>
             </section>
 
             <section class="employee-tab-panel" data-section-panel="documentation">
@@ -1451,6 +1485,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=258"></script>
+    <script src="app.js?v=259"></script>
   </body>
 </html>
