@@ -39079,6 +39079,11 @@ async function init() {
         attributeFilter: ["open", "class"],
       });
   } catch (_) {}
+  window.nawahEmployeeHistoryV81 = {
+    renderFormHistory: renderFormHistory,
+    refresh: refresh,
+    leaveBalanceCard: leaveBalanceCard,
+  };
   document.addEventListener("DOMContentLoaded", ensureFormHistory);
   setTimeout(ensureFormHistory, 0);
 })();
@@ -73028,4 +73033,139 @@ window.nawahLeaveBalanceReportV185 = {
     minutes: decorateMinutes,
   };
   decorateAll();
+})();
+
+/* v265 - render the employee leave balance immediately when its section opens. */
+(function v265ImmediateEmployeeLeaveBalance() {
+  if (window.__v265ImmediateEmployeeLeaveBalance) return;
+  window.__v265ImmediateEmployeeLeaveBalance = true;
+
+  const sectionName = "leaveTravelHistory";
+  const navSelector =
+    '[data-employee-section="' + sectionName + '"]';
+  const panelSelector =
+    '[data-section-panel="' + sectionName + '"]';
+  let retryTimer = 0;
+  let refreshAttempt = 0;
+
+  function refreshVisibleHistory() {
+    const panel = document.querySelector(
+      "#employeeModal " + panelSelector,
+    );
+    if (!panel || !panel.classList.contains("active")) return false;
+    const api = window.nawahEmployeeHistoryV81;
+    let card = panel.querySelector(".v81-employee-history-card");
+    const formEmployeeId = String(
+      document.querySelector("#employeeForm")?.elements?.employeeId?.value ||
+        "",
+    ).trim();
+    const needsCurrentEmployee =
+      !card ||
+      card.getAttribute("data-v81-emp-id") !== formEmployeeId ||
+      !card.querySelector(
+        ".v255-leave-balance-card:not(.is-empty)",
+      );
+    if (
+      needsCurrentEmployee &&
+      typeof api?.renderFormHistory === "function"
+    ) {
+      api.renderFormHistory();
+      card = panel.querySelector(".v81-employee-history-card");
+    }
+    if (card && typeof api?.refresh === "function") api.refresh(card);
+    return Boolean(
+      panel.querySelector(
+        ".v255-leave-balance-card:not(.is-empty) .v255-balance-value strong",
+      ),
+    );
+  }
+
+  function scheduleRefresh() {
+    clearTimeout(retryTimer);
+    refreshAttempt = 0;
+    const run = function () {
+      if (refreshVisibleHistory()) return;
+      refreshAttempt += 1;
+      if (refreshAttempt >= 7) return;
+      const delays = [30, 60, 110, 180, 300, 480];
+      retryTimer = setTimeout(
+        run,
+        delays[Math.min(refreshAttempt - 1, delays.length - 1)],
+      );
+    };
+    if (typeof queueMicrotask === "function") queueMicrotask(run);
+    else Promise.resolve().then(run);
+  }
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (event.target?.closest?.(navSelector)) scheduleRefresh();
+    },
+    true,
+  );
+
+  const historyPanel = document.querySelector(
+    "#employeeModal " + panelSelector,
+  );
+  if (historyPanel) {
+    try {
+      new MutationObserver(function () {
+        if (historyPanel.classList.contains("active")) scheduleRefresh();
+      }).observe(historyPanel, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    } catch (_) {}
+  }
+
+  const previousSwitch =
+    typeof window.switchEmployeeSection === "function"
+      ? window.switchEmployeeSection
+      : typeof switchEmployeeSection === "function"
+        ? switchEmployeeSection
+        : null;
+  if (
+    previousSwitch &&
+    !previousSwitch.__v265ImmediateEmployeeLeaveBalance
+  ) {
+    const wrappedSwitch = function (section) {
+      const result = previousSwitch.apply(this, arguments);
+      if ((section || "personal") === sectionName) scheduleRefresh();
+      return result;
+    };
+    wrappedSwitch.__v265ImmediateEmployeeLeaveBalance = true;
+    try {
+      switchEmployeeSection = wrappedSwitch;
+    } catch (_) {}
+    window.switchEmployeeSection = wrappedSwitch;
+  }
+
+  const previousOpen =
+    typeof window.openEmployeeModal === "function"
+      ? window.openEmployeeModal
+      : typeof openEmployeeModal === "function"
+        ? openEmployeeModal
+        : null;
+  if (
+    previousOpen &&
+    !previousOpen.__v265ImmediateEmployeeLeaveBalance
+  ) {
+    const wrappedOpen = async function () {
+      const result = await previousOpen.apply(this, arguments);
+      if (historyPanel?.classList.contains("active")) scheduleRefresh();
+      return result;
+    };
+    wrappedOpen.__v265ImmediateEmployeeLeaveBalance = true;
+    try {
+      openEmployeeModal = wrappedOpen;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpen;
+  }
+
+  window.nawahEmployeeLeaveHistoryV265 = {
+    refresh: scheduleRefresh,
+    immediateBalance: true,
+    balanceTypographySource: 260,
+  };
 })();

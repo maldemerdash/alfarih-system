@@ -27449,3 +27449,77 @@ html.has-initial-login-bg .auth-gate,
     grid-template-columns: 1fr !important;
   }
 }
+
+/* v265 — Immediate leave balance and restored v260 balance typography. */
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-history-records
+  .v81-history-tabs
+  button {
+  min-height: 42px;
+  font-size: 12px !important;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-history-records
+  .v81-history-tabs
+  b {
+  min-width: 25px;
+  height: 25px;
+  font-size: 10px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-leave-balance-card
+  .v255-balance-copy
+  strong {
+  font-size: 12px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-leave-balance-card
+  .v255-balance-copy
+  small,
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-leave-balance-card
+  .v255-balance-value
+  span,
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-leave-balance-card
+  .v255-balance-metrics
+  span,
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-leave-balance-card
+  .v255-balance-metrics
+  small,
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-leave-balance-card
+  .v255-balance-note {
+  font-size: 7px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-leave-balance-card
+  .v255-balance-value
+  strong {
+  font-size: 25px !important;
+  line-height: 1 !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-leave-balance-card
+  .v255-balance-metrics
+  strong {
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+}
