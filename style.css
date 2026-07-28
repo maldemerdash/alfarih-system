@@ -3533,10 +3533,6 @@ dialog::backdrop {
   margin-bottom: 20px;
 }
 
-.identity-grid {
-  grid-template-columns: 1.05fr 1fr 1fr 0.85fr 0.9fr;
-}
-
 .span-all {
   grid-column: 1 / -1;
 }
@@ -4206,7 +4202,6 @@ dialog::backdrop {
     grid-template-columns: 195px minmax(0, 1fr);
   }
 
-  .identity-grid,
   .form-grid-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -4292,7 +4287,6 @@ dialog::backdrop {
     padding: 14px;
   }
 
-  .identity-grid,
   .form-grid-3,
   .form-grid-4,
   .documentation-grid,
@@ -9107,6 +9101,612 @@ body {
 @media (max-width: 620px) {
   #establishmentDocumentsView .est-doc-filter-panel .form-grid-5 {
     grid-template-columns: 1fr !important;
+  }
+}
+
+/* v251 — Identity and passports workspace */
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-cards-v251 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(245px, 0.85fr);
+  align-items: stretch;
+  gap: 14px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-card-v251,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-section-card-v251 {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dce9ed;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(247, 252, 253, 0.96), #fff 72%),
+    #fff;
+  box-shadow: 0 8px 22px rgba(15, 65, 78, 0.055);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-card-v251::before,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-section-card-v251::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #2297c5, #14b8a6, #22c55e);
+  content: "";
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-card-head-v251 {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #e7eff2;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-card-icon-v251,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-card-icon-v251,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-empty-icon-v251 {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  place-items: center;
+  border: 1px solid rgba(34, 151, 197, 0.18);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #e9f8fc, #eafbf2);
+  color: #0e8398;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-file-icon-v251 {
+  background: linear-gradient(145deg, #eef7ff, #eafbf6);
+  color: #17899f;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-card-icon-v251
+  svg,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-card-icon-v251
+  svg,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-empty-icon-v251
+  svg {
+  width: 19px;
+  height: 19px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-card-head-v251
+  div,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-section-title-v251
+  div,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-card-head-v251
+  div {
+  min-width: 0;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-card-head-v251
+  h4,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-section-head-v251
+  h4 {
+  margin: 0;
+  color: #123b48;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-card-head-v251
+  p,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-section-head-v251
+  p {
+  margin: 4px 0 0;
+  color: #7a8a91;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-required-note-v251 {
+  margin-inline-start: auto;
+  padding: 6px 9px;
+  border: 1px solid #d8ecf0;
+  border-radius: 999px;
+  background: #f0fafb;
+  color: #0e8398;
+  font-size: 7px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-core-grid-v251 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+  padding: 16px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-core-grid-v251
+  label,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-status-content-v251
+  label,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-fields-v251
+  label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-core-grid-v251
+  label
+  > span:first-child,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-status-content-v251
+  label
+  > span:first-child,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-fields-v251
+  label
+  > span:first-child {
+  color: #5d7077;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-core-grid-v251
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-core-grid-v251
+  select,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-status-content-v251
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-fields-v251
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-fields-v251
+  select {
+  width: 100%;
+  min-height: 43px;
+  padding: 9px 11px;
+  border: 1px solid #d9e6ea;
+  border-radius: 11px;
+  outline: 0;
+  background: #fff;
+  color: #203c45;
+  font-size: 9px;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-core-grid-v251
+  input:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-core-grid-v251
+  select:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-fields-v251
+  input:focus,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-fields-v251
+  select:focus {
+  border-color: rgba(34, 151, 197, 0.62);
+  box-shadow: 0 0 0 3px rgba(34, 151, 197, 0.09);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-status-content-v251 {
+  display: flex;
+  min-height: 151px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: 16px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-attachment-actions-v251,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-attachment-field-v251
+  .employee-attachment-inline-wrap,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-attachment-field-v251
+  .employee-attachment-inline-wrap {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-attachment-actions-v251
+  .compact-file-control,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-attachment-field-v251
+  .compact-file-control {
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 43px !important;
+  flex: 1 1 auto !important;
+  border-radius: 11px !important;
+  background: #fff;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-attachment-actions-v251
+  .attachment-view-btn,
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-attachment-field-v251
+  .attachment-view-btn {
+  display: grid;
+  width: 43px !important;
+  min-width: 43px !important;
+  height: 43px !important;
+  min-height: 43px !important;
+  flex: 0 0 43px !important;
+  margin: 0 !important;
+  place-items: center;
+  border-radius: 11px !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-attachment-actions-v251
+  .attachment-view-btn[hidden] {
+  display: none !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .identity-expiry-state-v251
+  input {
+  border-color: #d5ece5;
+  background: linear-gradient(90deg, #f4fbf8, #f7fbfc);
+  color: #167c68;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-section-card-v251 {
+  margin-top: 14px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-section-head-v251 {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0;
+  padding: 15px 16px 12px;
+  border-top: 0;
+  border-bottom: 1px solid #e7eff2;
+  background: rgba(247, 252, 253, 0.76);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-section-title-v251 {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-add-btn-v251 {
+  min-height: 40px;
+  flex: 0 0 auto;
+  border-color: rgba(34, 151, 197, 0.2);
+  border-radius: 11px;
+  background: linear-gradient(135deg, #1ea7c6, #20c57a);
+  color: #fff;
+  box-shadow: 0 7px 16px rgba(20, 161, 165, 0.16);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-list-v251 {
+  gap: 12px;
+  padding: 14px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-card-v251 {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid #dce8ec;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: none;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-card-head-v251 {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border-bottom: 1px solid #e9f0f2;
+  background: linear-gradient(90deg, #f5fbfc, #fbfdfd);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-card-index-v251 {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  min-width: 25px;
+  place-items: center;
+  border-radius: 8px;
+  background: #123b48;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-card-icon-v251 {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 11px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-card-head-v251
+  strong {
+  display: block;
+  overflow: hidden;
+  color: #173e4a;
+  font-size: 10px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-card-head-v251
+  small {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: #87969b;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-delete-btn-v251 {
+  position: static;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  margin-inline-start: auto;
+  border: 1px solid rgba(239, 68, 68, 0.14);
+  border-radius: 10px;
+  background: #fff7f7;
+  color: #e34242;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-fields-v251 {
+  display: grid;
+  grid-template-columns:
+    minmax(130px, 0.85fr)
+    minmax(150px, 1fr)
+    minmax(150px, 1fr)
+    minmax(190px, 1.2fr);
+  align-items: end;
+  gap: 11px;
+  padding: 14px;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-expiry-state-v251 {
+  grid-column: 1 / -1;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-expiry-state-v251
+  input {
+  border-color: #d7e9e5;
+  background: linear-gradient(90deg, #f5fbf8, #f7fbfc);
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-empty-v251 {
+  display: flex;
+  min-height: 128px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+  border: 1px dashed #cfe3e8;
+  border-radius: 13px;
+  background: linear-gradient(145deg, #f9fcfd, #f5fbf8);
+  color: #3c5c65;
+  text-align: center;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-empty-v251
+  strong {
+  font-size: 10px;
+  font-weight: 900;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="identity"]
+  .passport-empty-v251
+  small {
+  color: #829399;
+  font-size: 8px;
+}
+
+@media (max-width: 1120px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .identity-cards-v251 {
+    grid-template-columns: 1fr;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .identity-status-content-v251 {
+    display: grid;
+    min-height: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .passport-fields-v251 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .identity-card-head-v251,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .passport-section-head-v251 {
+    align-items: flex-start;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .identity-required-note-v251 {
+    display: none;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .identity-core-grid-v251,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .identity-status-content-v251,
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .passport-fields-v251 {
+    grid-template-columns: 1fr;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .passport-section-head-v251 {
+    flex-direction: column;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .passport-add-btn-v251 {
+    width: 100%;
+    justify-content: center;
+  }
+
+  #employeeModal.employee-profile-modal
+    [data-section-panel="identity"]
+    .passport-card-index-v251 {
+    display: none;
   }
 }
 

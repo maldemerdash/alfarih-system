@@ -3889,10 +3889,28 @@ function renderPassports() {
     ? employeeFormState.passports
         .map((e, t) => {
           const n = expiryStatus(e.expiryDate);
-          return `<div class="repeatable-row passport-row" data-passport-index="${t}">\n        <label><span>رقم الجواز</span><input data-passport-field="number" value="${escapeHtml(e.number)}" /></label>\n        <label><span>تاريخ بداية الجواز</span><input type="date" data-passport-field="startDate" value="${e.startDate}" /></label>\n        <label><span>تاريخ نهاية الجواز</span><input type="date" data-passport-field="expiryDate" value="${e.expiryDate}" /></label>\n        <label><span>مرفق الجواز</span>${attachmentControlHtml("passport", t, e.attachmentId, "عرض الجواز")}</label>\n        <button type="button" class="row-delete-btn" data-remove-passport="${t}" aria-label="حذف الجواز">${iconSvg("trash")}</button>\n        <label class="expiry-state span-all"><span>حالة الجواز</span><input class="calculated-field expiry-state ${n.className}" readonly value="${escapeHtml(n.text)}" /></label>\n      </div>`;
+          return `<article class="repeatable-row passport-row passport-card-v251" data-passport-index="${t}" data-passport-card="${t}">
+        <header class="passport-card-head-v251">
+          <span class="passport-card-index-v251">${t + 1}</span>
+          <span class="passport-card-icon-v251">${iconSvg("passport")}</span>
+          <div><strong>جواز السفر ${t + 1}</strong><small>${e.number ? `رقم ${escapeHtml(e.number)}` : "أدخل بيانات الجواز ومرفقه"}</small></div>
+          <button type="button" class="row-delete-btn passport-delete-btn-v251" data-remove-passport="${t}" aria-label="حذف الجواز">${iconSvg("trash")}</button>
+        </header>
+        <div class="passport-fields-v251">
+          <label><span>رقم الجواز</span><input data-passport-field="number" value="${escapeHtml(e.number)}" /></label>
+          <label><span>تاريخ بداية الجواز</span><input type="date" data-passport-field="startDate" value="${e.startDate}" /></label>
+          <label><span>تاريخ نهاية الجواز</span><input type="date" data-passport-field="expiryDate" value="${e.expiryDate}" /></label>
+          <label class="passport-attachment-field-v251"><span>مرفق الجواز</span>${attachmentControlHtml("passport", t, e.attachmentId, "عرض الجواز")}</label>
+          <label class="expiry-state passport-expiry-state-v251"><span>حالة الجواز</span><input class="calculated-field expiry-state ${n.className}" readonly value="${escapeHtml(n.text)}" /></label>
+        </div>
+      </article>`;
         })
         .join("")
-    : '<div class="employee-note-empty">لا توجد جوازات مضافة.</div>'),
+    : `<div class="employee-note-empty passport-empty-v251">
+        <span class="passport-empty-icon-v251">${iconSvg("passport")}</span>
+        <strong>لا توجد جوازات مضافة</strong>
+        <small>اضغط «إضافة جواز» لتسجيل بيانات جواز السفر ومرفقه.</small>
+      </div>`),
     hydrateIcons(e));
 }
 function renderBankAccounts() {

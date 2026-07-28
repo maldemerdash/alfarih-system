@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=250" />
+    <link rel="stylesheet" href="style.css?v=251" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -991,16 +991,46 @@
 
             <section class="employee-tab-panel" data-section-panel="identity">
               <div class="form-section-title"><span data-icon="shield"></span><div><h3>بيانات الهوية والجوازات</h3><p>الصلاحية والمرفقات والتحويل بين التقويمين</p></div></div>
-              <div class="form-grid identity-grid">
-                <label><span>رقم الهوية / الإقامة *</span><input name="identityNumber" required inputmode="numeric" maxlength="10" /></label>
-                <label><span>تاريخ الانتهاء بالميلادي</span><input name="identityExpiryGregorian" type="date" /></label>
-                <label><span>تاريخ الانتهاء بالهجري</span><input name="identityExpiryHijri" inputmode="numeric" placeholder="1448-09-15" /></label>
-                <label><span>تصحيح التقويم الهجري</span><select name="hijriCorrection"><option value="0">بدون تصحيح</option><option value="1">+ يوم</option><option value="2">+ يومين</option><option value="-1">- يوم</option><option value="-2">- يومين</option></select></label>
-                <label><span>مرفق الهوية</span><span class="compact-file-control"><span data-icon="file"></span><span>إرفاق</span><input type="file" data-single-attachment="identity" accept="image/*,.pdf" /></span><button type="button" class="attachment-view-btn" data-view-single-attachment="identity" hidden>عرض</button></label>
-                <label class="span-all"><span>حالة الإقامة</span><input name="identityRemaining" class="calculated-field expiry-state" readonly /></label>
+              <div class="identity-cards-v251" data-identity-layout="v251">
+                <article class="identity-card-v251 identity-data-card-v251" data-identity-card="data">
+                  <header class="identity-card-head-v251">
+                    <span class="identity-card-icon-v251" data-icon="shield"></span>
+                    <div><h4>بيانات الهوية أو الإقامة</h4><p>الرقم وتواريخ الصلاحية والتحويل بين التقويمين</p></div>
+                    <span class="identity-required-note-v251">رقم الهوية إلزامي</span>
+                  </header>
+                  <div class="form-grid identity-core-grid-v251">
+                    <label><span>رقم الهوية / الإقامة *</span><input name="identityNumber" required inputmode="numeric" maxlength="10" /></label>
+                    <label><span>تاريخ الانتهاء بالميلادي</span><input name="identityExpiryGregorian" type="date" /></label>
+                    <label><span>تاريخ الانتهاء بالهجري</span><input name="identityExpiryHijri" inputmode="numeric" placeholder="1448-09-15" /></label>
+                    <label><span>تصحيح التقويم الهجري</span><select name="hijriCorrection"><option value="0">بدون تصحيح</option><option value="1">+ يوم</option><option value="2">+ يومين</option><option value="-1">- يوم</option><option value="-2">- يومين</option></select></label>
+                  </div>
+                </article>
+
+                <article class="identity-card-v251 identity-status-card-v251" data-identity-card="status">
+                  <header class="identity-card-head-v251">
+                    <span class="identity-card-icon-v251 identity-file-icon-v251" data-icon="file"></span>
+                    <div><h4>المرفق وحالة الصلاحية</h4><p>نسخة الهوية والمدة المتبقية لانتهائها</p></div>
+                  </header>
+                  <div class="identity-status-content-v251">
+                    <label class="identity-attachment-field-v251">
+                      <span>مرفق الهوية</span>
+                      <span class="identity-attachment-actions-v251">
+                        <span class="compact-file-control"><span data-icon="file"></span><span>إرفاق</span><input type="file" data-single-attachment="identity" accept="image/*,.pdf" /></span>
+                        <button type="button" class="attachment-view-btn" data-view-single-attachment="identity" hidden>عرض</button>
+                      </span>
+                    </label>
+                    <label class="identity-expiry-state-v251"><span>حالة الإقامة</span><input name="identityRemaining" class="calculated-field expiry-state" readonly /></label>
+                  </div>
+                </article>
               </div>
-              <div class="subsection-head"><div><h4>بيانات جوازات السفر</h4><p>يمكن إضافة أكثر من جواز دون حد أعلى</p></div><button type="button" class="secondary-btn" id="addPassportBtn"><span data-icon="plus"></span>إضافة جواز آخر</button></div>
-              <div id="passportsList" class="repeatable-list"></div>
+
+              <article class="passport-section-card-v251" data-identity-card="passports">
+                <div class="subsection-head passport-section-head-v251">
+                  <div class="passport-section-title-v251"><span class="identity-card-icon-v251" data-icon="passport"></span><div><h4>بيانات جوازات السفر</h4><p>أضف جوازًا أو أكثر مع مدة الصلاحية والمرفق الخاص به</p></div></div>
+                  <button type="button" class="secondary-btn passport-add-btn-v251" id="addPassportBtn"><span data-icon="plus"></span>إضافة جواز</button>
+                </div>
+                <div id="passportsList" class="repeatable-list passport-list-v251"></div>
+              </article>
             </section>
 
             <section class="employee-tab-panel" data-section-panel="employment">
@@ -1351,6 +1381,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=250"></script>
+    <script src="app.js?v=251"></script>
   </body>
 </html>
