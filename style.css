@@ -25869,3 +25869,146 @@ html.has-initial-login-bg .auth-gate,
     align-items: stretch !important;
   }
 }
+
+/* v261 — Unified employee workspace typography. */
+#employeeModal.employee-profile-modal {
+  --employee-font-family-v261: "Almarai", "Segoe UI", Tahoma, Arial, sans-serif;
+  --employee-field-label-size-v261: 11px;
+  --employee-field-value-size-v261: 12px;
+  --employee-table-head-size-v261: 10px;
+  --employee-table-body-size-v261: 11px;
+  --employee-helper-size-v261: 9px;
+  --employee-important-value-size-v261: 14px;
+  font-family: var(--employee-font-family-v261);
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel],
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  select,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  textarea,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  button {
+  font-family: var(--employee-font-family-v261) !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  label,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  label
+  > span:first-child,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  .choice-field
+  legend,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  .documentation-upload-v246
+  > span:first-child,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  .commission-fields-v256
+  > label
+  > span {
+  font-size: var(--employee-field-label-size-v261) !important;
+  line-height: 1.55;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  select,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  textarea {
+  min-height: 44px;
+  font-size: var(--employee-field-value-size-v261) !important;
+  line-height: 1.5;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  .compact-file-control
+  > span:last-child {
+  font-size: var(--employee-field-value-size-v261) !important;
+  line-height: 1.5;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  table
+  thead
+  th {
+  font-size: var(--employee-table-head-size-v261) !important;
+  line-height: 1.55;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  table
+  tbody
+  td {
+  font-size: var(--employee-table-body-size-v261) !important;
+  line-height: 1.65;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  p,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  small,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  .employee-note-empty,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  .consent-check,
+#employeeModal.employee-profile-modal
+  [data-section-panel]
+  .consent-issued-card {
+  font-size: var(--employee-helper-size-v261) !important;
+  line-height: 1.7;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="salary"]
+  .salary-total-field
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-field-amount-v244
+  input,
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-balance-value
+  strong,
+#employeeModal.employee-profile-modal
+  [data-section-panel="leaveTravelHistory"]
+  .v255-balance-metrics
+  strong {
+  font-size: var(--employee-important-value-size-v261) !important;
+  line-height: 1.35;
+}
+
+@media (max-width: 680px) {
+  #employeeModal.employee-profile-modal
+    [data-section-panel]
+    input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  #employeeModal.employee-profile-modal
+    [data-section-panel]
+    select {
+    min-height: 46px;
+  }
+}
