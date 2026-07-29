@@ -891,11 +891,57 @@ function buildCloudState() {
     ),
   };
 }
+function employeeEnglishNamesMapV271(state) {
+  const remote =
+    state?.employeeEnglishNamesV270 &&
+    "object" == typeof state.employeeEnglishNamesV270 &&
+    !Array.isArray(state.employeeEnglishNamesV270)
+      ? state.employeeEnglishNamesV270
+      : {};
+  let local = {};
+  try {
+    const value = JSON.parse(
+      localStorage.getItem("nawah-employee-english-names-v270") || "{}",
+    );
+    if (value && "object" == typeof value && !Array.isArray(value))
+      local = value;
+  } catch (_) {}
+  return { ...local, ...remote };
+}
+function cacheEmployeeEnglishNamesV271(state) {
+  const map = employeeEnglishNamesMapV271(state);
+  try {
+    localStorage.setItem(
+      "nawah-employee-english-names-v270",
+      JSON.stringify(map),
+    );
+  } catch (_) {}
+  return map;
+}
+function employeeWithCloudEnglishNamesV271(employee, state) {
+  const employeeId = String(employee?.id || ""),
+    saved = employeeId ? employeeEnglishNamesMapV271(state)[employeeId] : null;
+  return saved
+    ? {
+        ...employee,
+        firstNameEn: String(saved.firstNameEn || "").trim(),
+        fatherNameEn: String(saved.fatherNameEn || "").trim(),
+        grandNameEn: String(saved.grandNameEn || "").trim(),
+        familyNameEn: String(saved.familyNameEn || "").trim(),
+      }
+    : employee;
+}
 function applyCloudState(e) {
+  cacheEmployeeEnglishNamesV271(e);
   return (
     !(!e || "object" != typeof e) &&
     (Array.isArray(e.employees) &&
-      (employees = e.employees.map(normalizeEmployee)),
+      (employees = e.employees.map((employee, index) =>
+        normalizeEmployee(
+          employeeWithCloudEnglishNamesV271(employee, e),
+          index,
+        ),
+      )),
     Array.isArray(e.leaves) && (leaves = e.leaves),
     Array.isArray(e.jobTitles) && (jobTitles = e.jobTitles),
     Array.isArray(e.attendanceExceptions) &&
@@ -54746,13 +54792,21 @@ async function init() {
   function applyState(state) {
     if (!hasEmployeeArray(state))
       return false;
+    try {
+      if (typeof cacheEmployeeEnglishNamesV271 === "function")
+        cacheEmployeeEnglishNamesV271(state);
+    } catch (_) {}
     var before = hasEmployees(employees) ? employees.length : 0;
     var nextEmployees;
     try {
       nextEmployees = state.employees.map(function (emp, idx) {
+        const hydratedEmployee =
+          typeof employeeWithCloudEnglishNamesV271 === "function"
+            ? employeeWithCloudEnglishNamesV271(emp, state)
+            : emp;
         return typeof normalizeEmployee === "function"
-          ? normalizeEmployee(emp, idx)
-          : emp;
+          ? normalizeEmployee(hydratedEmployee, idx)
+          : hydratedEmployee;
       });
     } catch (_) {
       nextEmployees = state.employees.slice();
@@ -74015,5 +74069,47 @@ window.nawahLeaveBalanceReportV185 = {
     isolatedCloudRecord: true,
     existingEmployeeUpdate: true,
     crossBrowser: true,
+  };
+})();
+
+/* v271 - hydrate the confirmed cloud English-name map in every employee
+   normalization path, including the legacy fast employee loader. */
+(function v271EmployeeEnglishNameCloudHydration() {
+  if (window.__v271EmployeeEnglishNameCloudHydration) return;
+  window.__v271EmployeeEnglishNameCloudHydration = true;
+
+  const previousNormalize =
+    typeof normalizeEmployee === "function" ? normalizeEmployee : null;
+  if (previousNormalize && !previousNormalize.__v271EnglishNameHydration) {
+    const wrappedNormalize = function (employee, index) {
+      const hasExplicitEnglishNames = [
+          "firstNameEn",
+          "fatherNameEn",
+          "grandNameEn",
+          "familyNameEn",
+        ].some((field) =>
+          Object.prototype.hasOwnProperty.call(employee || {}, field),
+        ),
+        hydrated =
+          !hasExplicitEnglishNames &&
+          typeof employeeWithCloudEnglishNamesV271 === "function"
+          ? employeeWithCloudEnglishNamesV271(employee, null)
+          : employee;
+      return previousNormalize.call(this, hydrated, index);
+    };
+    wrappedNormalize.__v271EnglishNameHydration = true;
+    try {
+      normalizeEmployee = wrappedNormalize;
+    } catch (_) {}
+    window.normalizeEmployee = wrappedNormalize;
+  }
+
+  window.nawahEmployeeEnglishNamesV271 = {
+    version: 271,
+    cloudField: "employeeEnglishNamesV270",
+    cacheKey: "nawah-employee-english-names-v270",
+    baseCloudLoaderHydrated: true,
+    fastCloudLoaderHydrated: true,
+    everyNormalizePathHydrated: true,
   };
 })();
