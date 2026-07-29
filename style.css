@@ -27772,3 +27772,77 @@ html.has-initial-login-bg .auth-gate,
   box-shadow: none !important;
   filter: none !important;
 }
+
+/* v275 — Native date icons integrated into their fields.
+   Keep each field's existing background and border; replace only the browser
+   calendar glyph while preserving its native clickable picker area. */
+:is(
+    #attendanceDateInput,
+    #leaveForm input[name="from"],
+    #leaveForm input[name="to"],
+    #travelRequestForm input[name="travelDate"],
+    #travelRequestForm input[name="returnDate"],
+    #branchEstDocForm input[name="startDate"],
+    #branchEstDocForm input[name="expiryDate"],
+    #branchEstDocForm input[data-est-doc-extension-date],
+    #establishmentDocumentForm input[name="startDate"],
+    #establishmentDocumentForm input[name="expiryDate"],
+    #establishmentDocumentFormV2 input[name="startDate"],
+    #establishmentDocumentFormV2 input[name="expiryDate"]
+  ) {
+  padding-right: 48px !important;
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyNCcgaGVpZ2h0PScyNCcgdmlld0JveD0nMCAwIDI0IDI0JyBmaWxsPSdub25lJyBzdHJva2U9JyMxNTlhYWUnIHN0cm9rZS13aWR0aD0nMicgc3Ryb2tlLWxpbmVjYXA9J3JvdW5kJyBzdHJva2UtbGluZWpvaW49J3JvdW5kJz48cmVjdCB4PSczJyB5PSc0JyB3aWR0aD0nMTgnIGhlaWdodD0nMTgnIHJ4PScyJyByeT0nMicvPjxsaW5lIHgxPScxNicgeTE9JzInIHgyPScxNicgeTI9JzYnLz48bGluZSB4MT0nOCcgeTE9JzInIHgyPSc4JyB5Mj0nNicvPjxsaW5lIHgxPSczJyB5MT0nMTAnIHgyPScyMScgeTI9JzEwJy8+PC9zdmc+") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 18px 18px !important;
+}
+
+:is(
+    #attendanceDateInput,
+    #leaveForm input[name="from"],
+    #leaveForm input[name="to"],
+    #travelRequestForm input[name="travelDate"],
+    #travelRequestForm input[name="returnDate"],
+    #branchEstDocForm input[name="startDate"],
+    #branchEstDocForm input[name="expiryDate"],
+    #branchEstDocForm input[data-est-doc-extension-date],
+    #establishmentDocumentForm input[name="startDate"],
+    #establishmentDocumentForm input[name="expiryDate"],
+    #establishmentDocumentFormV2 input[name="startDate"],
+    #establishmentDocumentFormV2 input[name="expiryDate"]
+  )::-webkit-calendar-picker-indicator {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* The finance date picker remains a distinct branded control beside the day. */
+#financeView .finance-calendar-btn {
+  width: 42px !important;
+  min-width: 42px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 !important;
+  border: 1px solid rgba(34, 151, 197, 0.2) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(145deg, #effaff, #ecfdf5) !important;
+  color: #159aae !important;
+  box-shadow: 0 7px 17px rgba(15, 118, 110, 0.09) !important;
+}
+
+#financeView .finance-calendar-btn:hover,
+#financeView .finance-calendar-btn:focus-visible {
+  border-color: rgba(20, 184, 166, 0.36) !important;
+  background: linear-gradient(145deg, #e7f8fd, #e5faef) !important;
+  color: #0e8398 !important;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1) !important;
+  outline: none;
+}
+
+#financeView .finance-calendar-btn svg {
+  width: 19px !important;
+  height: 19px !important;
+  stroke-width: 2 !important;
+}
