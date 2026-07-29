@@ -4776,21 +4776,32 @@ async function handleEmployeeSubmit(e) {
       window.nawahContractAutomationV243.prepareForSave(y, d);
     if (preparedContractV243) Object.assign(y, preparedContractV243);
   }
-  ((employees = d
+  employees = d
     ? employees.map((e) => (e.id === y.id ? y : e))
-    : [y, ...employees]),
-    window.nawahEmployeeContractSyncV238?.trackUpserts?.([y.id]),
-    await dbSaveEmployee(y),
-    "function" == typeof window.persistEmployeeStateV179
-      ? await window.persistEmployeeStateV179("employee-save")
-      : await saveCloudStateNow({ force: !0, allowEmptyOverwrite: !0 }),
-    document.querySelector("#employeeModal").close(),
-    renderAll(),
+    : [y, ...employees];
+  window.nawahEmployeeContractSyncV238?.trackUpserts?.([y.id]);
+  await dbSaveEmployee(y);
+  if ("function" == typeof window.persistEmployeeStateV179)
+    await window.persistEmployeeStateV179("employee-save");
+  else await saveCloudStateNow({ force: !0, allowEmptyOverwrite: !0 });
+  const englishNamesConfirmed =
+    "function" == typeof window.nawahEmployeeEnglishNamesV268?.persist
+      ? await window.nawahEmployeeEnglishNamesV268.persist(y)
+      : !0;
+  if (!englishNamesConfirmed) {
+    switchEmployeeSection("personal");
     showToast(
-      d
-        ? "تم تحديث بيانات الموظف وحفظه في القاعدة"
-        : "تمت إضافة الموظف وحفظه في القاعدة",
-    ));
+      "تعذر تأكيد حفظ الاسم الإنجليزي في السحابة. بقيت الشاشة مفتوحة للمحاولة مرة أخرى",
+    );
+    return;
+  }
+  document.querySelector("#employeeModal").close();
+  renderAll();
+  showToast(
+    d
+      ? "تم تحديث بيانات الموظف وحفظه في القاعدة"
+      : "تمت إضافة الموظف وحفظه في القاعدة",
+  );
 }
 async function setSingleAttachment(e, t) {
   const n = await saveAttachment(t, e);
@@ -73235,5 +73246,143 @@ window.nawahLeaveBalanceReportV185 = {
     hydrate: hydrateEnglishNames,
     cloudBacked: true,
     optional: true,
+  };
+})();
+
+/* v268 - strict cloud confirmation for the optional English employee name. */
+(function v268StrictEmployeeEnglishNameCloudPersistence() {
+  if (window.__v268StrictEmployeeEnglishNameCloudPersistence) return;
+  window.__v268StrictEmployeeEnglishNameCloudPersistence = true;
+
+  const fields = [
+    "firstNameEn",
+    "fatherNameEn",
+    "grandNameEn",
+    "familyNameEn",
+  ];
+  const stateKey =
+    typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
+      ? CLOUD_STATE_KEY
+      : "app_state";
+
+  function expectedNames(employee) {
+    return Object.fromEntries(
+      fields.map(function (field) {
+        return [field, String(employee?.[field] || "").trim()];
+      }),
+    );
+  }
+
+  function applyExpectedNames(employee, expected) {
+    if (!employee) return;
+    fields.forEach(function (field) {
+      employee[field] = expected[field];
+    });
+  }
+
+  function updateCurrentEmployee(employeeId, expected) {
+    try {
+      employees = (Array.isArray(employees) ? employees : []).map(
+        function (employee) {
+          if (String(employee?.id || "") === String(employeeId || ""))
+            applyExpectedNames(employee, expected);
+          return employee;
+        },
+      );
+      window.employees = employees;
+      localStorage.setItem("nawah-employees", JSON.stringify(employees));
+    } catch (_) {}
+  }
+
+  function cloudClient() {
+    try {
+      if (!supabaseClient && typeof initSupabaseClient === "function")
+        initSupabaseClient();
+      return supabaseClient || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function readCloudEmployee(employeeId) {
+    const client = cloudClient();
+    if (!client?.from) return null;
+    const response = await client
+      .from("app_settings")
+      .select("setting_value")
+      .eq("setting_key", stateKey)
+      .maybeSingle();
+    if (response?.error) throw response.error;
+    const rows = response?.data?.setting_value?.employees;
+    return Array.isArray(rows)
+      ? rows.find(
+          (employee) =>
+            String(employee?.id || "") === String(employeeId || ""),
+        ) || null
+      : null;
+  }
+
+  function matchesExpected(employee, expected) {
+    return Boolean(
+      employee &&
+        fields.every(
+          (field) =>
+            String(employee?.[field] || "").trim() === expected[field],
+        ),
+    );
+  }
+
+  async function persistEnglishNames(employee) {
+    const employeeId = String(employee?.id || "").trim();
+    if (!employeeId) return false;
+    const expected = expectedNames(employee);
+    applyExpectedNames(employee, expected);
+    updateCurrentEmployee(employeeId, expected);
+
+    const sync =
+      window.nawahCloudSyncV228 ||
+      window.nawahCloudSyncV221 ||
+      window.nawahEmployeeContractSyncV238;
+    try {
+      const alreadySaved = await readCloudEmployee(employeeId);
+      if (matchesExpected(alreadySaved, expected)) return true;
+    } catch (_) {}
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        window.nawahCloudSyncV228?.trackRecordUpserts?.(
+          "employees",
+          [employeeId],
+        );
+        window.nawahEmployeeContractSyncV238?.trackUpserts?.([employeeId]);
+        const saved =
+          typeof sync?.save === "function"
+            ? await sync.save("employee-english-name-v268")
+            : typeof saveCloudStateNow === "function"
+              ? await saveCloudStateNow({
+                  force: true,
+                  allowEmptyOverwrite: true,
+                  reason: "employee-english-name-v268",
+                })
+              : false;
+        if (saved === false) continue;
+        const cloudEmployee = await readCloudEmployee(employeeId);
+        if (matchesExpected(cloudEmployee, expected)) return true;
+      } catch (error) {
+        console.warn(
+          "v268: تعذر تأكيد حفظ الاسم الإنجليزي في السحابة.",
+          error,
+        );
+      }
+    }
+    return false;
+  }
+
+  window.nawahEmployeeEnglishNamesV268 = {
+    version: 268,
+    fields: fields.slice(),
+    persist: persistEnglishNames,
+    readCloudEmployee,
+    strictCloudConfirmation: true,
+    crossBrowser: true,
   };
 })();
