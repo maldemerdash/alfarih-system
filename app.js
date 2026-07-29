@@ -6204,7 +6204,9 @@ function openLeaveReturnModal(e) {
         ["حالة العمولة", n.commissionPauseReason || "متوقفة بسبب الإجازة"],
         ["بداية الاستحقاق الجديدة", formatDate(a)],
       ])),
-    document.querySelector("#leaveReturnModal").showModal());
+    document.querySelector("#leaveReturnModal").showModal(),
+    window.nawahDatePickerV277?.sync?.(),
+    setTimeout(() => window.nawahDatePickerV277?.sync?.(), 0));
 }
 async function confirmLeaveReturn(e) {
   if ((e.preventDefault(), !pendingLeaveReturn)) return;
@@ -12057,7 +12059,9 @@ async function init() {
         (n.querySelector("[data-est-doc-extension-attachment-data]").value =
           t?.attachmentData || ""),
         (n.querySelector("[data-est-doc-extension-file]").value = ""),
-        updateExtensionAttachmentEditor(e));
+        updateExtensionAttachmentEditor(e),
+        window.nawahDatePickerV277?.sync?.(),
+        setTimeout(() => window.nawahDatePickerV277?.sync?.(), 0));
     }
     function ee(e) {
       const t = e?.querySelector("[data-est-doc-extension-editor]");
@@ -12358,6 +12362,8 @@ async function init() {
           "function" == typeof hydrateIcons &&
             hydrateIcons(document.getElementById("branchEstDocModal")));
         const e = document.getElementById("branchEstDocForm");
+        window.nawahDatePickerV277?.sync?.();
+        setTimeout(() => window.nawahDatePickerV277?.sync?.(), 0);
         (e.elements.categoryId.addEventListener("change", () => {
           ((e.elements.authorityId.value = ""),
             (e.elements.typeId.value = ""),
@@ -12466,7 +12472,9 @@ async function init() {
           (o.attachmentId ? "تم الإرفاق" : "إرفاق الوثيقة")),
         te(t),
         ee(t),
-        document.getElementById("branchEstDocModal").showModal());
+        document.getElementById("branchEstDocModal").showModal(),
+        window.nawahDatePickerV277?.sync?.(),
+        setTimeout(() => window.nawahDatePickerV277?.sync?.(), 0));
     }
     async function F(e) {
       e.preventDefault();
@@ -13770,6 +13778,8 @@ async function init() {
             "beforeend",
             '\n      <dialog class="app-dialog v88-travel-resume-dialog" id="travelResumeModal">\n        <form method="dialog" class="modal-card travel-modal-card v88-travel-resume-card" id="travelResumeForm">\n          <div class="v88-travel-resume-head">\n            <div class="v88-travel-resume-icon" data-icon="user-check"></div>\n            <div class="v88-travel-resume-title"><span>طلب سفر</span><h3>تسجيل مباشرة عمل</h3><p>تاريخ المباشرة هو المعتمد لإعادة الموظف إلى على رأس العمل وفك إيقاف العمولة/البونص.</p></div>\n            <button class="icon-btn v88-travel-resume-close" type="button" data-close-travel-modal="travelResumeModal">×</button>\n          </div>\n          <div class="v88-travel-resume-body">\n            <section class="v88-travel-resume-summary">\n              <div class="v88-travel-resume-section-title"><strong>ملخص طلب السفر</strong><small>تأكد من بيانات الطلب قبل تسجيل المباشرة.</small></div>\n              <div id="travelResumePreview" class="commission-event-summary travel-approval-preview v88-travel-resume-preview"></div>\n            </section>\n            <section class="v88-travel-resume-input-card">\n              <div class="v88-travel-resume-section-title"><strong>بيانات المباشرة</strong><small>أدخل تاريخ العودة الفعلي وأي ملاحظة مطلوبة.</small></div>\n              <div class="v88-travel-resume-grid">\n                <label><span>تاريخ مباشرة العمل</span><input type="date" name="workResumeDate" required /></label>\n                <label class="full-field"><span>ملاحظات</span><textarea name="note" rows="3" placeholder="اكتب ملاحظة مختصرة عند الحاجة"></textarea></label>\n              </div>\n            </section>\n          </div>\n          <div class="modal-actions v88-travel-resume-actions"><button type="button" class="secondary-btn" data-close-travel-modal="travelResumeModal">إلغاء</button><button class="primary-btn" type="submit">تسجيل المباشرة</button></div>\n        </form>\n      </dialog>',
           ));
+      window.nawahDatePickerV277?.sync?.();
+      setTimeout(() => window.nawahDatePickerV277?.sync?.(), 0);
     }
     function E() {
       const e = l("#travelRequestForm");
@@ -13875,7 +13885,9 @@ async function init() {
         e.elements.returnDays && (e.elements.returnDays.value = "")),
         T(),
         E(),
-        l("#travelRequestModal")?.showModal());
+        l("#travelRequestModal")?.showModal(),
+        window.nawahDatePickerV277?.sync?.(),
+        setTimeout(() => window.nawahDatePickerV277?.sync?.(), 0));
     }
     function x(e, t = !1) {
       if (!e && t) return new Date("9999-12-31T12:00:00").getTime();
@@ -14464,7 +14476,9 @@ async function init() {
                           ],
                         ])
                       : ""),
-                  l("#travelResumeModal")?.showModal());
+                  l("#travelResumeModal")?.showModal(),
+                  window.nawahDatePickerV277?.sync?.(),
+                  setTimeout(() => window.nawahDatePickerV277?.sync?.(), 0));
               })(m.dataset.travelResume)
             );
           if (n.closest("#saveTravelRequestBtn")) {
@@ -74146,8 +74160,9 @@ window.nawahLeaveBalanceReportV185 = {
   };
 })();
 
-/* v276 - Reuse the complete branded employee calendar on attendance,
-   leave/travel requests, establishment documents and finance. */
+/* v277 - Reuse the complete branded employee calendar on attendance,
+   leave/travel requests, work resumption, establishment documents and finance.
+   Dynamic dialogs also invoke an immediate sync at creation and opening. */
 (function v276BrandedDatePicker() {
   if (window.__v276BrandedDatePicker) return;
   window.__v276BrandedDatePicker = true;
@@ -74158,6 +74173,8 @@ window.nawahLeaveBalanceReportV185 = {
     '#leaveForm input[name="to"]',
     '#travelRequestForm input[name="travelDate"]',
     '#travelRequestForm input[name="returnDate"]',
+    '#travelResumeForm input[name="workResumeDate"]',
+    '#leaveReturnForm input[name="returnDate"]',
     '#branchEstDocForm input[name="startDate"]',
     '#branchEstDocForm input[name="expiryDate"]',
     "#branchEstDocForm input[data-est-doc-extension-date]",
@@ -74355,6 +74372,13 @@ window.nawahLeaveBalanceReportV185 = {
       syncFrame = 0;
       syncAll();
     });
+  }
+
+  function syncDynamicWindows() {
+    syncAll();
+    setTimeout(syncAll, 0);
+    setTimeout(syncAll, 80);
+    setTimeout(syncAll, 220);
   }
 
   function renderSelectors() {
@@ -74603,6 +74627,32 @@ window.nawahLeaveBalanceReportV185 = {
     true,
   );
 
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (
+        event.target?.closest?.(
+          "#newTravelBtn, [data-travel-resume], [data-add-est-doc-extension], #addEstablishmentDocumentBtn, [data-add-establishment-document], [data-open-establishment-document], [data-leave-return]",
+        )
+      )
+        syncDynamicWindows();
+    },
+    true,
+  );
+  document.addEventListener(
+    "toggle",
+    function (event) {
+      if (
+        event.target?.matches?.(
+          "#travelRequestModal, #travelResumeModal, #leaveReturnModal, #branchEstDocModal, #establishmentDocumentModal, #establishmentDocumentModalV2",
+        ) &&
+        event.target.open
+      )
+        syncDynamicWindows();
+    },
+    true,
+  );
+
   previousButton.addEventListener("click", function () {
     viewMonth -= 1;
     if (viewMonth < 0) {
@@ -74687,7 +74737,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   syncAll();
   window.nawahDatePickerV276 = {
-    version: 276,
+    version: 277,
     open,
     close,
     sync: syncAll,
@@ -74708,4 +74758,5 @@ window.nawahLeaveBalanceReportV185 = {
     enhancedCount: () =>
       document.querySelectorAll("[data-nawah-date-input-v276]").length,
   };
+  window.nawahDatePickerV277 = window.nawahDatePickerV276;
 })();
