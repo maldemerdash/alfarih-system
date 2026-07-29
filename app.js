@@ -851,6 +851,10 @@ async function persistAttendanceSettingsV224(fields) {
 }
 function initSupabaseClient() {
   try {
+    if (supabaseClient) {
+      cloudReady = !0;
+      return supabaseClient;
+    }
     return window.supabase?.createClient
       ? ((supabaseClient = window.supabase.createClient(
           SUPABASE_URL,
@@ -60569,6 +60573,10 @@ window.nawahPrivateAlerts = {
       "fatherName",
       "grandName",
       "familyName",
+      "firstNameEn",
+      "fatherNameEn",
+      "grandNameEn",
+      "familyNameEn",
       "nationality",
       "birthDate",
       "identityNumber",
@@ -74111,5 +74119,22 @@ window.nawahLeaveBalanceReportV185 = {
     baseCloudLoaderHydrated: true,
     fastCloudLoaderHydrated: true,
     everyNormalizePathHydrated: true,
+  };
+})();
+
+/* v272 - complete the fast employee-editor hydration path.
+   The v168 direct click handler opens the editor without passing through later
+   openEmployeeModal wrappers, so the optional English fields must be populated
+   in the fast editor's own field pass. */
+(function v272FastEmployeeEnglishNameHydration() {
+  if (window.__v272FastEmployeeEnglishNameHydration) return;
+  window.__v272FastEmployeeEnglishNameHydration = true;
+
+  window.nawahEmployeeEnglishNamesV272 = {
+    version: 272,
+    fastEditorHydrated: true,
+    directEmployeeClickHydrated: true,
+    cloudPersistenceUnchanged: true,
+    singleSupabaseClient: true,
   };
 })();
