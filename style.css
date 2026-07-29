@@ -27773,52 +27773,292 @@ html.has-initial-login-bg .auth-gate,
   filter: none !important;
 }
 
-/* v275 — Native date icons integrated into their fields.
-   Keep each field's existing background and border; replace only the browser
-   calendar glyph while preserving its native clickable picker area. */
-:is(
-    #attendanceDateInput,
-    #leaveForm input[name="from"],
-    #leaveForm input[name="to"],
-    #travelRequestForm input[name="travelDate"],
-    #travelRequestForm input[name="returnDate"],
-    #branchEstDocForm input[name="startDate"],
-    #branchEstDocForm input[name="expiryDate"],
-    #branchEstDocForm input[data-est-doc-extension-date],
-    #establishmentDocumentForm input[name="startDate"],
-    #establishmentDocumentForm input[name="expiryDate"],
-    #establishmentDocumentFormV2 input[name="startDate"],
-    #establishmentDocumentFormV2 input[name="expiryDate"]
-  ) {
-  padding-right: 48px !important;
-  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyNCcgaGVpZ2h0PScyNCcgdmlld0JveD0nMCAwIDI0IDI0JyBmaWxsPSdub25lJyBzdHJva2U9JyMxNTlhYWUnIHN0cm9rZS13aWR0aD0nMicgc3Ryb2tlLWxpbmVjYXA9J3JvdW5kJyBzdHJva2UtbGluZWpvaW49J3JvdW5kJz48cmVjdCB4PSczJyB5PSc0JyB3aWR0aD0nMTgnIGhlaWdodD0nMTgnIHJ4PScyJyByeT0nMicvPjxsaW5lIHgxPScxNicgeTE9JzInIHgyPScxNicgeTI9JzYnLz48bGluZSB4MT0nOCcgeTE9JzInIHgyPSc4JyB5Mj0nNicvPjxsaW5lIHgxPSczJyB5MT0nMTAnIHgyPScyMScgeTI9JzEwJy8+PC9zdmc+") !important;
-  background-repeat: no-repeat !important;
-  background-position: right 14px center !important;
-  background-size: 18px 18px !important;
+/* v276 — Complete branded date calendar outside the employee file.
+   The trigger remains visually integrated into the original field while the
+   full month/year/day calendar is shared by every requested screen. */
+.nawah-date-picker-v276 {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
 }
 
-:is(
-    #attendanceDateInput,
-    #leaveForm input[name="from"],
-    #leaveForm input[name="to"],
-    #travelRequestForm input[name="travelDate"],
-    #travelRequestForm input[name="returnDate"],
-    #branchEstDocForm input[name="startDate"],
-    #branchEstDocForm input[name="expiryDate"],
-    #branchEstDocForm input[data-est-doc-extension-date],
-    #establishmentDocumentForm input[name="startDate"],
-    #establishmentDocumentForm input[name="expiryDate"],
-    #establishmentDocumentFormV2 input[name="startDate"],
-    #establishmentDocumentFormV2 input[name="expiryDate"]
-  )::-webkit-calendar-picker-indicator {
-  width: 24px;
-  height: 24px;
+.nawah-date-picker-v276 > .nawah-date-input-v276 {
+  width: 100%;
+  min-width: 0;
+  padding-right: 48px !important;
+  border-radius: inherit;
+  background-image: none !important;
+}
+
+.nawah-date-input-v276::-webkit-calendar-picker-indicator {
+  position: absolute;
+  width: 0;
+  height: 0;
   margin: 0;
   opacity: 0;
+  pointer-events: none;
+}
+
+.nawah-date-trigger-v276 {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: inline-grid;
+  width: 44px;
+  min-width: 44px;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  place-items: center;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #159aae !important;
+  cursor: pointer;
+  filter: none !important;
+}
+
+.nawah-date-trigger-v276:hover,
+.nawah-date-trigger-v276:focus-visible {
+  border: 0 !important;
+  outline: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #0e8398 !important;
+  filter: none !important;
+}
+
+.nawah-date-trigger-v276 svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+}
+
+.nawah-date-picker-v276.is-locked-v276 .nawah-date-trigger-v276 {
+  color: #9aadb6 !important;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.nawah-date-calendar-v276 {
+  position: fixed;
+  z-index: 50020;
+  display: block;
+  width: 324px;
+  max-width: calc(100vw - 24px);
+  padding: 13px;
+  overflow: visible;
+  border: 1px solid rgba(34, 151, 197, 0.25);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(34, 151, 197, 0.07), transparent 38%),
+    rgba(255, 255, 255, 0.99);
+  box-shadow:
+    0 24px 60px rgba(15, 52, 75, 0.22),
+    0 5px 16px rgba(34, 151, 197, 0.1);
+  direction: rtl;
+  isolation: isolate;
+  backdrop-filter: blur(14px);
+}
+
+.nawah-date-calendar-v276[hidden] {
+  display: none !important;
+}
+
+.nawah-date-calendar-v276::before {
+  position: absolute;
+  z-index: -1;
+  left: var(--nawah-date-anchor-x, calc(100% - 28px));
+  width: 11px;
+  height: 11px;
+  background: #fff;
+  content: "";
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.nawah-date-calendar-v276.is-below-v276::before {
+  top: -6px;
+  border-top: 1px solid rgba(34, 151, 197, 0.22);
+  border-left: 1px solid rgba(34, 151, 197, 0.22);
+}
+
+.nawah-date-calendar-v276.is-above-v276::before {
+  bottom: -6px;
+  border-right: 1px solid rgba(34, 151, 197, 0.22);
+  border-bottom: 1px solid rgba(34, 151, 197, 0.22);
+}
+
+.nawah-date-calendar-head-v276 {
+  display: grid;
+  min-height: 38px;
+  align-items: center;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 8px;
+}
+
+.nawah-date-nav-v276 {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #d7e8ed;
+  border-radius: 11px;
+  background: #f3fafb;
+  color: #168ca2;
   cursor: pointer;
 }
 
-/* The finance date picker remains a distinct branded control beside the day. */
+.nawah-date-nav-v276:hover,
+.nawah-date-nav-v276:focus-visible {
+  border-color: #20a7b4;
+  background: #eaf9fa;
+  outline: none;
+}
+
+.nawah-date-nav-v276:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.nawah-date-nav-v276 svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nawah-date-period-v276 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  gap: 7px;
+}
+
+.nawah-date-period-v276 select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d8e7ec;
+  border-radius: 11px;
+  outline: none;
+  background-color: #fff;
+  color: #174354;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.nawah-date-period-v276 select:focus {
+  border-color: #20a7b4;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+
+.nawah-date-weekdays-v276,
+.nawah-date-days-v276 {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.nawah-date-weekdays-v276 {
+  margin: 11px 0 6px;
+  color: #879da8;
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.nawah-date-day-v276 {
+  display: inline-grid;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #254b5a;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.nawah-date-day-v276:hover,
+.nawah-date-day-v276:focus-visible {
+  background: #eaf9fa;
+  color: #0f7f91;
+  outline: none;
+}
+
+.nawah-date-day-v276.is-outside {
+  color: #bcc8ce;
+}
+
+.nawah-date-day-v276.is-today {
+  box-shadow: inset 0 0 0 1px #20a7b4;
+  color: #0f7f91;
+}
+
+.nawah-date-day-v276.is-selected {
+  background: linear-gradient(145deg, #2297c5, #14b8a6);
+  box-shadow: 0 6px 13px rgba(20, 184, 166, 0.2);
+  color: #fff;
+}
+
+.nawah-date-day-v276:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.nawah-date-calendar-foot-v276 {
+  display: flex;
+  margin-top: 10px;
+  padding-top: 10px;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #e6eff2;
+}
+
+.nawah-date-calendar-foot-v276 button {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #d9e8ed;
+  border-radius: 9px;
+  background: #f5fafb;
+  color: #52707d;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.nawah-date-calendar-foot-v276 button:first-child {
+  border-color: rgba(239, 68, 68, 0.17);
+  background: #fff6f6;
+  color: #dc3d3d;
+}
+
+.nawah-date-backdrop-v276 {
+  position: fixed;
+  z-index: 50010;
+  inset: 0;
+  display: none;
+  background: rgba(8, 31, 43, 0.28);
+  backdrop-filter: blur(2px);
+}
+
+.nawah-date-backdrop-v276[hidden] {
+  display: none !important;
+}
+
+/* Finance keeps its dedicated identity on both the trigger and full calendar. */
 #financeView .finance-calendar-btn {
   width: 42px !important;
   min-width: 42px !important;
@@ -27845,4 +28085,48 @@ html.has-initial-login-bg .auth-gate,
   width: 19px !important;
   height: 19px !important;
   stroke-width: 2 !important;
+}
+
+.nawah-date-calendar-v276.is-finance-v276 {
+  border-color: rgba(20, 184, 166, 0.34);
+  background:
+    linear-gradient(90deg, #2297c5, #14b8a6, #22c55e) top / 100% 4px no-repeat,
+    radial-gradient(circle at 100% 0, rgba(34, 151, 197, 0.1), transparent 40%),
+    rgba(255, 255, 255, 0.99);
+  box-shadow:
+    0 26px 64px rgba(11, 114, 133, 0.24),
+    0 8px 20px rgba(20, 184, 166, 0.12);
+}
+
+.nawah-date-calendar-v276.is-finance-v276
+  .nawah-date-calendar-head-v276 {
+  padding: 5px;
+  border-radius: 13px;
+  background: linear-gradient(
+    145deg,
+    rgba(34, 151, 197, 0.07),
+    rgba(34, 197, 94, 0.07)
+  );
+}
+
+@media (max-width: 680px) {
+  .nawah-date-backdrop-v276:not([hidden]) {
+    display: block;
+  }
+
+  .nawah-date-calendar-v276.is-mobile-v276 {
+    position: fixed;
+    z-index: 50020;
+    top: 50% !important;
+    left: 50% !important;
+    width: min(340px, calc(100vw - 28px)) !important;
+    max-width: none;
+    max-height: calc(100vh - 28px) !important;
+    overflow-y: auto !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .nawah-date-calendar-v276.is-mobile-v276::before {
+    display: none;
+  }
 }

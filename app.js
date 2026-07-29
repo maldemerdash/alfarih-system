@@ -23688,6 +23688,13 @@ async function init() {
             const e = document.querySelector("[data-finance-date-picker]");
             if (e) {
               e.value = d;
+              if (
+                window.nawahDatePickerV276?.open?.(e, {
+                  anchor: r,
+                  variant: "finance",
+                })
+              )
+                return;
               try {
                 e.showPicker();
               } catch (t) {
@@ -74136,5 +74143,569 @@ window.nawahLeaveBalanceReportV185 = {
     directEmployeeClickHydrated: true,
     cloudPersistenceUnchanged: true,
     singleSupabaseClient: true,
+  };
+})();
+
+/* v276 - Reuse the complete branded employee calendar on attendance,
+   leave/travel requests, establishment documents and finance. */
+(function v276BrandedDatePicker() {
+  if (window.__v276BrandedDatePicker) return;
+  window.__v276BrandedDatePicker = true;
+
+  const targetSelectors = [
+    "#attendanceDateInput",
+    '#leaveForm input[name="from"]',
+    '#leaveForm input[name="to"]',
+    '#travelRequestForm input[name="travelDate"]',
+    '#travelRequestForm input[name="returnDate"]',
+    '#branchEstDocForm input[name="startDate"]',
+    '#branchEstDocForm input[name="expiryDate"]',
+    "#branchEstDocForm input[data-est-doc-extension-date]",
+    '#establishmentDocumentForm input[name="issueDate"]',
+    '#establishmentDocumentForm input[name="startDate"]',
+    '#establishmentDocumentForm input[name="expiryDate"]',
+    '#establishmentDocumentFormV2 input[name="startDate"]',
+    '#establishmentDocumentFormV2 input[name="expiryDate"]',
+  ];
+  const targetSelector = targetSelectors.join(",");
+  const months = [
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
+  ];
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const fallbackMinimumYear = today.getFullYear() - 120;
+  const fallbackMaximumYear = today.getFullYear() + 50;
+  let activeInput = null;
+  let activeAnchor = null;
+  let activeRoot = null;
+  let portalHost = document.body;
+  let viewYear = today.getFullYear();
+  let viewMonth = today.getMonth();
+  let positionFrame = 0;
+  let syncFrame = 0;
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "nawah-date-backdrop-v276";
+  backdrop.hidden = true;
+  backdrop.setAttribute("aria-hidden", "true");
+
+  const calendar = document.createElement("div");
+  calendar.className = "nawah-date-calendar-v276";
+  calendar.hidden = true;
+  calendar.setAttribute("role", "dialog");
+  calendar.setAttribute("aria-modal", "false");
+  calendar.setAttribute("aria-label", "اختيار التاريخ");
+  calendar.innerHTML = `
+    <div class="nawah-date-calendar-head-v276">
+      <button type="button" class="nawah-date-nav-v276" aria-label="الشهر السابق" data-nawah-date-prev-v276><span data-icon="chevron-right"></span></button>
+      <div class="nawah-date-period-v276">
+        <select aria-label="اختيار الشهر" data-nawah-date-month-v276></select>
+        <select aria-label="اختيار السنة" data-nawah-date-year-v276></select>
+      </div>
+      <button type="button" class="nawah-date-nav-v276" aria-label="الشهر التالي" data-nawah-date-next-v276><span data-icon="chevron-left"></span></button>
+    </div>
+    <div class="nawah-date-weekdays-v276" aria-hidden="true"><span>ح</span><span>ن</span><span>ث</span><span>ر</span><span>خ</span><span>ج</span><span>س</span></div>
+    <div class="nawah-date-days-v276" data-nawah-date-days-v276></div>
+    <div class="nawah-date-calendar-foot-v276">
+      <button type="button" data-nawah-date-clear-v276>مسح التاريخ</button>
+      <button type="button" data-nawah-date-close-v276>إغلاق</button>
+    </div>`;
+  document.body.append(backdrop, calendar);
+
+  const monthSelect = calendar.querySelector(
+    "[data-nawah-date-month-v276]",
+  );
+  const yearSelect = calendar.querySelector(
+    "[data-nawah-date-year-v276]",
+  );
+  const daysRoot = calendar.querySelector("[data-nawah-date-days-v276]");
+  const previousButton = calendar.querySelector(
+    "[data-nawah-date-prev-v276]",
+  );
+  const nextButton = calendar.querySelector("[data-nawah-date-next-v276]");
+
+  function hydrate(root) {
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(root);
+    } catch (_) {}
+  }
+  hydrate(calendar);
+
+  function parse(value) {
+    const match = String(value || "")
+      .trim()
+      .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    )
+      return null;
+    return date;
+  }
+
+  function format(date) {
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+  }
+
+  function sameDate(first, second) {
+    return Boolean(
+      first &&
+        second &&
+        first.getFullYear() === second.getFullYear() &&
+        first.getMonth() === second.getMonth() &&
+        first.getDate() === second.getDate(),
+    );
+  }
+
+  function bounds(input = activeInput) {
+    const minimum = parse(input?.getAttribute?.("min"));
+    const maximum = parse(input?.getAttribute?.("max"));
+    const selected = parse(input?.value);
+    return {
+      minimum,
+      maximum,
+      minimumYear: Math.min(
+        minimum?.getFullYear() || fallbackMinimumYear,
+        selected?.getFullYear() || fallbackMinimumYear,
+      ),
+      maximumYear: Math.max(
+        maximum?.getFullYear() || fallbackMaximumYear,
+        selected?.getFullYear() || fallbackMaximumYear,
+      ),
+    };
+  }
+
+  function dateAllowed(date) {
+    const { minimum, maximum } = bounds();
+    return !(
+      (minimum && date.getTime() < minimum.getTime()) ||
+      (maximum && date.getTime() > maximum.getTime())
+    );
+  }
+
+  function wrapperFor(input) {
+    return input?.closest?.("[data-nawah-date-picker-v276]") || null;
+  }
+
+  function isEditable(input) {
+    return Boolean(input && !input.disabled && !input.readOnly);
+  }
+
+  function enhance(input) {
+    if (!input || !input.matches?.(targetSelector)) return null;
+    let root = wrapperFor(input);
+    if (!root) {
+      root = document.createElement("span");
+      root.className = "nawah-date-picker-v276";
+      root.dataset.nawahDatePickerV276 = "";
+      input.before(root);
+      root.appendChild(input);
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "nawah-date-trigger-v276";
+      toggle.dataset.nawahDateToggleV276 = "";
+      toggle.setAttribute("aria-label", "فتح تقويم التاريخ");
+      toggle.setAttribute("aria-haspopup", "dialog");
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.innerHTML = '<span data-icon="calendar"></span>';
+      root.appendChild(toggle);
+      input.classList.add("nawah-date-input-v276");
+      input.dataset.nawahDateInputV276 = "";
+      hydrate(root);
+    }
+    const toggle = root.querySelector("[data-nawah-date-toggle-v276]");
+    const editable = isEditable(input);
+    root.classList.toggle("is-locked-v276", !editable);
+    if (toggle) {
+      toggle.disabled = !editable;
+      toggle.setAttribute("aria-disabled", String(!editable));
+    }
+    if (!editable && activeInput === input) close(false);
+    return root;
+  }
+
+  function syncAll() {
+    document.querySelectorAll(targetSelector).forEach(enhance);
+  }
+
+  function scheduleSync() {
+    if (syncFrame) cancelAnimationFrame(syncFrame);
+    syncFrame = requestAnimationFrame(function () {
+      syncFrame = 0;
+      syncAll();
+    });
+  }
+
+  function renderSelectors() {
+    const { minimumYear, maximumYear } = bounds();
+    viewYear = Math.max(minimumYear, Math.min(maximumYear, viewYear));
+    viewMonth = Math.max(0, Math.min(11, viewMonth));
+    monthSelect.innerHTML = months
+      .map(
+        (month, index) =>
+          `<option value="${index}"${index === viewMonth ? " selected" : ""}>${month}</option>`,
+      )
+      .join("");
+    yearSelect.innerHTML = Array.from(
+      { length: maximumYear - minimumYear + 1 },
+      (_, index) => maximumYear - index,
+    )
+      .map(
+        (year) =>
+          `<option value="${year}"${year === viewYear ? " selected" : ""}>${year}</option>`,
+      )
+      .join("");
+  }
+
+  function render() {
+    renderSelectors();
+    const selected = parse(activeInput?.value);
+    const firstDay = new Date(viewYear, viewMonth, 1, 12, 0, 0, 0);
+    const gridStart = new Date(firstDay);
+    gridStart.setDate(firstDay.getDate() - firstDay.getDay());
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < 42; index += 1) {
+      const date = new Date(gridStart);
+      date.setDate(gridStart.getDate() + index);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = [
+        "nawah-date-day-v276",
+        date.getMonth() !== viewMonth ? "is-outside" : "",
+        sameDate(date, today) ? "is-today" : "",
+        sameDate(date, selected) ? "is-selected" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      button.textContent = String(date.getDate());
+      button.dataset.nawahDateValueV276 = format(date);
+      button.setAttribute(
+        "aria-label",
+        `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`,
+      );
+      button.setAttribute("aria-pressed", String(sameDate(date, selected)));
+      button.disabled = !dateAllowed(date);
+      fragment.appendChild(button);
+    }
+    daysRoot.replaceChildren(fragment);
+    const { minimumYear, maximumYear } = bounds();
+    previousButton.disabled =
+      viewYear === minimumYear && viewMonth === 0;
+    nextButton.disabled =
+      viewYear === maximumYear && viewMonth === 11;
+    if (!calendar.hidden) schedulePosition();
+  }
+
+  function compactViewport() {
+    return Number(window.innerWidth || 1024) <= 680;
+  }
+
+  function position() {
+    if (calendar.hidden || !activeAnchor) return;
+    if (compactViewport()) {
+      calendar.classList.add("is-mobile-v276");
+      calendar.classList.remove("is-above-v276", "is-below-v276");
+      calendar.dataset.placement = "center";
+      calendar.style.removeProperty("--nawah-date-anchor-x");
+      calendar.style.left = "50%";
+      calendar.style.top = "50%";
+      calendar.style.width = "";
+      calendar.style.maxHeight = "calc(100vh - 28px)";
+      calendar.style.overflowY = "auto";
+      calendar.style.transform = "translate(-50%, -50%)";
+      calendar.style.visibility = "visible";
+      backdrop.hidden = false;
+      return;
+    }
+    backdrop.hidden = true;
+    calendar.classList.remove("is-mobile-v276");
+    calendar.style.transform = "none";
+    calendar.style.visibility = "hidden";
+    calendar.style.removeProperty("max-height");
+    calendar.style.removeProperty("overflow-y");
+    const viewportWidth = Math.max(
+      320,
+      Number(window.innerWidth || document.documentElement.clientWidth || 0),
+    );
+    const viewportHeight = Math.max(
+      320,
+      Number(window.innerHeight || document.documentElement.clientHeight || 0),
+    );
+    const anchorRect = activeAnchor.getBoundingClientRect();
+    const width = Math.min(324, Math.max(280, viewportWidth - 24));
+    const edge = 12;
+    const gap = 10;
+    const left = Math.max(
+      edge,
+      Math.min(anchorRect.right - width, viewportWidth - width - edge),
+    );
+    calendar.style.width = `${width}px`;
+    calendar.style.left = `${left}px`;
+    calendar.style.top = `${edge}px`;
+    const measuredRect = calendar.getBoundingClientRect();
+    const measuredHeight = Math.max(
+      Number(measuredRect.height || 0),
+      Number(calendar.scrollHeight || 0),
+      310,
+    );
+    const belowSpace = viewportHeight - anchorRect.bottom - gap - edge;
+    const aboveSpace = anchorRect.top - gap - edge;
+    const placeAbove = belowSpace < measuredHeight && aboveSpace > belowSpace;
+    const availableSpace = Math.max(
+      220,
+      placeAbove ? aboveSpace : belowSpace,
+    );
+    if (availableSpace < measuredHeight) {
+      calendar.style.maxHeight = `${availableSpace}px`;
+      calendar.style.overflowY = "auto";
+    }
+    const renderedHeight = Math.min(measuredHeight, availableSpace);
+    const top = placeAbove
+      ? Math.max(edge, anchorRect.top - renderedHeight - gap)
+      : Math.min(
+          viewportHeight - renderedHeight - edge,
+          anchorRect.bottom + gap,
+        );
+    calendar.style.top = `${Math.max(edge, top)}px`;
+    calendar.classList.toggle("is-above-v276", placeAbove);
+    calendar.classList.toggle("is-below-v276", !placeAbove);
+    calendar.dataset.placement = placeAbove ? "above" : "below";
+    const anchorCenter = anchorRect.left + anchorRect.width / 2 - left;
+    calendar.style.setProperty(
+      "--nawah-date-anchor-x",
+      `${Math.max(22, Math.min(width - 22, anchorCenter))}px`,
+    );
+    calendar.style.visibility = "visible";
+  }
+
+  function schedulePosition() {
+    if (positionFrame) cancelAnimationFrame(positionFrame);
+    positionFrame = requestAnimationFrame(function () {
+      positionFrame = 0;
+      position();
+    });
+  }
+
+  function movePortal(input) {
+    const host = input?.closest?.("dialog") || document.body;
+    if (portalHost === host && calendar.parentElement === host) return;
+    portalHost = host;
+    host.append(backdrop, calendar);
+  }
+
+  function close(focusToggle = true) {
+    if (calendar.hidden) return;
+    const formerRoot = activeRoot;
+    const formerAnchor = activeAnchor;
+    calendar.hidden = true;
+    backdrop.hidden = true;
+    calendar.style.visibility = "";
+    calendar.classList.remove(
+      "is-mobile-v276",
+      "is-above-v276",
+      "is-below-v276",
+      "is-finance-v276",
+    );
+    calendar.removeAttribute("data-placement");
+    formerRoot?.classList.remove("is-open-v276");
+    const toggle = formerRoot?.querySelector("[data-nawah-date-toggle-v276]");
+    toggle?.setAttribute("aria-expanded", "false");
+    activeInput = null;
+    activeAnchor = null;
+    activeRoot = null;
+    if (focusToggle) {
+      const focusTarget = toggle || formerAnchor;
+      if (focusTarget && !focusTarget.disabled)
+        focusTarget.focus({ preventScroll: true });
+    }
+  }
+
+  function open(input, options = {}) {
+    if (!input || !isEditable(input)) return false;
+    const finance = options.variant === "finance";
+    let root = wrapperFor(input);
+    if (!finance) root = root || enhance(input);
+    const anchor =
+      options.anchor ||
+      root?.querySelector("[data-nawah-date-toggle-v276]") ||
+      root ||
+      input;
+    if (!anchor) return false;
+    if (!calendar.hidden) close(false);
+    activeInput = input;
+    activeRoot = root;
+    activeAnchor = anchor;
+    movePortal(input);
+    const selected = parse(input.value);
+    viewYear = selected?.getFullYear() || today.getFullYear();
+    viewMonth = selected?.getMonth() ?? today.getMonth();
+    calendar.classList.toggle("is-finance-v276", finance);
+    calendar.hidden = false;
+    root?.classList.add("is-open-v276");
+    root
+      ?.querySelector("[data-nawah-date-toggle-v276]")
+      ?.setAttribute("aria-expanded", "true");
+    render();
+    position();
+    schedulePosition();
+    setTimeout(function () {
+      position();
+      monthSelect.focus();
+    }, 0);
+    return true;
+  }
+
+  function emit(value) {
+    if (!activeInput) return;
+    const input = activeInput;
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    scheduleSync();
+  }
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const toggle = event.target?.closest?.(
+        "[data-nawah-date-toggle-v276]",
+      );
+      if (!toggle) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const root = toggle.closest("[data-nawah-date-picker-v276]");
+      const input = root?.querySelector("[data-nawah-date-input-v276]");
+      if (!input || toggle.disabled) return;
+      if (!calendar.hidden && activeInput === input) close();
+      else open(input);
+    },
+    true,
+  );
+
+  previousButton.addEventListener("click", function () {
+    viewMonth -= 1;
+    if (viewMonth < 0) {
+      viewMonth = 11;
+      viewYear -= 1;
+    }
+    render();
+  });
+  nextButton.addEventListener("click", function () {
+    viewMonth += 1;
+    if (viewMonth > 11) {
+      viewMonth = 0;
+      viewYear += 1;
+    }
+    render();
+  });
+  monthSelect.addEventListener("change", function () {
+    viewMonth = Number(monthSelect.value);
+    render();
+  });
+  yearSelect.addEventListener("change", function () {
+    viewYear = Number(yearSelect.value);
+    render();
+  });
+  daysRoot.addEventListener("click", function (event) {
+    const button = event.target?.closest?.("[data-nawah-date-value-v276]");
+    if (!button || button.disabled) return;
+    emit(button.dataset.nawahDateValueV276);
+    close();
+  });
+  calendar
+    .querySelector("[data-nawah-date-clear-v276]")
+    ?.addEventListener("click", function () {
+      emit("");
+      close();
+    });
+  calendar
+    .querySelector("[data-nawah-date-close-v276]")
+    ?.addEventListener("click", function () {
+      close();
+    });
+  backdrop.addEventListener("click", () => close());
+
+  document.addEventListener("pointerdown", function (event) {
+    if (
+      !calendar.hidden &&
+      !calendar.contains(event.target) &&
+      !activeRoot?.contains(event.target) &&
+      !activeAnchor?.contains?.(event.target)
+    )
+      close(false);
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !calendar.hidden) {
+      event.preventDefault();
+      close();
+    }
+  });
+  window.addEventListener("resize", schedulePosition);
+  document.addEventListener("scroll", schedulePosition, true);
+
+  if (typeof MutationObserver === "function") {
+    new MutationObserver(function (records) {
+      if (
+        records.some(
+          (record) =>
+            record.type === "childList" ||
+            (record.type === "attributes" &&
+              ["readonly", "disabled", "min", "max"].includes(
+                record.attributeName,
+              )),
+        )
+      )
+        scheduleSync();
+    }).observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["readonly", "disabled", "min", "max"],
+    });
+  }
+
+  syncAll();
+  window.nawahDatePickerV276 = {
+    version: 276,
+    open,
+    close,
+    sync: syncAll,
+    parse,
+    format,
+    active: () =>
+      activeInput?.name ||
+      activeInput?.id ||
+      activeInput?.dataset?.nawahDateInputV276 ||
+      "",
+    isOpen: () => !calendar.hidden,
+    variant: () =>
+      calendar.classList.contains("is-finance-v276")
+        ? "finance"
+        : "standard",
+    portalCount: () =>
+      document.querySelectorAll(".nawah-date-calendar-v276").length,
+    enhancedCount: () =>
+      document.querySelectorAll("[data-nawah-date-input-v276]").length,
   };
 })();
