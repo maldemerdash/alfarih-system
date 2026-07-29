@@ -4779,17 +4779,16 @@ async function handleEmployeeSubmit(e) {
   employees = d
     ? employees.map((e) => (e.id === y.id ? y : e))
     : [y, ...employees];
+  window.nawahEmployeeEnglishNamesV270?.stage?.(y);
   window.nawahEmployeeContractSyncV238?.trackUpserts?.([y.id]);
   await dbSaveEmployee(y);
   if ("function" == typeof window.persistEmployeeStateV179)
     await window.persistEmployeeStateV179("employee-save");
   else await saveCloudStateNow({ force: !0, allowEmptyOverwrite: !0 });
   const englishNamesConfirmed =
-    "function" == typeof window.nawahEmployeeEnglishNamesV269?.persist
-      ? await window.nawahEmployeeEnglishNamesV269.persist(y)
-      : "function" == typeof window.nawahEmployeeEnglishNamesV268?.persist
-        ? await window.nawahEmployeeEnglishNamesV268.persist(y)
-        : !0;
+    "function" == typeof window.nawahEmployeeEnglishNamesV270?.persist
+      ? await window.nawahEmployeeEnglishNamesV270.persist(y)
+      : !1;
   if (!englishNamesConfirmed) {
     switchEmployeeSection("personal");
     showToast(
@@ -67685,8 +67684,21 @@ window.nawahLeaveBalanceReportV185 = {
     "nawah-establishment-documents",
     "nawah-branches",
   ];
+  const EMPLOYEE_ENGLISH_NAMES_FIELD_V270 =
+    "employeeEnglishNamesV270";
+  const EMPLOYEE_ENGLISH_NAMES_CACHE_V270 =
+    "nawah-employee-english-names-v270";
+  const EMPLOYEE_ENGLISH_NAME_FIELDS_V270 = [
+    "firstNameEn",
+    "fatherNameEn",
+    "grandNameEn",
+    "familyNameEn",
+  ];
   const KEY_FIELDS = {
     "nawah-employees": ["employees"],
+    [EMPLOYEE_ENGLISH_NAMES_CACHE_V270]: [
+      EMPLOYEE_ENGLISH_NAMES_FIELD_V270,
+    ],
     "nawah-leaves": ["leaves"],
     "nawah-job-titles": ["jobTitles"],
     "nawah-attendance-exceptions": ["attendanceExceptions"],
@@ -67763,6 +67775,69 @@ window.nawahLeaveBalanceReportV185 = {
     }
   }
 
+  function cleanEmployeeEnglishNamesV270(source) {
+    return Object.fromEntries(
+      EMPLOYEE_ENGLISH_NAME_FIELDS_V270.map(function (field) {
+        return [field, String(source?.[field] || "").trim()];
+      }),
+    );
+  }
+
+  function normalizeEmployeeEnglishNamesMapV270(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return {};
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([employeeId]) =>
+          Boolean(String(employeeId || "").trim()),
+        )
+        .map(([employeeId, names]) => [
+          String(employeeId),
+          {
+            ...cleanEmployeeEnglishNamesV270(names),
+            updatedAt: String(names?.updatedAt || ""),
+          },
+        ]),
+    );
+  }
+
+  function buildEmployeeEnglishNamesMapV270(existing) {
+    const remoteMap =
+        normalizeEmployeeEnglishNamesMapV270(existing),
+      localMap = normalizeEmployeeEnglishNamesMapV270(
+        readJson(EMPLOYEE_ENGLISH_NAMES_CACHE_V270, {}),
+      ),
+      nextMap = { ...remoteMap, ...localMap };
+    currentEmployees().forEach(function (employee) {
+      const employeeId = String(employee?.id || "").trim();
+      if (!employeeId) return;
+      const expected = cleanEmployeeEnglishNamesV270(employee);
+      const hasEnglishName =
+        EMPLOYEE_ENGLISH_NAME_FIELDS_V270.some((field) =>
+          Boolean(expected[field]),
+        );
+      if (
+        hasEnglishName ||
+        Object.prototype.hasOwnProperty.call(nextMap, employeeId)
+      )
+        nextMap[employeeId] = {
+          ...expected,
+          updatedAt:
+            String(nextMap[employeeId]?.updatedAt || "") ||
+            new Date().toISOString(),
+        };
+    });
+    return nextMap;
+  }
+
+  function mergeEnglishNamesIntoEmployeeV270(employee, map) {
+    const employeeId = String(employee?.id || "").trim(),
+      savedNames = employeeId ? map?.[employeeId] : null;
+    return savedNames
+      ? { ...employee, ...cleanEmployeeEnglishNamesV270(savedNames) }
+      : employee;
+  }
+
   function activeSession() {
     try {
       return Boolean(
@@ -67810,6 +67885,8 @@ window.nawahLeaveBalanceReportV185 = {
     if (!field || !cleanIds.length || window.__nawahCloudApplyInProgressV221)
       return false;
     markDirty(field);
+    if (field === "employees")
+      markDirty(EMPLOYEE_ENGLISH_NAMES_FIELD_V270);
     const sequence = dirtyFields.get(field) || dirtySequence;
     let tombstones = recordDeleteTombstones.get(field);
     if (!tombstones) {
@@ -67827,6 +67904,8 @@ window.nawahLeaveBalanceReportV185 = {
     if (!field || !cleanIds.length || window.__nawahCloudApplyInProgressV221)
       return false;
     markDirty(field);
+    if (field === "employees")
+      markDirty(EMPLOYEE_ENGLISH_NAMES_FIELD_V270);
     const sequence = dirtyFields.get(field) || dirtySequence;
     let mutations = recordUpsertMutations.get(field);
     if (!mutations) {
@@ -67972,6 +68051,10 @@ window.nawahLeaveBalanceReportV185 = {
       ),
     };
     state.privateAlertsV166 = readJson("nawah-private-alerts-v166", []);
+    state[EMPLOYEE_ENGLISH_NAMES_FIELD_V270] =
+      buildEmployeeEnglishNamesMapV270(
+        state[EMPLOYEE_ENGLISH_NAMES_FIELD_V270],
+      );
     state.syncV221 = {
       schemaVersion: STATE_SCHEMA_VERSION,
       clientId: CLIENT_ID,
@@ -67994,8 +68077,60 @@ window.nawahLeaveBalanceReportV185 = {
     if (!state || typeof state !== "object") return false;
     window.__nawahCloudApplyInProgressV221 = true;
     try {
+      const localEnglishNamesV270 =
+          normalizeEmployeeEnglishNamesMapV270(
+            readJson(EMPLOYEE_ENGLISH_NAMES_CACHE_V270, {}),
+          ),
+        remoteEnglishNamesV270 =
+          normalizeEmployeeEnglishNamesMapV270(
+            state[EMPLOYEE_ENGLISH_NAMES_FIELD_V270],
+          ),
+        employeeEnglishNamesV270 = {
+          ...localEnglishNamesV270,
+          ...remoteEnglishNamesV270,
+        };
+      if (Array.isArray(state.employees))
+        state.employees.forEach(function (employee) {
+          const employeeId = String(employee?.id || "").trim();
+          if (
+            !employeeId ||
+            Object.prototype.hasOwnProperty.call(
+              employeeEnglishNamesV270,
+              employeeId,
+            )
+          )
+            return;
+          const employeeNames =
+            cleanEmployeeEnglishNamesV270(employee);
+          if (
+            EMPLOYEE_ENGLISH_NAME_FIELDS_V270.some((field) =>
+              Boolean(employeeNames[field]),
+            )
+          )
+            employeeEnglishNamesV270[employeeId] = {
+              ...employeeNames,
+              updatedAt: new Date().toISOString(),
+            };
+        });
+      state = {
+        ...state,
+        [EMPLOYEE_ENGLISH_NAMES_FIELD_V270]:
+          employeeEnglishNamesV270,
+        employees: Array.isArray(state.employees)
+          ? state.employees.map((employee) =>
+              mergeEnglishNamesIntoEmployeeV270(
+                employee,
+                employeeEnglishNamesV270,
+              ),
+            )
+          : state.employees,
+      };
+      writeJson(
+        EMPLOYEE_ENGLISH_NAMES_CACHE_V270,
+        employeeEnglishNamesV270,
+      );
       const result = previousApplyCloudState
-        ? previousApplyCloudState.apply(this, arguments)
+        ? previousApplyCloudState.call(this, state)
         : true;
       if (Array.isArray(state.employees)) {
         const list = state.employees.map((employee, index) => {
@@ -68525,6 +68660,27 @@ window.nawahLeaveBalanceReportV185 = {
     snapshot.forEach((_, field) => {
       const deletedIds = deleteSnapshot.get(field);
       const upsertIds = upsertSnapshot.get(field);
+      if (field === EMPLOYEE_ENGLISH_NAMES_FIELD_V270) {
+        const remoteMap =
+            normalizeEmployeeEnglishNamesMapV270(merged[field]),
+          localMap = normalizeEmployeeEnglishNamesMapV270(
+            localState[field],
+          ),
+          employeeDeletes = deleteSnapshot.get("employees"),
+          employeeUpserts = upsertSnapshot.get("employees");
+        employeeDeletes?.forEach((_, employeeId) => {
+          delete remoteMap[String(employeeId)];
+        });
+        employeeUpserts?.forEach((_, employeeId) => {
+          const id = String(employeeId);
+          if (Object.prototype.hasOwnProperty.call(localMap, id))
+            remoteMap[id] = clone(localMap[id]);
+        });
+        if (!employeeDeletes && !employeeUpserts)
+          Object.assign(remoteMap, clone(localMap));
+        merged[field] = remoteMap;
+        return;
+      }
       if (field === "financeDailyOpen" && snapshot.has("financeDailyDays"))
         return;
       if (field === "documentLocalState" && (deletedIds || upsertIds)) {
@@ -73397,10 +73553,223 @@ window.nawahLeaveBalanceReportV185 = {
   };
 })();
 
+/* v270 - persist optional English names inside the existing app_state row.
+   No new database row, table, migration, or RLS permission is required. */
+(function v270ExistingAppStateEmployeeEnglishNames() {
+  if (window.__v270ExistingAppStateEmployeeEnglishNames) return;
+  window.__v270ExistingAppStateEmployeeEnglishNames = true;
+
+  const stateKey =
+      typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
+        ? CLOUD_STATE_KEY
+        : "app_state",
+    stateField = "employeeEnglishNamesV270",
+    cacheKey = "nawah-employee-english-names-v270",
+    fields = [
+      "firstNameEn",
+      "fatherNameEn",
+      "grandNameEn",
+      "familyNameEn",
+    ];
+
+  function cleanNames(source) {
+    return Object.fromEntries(
+      fields.map(function (field) {
+        return [field, String(source?.[field] || "").trim()];
+      }),
+    );
+  }
+
+  function readCache() {
+    try {
+      const value = JSON.parse(localStorage.getItem(cacheKey) || "{}");
+      return value && typeof value === "object" && !Array.isArray(value)
+        ? value
+        : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function writeCache(map) {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(map || {}));
+    } catch (_) {}
+  }
+
+  function matches(source, expected) {
+    return Boolean(
+      source &&
+        fields.every(
+          (field) =>
+            String(source?.[field] || "").trim() === expected[field],
+        ),
+    );
+  }
+
+  function updateCurrentEmployee(employeeId, expected) {
+    try {
+      employees = (Array.isArray(employees) ? employees : []).map(
+        function (employee) {
+          if (String(employee?.id || "") === employeeId)
+            fields.forEach(function (field) {
+              employee[field] = expected[field];
+            });
+          return employee;
+        },
+      );
+      window.employees = employees;
+      localStorage.setItem("nawah-employees", JSON.stringify(employees));
+    } catch (_) {}
+  }
+
+  function stage(employee) {
+    const employeeId = String(employee?.id || "").trim();
+    if (!employeeId) return null;
+    const expected = cleanNames(employee),
+      map = readCache();
+    map[employeeId] = {
+      ...expected,
+      updatedAt: new Date().toISOString(),
+    };
+    writeCache(map);
+    fields.forEach(function (field) {
+      employee[field] = expected[field];
+    });
+    updateCurrentEmployee(employeeId, expected);
+    return expected;
+  }
+
+  function cloudClient() {
+    try {
+      if (!supabaseClient && typeof initSupabaseClient === "function")
+        initSupabaseClient();
+      return supabaseClient || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function readCloudState() {
+    const client = cloudClient();
+    if (!client?.from) throw new Error("supabase-not-ready");
+    const response = await client
+      .from("app_settings")
+      .select("setting_value,updated_at")
+      .eq("setting_key", stateKey)
+      .maybeSingle();
+    if (response?.error) throw response.error;
+    return response?.data?.setting_value || null;
+  }
+
+  function cloudMatches(state, employeeId, expected) {
+    const employeeExists =
+        Array.isArray(state?.employees) &&
+        state.employees.some(
+          (employee) =>
+            String(employee?.id || "") === String(employeeId),
+        ),
+      savedNames = state?.[stateField]?.[employeeId];
+    return employeeExists && matches(savedNames, expected);
+  }
+
+  async function persist(employee) {
+    const employeeId = String(employee?.id || "").trim(),
+      expected = stage(employee);
+    if (!employeeId || !expected) return false;
+    try {
+      if (cloudMatches(await readCloudState(), employeeId, expected))
+        return true;
+    } catch (_) {}
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        window.nawahCloudSyncV228?.trackRecordUpserts?.(
+          "employees",
+          [employeeId],
+        );
+        const saved =
+          typeof window.nawahCloudSyncV228?.save === "function"
+            ? await window.nawahCloudSyncV228.save(
+                "employee-english-names-v270",
+              )
+            : typeof saveCloudStateNow === "function"
+              ? await saveCloudStateNow({
+                  force: true,
+                  allowEmptyOverwrite: true,
+                  reason: "employee-english-names-v270",
+                })
+              : false;
+        if (saved === false) continue;
+        if (cloudMatches(await readCloudState(), employeeId, expected))
+          return true;
+      } catch (error) {
+        console.warn(
+          "v270: تعذر تأكيد حفظ الاسم الإنجليزي في سجل النظام.",
+          error,
+        );
+      }
+    }
+    return false;
+  }
+
+  function hydrate(employeeId) {
+    const id = String(employeeId || "").trim(),
+      savedNames = id ? readCache()[id] : null;
+    if (!savedNames) return null;
+    const expected = cleanNames(savedNames);
+    updateCurrentEmployee(id, expected);
+    const form = document.querySelector("#employeeForm");
+    fields.forEach(function (field) {
+      if (form?.elements?.[field])
+        form.elements[field].value = expected[field];
+    });
+    return expected;
+  }
+
+  const previousOpen =
+    typeof window.openEmployeeModal === "function"
+      ? window.openEmployeeModal
+      : typeof openEmployeeModal === "function"
+        ? openEmployeeModal
+        : null;
+  if (previousOpen && !previousOpen.__v270AppStateEnglishNames) {
+    const wrappedOpen = async function (employeeId) {
+      hydrate(employeeId);
+      const result = await previousOpen.apply(this, arguments);
+      hydrate(employeeId);
+      return result;
+    };
+    wrappedOpen.__v270AppStateEnglishNames = true;
+    try {
+      openEmployeeModal = wrappedOpen;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpen;
+  }
+
+  window.nawahEmployeeEnglishNamesV270 = {
+    version: 270,
+    stateKey,
+    stateField,
+    cacheKey,
+    fields: fields.slice(),
+    stage,
+    persist,
+    hydrate,
+    readCloudState,
+    existingAppStateRowOnly: true,
+    newDatabasePermissionRequired: false,
+    newEmployee: true,
+    existingEmployee: true,
+    strictCloudConfirmation: true,
+  };
+})();
+
 /* v269 - durable, employee-keyed cloud storage for optional English names.
    This small sidecar is independent from the legacy app_state snapshot so an
    older employee sync cannot remove a confirmed English name after refresh. */
 (function v269DurableExistingEmployeeEnglishNames() {
+  if (window.nawahEmployeeEnglishNamesV270) return;
   if (window.__v269DurableExistingEmployeeEnglishNames) return;
   window.__v269DurableExistingEmployeeEnglishNames = true;
 
