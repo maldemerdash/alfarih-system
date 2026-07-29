@@ -1324,6 +1324,10 @@ function normalizeEmployee(e, t = 0) {
     fatherName: r,
     grandName: i,
     familyName: o,
+    firstNameEn: String(e.firstNameEn || "").trim(),
+    fatherNameEn: String(e.fatherNameEn || "").trim(),
+    grandNameEn: String(e.grandNameEn || "").trim(),
+    familyNameEn: String(e.familyNameEn || "").trim(),
     name: [a, r, i, o].filter(Boolean).join(" ") || e.name || "موظف",
     nationalityType:
       e.nationalityType || ("سعودي" === s ? "saudi" : "nonSaudi"),
@@ -4458,6 +4462,10 @@ async function openEmployeeModal(e = null) {
     "fatherName",
     "grandName",
     "familyName",
+    "firstNameEn",
+    "fatherNameEn",
+    "grandNameEn",
+    "familyNameEn",
     "nationality",
     "birthDate",
     "identityNumber",
@@ -4668,6 +4676,10 @@ async function handleEmployeeSubmit(e) {
       fatherName: n.fatherName.trim(),
       grandName: n.grandName.trim(),
       familyName: n.familyName.trim(),
+      firstNameEn: String(n.firstNameEn || "").trim(),
+      fatherNameEn: String(n.fatherNameEn || "").trim(),
+      grandNameEn: String(n.grandNameEn || "").trim(),
+      familyNameEn: String(n.familyNameEn || "").trim(),
       name: [n.firstName, n.fatherName, n.grandName, n.familyName]
         .map((e) => e.trim())
         .filter(Boolean)
@@ -73167,5 +73179,61 @@ window.nawahLeaveBalanceReportV185 = {
     refresh: scheduleRefresh,
     immediateBalance: true,
     balanceTypographySource: 260,
+  };
+})();
+
+/* v267 - keep the optional English name fields hydrated in every employee-open path. */
+(function v267EmployeeEnglishNames() {
+  if (window.__v267EmployeeEnglishNames) return;
+  window.__v267EmployeeEnglishNames = true;
+
+  const englishNameFields = [
+    "firstNameEn",
+    "fatherNameEn",
+    "grandNameEn",
+    "familyNameEn",
+  ];
+
+  function hydrateEnglishNames(employeeId) {
+    const form = document.querySelector("#employeeForm");
+    if (!form) return;
+    let employee = null;
+    try {
+      employee =
+        employeeId && typeof getEmployee === "function"
+          ? getEmployee(employeeId)
+          : null;
+    } catch (_) {}
+    englishNameFields.forEach(function (fieldName) {
+      const field = form.elements?.[fieldName];
+      if (field) field.value = String(employee?.[fieldName] || "");
+    });
+  }
+
+  const previousOpen =
+    typeof window.openEmployeeModal === "function"
+      ? window.openEmployeeModal
+      : typeof openEmployeeModal === "function"
+        ? openEmployeeModal
+        : null;
+  if (previousOpen && !previousOpen.__v267EmployeeEnglishNames) {
+    const wrappedOpen = async function (employeeId) {
+      const result = await previousOpen.apply(this, arguments);
+      hydrateEnglishNames(employeeId);
+      return result;
+    };
+    wrappedOpen.__v267EmployeeEnglishNames = true;
+    try {
+      openEmployeeModal = wrappedOpen;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpen;
+  }
+
+  window.nawahEmployeeEnglishNamesV267 = {
+    version: 267,
+    fields: englishNameFields.slice(),
+    hydrate: hydrateEnglishNames,
+    cloudBacked: true,
+    optional: true,
   };
 })();

@@ -27654,3 +27654,52 @@ html.has-initial-login-bg .auth-gate,
     height: 27px;
   }
 }
+
+/* v267 — Optional English employee name row. */
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-name-language-v267 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 10px;
+  color: #167f94;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-name-language-v267::after {
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(
+    90deg,
+    rgba(34, 151, 197, 0.3),
+    rgba(20, 184, 166, 0.06)
+  );
+  content: "";
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-name-language-v267
+  small {
+  order: 2;
+  padding: 3px 8px;
+  border: 1px solid rgba(20, 184, 166, 0.18);
+  border-radius: 999px;
+  background: #effcf9;
+  color: #138b7e;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .personal-name-grid-en-v267
+  input {
+  direction: ltr;
+  text-align: left;
+  letter-spacing: 0.01em;
+}

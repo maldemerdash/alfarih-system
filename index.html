@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=266" />
+    <link rel="stylesheet" href="style.css?v=267" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -951,6 +951,16 @@
                     <label><span>اسم الجد</span><input name="grandName" /></label>
                     <label><span>اسم العائلة *</span><input name="familyName" required autocomplete="family-name" /></label>
                   </div>
+                  <div class="personal-name-language-v267">
+                    <span>الاسم باللغة الإنجليزية</span>
+                    <small>اختياري</small>
+                  </div>
+                  <div class="form-grid personal-name-grid-v248 personal-name-grid-en-v267">
+                    <label><span>الاسم الأول بالإنجليزي</span><input name="firstNameEn" dir="ltr" lang="en" autocomplete="off" /></label>
+                    <label><span>اسم الأب بالإنجليزي</span><input name="fatherNameEn" dir="ltr" lang="en" autocomplete="off" /></label>
+                    <label><span>اسم الجد بالإنجليزي</span><input name="grandNameEn" dir="ltr" lang="en" autocomplete="off" /></label>
+                    <label><span>اسم العائلة بالإنجليزي</span><input name="familyNameEn" dir="ltr" lang="en" autocomplete="off" /></label>
+                  </div>
                 </article>
 
                 <article class="personal-card-v248 personal-details-card-v248" data-personal-card="details">
@@ -1499,6 +1509,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=266"></script>
+    <script src="app.js?v=267"></script>
   </body>
 </html>
