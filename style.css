@@ -6356,6 +6356,18 @@ body {
   }
 }
 
+/* v278: the work-resumption field keeps the integrated trigger while only
+   correcting the calendar glyph inherited from the travel form label. */
+#travelResumeModal .nawah-date-trigger-v276,
+#travelResumeModal .nawah-date-trigger-v276 > span,
+#travelResumeModal .nawah-date-trigger-v276 svg {
+  color: #159aae !important;
+}
+
+#travelResumeModal .nawah-date-trigger-v276 svg {
+  stroke: currentColor !important;
+}
+
 /* v255 — Employee leave and travel history workspace */
 :is(#employeeModal.employee-profile-modal [data-section-panel="leaveTravelHistory"], #quickViewModal .employee-profile-main)
   > .v255-history-static-title {

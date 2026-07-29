@@ -5710,11 +5710,16 @@ async function printAbsenceMinute(e) {
 function openAbsenceModal() {
   populateFormOptions();
   const e = document.querySelector("#absenceForm");
-  (e.reset(),
-    (e.elements.from.value = selectedAttendanceDate),
-    (e.elements.to.value = selectedAttendanceDate),
-    updateAbsencePeriodVisibility(),
-    document.querySelector("#absenceModal").showModal());
+  e.reset();
+  e.elements.from.value = selectedAttendanceDate;
+  e.elements.to.value = selectedAttendanceDate;
+  updateAbsencePeriodVisibility();
+  document.querySelector("#absenceModal").showModal();
+  (
+    window.nawahDatePickerV278 ||
+    window.nawahDatePickerV277 ||
+    window.nawahDatePickerV276
+  )?.sync?.();
 }
 async function handleAbsenceSubmit(e) {
   e.preventDefault();
@@ -59552,6 +59557,17 @@ async function init() {
     return view;
   }
 
+  function syncPrivateAlertDateCalendars() {
+    const picker =
+      window.nawahDatePickerV278 ||
+      window.nawahDatePickerV277 ||
+      window.nawahDatePickerV276;
+    if (!picker?.sync) return;
+    picker.sync();
+    setTimeout(() => picker.sync(), 0);
+    setTimeout(() => picker.sync(), 80);
+  }
+
   function ensureDialogs() {
     if (!document.getElementById("privateAlertModal")) {
       document.body.insertAdjacentHTML(
@@ -59625,6 +59641,7 @@ async function init() {
         hydrateIcons(document.getElementById("privateAlertDeleteConfirmModal"));
       }
     } catch (_) {}
+    syncPrivateAlertDateCalendars();
   }
 
   function openDialog(dialog) {
@@ -59707,6 +59724,7 @@ async function init() {
     form.elements.employeeId.value = alert?.employeeId || "";
     updateEmployeeField(form);
     openDialog(dialog);
+    syncPrivateAlertDateCalendars();
     setTimeout(() => form.elements.subject?.focus?.(), 50);
   }
 
@@ -59719,6 +59737,7 @@ async function init() {
     form.reset();
     form.elements.newRemindDate.value = alert.remindDate || todayInput();
     openDialog(document.getElementById("privateAlertPostponeModal"));
+    syncPrivateAlertDateCalendars();
     setTimeout(() => form.elements.newRemindDate?.focus?.(), 50);
   }
 
@@ -74160,15 +74179,18 @@ window.nawahLeaveBalanceReportV185 = {
   };
 })();
 
-/* v277 - Reuse the complete branded employee calendar on attendance,
-   leave/travel requests, work resumption, establishment documents and finance.
-   Dynamic dialogs also invoke an immediate sync at creation and opening. */
+/* v278 - Reuse the complete branded employee calendar on attendance,
+   absence periods, leave/travel requests, work resumption, private alerts,
+   establishment documents and finance. Dynamic dialogs also invoke an
+   immediate sync at creation and opening. */
 (function v276BrandedDatePicker() {
   if (window.__v276BrandedDatePicker) return;
   window.__v276BrandedDatePicker = true;
 
   const targetSelectors = [
     "#attendanceDateInput",
+    '#absenceForm input[name="from"]',
+    '#absenceForm input[name="to"]',
     '#leaveForm input[name="from"]',
     '#leaveForm input[name="to"]',
     '#travelRequestForm input[name="travelDate"]',
@@ -74183,6 +74205,9 @@ window.nawahLeaveBalanceReportV185 = {
     '#establishmentDocumentForm input[name="expiryDate"]',
     '#establishmentDocumentFormV2 input[name="startDate"]',
     '#establishmentDocumentFormV2 input[name="expiryDate"]',
+    '#privateAlertForm input[name="createdDate"]',
+    '#privateAlertForm input[name="remindDate"]',
+    '#privateAlertPostponeForm input[name="newRemindDate"]',
   ];
   const targetSelector = targetSelectors.join(",");
   const months = [
@@ -74632,7 +74657,7 @@ window.nawahLeaveBalanceReportV185 = {
     function (event) {
       if (
         event.target?.closest?.(
-          "#newTravelBtn, [data-travel-resume], [data-add-est-doc-extension], #addEstablishmentDocumentBtn, [data-add-establishment-document], [data-open-establishment-document], [data-leave-return]",
+          "#newAbsenceBtn, #dashboardAbsenceBtn, #newTravelBtn, [data-travel-resume], [data-add-est-doc-extension], #addEstablishmentDocumentBtn, [data-add-establishment-document], [data-open-establishment-document], [data-leave-return], #addPrivateAlertBtn, [data-private-alert-postpone]",
         )
       )
         syncDynamicWindows();
@@ -74644,7 +74669,7 @@ window.nawahLeaveBalanceReportV185 = {
     function (event) {
       if (
         event.target?.matches?.(
-          "#travelRequestModal, #travelResumeModal, #leaveReturnModal, #branchEstDocModal, #establishmentDocumentModal, #establishmentDocumentModalV2",
+          "#absenceModal, #travelRequestModal, #travelResumeModal, #leaveReturnModal, #branchEstDocModal, #establishmentDocumentModal, #establishmentDocumentModalV2, #privateAlertModal, #privateAlertPostponeModal",
         ) &&
         event.target.open
       )
@@ -74737,7 +74762,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   syncAll();
   window.nawahDatePickerV276 = {
-    version: 277,
+    version: 278,
     open,
     close,
     sync: syncAll,
@@ -74759,4 +74784,5 @@ window.nawahLeaveBalanceReportV185 = {
       document.querySelectorAll("[data-nawah-date-input-v276]").length,
   };
   window.nawahDatePickerV277 = window.nawahDatePickerV276;
+  window.nawahDatePickerV278 = window.nawahDatePickerV276;
 })();
