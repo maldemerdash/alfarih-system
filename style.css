@@ -27704,15 +27704,51 @@ html.has-initial-login-bg .auth-gate,
   letter-spacing: 0.01em;
 }
 
-/* v273 — Calendar icon without a filled trigger background.
-   This is a presentation-only override for the employee birth date and the
-   unified editable employee date fields. */
+/* v274 — Calendar icon integrated into the date input.
+   The input supplies the only background and border; the calendar trigger is
+   an invisible hit area over the icon, not a separate visual control. */
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .birthdate-picker-v249,
+#employeeModal.employee-profile-modal
+  .employee-date-picker-v257 {
+  position: relative;
+  display: block !important;
+  width: 100%;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="personal"]
+  .birthdate-picker-v249
+  > input,
+#employeeModal.employee-profile-modal
+  .employee-date-picker-v257
+  > [data-date-input-v257] {
+  width: 100%;
+  padding-right: 48px !important;
+  border-radius: 12px !important;
+}
+
 #employeeModal.employee-profile-modal
   [data-section-panel="personal"]
   .birthdate-trigger-v249,
 #employeeModal.employee-profile-modal
   .employee-date-trigger-v257 {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 44px;
+  min-width: 44px;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0;
   background: transparent !important;
+  box-shadow: none !important;
   color: #159aae !important;
   filter: none !important;
 }
@@ -27730,6 +27766,9 @@ html.has-initial-login-bg .auth-gate,
 #employeeModal.employee-profile-modal
   .employee-date-picker-v257.is-locked-v257
   .employee-date-trigger-v257 {
+  border: 0 !important;
+  outline: 0;
   background: transparent !important;
+  box-shadow: none !important;
   filter: none !important;
 }
