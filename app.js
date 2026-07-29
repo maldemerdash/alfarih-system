@@ -4785,9 +4785,11 @@ async function handleEmployeeSubmit(e) {
     await window.persistEmployeeStateV179("employee-save");
   else await saveCloudStateNow({ force: !0, allowEmptyOverwrite: !0 });
   const englishNamesConfirmed =
-    "function" == typeof window.nawahEmployeeEnglishNamesV268?.persist
-      ? await window.nawahEmployeeEnglishNamesV268.persist(y)
-      : !0;
+    "function" == typeof window.nawahEmployeeEnglishNamesV269?.persist
+      ? await window.nawahEmployeeEnglishNamesV269.persist(y)
+      : "function" == typeof window.nawahEmployeeEnglishNamesV268?.persist
+        ? await window.nawahEmployeeEnglishNamesV268.persist(y)
+        : !0;
   if (!englishNamesConfirmed) {
     switchEmployeeSection("personal");
     showToast(
@@ -54810,8 +54812,8 @@ async function init() {
     if (employeeDataChanged) safeRender();
     return true;
   }
-  async function fetchCloudState() {
-    if (hasEmployeeArray(lastGoodState))
+  async function fetchCloudState(force) {
+    if (!force && hasEmployeeArray(lastGoodState))
       return lastGoodState;
     var client = ensureSupabase();
     if (!client || !client.from) throw new Error("supabase-not-ready");
@@ -54836,7 +54838,7 @@ async function init() {
           if (!db && typeof openDatabase === "function")
             db = await openDatabase();
         } catch (_) {}
-        var state = await fetchCloudState();
+        var state = await fetchCloudState(Boolean(force));
         if (applyState(state)) return true;
         if (!hasEmployees(employees)) {
           try {
@@ -54911,6 +54913,14 @@ async function init() {
 
   window.nawahReloadEmployeesFromCloud = function () {
     return loadEmployeesFromCloud(true);
+  };
+  window.nawahEmployeeCloudFastLoaderV151 = {
+    reload: function () {
+      return loadEmployeesFromCloud(true);
+    },
+    invalidate: function () {
+      lastGoodState = null;
+    },
   };
 
   function schedule(ms) {
@@ -73383,6 +73393,258 @@ window.nawahLeaveBalanceReportV185 = {
     persist: persistEnglishNames,
     readCloudEmployee,
     strictCloudConfirmation: true,
+    crossBrowser: true,
+  };
+})();
+
+/* v269 - durable, employee-keyed cloud storage for optional English names.
+   This small sidecar is independent from the legacy app_state snapshot so an
+   older employee sync cannot remove a confirmed English name after refresh. */
+(function v269DurableExistingEmployeeEnglishNames() {
+  if (window.__v269DurableExistingEmployeeEnglishNames) return;
+  window.__v269DurableExistingEmployeeEnglishNames = true;
+
+  const settingKey = "employee_english_names_v269";
+  const fields = [
+    "firstNameEn",
+    "fatherNameEn",
+    "grandNameEn",
+    "familyNameEn",
+  ];
+  let cachedMap = null;
+
+  function cleanNames(source) {
+    return Object.fromEntries(
+      fields.map(function (field) {
+        return [field, String(source?.[field] || "").trim()];
+      }),
+    );
+  }
+
+  function matches(source, expected) {
+    return Boolean(
+      source &&
+        fields.every(
+          (field) =>
+            String(source?.[field] || "").trim() === expected[field],
+        ),
+    );
+  }
+
+  function cloudClient() {
+    try {
+      if (!supabaseClient && typeof initSupabaseClient === "function")
+        initSupabaseClient();
+      return supabaseClient || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function normalizedMap(value) {
+    const map =
+      value?.employees && typeof value.employees === "object"
+        ? value.employees
+        : value && typeof value === "object"
+          ? value
+          : {};
+    return Object.fromEntries(
+      Object.entries(map)
+        .filter(([employeeId]) =>
+          Boolean(String(employeeId || "").trim()),
+        )
+        .map(([employeeId, names]) => [
+          String(employeeId),
+          {
+            ...cleanNames(names),
+            updatedAt: String(names?.updatedAt || ""),
+          },
+        ]),
+    );
+  }
+
+  async function readSidecar() {
+    const client = cloudClient();
+    if (!client?.from) throw new Error("supabase-not-ready");
+    const response = await client
+      .from("app_settings")
+      .select("setting_value,updated_at")
+      .eq("setting_key", settingKey)
+      .maybeSingle();
+    if (response?.error) throw response.error;
+    const found = Boolean(response?.data);
+    const map = normalizedMap(response?.data?.setting_value);
+    cachedMap = map;
+    return {
+      found,
+      map,
+      updatedAt: String(response?.data?.updated_at || ""),
+    };
+  }
+
+  async function writeSidecar(remote, employeeId, expected) {
+    const client = cloudClient();
+    if (!client?.from) throw new Error("supabase-not-ready");
+    const updatedAt = new Date().toISOString();
+    const map = {
+      ...remote.map,
+      [employeeId]: {
+        ...expected,
+        updatedAt,
+      },
+    };
+    const settingValue = {
+      version: 269,
+      employees: map,
+    };
+    let response;
+    if (remote.found) {
+      let query = client
+        .from("app_settings")
+        .update({
+          setting_value: settingValue,
+          updated_at: updatedAt,
+        })
+        .eq("setting_key", settingKey);
+      if (remote.updatedAt)
+        query = query.eq("updated_at", remote.updatedAt);
+      response = await query.select("updated_at").maybeSingle();
+    } else {
+      response = await client
+        .from("app_settings")
+        .upsert(
+          {
+            setting_key: settingKey,
+            setting_value: settingValue,
+            updated_at: updatedAt,
+          },
+          { onConflict: "setting_key" },
+        )
+        .select("updated_at")
+        .maybeSingle();
+    }
+    if (response?.error) throw response.error;
+    return Boolean(response?.data);
+  }
+
+  function applyToCurrentEmployee(employeeId, expected) {
+    try {
+      employees = (Array.isArray(employees) ? employees : []).map(
+        function (employee) {
+          if (String(employee?.id || "") === employeeId)
+            fields.forEach(function (field) {
+              employee[field] = expected[field];
+            });
+          return employee;
+        },
+      );
+      window.employees = employees;
+      if (typeof syncEmployeeLocalCache === "function")
+        syncEmployeeLocalCache(employees);
+      else
+        localStorage.setItem(
+          "nawah-employees",
+          JSON.stringify(employees),
+        );
+    } catch (_) {}
+  }
+
+  function applyToForm(expected) {
+    const form = document.querySelector("#employeeForm");
+    if (!form) return;
+    fields.forEach(function (field) {
+      if (form.elements?.[field])
+        form.elements[field].value = expected[field];
+    });
+  }
+
+  async function persist(employee) {
+    const employeeId = String(employee?.id || "").trim();
+    if (!employeeId) return false;
+    const expected = cleanNames(employee);
+    fields.forEach(function (field) {
+      employee[field] = expected[field];
+    });
+    applyToCurrentEmployee(employeeId, expected);
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const remote = await readSidecar();
+        if (matches(remote.map[employeeId], expected)) {
+          window.nawahEmployeeCloudFastLoaderV151?.invalidate?.();
+          return true;
+        }
+        const written = await writeSidecar(
+          remote,
+          employeeId,
+          expected,
+        );
+        if (!written) continue;
+        const confirmed = await readSidecar();
+        if (matches(confirmed.map[employeeId], expected)) {
+          window.nawahEmployeeCloudFastLoaderV151?.invalidate?.();
+          return true;
+        }
+      } catch (error) {
+        console.warn(
+          "v269: تعذر حفظ الاسم الإنجليزي المستقل في السحابة.",
+          error,
+        );
+      }
+    }
+    return false;
+  }
+
+  async function hydrate(employeeId) {
+    const id = String(employeeId || "").trim();
+    if (!id || id === "new") return null;
+    try {
+      const remote = await readSidecar();
+      const savedNames = remote.map[id];
+      if (!savedNames) return null;
+      const expected = cleanNames(savedNames);
+      applyToCurrentEmployee(id, expected);
+      applyToForm(expected);
+      return expected;
+    } catch (error) {
+      console.warn(
+        "v269: تعذر تحميل الاسم الإنجليزي المستقل من السحابة.",
+        error,
+      );
+      return cachedMap?.[id] ? cleanNames(cachedMap[id]) : null;
+    }
+  }
+
+  const previousOpen =
+    typeof window.openEmployeeModal === "function"
+      ? window.openEmployeeModal
+      : typeof openEmployeeModal === "function"
+        ? openEmployeeModal
+        : null;
+  if (previousOpen && !previousOpen.__v269DurableEnglishNames) {
+    const wrappedOpen = async function (employeeId) {
+      await hydrate(employeeId);
+      const result = await previousOpen.apply(this, arguments);
+      const savedNames = cachedMap?.[String(employeeId || "")];
+      if (savedNames) applyToForm(cleanNames(savedNames));
+      return result;
+    };
+    wrappedOpen.__v269DurableEnglishNames = true;
+    try {
+      openEmployeeModal = wrappedOpen;
+    } catch (_) {}
+    window.openEmployeeModal = wrappedOpen;
+  }
+
+  window.nawahEmployeeEnglishNamesV269 = {
+    version: 269,
+    settingKey,
+    fields: fields.slice(),
+    persist,
+    hydrate,
+    read: readSidecar,
+    isolatedCloudRecord: true,
+    existingEmployeeUpdate: true,
     crossBrowser: true,
   };
 })();
