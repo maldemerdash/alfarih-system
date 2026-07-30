@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=281" />
+    <link rel="stylesheet" href="style.css?v=282" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -450,9 +450,13 @@
           <section class="view" id="financeView">
             <div class="finance-page-shell">
               <div class="section-toolbar finance-toolbar finance-day-header">
-                <div class="finance-day-title">
-                  <h2 class="section-title">المالية</h2>
-                  <p class="section-description">إدخال يومي للمبالغ المالية مع تحديث مباشر للبطاقات وإغلاق اليوم وترحيله عند الانتهاء.</p>
+                <div class="finance-day-title v282-finance-title">
+                  <span class="v282-finance-title-icon" data-icon="wallet"></span>
+                  <div>
+                    <span class="v282-finance-eyebrow">المركز المالي اليومي</span>
+                    <h2 class="section-title">المالية</h2>
+                    <p class="section-description">إدخال يومي للمبالغ المالية مع تحديث مباشر للبطاقات وإغلاق اليوم وترحيله عند الانتهاء.</p>
+                  </div>
                 </div>
                 <div class="finance-day-controls" aria-label="التنقل بين أيام المالية">
                   <div class="finance-date-pill">
@@ -1512,6 +1516,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=281"></script>
+    <script src="app.js?v=282"></script>
   </body>
 </html>
