@@ -21,6 +21,949 @@
   --sidebar-width: 272px;
 }
 
+/* v288 — professional branch directory; one stable surface with no horizontal scroll. */
+#settingsView [data-settings-panel="branches"][data-v288-branches="ready"] {
+  overflow: visible;
+}
+
+#settingsView .v288-branch-directory {
+  display: grid;
+  gap: 14px;
+  color: var(--v286-settings-ink, #17323b);
+}
+
+#settingsView .v288-branch-head {
+  min-height: 86px;
+  align-items: center !important;
+  padding: 17px 19px !important;
+  border: 1px solid #dce9ec;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 93% 18%, rgba(21, 184, 148, 0.12), transparent 31%),
+    linear-gradient(135deg, #ffffff 0%, #f4fbfb 100%);
+}
+
+#settingsView .v288-branch-head > div {
+  min-width: 0;
+}
+
+#settingsView .v288-branch-eyebrow,
+.v288-branch-modal .v288-modal-eyebrow,
+.v288-branch-view-modal .v288-modal-eyebrow,
+.v288-branch-delete-modal .v288-modal-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: #0f8798;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+#settingsView .v288-branch-head h3 {
+  margin: 0 !important;
+  color: #17323b !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+#settingsView .v288-branch-head p {
+  margin: 5px 0 0 !important;
+  color: #72868e !important;
+  font-size: 11px !important;
+  line-height: 1.7;
+}
+
+#settingsView .v288-add-branch-btn {
+  min-width: 126px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #14a9c2, #19bf7c);
+  box-shadow: 0 8px 18px rgba(20, 169, 194, 0.16);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#settingsView .v288-add-branch-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+#settingsView .v288-branch-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+#settingsView .v288-branch-stats > article {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 86px;
+  align-items: center;
+  gap: 11px;
+  overflow: hidden;
+  padding: 13px 14px;
+  border: 1px solid #dfeaec;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(24, 55, 64, 0.035);
+}
+
+#settingsView .v288-branch-stats > article::after {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 17px;
+  bottom: 17px;
+  width: 3px;
+  border-radius: 99px;
+  background: #13a9c2;
+  content: "";
+}
+
+#settingsView .v288-branch-stats > article:nth-child(2)::after {
+  background: #19b879;
+}
+
+#settingsView .v288-branch-stats > article:nth-child(3)::after {
+  background: #0f8798;
+}
+
+#settingsView .v288-branch-stat-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 13px;
+  color: #0d96ae;
+  background: #edf9fc;
+}
+
+#settingsView .v288-branch-stat-icon.is-green {
+  color: #129466;
+  background: #edf9f3;
+}
+
+#settingsView .v288-branch-stat-icon.is-teal {
+  color: #0f7f8f;
+  background: #eef8f8;
+}
+
+#settingsView .v288-branch-stat-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+#settingsView .v288-branch-stats article > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+#settingsView .v288-branch-stats small {
+  grid-column: 1 / -1;
+  color: #758990;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#settingsView .v288-branch-stats strong {
+  color: #17323b;
+  font-size: 23px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+#settingsView .v288-branch-stats article > div > span {
+  overflow: hidden;
+  color: #91a0a5;
+  font-size: 9px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#settingsView .v288-branch-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.7fr) minmax(145px, 0.72fr) minmax(145px, 0.72fr) auto;
+  align-items: end;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #dfeaec;
+  border-radius: 16px;
+  background: #fff;
+}
+
+#settingsView .v288-branch-toolbar > label {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  margin: 0;
+}
+
+#settingsView .v288-branch-toolbar > label > span {
+  color: #71858c;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+#settingsView .v288-branch-toolbar input,
+#settingsView .v288-branch-toolbar select {
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  border: 1px solid #d8e6e9;
+  border-radius: 12px;
+  outline: 0;
+  background: #fbfdfd;
+  color: #203940;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+#settingsView .v288-branch-toolbar input:focus,
+#settingsView .v288-branch-toolbar select:focus {
+  border-color: #14a5b8;
+  box-shadow: 0 0 0 3px rgba(20, 165, 184, 0.09);
+}
+
+#settingsView .v288-branch-search {
+  position: relative;
+}
+
+#settingsView .v288-branch-search > span {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: 13px;
+  bottom: 12px;
+  width: 17px;
+  height: 17px;
+  color: #80949b;
+}
+
+#settingsView .v288-branch-search > span svg {
+  width: 17px;
+  height: 17px;
+}
+
+#settingsView .v288-branch-search input {
+  padding-inline-start: 40px;
+}
+
+#settingsView .v288-branch-toolbar > small {
+  align-self: center;
+  padding-inline: 7px;
+  color: #82949a;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+#settingsView .v288-branch-table-card {
+  overflow: hidden;
+  border: 1px solid #dce8eb;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(29, 61, 70, 0.04);
+}
+
+#settingsView .v288-branch-table-title {
+  display: flex;
+  min-height: 61px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 15px;
+  border-bottom: 1px solid #e4edef;
+  background: linear-gradient(180deg, #fff, #fbfdfd);
+}
+
+#settingsView .v288-branch-table-title > div {
+  display: grid;
+  gap: 3px;
+}
+
+#settingsView .v288-branch-table-title strong {
+  color: #18363e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#settingsView .v288-branch-table-title small {
+  color: #829399;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+#settingsView .v288-branch-table-title > span {
+  padding: 6px 9px;
+  border: 1px solid #cfece2;
+  border-radius: 999px;
+  background: #f0faf6;
+  color: #0e8b67;
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#settingsView .v288-branch-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+
+#settingsView .v288-branch-table {
+  width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+#settingsView .v288-branch-table th,
+#settingsView .v288-branch-table td {
+  min-width: 0;
+  overflow: hidden;
+  padding: 11px 8px;
+  border-bottom: 1px solid #e8eff1;
+  color: #385159;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: start;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+#settingsView .v288-branch-table th {
+  padding-block: 10px;
+  background: #f5fafb;
+  color: #6f858c;
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#settingsView .v288-branch-table th:nth-child(1) { width: 24%; }
+#settingsView .v288-branch-table th:nth-child(2) { width: 17%; }
+#settingsView .v288-branch-table th:nth-child(3) { width: 14%; }
+#settingsView .v288-branch-table th:nth-child(4) { width: 9%; }
+#settingsView .v288-branch-table th:nth-child(5) { width: 9%; }
+#settingsView .v288-branch-table th:nth-child(6) { width: 10%; }
+#settingsView .v288-branch-table th:nth-child(7) { width: 17%; }
+
+#settingsView .v288-branch-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+#settingsView .v288-branch-table tbody tr:hover {
+  background: #fbfefe;
+}
+
+#settingsView .v288-branch-name-cell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+#settingsView .v288-branch-name-cell > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+#settingsView .v288-branch-name-cell strong {
+  overflow: hidden;
+  color: #173840;
+  font-size: 10.5px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#settingsView .v288-branch-name-cell small {
+  overflow: hidden;
+  color: #87989d;
+  font-size: 8.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#settingsView .v288-branch-mark {
+  display: grid;
+  width: 33px;
+  height: 33px;
+  flex: 0 0 33px;
+  place-items: center;
+  border: 1px solid #cfe8eb;
+  border-radius: 11px;
+  background: #f0fafb;
+  color: #0c8fa3;
+}
+
+#settingsView .v288-branch-mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+#settingsView .v288-branch-manager,
+#settingsView .v288-branch-phone {
+  display: block;
+  overflow: hidden;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#settingsView .v288-branch-count {
+  display: inline-grid;
+  min-width: 27px;
+  height: 27px;
+  place-items: center;
+  padding-inline: 7px;
+  border-radius: 9px;
+  background: #f1f7f8;
+  color: #31525a;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+#settingsView .v288-branch-status {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #effaf5;
+  color: #0d8a63;
+  font-size: 8.5px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#settingsView .v288-branch-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #17b579;
+  box-shadow: 0 0 0 3px rgba(23, 181, 121, 0.11);
+}
+
+#settingsView .v288-branch-status.is-inactive {
+  background: #f3f5f6;
+  color: #7f8d92;
+}
+
+#settingsView .v288-branch-status.is-inactive i {
+  background: #98a4a8;
+  box-shadow: 0 0 0 3px rgba(152, 164, 168, 0.11);
+}
+
+#settingsView .v288-branch-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+#settingsView .v288-branch-icon-btn {
+  display: inline-grid;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 29px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #d8e6e9;
+  border-radius: 9px;
+  background: #fff;
+  color: #5d747b;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease,
+    background 0.16s ease;
+}
+
+#settingsView .v288-branch-icon-btn:hover {
+  border-color: #9bd3da;
+  background: #f3fbfc;
+  color: #07899d;
+  transform: translateY(-1px);
+}
+
+#settingsView .v288-branch-icon-btn.is-danger {
+  border-color: #f1d5d5;
+  color: #cc4d4d;
+}
+
+#settingsView .v288-branch-icon-btn.is-danger:hover {
+  border-color: #efbcbc;
+  background: #fff6f6;
+  color: #bd3232;
+}
+
+#settingsView .v288-branch-icon-btn:disabled {
+  cursor: wait;
+  opacity: 0.48;
+  transform: none;
+}
+
+#settingsView .v288-branch-icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+#settingsView .v288-branch-empty {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  color: #81939a;
+  text-align: center;
+}
+
+#settingsView .v288-branch-empty > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 14px;
+  background: #f0f7f8;
+  color: #70a1a9;
+}
+
+#settingsView .v288-branch-empty strong {
+  color: #45616a;
+  font-size: 11px;
+}
+
+#settingsView .v288-branch-empty small {
+  font-size: 9px;
+}
+
+#settingsView .v288-branch-mobile-list {
+  display: none;
+}
+
+.v288-branch-modal,
+.v288-branch-view-modal,
+.v288-branch-delete-modal {
+  width: min(760px, calc(100vw - 28px));
+  max-width: 760px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d8e7ea;
+  border-radius: 20px;
+  background: #fff;
+  color: #17323b;
+  box-shadow: 0 30px 90px rgba(14, 41, 49, 0.2);
+}
+
+.v288-branch-view-modal,
+.v288-branch-delete-modal {
+  width: min(600px, calc(100vw - 28px));
+  max-width: 600px;
+}
+
+.v288-branch-modal::backdrop,
+.v288-branch-view-modal::backdrop,
+.v288-branch-delete-modal::backdrop {
+  background: rgba(13, 29, 35, 0.52);
+  backdrop-filter: blur(3px);
+}
+
+.v288-branch-modal .modal-head,
+.v288-branch-view-modal .modal-head,
+.v288-branch-delete-modal .modal-head {
+  align-items: center;
+  padding: 17px 19px;
+  border-bottom: 1px solid #e1ecee;
+  background:
+    radial-gradient(circle at 92% 10%, rgba(20, 177, 146, 0.1), transparent 34%),
+    #fff;
+}
+
+.v288-branch-modal .modal-head h2,
+.v288-branch-view-modal .modal-head h2,
+.v288-branch-delete-modal .modal-head h2 {
+  margin: 0;
+  color: #17323b;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.v288-branch-modal .modal-head p,
+.v288-branch-view-modal .modal-head p,
+.v288-branch-delete-modal .modal-head p {
+  margin: 5px 0 0;
+  color: #7e9096;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.v288-branch-modal-body {
+  display: grid !important;
+  max-height: min(66vh, 620px);
+  gap: 11px !important;
+  overflow-y: auto;
+  padding: 14px 16px !important;
+  background: #f7fafb;
+}
+
+.v288-branch-modal-body > section {
+  overflow: hidden;
+  border: 1px solid #deeaed;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.v288-branch-modal-body > section > header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px;
+  border-bottom: 1px solid #e8eff1;
+  background: #fbfdfd;
+}
+
+.v288-branch-modal-body > section > header > span {
+  display: grid;
+  width: 33px;
+  height: 33px;
+  flex: 0 0 33px;
+  place-items: center;
+  border-radius: 11px;
+  background: #edf9fa;
+  color: #0b8ea3;
+}
+
+.v288-branch-modal-body > section > header > span svg {
+  width: 16px;
+  height: 16px;
+}
+
+.v288-branch-modal-body > section > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.v288-branch-modal-body > section > header strong {
+  color: #25434b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.v288-branch-modal-body > section > header small {
+  color: #83959a;
+  font-size: 8.5px;
+}
+
+.v288-branch-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 13px 14px;
+}
+
+.v288-branch-form-grid > label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  margin: 0;
+}
+
+.v288-branch-form-grid > label > span {
+  color: #627a82;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.v288-branch-form-grid input,
+.v288-branch-form-grid select {
+  width: 100%;
+  height: 43px;
+  min-height: 43px;
+  border: 1px solid #d6e4e7;
+  border-radius: 12px;
+  outline: 0;
+  background: #fff;
+  color: #203a42;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.v288-branch-form-grid input:focus,
+.v288-branch-form-grid select:focus {
+  border-color: #13a4b8;
+  box-shadow: 0 0 0 3px rgba(19, 164, 184, 0.09);
+}
+
+.v288-branch-modal .modal-actions,
+.v288-branch-view-modal .modal-actions,
+.v288-branch-delete-modal .modal-actions {
+  padding: 12px 16px;
+  border-top: 1px solid #e2ecee;
+  background: #fff;
+}
+
+.v288-branch-view-modal .modal-body,
+.v288-branch-delete-modal .modal-body {
+  padding: 16px;
+  background: #f7fafb;
+}
+
+.v288-branch-view-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 10px;
+}
+
+.v288-branch-view-summary > article,
+.v288-branch-view-grid > article {
+  display: grid;
+  min-width: 0;
+  min-height: 65px;
+  align-content: center;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid #dce9ec;
+  border-radius: 13px;
+  background: #fff;
+}
+
+.v288-branch-view-summary > article {
+  text-align: center;
+}
+
+.v288-branch-view-summary small,
+.v288-branch-view-grid small {
+  color: #819299;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.v288-branch-view-summary strong {
+  color: #0d8d82;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.v288-branch-view-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.v288-branch-view-grid strong {
+  overflow: hidden;
+  color: #29474f;
+  font-size: 10.5px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v288-modal-eyebrow.is-danger {
+  color: #c84949;
+}
+
+.v288-delete-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid #f0d4d4;
+  border-radius: 14px;
+  background: #fff6f6;
+}
+
+.v288-delete-warning > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 12px;
+  background: #fce7e7;
+  color: #c64545;
+}
+
+.v288-delete-warning > span svg {
+  width: 18px;
+  height: 18px;
+}
+
+.v288-delete-warning > div {
+  display: grid;
+  gap: 5px;
+}
+
+.v288-delete-warning strong {
+  color: #8f3030;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.v288-delete-warning p {
+  margin: 0;
+  color: #8e5d5d;
+  font-size: 9.5px;
+  line-height: 1.7;
+}
+
+.v288-confirm-delete {
+  border-color: #cf4848 !important;
+  background: #cf4848 !important;
+}
+
+@media (max-width: 1120px) {
+  #settingsView .v288-branch-toolbar {
+    grid-template-columns: minmax(230px, 1.5fr) repeat(2, minmax(130px, 0.75fr));
+  }
+
+  #settingsView .v288-branch-toolbar > small {
+    grid-column: 1 / -1;
+    min-height: 12px;
+  }
+
+  #settingsView .v288-branch-table th,
+  #settingsView .v288-branch-table td {
+    padding-inline: 6px;
+  }
+
+  #settingsView .v288-branch-icon-btn {
+    width: 26px;
+    height: 26px;
+    flex-basis: 26px;
+  }
+}
+
+@media (max-width: 860px) {
+  #settingsView .v288-branch-stats {
+    grid-template-columns: 1fr;
+  }
+
+  #settingsView .v288-branch-stats > article {
+    min-height: 72px;
+  }
+
+  #settingsView .v288-branch-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #settingsView .v288-branch-search {
+    grid-column: 1 / -1;
+  }
+
+  #settingsView .v288-branch-table-wrap {
+    display: none;
+  }
+
+  #settingsView .v288-branch-mobile-list {
+    display: grid;
+    gap: 10px;
+    padding: 11px;
+  }
+
+  #settingsView .v288-branch-mobile-card {
+    display: grid;
+    gap: 11px;
+    padding: 12px;
+    border: 1px solid #dfeaec;
+    border-radius: 15px;
+    background: #fff;
+  }
+
+  #settingsView .v288-branch-mobile-card > header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  #settingsView .v288-branch-mobile-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  #settingsView .v288-branch-mobile-facts > span {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+    padding: 8px 9px;
+    border-radius: 10px;
+    background: #f5f9fa;
+  }
+
+  #settingsView .v288-branch-mobile-facts small {
+    color: #87969b;
+    font-size: 8px;
+  }
+
+  #settingsView .v288-branch-mobile-facts strong {
+    overflow: hidden;
+    color: #31515a;
+    font-size: 9.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 620px) {
+  #settingsView .v288-branch-head {
+    align-items: stretch !important;
+  }
+
+  #settingsView .v288-branch-head,
+  #settingsView .v288-branch-table-title {
+    flex-direction: column;
+  }
+
+  #settingsView .v288-add-branch-btn {
+    width: 100%;
+  }
+
+  #settingsView .v288-branch-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  #settingsView .v288-branch-search {
+    grid-column: auto;
+  }
+
+  #settingsView .v288-branch-toolbar > small {
+    grid-column: auto;
+  }
+
+  #settingsView .v288-branch-table-title {
+    align-items: flex-start;
+  }
+
+  .v288-branch-form-grid,
+  .v288-branch-view-grid,
+  .v288-branch-view-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .v288-branch-modal-body {
+    max-height: calc(100vh - 190px);
+  }
+}
+
 /* v287 — professional company profile with one stable paint path. */
 #settingsView [data-settings-panel="company"][data-v287-company-state] {
   visibility: visible;
