@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=285" />
+    <link rel="stylesheet" href="style.css?v=286" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -788,20 +788,45 @@
           </section>
 
           <section class="view" id="settingsView">
-            <div class="settings-layout">
-              <nav class="settings-nav" id="settingsNav" aria-label="قائمة الإعدادات">
-                <button type="button" class="active" data-settings-section="company"><span data-icon="building"></span>بيانات المنشأة</button>
-                <button type="button" data-settings-section="account"><span data-icon="user"></span>الحساب الشخصي</button>
-                <button type="button" data-settings-section="notifications"><span data-icon="bell"></span>الإشعارات</button>
-                <button type="button" data-settings-section="permissions"><span data-icon="shield"></span>الصلاحيات والأمان</button>
-                <button type="button" data-settings-section="work"><span data-icon="clock"></span>إعداد العمل</button>
-                <button type="button" data-settings-section="salarySettings"><span data-icon="wallet"></span>إعداد الراتب</button>
-                <button type="button" data-settings-section="financialAmounts"><span data-icon="wallet"></span>المبالغ المالية</button>
-                <button type="button" data-settings-section="managers"><span data-icon="users"></span>المدراء</button>
-                <button type="button" data-settings-section="absence"><span data-icon="user-x"></span>قاعدة بيانات الغياب</button>
-                <button type="button" data-settings-section="minuteSettings"><span data-icon="notes"></span>إعداد المحاضر</button>
-              </nav>
-              <article class="panel settings-panel">
+            <div class="v286-settings-workspace">
+              <header class="v286-settings-hero">
+                <div class="v286-settings-title">
+                  <span class="v286-settings-title-icon" data-icon="settings"></span>
+                  <div>
+                    <span class="v286-settings-eyebrow">مركز التحكم</span>
+                    <h2 class="section-title">الإعدادات</h2>
+                    <p class="section-description">إدارة بيانات المنشأة والعمل والرواتب والصلاحيات من مساحة موحدة وواضحة.</p>
+                  </div>
+                </div>
+                <div class="v286-settings-hero-meta" aria-label="مزايا الإعدادات">
+                  <span><strong>10</strong> أقسام مترابطة</span>
+                  <span><span data-icon="check-circle"></span>حفظ سحابي</span>
+                  <span><span data-icon="shield"></span>تحكم آمن</span>
+                </div>
+              </header>
+
+              <div class="settings-layout">
+                <nav class="settings-nav" id="settingsNav" aria-label="قائمة الإعدادات">
+                  <div class="v286-settings-nav-head">
+                    <span data-icon="settings"></span>
+                    <div><strong>قائمة الإعدادات</strong><small>اختر القسم المطلوب</small></div>
+                  </div>
+                  <div class="v286-settings-nav-list">
+                    <span class="v286-settings-nav-group">الإعدادات العامة</span>
+                    <button type="button" class="active" data-settings-section="company"><span data-icon="building"></span>بيانات المنشأة</button>
+                    <button type="button" data-settings-section="account"><span data-icon="user"></span>الحساب الشخصي</button>
+                    <button type="button" data-settings-section="notifications"><span data-icon="bell"></span>الإشعارات</button>
+                    <button type="button" data-settings-section="permissions"><span data-icon="shield"></span>الصلاحيات والأمان</button>
+                    <span class="v286-settings-nav-group">إعدادات التشغيل</span>
+                    <button type="button" data-settings-section="work"><span data-icon="clock"></span>إعداد العمل</button>
+                    <button type="button" data-settings-section="salarySettings"><span data-icon="wallet"></span>إعداد الراتب</button>
+                    <button type="button" data-settings-section="financialAmounts"><span data-icon="wallet"></span>المبالغ المالية</button>
+                    <button type="button" data-settings-section="managers"><span data-icon="users"></span>المدراء</button>
+                    <button type="button" data-settings-section="absence"><span data-icon="user-x"></span>قاعدة بيانات الغياب</button>
+                    <button type="button" data-settings-section="minuteSettings"><span data-icon="notes"></span>إعداد المحاضر</button>
+                  </div>
+                </nav>
+                <article class="panel settings-panel">
                 <section class="settings-section active" data-settings-panel="company" data-v236-company-state="pending" aria-busy="true"></section>
 
                 <section class="settings-section" data-settings-panel="account">
@@ -945,7 +970,8 @@
                     <div class="form-actions"><button type="submit" class="primary-btn">حفظ إعداد المحاضر</button></div>
                   </form>
                 </section>
-              </article>
+                </article>
+              </div>
             </div>
           </section>
         </main>
@@ -1563,6 +1589,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=285"></script>
+    <script src="app.js?v=286"></script>
   </body>
 </html>
