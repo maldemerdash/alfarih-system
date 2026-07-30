@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=279" />
+    <link rel="stylesheet" href="style.css?v=280" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -358,43 +358,46 @@
           </section>
 
           <section class="view" id="attendanceView">
-            <div class="attendance-auto-note">
-              <span class="note-icon" data-icon="check-circle"></span>
-              <div>
-                <strong>الأصل في السجل هو الحضور الآلي على وقت الدوام الرسمي</strong>
-                <p>لا يتم إدخال حضور يومي للموظفين؛ مدير النظام يسجل الغياب فقط، وأي موظف نشط لم يسجل عليه غياب أو إجازة يظهر حاضرًا آليًا.</p>
-              </div>
-            </div>
-
-            <div class="section-toolbar attendance-toolbar">
-              <div class="date-navigation attendance-date-navigation">
-                <button class="icon-btn" id="attendancePrevDayBtn" aria-label="اليوم السابق"><span data-icon="chevron-right"></span></button>
-                <div>
-                  <strong id="attendanceCurrentDay">—</strong>
-                  <span id="attendanceCurrentSubtitle">سجل الحضور اليومي</span>
+            <div class="attendance-hero-v280">
+              <div class="attendance-auto-note">
+                <span class="note-icon" data-icon="check-circle"></span>
+                <div class="attendance-auto-copy-v280">
+                  <span class="attendance-eyebrow-v280">السجل اليومي الذكي</span>
+                  <strong>الحضور يُحتسب آليًا وفق وقت الدوام الرسمي</strong>
+                  <p>يسجل مدير النظام حالات الغياب فقط، ويظهر كل موظف نشط لا توجد عليه إجازة أو غياب ضمن الحاضرين تلقائيًا.</p>
                 </div>
-                <button class="icon-btn" id="attendanceNextDayBtn" aria-label="اليوم التالي"><span data-icon="chevron-left"></span></button>
               </div>
-              <div class="attendance-toolbar-actions">
-                <label class="compact-date-field"><span>التاريخ</span><input id="attendanceDateInput" type="date" /></label>
-                <button class="primary-btn" id="newAbsenceBtn"><span data-icon="user-x"></span>تسجيل غياب</button>
+
+              <div class="section-toolbar attendance-toolbar">
+                <div class="date-navigation attendance-date-navigation">
+                  <button class="icon-btn" id="attendancePrevDayBtn" aria-label="اليوم السابق"><span data-icon="chevron-right"></span></button>
+                  <div>
+                    <strong id="attendanceCurrentDay">—</strong>
+                    <span id="attendanceCurrentSubtitle">سجل الحضور اليومي</span>
+                  </div>
+                  <button class="icon-btn" id="attendanceNextDayBtn" aria-label="اليوم التالي"><span data-icon="chevron-left"></span></button>
+                </div>
+                <div class="attendance-toolbar-actions">
+                  <label class="compact-date-field"><span>التاريخ</span><input id="attendanceDateInput" type="date" /></label>
+                  <button class="primary-btn" id="newAbsenceBtn"><span data-icon="user-x"></span>تسجيل غياب</button>
+                </div>
               </div>
             </div>
 
             <div class="attendance-kpis">
-              <div><span class="kpi-icon teal"><span data-icon="user-check"></span></span><p>حاضرون آليًا<strong id="attendancePresent">0</strong></p></div>
-              <div><span class="kpi-icon amber"><span data-icon="clock"></span></span><p>متأخرون<strong id="attendanceLate">0</strong></p></div>
-              <div><span class="kpi-icon red"><span data-icon="user-x"></span></span><p>غائبون<strong id="attendanceAbsent">0</strong></p></div>
-              <div><span class="kpi-icon blue"><span data-icon="calendar"></span></span><p>في إجازة<strong id="attendanceLeave">0</strong></p></div>
+              <div class="attendance-kpi-card-v280 is-present"><span class="kpi-icon teal"><span data-icon="user-check"></span></span><p><span>حاضرون آليًا</span><strong id="attendancePresent">0</strong><small>وفق جدول الدوام</small></p></div>
+              <div class="attendance-kpi-card-v280 is-late"><span class="kpi-icon amber"><span data-icon="clock"></span></span><p><span>متأخرون</span><strong id="attendanceLate">0</strong><small>حالات اليوم</small></p></div>
+              <div class="attendance-kpi-card-v280 is-absent"><span class="kpi-icon red"><span data-icon="user-x"></span></span><p><span>غائبون</span><strong id="attendanceAbsent">0</strong><small>الغياب المسجل</small></p></div>
+              <div class="attendance-kpi-card-v280 is-leave"><span class="kpi-icon blue"><span data-icon="calendar"></span></span><p><span>في إجازة</span><strong id="attendanceLeave">0</strong><small>إجازات معتمدة</small></p></div>
             </div>
 
             <div class="attendance-management-grid">
               <article class="panel attendance-register-panel absence-alert-panel">
                 <div class="panel-head">
-                  <div><h3>غيابات اليوم</h3><p>هذه هي الاستثناءات المسجلة فقط، أما بقية الموظفين فيظهرون كحضور آلي.</p></div>
+                  <div class="attendance-panel-title-v280"><span class="attendance-panel-icon-v280 is-absence" data-icon="user-x"></span><div><h3>غيابات اليوم</h3><p>الاستثناءات المسجلة لهذا التاريخ، أما بقية الموظفين فيظهرون ضمن الحضور الآلي.</p></div></div>
                 </div>
                 <div class="table-wrap compact-table-wrap">
-                  <table>
+                  <table class="attendance-absence-table-v280">
                     <thead><tr><th>الموظف</th><th>اليوم</th><th>تاريخ الغياب</th><th>فترة الغياب</th><th>نوع الغياب</th><th>الجزاء الموقع</th><th>الحسم</th><th>السبب</th><th>الإجراء</th></tr></thead>
                     <tbody id="absenceRecordsBody"></tbody>
                   </table>
@@ -402,13 +405,13 @@
               </article>
             </div>
 
-            <article class="panel">
+            <article class="panel attendance-day-panel-v280">
               <div class="panel-head attendance-list-head">
-                <div><h3>سجل اليوم</h3><p id="attendanceRegisterHint">يتم بناء السجل تلقائيًا حسب تاريخ اليوم وحالة الموظف.</p></div>
+                <div class="attendance-panel-title-v280"><span class="attendance-panel-icon-v280 is-register" data-icon="list"></span><div><h3>سجل اليوم</h3><p id="attendanceRegisterHint">يتم بناء السجل تلقائيًا حسب تاريخ اليوم وحالة الموظف.</p></div></div>
                 <label class="search-field compact-search"><span data-icon="search"></span><input id="attendanceSearch" placeholder="بحث في السجل" /></label>
               </div>
               <div class="table-wrap">
-                <table>
+                <table class="attendance-day-table-v280">
                   <thead><tr><th>الموظف</th><th>وقت الحضور</th><th>وقت الانصراف</th><th>ساعات العمل</th><th>الحالة</th><th>مصدر التسجيل</th></tr></thead>
                   <tbody id="attendanceTableBody"></tbody>
                 </table>
@@ -1509,6 +1512,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=279"></script>
+    <script src="app.js?v=280"></script>
   </body>
 </html>
