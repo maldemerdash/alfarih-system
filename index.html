@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=283" />
+    <link rel="stylesheet" href="style.css?v=284" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -626,39 +626,55 @@
 
 
           <section class="view reports-view" id="reportsView">
-            <div class="section-toolbar reports-toolbar">
-              <div>
-                <h2 class="section-title">التقارير</h2>
-                <p class="section-description">تقارير الموظفين والإجازات والسفر والبيانات المالية والوظيفية</p>
-              </div>
-            </div>
-
-            <article class="panel reports-panel">
-              <div class="reports-tabs" role="tablist" aria-label="تبويبات التقارير">
-                <button type="button" class="active" data-report-tab="leaveTravel">الإجازات والسفر</button>
-                <button type="button" data-report-tab="banking">البيانات البنكية</button>
-                <button type="button" data-report-tab="absences">غياب هذا الشهر</button>
-                <button type="button" data-report-tab="advances">السلفيات</button>
-                <button type="button" data-report-tab="payrollRun">مسير رواتب هذا الشهر</button>
-                <button type="button" data-report-tab="contracts">بيانات العقود الوظيفية</button>
-                <button type="button" data-report-tab="attendance">حضور الموظف</button>
-                <button type="button" data-report-tab="leaveBalance">رصيد الإجازات</button>
-              </div>
-
-              <section class="report-tab-panel active" data-report-panel="leaveTravel">
-                <div class="report-head">
-                  <div><h3>الإجازات والسفر</h3><p>تقرير موحد لطلبات الإجازات والسفر المسجلة في النظام</p></div>
-                  <div class="report-actions">
-                    <button type="button" class="secondary-btn" data-report-export="leaveTravel"><span data-icon="download"></span>تصدير PDF</button>
-                    <button type="button" class="secondary-btn" data-report-print="leaveTravel"><span data-icon="printer"></span>طباعة PDF</button>
+            <div class="v284-reports-workspace">
+              <header class="v284-reports-hero">
+                <div class="v284-reports-title">
+                  <span class="v284-reports-title-icon" data-icon="file"></span>
+                  <div>
+                    <span class="v284-reports-eyebrow">مركز التقارير</span>
+                    <h2 class="section-title">التقارير</h2>
+                    <p class="section-description">تقارير الموظفين والإجازات والسفر والبيانات المالية والوظيفية في مساحة واحدة.</p>
                   </div>
                 </div>
-                <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>السجلات</th></tr></thead><tbody id="reportLeaveTravelBody"><tr><td colspan="5">لا توجد بيانات للعرض</td></tr></tbody></table></div>
-              </section>
+                <div class="v284-reports-hero-meta" aria-label="مزايا التقارير">
+                  <span><strong>8</strong> أنواع تقارير</span>
+                  <span><span data-icon="download"></span>تصدير PDF</span>
+                  <span><span data-icon="printer"></span>طباعة مباشرة</span>
+                </div>
+              </header>
+
+              <article class="panel reports-panel">
+                <div class="v284-reports-catalog">
+                  <div class="v284-reports-catalog-title">
+                    <span data-icon="list"></span>
+                    <div><h3>دليل التقارير</h3><p>اختر التقرير المطلوب لعرض بياناته وأدواته.</p></div>
+                  </div>
+                  <div class="reports-tabs" role="tablist" aria-label="تبويبات التقارير">
+                    <button type="button" class="active" data-report-tab="leaveTravel"><span data-icon="calendar"></span><span>الإجازات والسفر</span></button>
+                    <button type="button" data-report-tab="banking"><span data-icon="wallet"></span><span>البيانات البنكية</span></button>
+                    <button type="button" data-report-tab="absences"><span data-icon="clock"></span><span>غياب هذا الشهر</span></button>
+                    <button type="button" data-report-tab="advances"><span data-icon="wallet"></span><span>السلفيات</span></button>
+                    <button type="button" data-report-tab="payrollRun"><span data-icon="file"></span><span>مسير الرواتب</span></button>
+                    <button type="button" data-report-tab="contracts"><span data-icon="file"></span><span>العقود الوظيفية</span></button>
+                    <button type="button" data-report-tab="attendance"><span data-icon="users"></span><span>حضور الموظف</span></button>
+                    <button type="button" data-report-tab="leaveBalance"><span data-icon="check-circle"></span><span>رصيد الإجازات</span></button>
+                  </div>
+                </div>
+
+                <section class="report-tab-panel active" data-report-panel="leaveTravel">
+                  <div class="report-head">
+                    <div class="v284-report-heading"><span class="v284-report-heading-icon" data-icon="calendar"></span><div><h3>الإجازات والسفر</h3><p>تقرير موحد لطلبات الإجازات والسفر المسجلة في النظام</p></div></div>
+                    <div class="report-actions">
+                      <button type="button" class="secondary-btn" data-report-export="leaveTravel"><span data-icon="download"></span>تصدير PDF</button>
+                      <button type="button" class="secondary-btn" data-report-print="leaveTravel"><span data-icon="printer"></span>طباعة PDF</button>
+                    </div>
+                  </div>
+                  <div class="table-wrap reports-table-wrap"><table class="reports-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>السجلات</th></tr></thead><tbody id="reportLeaveTravelBody"><tr><td colspan="5">لا توجد بيانات للعرض</td></tr></tbody></table></div>
+                </section>
 
               <section class="report-tab-panel" data-report-panel="banking">
                 <div class="report-head">
-                  <div><h3>البيانات البنكية</h3><p>بيانات الحسابات البنكية المسجلة للموظفين</p></div>
+                  <div class="v284-report-heading"><span class="v284-report-heading-icon" data-icon="wallet"></span><div><h3>البيانات البنكية</h3><p>بيانات الحسابات البنكية المسجلة للموظفين</p></div></div>
                   <div class="report-actions">
                     <button type="button" class="secondary-btn" data-report-export="banking"><span data-icon="download"></span>تصدير PDF</button>
                     <button type="button" class="secondary-btn" data-report-print="banking"><span data-icon="printer"></span>طباعة PDF</button>
@@ -669,16 +685,16 @@
 
               <section class="report-tab-panel" data-report-panel="absences">
                 <div class="report-head">
-                  <div><h3>غياب هذا الشهر</h3><p>سجل الغياب والاستثناءات المرتبطة بالشهر الحالي</p></div>
+                  <div class="v284-report-heading"><span class="v284-report-heading-icon" data-icon="clock"></span><div><h3>غياب هذا الشهر</h3><p>سجل الغياب والاستثناءات المرتبطة بالشهر الحالي</p></div></div>
                   <div class="report-actions">
                     <button type="button" class="secondary-btn" data-report-export="absences"><span data-icon="download"></span>تصدير PDF</button>
                     <button type="button" class="secondary-btn" data-report-print="absences"><span data-icon="printer"></span>طباعة PDF</button>
                   </div>
                 </div>
                 <div class="report-month-filter" data-report-month-filter="absences" aria-label="فلتر شهر الغياب">
-                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="absences:-1">الشهر السابق</button>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="absences:-1"><span data-icon="chevron-right"></span><span>الشهر السابق</span></button>
                   <strong data-report-month-label="absences">الشهر الحالي</strong>
-                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="absences:1">الشهر التالي</button>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="absences:1"><span>الشهر التالي</span><span data-icon="chevron-left"></span></button>
                   <label>الشهر<select data-report-month-select="absences"></select></label>
                   <label>السنة<input type="number" min="2000" max="2100" step="1" data-report-year-input="absences"></label>
                 </div>
@@ -687,16 +703,16 @@
 
               <section class="report-tab-panel" data-report-panel="advances">
                 <div class="report-head">
-                  <div><h3>السلفيات</h3><p>السلفيات المسجلة للموظفين حسب بيانات الرواتب</p></div>
+                  <div class="v284-report-heading"><span class="v284-report-heading-icon" data-icon="wallet"></span><div><h3>السلفيات</h3><p>السلفيات المسجلة للموظفين حسب بيانات الرواتب</p></div></div>
                   <div class="report-actions">
                     <button type="button" class="secondary-btn" data-report-export="advances"><span data-icon="download"></span>تصدير PDF</button>
                     <button type="button" class="secondary-btn" data-report-print="advances"><span data-icon="printer"></span>طباعة PDF</button>
                   </div>
                 </div>
                 <div class="report-month-filter" data-report-month-filter="advances" aria-label="فلتر شهر السلفيات">
-                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="advances:-1">الشهر السابق</button>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="advances:-1"><span data-icon="chevron-right"></span><span>الشهر السابق</span></button>
                   <strong data-report-month-label="advances">الشهر الحالي</strong>
-                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="advances:1">الشهر التالي</button>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="advances:1"><span>الشهر التالي</span><span data-icon="chevron-left"></span></button>
                   <label>الشهر<select data-report-month-select="advances"></select></label>
                   <label>السنة<input type="number" min="2000" max="2100" step="1" data-report-year-input="advances"></label>
                 </div>
@@ -705,16 +721,16 @@
 
               <section class="report-tab-panel" data-report-panel="payrollRun">
                 <div class="report-head">
-                  <div><h3>مسير رواتب هذا الشهر</h3><p>تقرير مسير الرواتب حسب الشهر المحدد مع إمكانية الرجوع للمسيرات السابقة</p></div>
+                  <div class="v284-report-heading"><span class="v284-report-heading-icon" data-icon="file"></span><div><h3>مسير رواتب هذا الشهر</h3><p>تقرير مسير الرواتب حسب الشهر المحدد مع إمكانية الرجوع للمسيرات السابقة</p></div></div>
                   <div class="report-actions">
                     <button type="button" class="secondary-btn" data-report-export="payrollRun"><span data-icon="download"></span>تصدير PDF</button>
                     <button type="button" class="secondary-btn" data-report-print="payrollRun"><span data-icon="printer"></span>طباعة PDF</button>
                   </div>
                 </div>
                 <div class="report-month-filter" data-report-month-filter="payrollRun" aria-label="فلتر شهر مسير الرواتب">
-                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="payrollRun:-1">الشهر السابق</button>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="payrollRun:-1"><span data-icon="chevron-right"></span><span>الشهر السابق</span></button>
                   <strong data-report-month-label="payrollRun">الشهر الحالي</strong>
-                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="payrollRun:1">الشهر التالي</button>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="payrollRun:1"><span>الشهر التالي</span><span data-icon="chevron-left"></span></button>
                   <label>الشهر<select data-report-month-select="payrollRun"></select></label>
                   <label>السنة<input type="number" min="2000" max="2100" step="1" data-report-year-input="payrollRun"></label>
                 </div>
@@ -723,7 +739,7 @@
 
               <section class="report-tab-panel" data-report-panel="contracts">
                 <div class="report-head">
-                  <div><h3>بيانات العقود الوظيفية</h3><p>تواريخ العقود وفترة الإشعار وحالة العقد لكل موظف</p></div>
+                  <div class="v284-report-heading"><span class="v284-report-heading-icon" data-icon="file"></span><div><h3>بيانات العقود الوظيفية</h3><p>تواريخ العقود وفترة الإشعار وحالة العقد لكل موظف</p></div></div>
                   <div class="report-actions">
                     <button type="button" class="secondary-btn" data-report-export="contracts"><span data-icon="download"></span>تصدير PDF</button>
                     <button type="button" class="secondary-btn" data-report-print="contracts"><span data-icon="printer"></span>طباعة PDF</button>
@@ -734,16 +750,16 @@
 
               <section class="report-tab-panel" data-report-panel="attendance">
                 <div class="report-head">
-                  <div><h3>حضور الموظف</h3><p>تفاصيل حضور وغياب الموظفين حسب الشهر المحدد</p></div>
+                  <div class="v284-report-heading"><span class="v284-report-heading-icon" data-icon="users"></span><div><h3>حضور الموظف</h3><p>تفاصيل حضور وغياب الموظفين حسب الشهر المحدد</p></div></div>
                   <div class="report-actions">
                     <button type="button" class="secondary-btn" data-report-export="attendance"><span data-icon="download"></span>تصدير PDF</button>
                     <button type="button" class="secondary-btn" data-report-print="attendance"><span data-icon="printer"></span>طباعة PDF</button>
                   </div>
                 </div>
                 <div class="report-month-filter" data-report-month-filter="attendance" aria-label="فلتر شهر حضور الموظف">
-                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="attendance:-1">الشهر السابق</button>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="attendance:-1"><span data-icon="chevron-right"></span><span>الشهر السابق</span></button>
                   <strong data-report-month-label="attendance">الشهر الحالي</strong>
-                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="attendance:1">الشهر التالي</button>
+                  <button type="button" class="secondary-btn report-month-btn" data-report-month-shift="attendance:1"><span>الشهر التالي</span><span data-icon="chevron-left"></span></button>
                   <label>الشهر<select data-report-month-select="attendance"></select></label>
                   <label>السنة<input type="number" min="2000" max="2100" step="1" data-report-year-input="attendance"></label>
                 </div>
@@ -752,7 +768,7 @@
 
               <section class="report-tab-panel" data-report-panel="leaveBalance">
                 <div class="report-head">
-                  <div><h3>رصيد الإجازات</h3><p>رصيد الإجازات الأصلي والرصيد المتبقي لكل موظف حسب تاريخ الطباعة</p></div>
+                  <div class="v284-report-heading"><span class="v284-report-heading-icon" data-icon="check-circle"></span><div><h3>رصيد الإجازات</h3><p>رصيد الإجازات الأصلي والرصيد المتبقي لكل موظف حسب تاريخ الطباعة</p></div></div>
                   <div class="report-actions">
                     <button type="button" class="secondary-btn" data-report-export="leaveBalance"><span data-icon="download"></span>تصدير PDF</button>
                     <button type="button" class="secondary-btn" data-report-print="leaveBalance"><span data-icon="printer"></span>طباعة PDF</button>
@@ -760,7 +776,8 @@
                 </div>
                 <div class="table-wrap reports-table-wrap leave-balance-report-wrap"><table class="reports-table leave-balance-report-table"><thead><tr><th>رقم الموظف</th><th>اسم الموظف</th><th>الجنسية</th><th>رقم الهوية</th><th>المهنة</th><th>بداية العقد</th><th>تاريخ المباشرة</th><th>نهاية العقد الأخير</th><th>رصيد الإجازات</th><th>الرصيد المتبقي</th></tr></thead><tbody id="reportLeaveBalanceBody"><tr><td colspan="10">لا توجد بيانات للعرض</td></tr></tbody></table></div>
               </section>
-            </article>
+              </article>
+            </div>
           </section>
 
           <section class="view" id="departmentsView">
@@ -1546,6 +1563,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=283"></script>
+    <script src="app.js?v=284"></script>
   </body>
 </html>
