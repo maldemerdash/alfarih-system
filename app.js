@@ -39704,6 +39704,8 @@ async function init() {
     form.elements.district.innerHTML = options(districts, currentDistrict);
   }
   function renderCompanySettingsForm() {
+    if (typeof window.renderCompanySettingsV94 === "function")
+      return window.renderCompanySettingsV94();
     const section = document.querySelector('[data-settings-panel="company"]');
     if (!section) return;
     const data = getCompany();
@@ -40356,8 +40358,12 @@ async function init() {
       return !1;
     }
     const previous = getCompany();
-    saveCompany(patch);
-    sync.trackCompanyUpserts(Object.keys(patch || {}));
+    const confirmedPatch = {
+      ...(patch || {}),
+      companyProfileUpdatedAtV287: new Date().toISOString(),
+    };
+    saveCompany(confirmedPatch);
+    sync.trackCompanyUpserts(Object.keys(confirmedPatch));
     if (await sync.save(reason || "company-details-upsert")) return !0;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(previous));
     await sync.rollback(["companySettingsV92"]);
@@ -40571,10 +40577,117 @@ async function init() {
   let lastCompanyRenderSectionV236 = null;
   function companyRenderSignatureV236(data) {
     try {
-      return localStorage.getItem(STORAGE_KEY) || JSON.stringify(data);
+      const source = data && typeof data === "object" ? data : {};
+      return JSON.stringify(
+        Object.keys(source)
+          .sort()
+          .reduce((stable, key) => {
+            stable[key] = source[key];
+            return stable;
+          }, {}),
+      );
     } catch (_) {
       return JSON.stringify(data);
     }
+  }
+  function companyStatusV287(data) {
+    const officialFields = ["company", "unifiedNumber", "email", "phone"],
+      officialDone = officialFields.filter((field) =>
+        String(data?.[field] || "").trim(),
+      ).length,
+      mediaDone = [
+        data?.logoAttachmentId || data?.logoDataUrl,
+        data?.loginBackgroundAttachmentId || data?.loginBackgroundDataUrl,
+        data?.siteFaviconAttachmentId || data?.siteFaviconDataUrl,
+        data?.nationalAddressAttachmentId ||
+          data?.nationalAddressFileDataUrl,
+        data?.stampAttachmentId,
+      ].filter(Boolean).length,
+      savedAt = String(data?.companyProfileUpdatedAtV287 || "");
+    let savedLabel = "لم يُسجّل حفظ مؤكد بعد";
+    if (savedAt) {
+      try {
+        const parsed = new Date(savedAt);
+        if (!Number.isNaN(parsed.getTime()))
+          savedLabel = parsed.toLocaleString("ar-SA", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          });
+      } catch (_) {}
+    }
+    return {
+      officialDone,
+      officialTotal: officialFields.length,
+      officialPercent: Math.round(
+        (officialDone / officialFields.length) * 100,
+      ),
+      mediaDone,
+      mediaTotal: 5,
+      savedLabel,
+      hasConfirmedSave: Boolean(savedAt),
+    };
+  }
+  function updateCompanyStatusNodesV287(data = getCompany()) {
+    const form = document.querySelector(
+        '#settingsForm[data-v94-company="1"]',
+      ),
+      status = companyStatusV287(data);
+    if (!form) return false;
+    const official = form.querySelector(
+        '[data-v287-status-card="official"]',
+      ),
+      media = form.querySelector('[data-v287-status-card="media"]'),
+      cloud = form.querySelector('[data-v287-status-card="cloud"]');
+    if (official) {
+      const strong = official.querySelector("strong"),
+        detail = official.querySelector("div > span");
+      if (strong)
+        strong.textContent = `${status.officialDone} من ${status.officialTotal}`;
+      if (detail) detail.textContent = `${status.officialPercent}% مكتمل`;
+    }
+    if (media) {
+      const strong = media.querySelector("strong"),
+        detail = media.querySelector("div > span");
+      if (strong)
+        strong.textContent = `${status.mediaDone} من ${status.mediaTotal}`;
+      if (detail)
+        detail.textContent = status.mediaDone
+          ? "ملفات مرتبطة بالمنشأة"
+          : "لم تُرفع ملفات بعد";
+    }
+    if (cloud) {
+      cloud.dataset.v287CloudStatus = status.hasConfirmedSave
+        ? "confirmed"
+        : "pending";
+      const strong = cloud.querySelector("strong"),
+        detail = cloud.querySelector("div > span");
+      if (strong) strong.textContent = status.savedLabel;
+      if (detail)
+        detail.textContent = status.hasConfirmedSave
+          ? "تم تأكيد البيانات"
+          : "يظهر بعد أول حفظ ناجح";
+    }
+    [
+      ["logo", data.logoAttachmentId || data.logoDataUrl, "مرفوع"],
+      [
+        "login-background",
+        data.loginBackgroundAttachmentId || data.loginBackgroundDataUrl,
+        "مرفوعة",
+      ],
+      [
+        "favicon",
+        data.siteFaviconAttachmentId || data.siteFaviconDataUrl,
+        "مرفوعة",
+      ],
+    ].forEach(([kind, ready, readyLabel]) => {
+      const badge = form.querySelector(
+        `[data-v230-company-media="${kind}"] .v287-media-card-head small`,
+      );
+      if (!badge) return;
+      badge.dataset.state = ready ? "ready" : "empty";
+      badge.textContent = ready ? readyLabel : "غير مرفوعة";
+    });
+    return true;
   }
   function renderCompanySettingsV94(renderOptions = {}) {
     const section = document.querySelector('[data-settings-panel="company"]');
@@ -40582,7 +40695,18 @@ async function init() {
     const data = getCompany(),
       guide = guideNow(),
       signature = companyRenderSignatureV236(data),
-      current = section.querySelector('form[data-v94-company="1"]');
+      current = section.querySelector('form[data-v94-company="1"]'),
+      status = companyStatusV287(data);
+    if (
+      current?.dataset.v287Dirty === "1" &&
+      !renderOptions?.forceUiRefreshV236 &&
+      !renderOptions?.forceUiRefreshV287
+    ) {
+      section.dataset.v236CompanyState = "ready";
+      section.dataset.v287CompanyState = "draft";
+      section.setAttribute("aria-busy", "false");
+      return true;
+    }
     if (
       !renderOptions?.forceUiRefreshV236 &&
       current &&
@@ -40594,11 +40718,27 @@ async function init() {
       return true;
     }
     section.innerHTML = `
-      <div class="panel-head"><div><h3>بيانات المنشأة</h3><p>بيانات فعلية محفوظة وتظهر في هوية النظام وتسجيل الدخول.</p></div></div>
-      <form id="settingsForm" class="settings-form company-settings-real-form v94-company-form" data-v92-company="1" data-v94-company="1" data-v96-login-background-ready="1">
+      <div class="panel-head v287-company-panel-head"><div><h3>بيانات المنشأة</h3><p>المصدر المعتمد لهوية النظام والبيانات الرسمية والمرفقات السحابية.</p></div><span class="v287-company-cloud-badge"><span data-icon="check-circle"></span>حفظ سحابي مؤكد</span></div>
+      <form id="settingsForm" class="settings-form company-settings-real-form v94-company-form v287-company-form" data-v92-company="1" data-v94-company="1" data-v96-login-background-ready="1" data-v287-dirty="0">
+        <div class="v287-company-status-strip" aria-label="حالة بيانات المنشأة">
+          <article data-v287-status-card="official">
+            <span class="v287-company-status-icon"><span data-icon="building"></span></span>
+            <div><small>اكتمال البيانات الرسمية</small><strong>${status.officialDone} من ${status.officialTotal}</strong><span>${status.officialPercent}% مكتمل</span></div>
+          </article>
+          <article data-v287-status-card="media">
+            <span class="v287-company-status-icon"><span data-icon="file"></span></span>
+            <div><small>الهوية والمرفقات</small><strong>${status.mediaDone} من ${status.mediaTotal}</strong><span>${status.mediaDone ? "ملفات مرتبطة بالمنشأة" : "لم تُرفع ملفات بعد"}</span></div>
+          </article>
+          <article data-v287-status-card="cloud" data-v287-cloud-status="${status.hasConfirmedSave ? "confirmed" : "pending"}">
+            <span class="v287-company-status-icon"><span data-icon="check-circle"></span></span>
+            <div><small>آخر حفظ سحابي مؤكد</small><strong>${escape(status.savedLabel)}</strong><span>${status.hasConfirmedSave ? "تم تأكيد البيانات" : "يظهر بعد أول حفظ ناجح"}</span></div>
+          </article>
+        </div>
+        <section class="v287-company-block v287-company-identity-block">
+          <div class="v287-company-section-head"><div><span data-icon="camera"></span><div><h4>هوية المنشأة</h4><p>الشعار وخلفية الدخول وأيقونة التبويب.</p></div></div><small>صور محسّنة للحفاظ على سرعة الموقع</small></div>
         <div class="v230-company-media-grid" data-v230-company-media-grid="1">
         <article class="company-logo-upload company-logo-upload-real v94-logo-upload v230-company-media-card" data-v230-company-media="logo">
-          <strong class="v230-company-media-title">شعار المنشأة</strong>
+          <div class="v287-media-card-head"><strong class="v230-company-media-title">شعار المنشأة</strong><small data-state="${data.logoAttachmentId || data.logoDataUrl ? "ready" : "empty"}">${data.logoAttachmentId || data.logoDataUrl ? "مرفوع" : "غير مرفوع"}</small></div>
           <div class="company-logo-preview v230-company-media-preview" id="companyLogoPreview" data-v236-preview-key="${escape(data.logoDataUrl || "")}"></div>
           <div class="v230-company-media-actions">
             <label class="secondary-btn company-logo-btn">رفع الشعار<input type="file" name="logoFile" accept="image/png,image/jpeg,image/webp" hidden></label>
@@ -40606,7 +40746,7 @@ async function init() {
           </div>
         </article>
         <article class="company-logo-upload company-logo-upload-real v96-login-bg-upload v146-login-bg-card v230-company-media-card" data-v96-login-bg-control="1" data-v230-company-media="login-background">
-          <strong class="v230-company-media-title">خلفية الدخول</strong>
+          <div class="v287-media-card-head"><strong class="v230-company-media-title">خلفية الدخول</strong><small data-state="${data.loginBackgroundAttachmentId || data.loginBackgroundDataUrl ? "ready" : "empty"}">${data.loginBackgroundAttachmentId || data.loginBackgroundDataUrl ? "مرفوعة" : "غير مرفوعة"}</small></div>
           <div class="login-bg-preview v230-company-media-preview" id="loginBgPreview" data-v236-preview-key="${escape(data.loginBackgroundDataUrl || "")}">${data.loginBackgroundDataUrl ? `<img src="${escape(data.loginBackgroundDataUrl)}" alt="خلفية تسجيل الدخول">` : "<span>خلفية</span>"}</div>
           <div class="v96-bg-actions v230-company-media-actions">
             <label class="secondary-btn company-logo-btn">رفع الصورة<input type="file" name="loginBackgroundFile" accept="image/png,image/jpeg,image/webp" hidden></label>
@@ -40615,7 +40755,7 @@ async function init() {
           ${data.loginBackgroundAttachmentId || data.loginBackgroundDataUrl ? '<button type="button" class="v232-login-bg-delete" id="removeLoginBackgroundBtn" data-v146-remove-login-bg="1" data-v236-delete-ready="1" title="حذف خلفية الدخول" aria-label="حذف خلفية الدخول"><span data-icon="trash"></span></button>' : ""}
         </article>
         <article class="company-logo-upload company-logo-upload-real v192-site-favicon-card v230-company-media-card" data-v192-site-favicon-control="1" data-v230-company-media="favicon">
-          <strong class="v230-company-media-title">أيقونة التبويب</strong>
+          <div class="v287-media-card-head"><strong class="v230-company-media-title">أيقونة التبويب</strong><small data-state="${data.siteFaviconAttachmentId || data.siteFaviconDataUrl ? "ready" : "empty"}">${data.siteFaviconAttachmentId || data.siteFaviconDataUrl ? "مرفوعة" : "غير مرفوعة"}</small></div>
           <div class="company-logo-preview v192-site-favicon-preview v230-company-media-preview" id="siteFaviconPreview">${data.siteFaviconDataUrl ? `<img src="${escape(data.siteFaviconDataUrl)}" alt="أيقونة تبويب الموقع">` : "<span>تبويب</span>"}</div>
           <div class="v192-media-actions v230-company-media-actions">
             <label class="secondary-btn company-logo-btn">رفع الأيقونة<input type="file" name="siteFaviconFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></label>
@@ -40623,14 +40763,18 @@ async function init() {
           </div>
         </article>
         </div>
+        </section>
+        <section class="v287-company-block v287-company-official-block">
+          <div class="v287-company-section-head"><div><span data-icon="building"></span><div><h4>البيانات الرسمية</h4><p>المعلومات الأساسية التي تظهر في مستندات وهوية المنشأة.</p></div></div><small>${status.officialPercent}% مكتمل</small></div>
         <div class="form-grid company-real-grid">
           <label><span>اسم المنشأة</span><input name="company" value="${escape(data.company)}" autocomplete="organization" /></label>
           <label><span>الرقم الموحد</span><input name="unifiedNumber" value="${escape(data.unifiedNumber)}" inputmode="numeric" /></label>
           <label><span>البريد الإلكتروني</span><input type="email" name="email" value="${escape(data.email)}" /></label>
           <label><span>رقم التواصل</span><input name="phone" value="${escape(data.phone)}" inputmode="tel" /></label>
         </div>
-        <div class="national-address-card v94-national-address-card">
-          <div class="national-address-head"><h4>العنوان الوطني السعودي</h4><p>المنطقة والمدينة والحي قوائم مترابطة، ويتم تحميل الدليل الكامل عند فتح بيانات المنشأة مع نسخة احتياطية محلية.</p></div>
+        </section>
+        <div class="national-address-card v94-national-address-card v287-company-block">
+          <div class="national-address-head v287-company-section-head"><div><span data-icon="home"></span><div><h4>العنوان الوطني السعودي</h4><p>قوائم مترابطة مع نسخة محلية احتياطية لضمان سرعة الفتح.</p></div></div><small>${data.nationalAddressAttachmentId || data.nationalAddressFileDataUrl ? "المرفق محفوظ" : "المرفق اختياري"}</small></div>
           <div class="form-grid company-address-grid">
             <label><span>العنوان المختصر</span><input name="shortAddress" value="${escape(data.shortAddress)}" placeholder="مثال: RDBA1234" /></label>
             <label><span>صندوق البريد</span><input name="poBox" value="${escape(data.poBox)}" inputmode="numeric" /></label>
@@ -40647,14 +40791,58 @@ async function init() {
             <div class="full-field national-address-attachment v230-national-address-attachment"><span>مرفق العنوان الوطني</span><div class="attachment-line v94-attachment-line"><strong id="nationalAddressFileName">${escape(data.nationalAddressFileName || "لم يتم إرفاق ملف")}</strong><div class="attachment-actions"><label class="secondary-btn">رفع المرفق<input type="file" name="nationalAddressFile" accept="application/pdf,image/png,image/jpeg,image/webp" hidden></label>${data.nationalAddressAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-v230-view="national-address" data-view-attachment="${escape(data.nationalAddressAttachmentId)}" data-attachment-id="${escape(data.nationalAddressAttachmentId)}" title="معاينة مرفق العنوان الوطني"><span data-icon="eye"></span></button><button type="button" class="v233-cloud-media-delete v233-national-address-delete" data-v233-delete-company-media="national-address" data-v236-delete-ready="1" title="حذف مرفق العنوان الوطني" aria-label="حذف مرفق العنوان الوطني"><span data-icon="trash"></span></button>` : data.nationalAddressFileDataUrl ? `<button type="button" class="secondary-btn v94-download-address" data-download-national-address="1"><span data-icon="download"></span> تنزيل</button>` : ""}</div></div></div>
           </div>
         </div>
-        <div class="company-logo-upload company-logo-upload-real company-stamp-upload-card v191-company-stamp v192-company-stamp-card v204-company-stamp-card v233-company-stamp-card" data-v191-company-stamp="1" data-v236-stamp-signature="${escape([data.stampAttachmentId || "", data.stampFileName || ""].join("|"))}">
+        <div class="company-logo-upload company-logo-upload-real company-stamp-upload-card v191-company-stamp v192-company-stamp-card v204-company-stamp-card v233-company-stamp-card v287-company-block" data-v191-company-stamp="1" data-v236-stamp-signature="${escape([data.stampAttachmentId || "", data.stampFileName || ""].join("|"))}">
           <div class="company-logo-preview v192-stamp-preview" id="companyStampPreview"><span>ختم</span></div>
           <div class="company-logo-copy"><strong>ختم المنشأة</strong><span>يستخدم في خطابات الإجازات والسفر بعد الاعتماد.</span><small id="companyStampFileName">${escape(data.stampFileName || (data.stampAttachmentId ? "تم إرفاق ختم المنشأة" : "لم يتم إرفاق ختم"))}</small></div>
           <div class="v192-media-actions v233-stamp-actions"><label class="secondary-btn company-logo-btn">رفع الختم<input type="file" name="companyStampFile" accept="image/*,.pdf" hidden></label>${data.stampAttachmentId ? `<button type="button" class="attachment-view-btn attachment-preview-btn v230-media-view-btn" data-view-attachment="${escape(data.stampAttachmentId)}" data-attachment-id="${escape(data.stampAttachmentId)}" title="عرض الختم"><span data-icon="eye"></span></button><button type="button" class="v233-cloud-media-delete v233-stamp-delete" data-v233-delete-company-media="stamp" title="حذف ختم المنشأة" aria-label="حذف ختم المنشأة"><span data-icon="trash"></span></button>` : ""}</div>
         </div>
-        <div class="form-actions"><button type="button" class="secondary-btn" id="resetCompanySettingsBtn">إلغاء التغييرات</button><button type="submit" class="primary-btn">حفظ بيانات المنشأة</button></div>
+        <div class="form-actions v287-company-actions">
+          <div class="v287-company-save-state" data-v287-save-state="synced"><span data-icon="check-circle"></span><div><strong>البيانات المعروضة مطابقة للنسخة المحفوظة</strong><small>لن يُعاد رسم النموذج أثناء الكتابة.</small></div></div>
+          <div class="v287-company-action-buttons"><button type="button" class="secondary-btn" id="resetCompanySettingsBtn" disabled>إلغاء التغييرات</button><button type="submit" class="primary-btn" disabled><span data-icon="check"></span><span data-v287-submit-label>حفظ بيانات المنشأة</span></button></div>
+        </div>
       </form>`;
     const form = section.querySelector("form");
+    const submitButtonV287 = form.querySelector('[type="submit"]'),
+      resetButtonV287 = form.querySelector("#resetCompanySettingsBtn"),
+      saveStateV287 = form.querySelector("[data-v287-save-state]");
+    function setCompanyFormStateV287(state) {
+      const dirty = state === "dirty",
+        saving = state === "saving";
+      form.dataset.v287Dirty = dirty ? "1" : "0";
+      form.dataset.v287State = state;
+      section.dataset.v287CompanyState = state;
+      if (submitButtonV287) {
+        submitButtonV287.disabled = !dirty || saving;
+        submitButtonV287.setAttribute(
+          "aria-busy",
+          saving ? "true" : "false",
+        );
+      }
+      if (resetButtonV287) resetButtonV287.disabled = !dirty || saving;
+      if (!saveStateV287) return;
+      saveStateV287.dataset.v287SaveState = state;
+      const title = saveStateV287.querySelector("strong"),
+        note = saveStateV287.querySelector("small");
+      if (title)
+        title.textContent = saving
+          ? "جارٍ تأكيد الحفظ السحابي..."
+          : dirty
+            ? "توجد تغييرات لم تُحفظ بعد"
+            : "البيانات المعروضة مطابقة للنسخة المحفوظة";
+      if (note)
+        note.textContent = saving
+          ? "لن تظهر رسالة النجاح إلا بعد تأكيد السحابة."
+          : dirty
+            ? "احفظ التغييرات لتظهر في جميع المتصفحات."
+            : "لن يُعاد رسم النموذج أثناء الكتابة.";
+    }
+    function markCompanyFormDirtyV287(event) {
+      if (event?.target?.type === "file") return;
+      if (form.dataset.savingV228 === "1") return;
+      setCompanyFormStateV287("dirty");
+    }
+    form.addEventListener("input", markCompanyFormDirtyV287);
+    form.addEventListener("change", markCompanyFormDirtyV287);
     applyLogoPreview(data);
     updateCityDistrictOptions(form, data);
     form.elements.region?.addEventListener("change", () => {
@@ -40683,9 +40871,13 @@ async function init() {
       });
     section
       .querySelector("#resetCompanySettingsBtn")
-      ?.addEventListener("click", () =>
-        renderCompanySettingsV94({ forceUiRefreshV236: true }),
-      );
+      ?.addEventListener("click", () => {
+        renderCompanySettingsV94({
+          forceUiRefreshV236: true,
+          forceUiRefreshV287: true,
+        });
+        applyCompanyBrandingV94(getCompany());
+      });
     try {
       if (typeof hydrateIcons === "function") hydrateIcons(section);
     } catch (_) {}
@@ -40695,6 +40887,7 @@ async function init() {
     lastCompanyRenderSectionV236 = section;
     lastCompanyRenderSignatureV236 = signature;
     section.dataset.v236CompanyState = "ready";
+    section.dataset.v287CompanyState = "synced";
     section.setAttribute("aria-busy", "false");
     loadSaudiGuide().then((full) => {
       if (
@@ -40705,7 +40898,11 @@ async function init() {
       ) {
         const active = getCompany();
         const f = section.querySelector("form");
-        if (f) {
+        if (
+          f &&
+          f.dataset.v287Dirty !== "1" &&
+          f.dataset.savingV228 !== "1"
+        ) {
           f.elements.region.innerHTML = options(
             Object.keys(full).sort((a, b) => a.localeCompare(b, "ar")),
             active.region,
@@ -40726,6 +40923,7 @@ async function init() {
     return true;
   }
   window.renderCompanySettingsV94 = renderCompanySettingsV94;
+  window.nawahUpdateCompanyStatusV287 = updateCompanyStatusNodesV287;
   document.addEventListener(
     "submit",
     async function (e) {
@@ -40735,6 +40933,11 @@ async function init() {
       e.stopPropagation();
       e.stopImmediatePropagation?.();
       if (form.dataset.savingV228 === "1") return;
+      if (
+        form.dataset.v287Dirty === "0" &&
+        form.dataset.v287State !== "dirty"
+      )
+        return;
       const patch = {
         company:
           form.elements.company?.value?.trim() || DEFAULT_COMPANY.company,
@@ -40755,23 +40958,43 @@ async function init() {
         return;
       }
       form.dataset.savingV228 = "1";
+      form.dataset.v287State = "saving";
+      form
+        .closest('[data-settings-panel="company"]')
+        ?.setAttribute("data-v287-company-state", "saving");
       const submitButton = form.querySelector('[type="submit"]');
       submitButton && (submitButton.disabled = !0);
+      submitButton?.setAttribute("aria-busy", "true");
+      const saveState = form.querySelector("[data-v287-save-state]");
+      if (saveState) {
+        saveState.dataset.v287SaveState = "saving";
+        const title = saveState.querySelector("strong"),
+          note = saveState.querySelector("small");
+        if (title) title.textContent = "جارٍ تأكيد الحفظ السحابي...";
+        if (note)
+          note.textContent = "لن تظهر رسالة النجاح إلا بعد تأكيد السحابة.";
+      }
       const saved = await persistCompanyDataV228(
         patch,
         "company-details-upsert",
       );
       delete form.dataset.savingV228;
       submitButton && (submitButton.disabled = !1);
+      submitButton?.removeAttribute("aria-busy");
       if (!saved) {
-        renderCompanySettingsV94({ forceUiRefreshV236: true });
+        renderCompanySettingsV94({
+          forceUiRefreshV236: true,
+          forceUiRefreshV287: true,
+        });
         return;
       }
+      form.dataset.v287Dirty = "0";
+      form.dataset.v287State = "synced";
       applyCompanyBrandingV94();
       try {
         await window.applyCompanyMediaV101?.();
       } catch (_) {}
-      renderCompanySettingsV94();
+      renderCompanySettingsV94({ forceUiRefreshV287: true });
       try {
         typeof showToast === "function"
           ? showToast("تم حفظ بيانات المنشأة سحابيًا وتحديث العنوان الوطني.")
@@ -41800,9 +42023,17 @@ async function init() {
   }
   async function persistCompanyMediaV228(previous, patch, reason) {
     const sync = identitySyncV228();
-    writeCompany(patch);
-    sync.trackCompanyUpserts(Object.keys(patch || {}));
-    if (await sync.save(reason || "company-media-upsert")) return !0;
+    const confirmedPatch = Object.assign({}, patch || {}, {
+      companyProfileUpdatedAtV287: new Date().toISOString(),
+    });
+    writeCompany(confirmedPatch);
+    sync.trackCompanyUpserts(Object.keys(confirmedPatch));
+    if (await sync.save(reason || "company-media-upsert")) {
+      try {
+        window.nawahUpdateCompanyStatusV287?.(readCompany());
+      } catch (_) {}
+      return !0;
+    }
     localStorage.setItem(COMPANY_KEY, JSON.stringify(previous || {}));
     await sync.rollback(["companySettingsV92"]);
     throw new Error("تعذر تأكيد حفظ مرجع الملف في السحابة.");
@@ -66199,14 +66430,20 @@ window.nawahLeaveBalanceReportV185 = {
   async function persistCompanyIdentityV228(previous, patch, reason) {
     const sync = identitySyncV228();
     if (!sync) throw new Error("company-identity-sync-unavailable");
-    saveCompany(patch);
-    sync.trackCompanyUpserts(Object.keys(patch || {}));
+    const confirmedPatch = Object.assign({}, patch || {}, {
+      companyProfileUpdatedAtV287: new Date().toISOString(),
+    });
+    saveCompany(confirmedPatch);
+    sync.trackCompanyUpserts(Object.keys(confirmedPatch));
     const saved = await sync.save(reason || "company-identity-save");
     if (!saved) {
       localStorage.setItem(COMPANY_KEY, JSON.stringify(previous || {}));
       await sync.rollback(["companySettingsV92"]);
       throw new Error("company-identity-cloud-save-failed");
     }
+    try {
+      window.nawahUpdateCompanyStatusV287?.(readCompany());
+    } catch (_) {}
     return readCompany();
   }
   function companyLogoCard(form) {
