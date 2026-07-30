@@ -75414,7 +75414,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       '" aria-label="' +
       (branch.visible ? "تعطيل الفرع" : "تفعيل الفرع") +
       '">' +
-      icon(branch.visible ? "eye-off" : "eye") +
+      icon(branch.visible ? "eye" : "eye-off") +
       "</button>" +
       '<button type="button" class="v288-branch-icon-btn is-danger" data-v288-delete-branch="' +
       escape(branch.id) +
@@ -75439,9 +75439,11 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       escape(managerName(branch)) +
       "</strong></td><td><span dir=\"ltr\" class=\"v288-branch-phone\">" +
       escape(branch.phone || "—") +
-      "</span></td><td><span class=\"v288-branch-count\">" +
+      '</span></td><td><button type="button" class="v288-branch-count v289-branch-employees-trigger" data-v289-branch-employees="' +
+      escape(branch.id) +
+      '" title="عرض موظفي الفرع" aria-label="عرض موظفي الفرع">' +
       count.employees +
-      "</span></td><td><span class=\"v288-branch-count\">" +
+      '</button></td><td><span class="v288-branch-count">' +
       count.documents +
       '</span></td><td><span class="v288-branch-status ' +
       (branch.visible ? "is-active" : "is-inactive") +
@@ -75472,9 +75474,11 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       escape(managerName(branch)) +
       "</strong></span><span><small>الهاتف</small><strong dir=\"ltr\">" +
       escape(branch.phone || "—") +
-      "</strong></span><span><small>الموظفون</small><strong>" +
+      '</strong></span><span><small>الموظفون</small><button type="button" class="v289-mobile-employee-count" data-v289-branch-employees="' +
+      escape(branch.id) +
+      '" title="عرض موظفي الفرع">' +
       count.employees +
-      "</strong></span><span><small>الوثائق</small><strong>" +
+      "</button></span><span><small>الوثائق</small><strong>" +
       count.documents +
       "</strong></span></div>" +
       actionButtons(branch) +
@@ -75933,7 +75937,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     dialog.innerHTML =
       '<div class="modal-head"><div><span class="v288-modal-eyebrow is-danger">إجراء محمي</span><h2>حذف الفرع</h2><p>يتم الحذف من السحابة بعد التأكيد فقط.</p></div><button type="button" class="icon-btn" data-v288-close-branch-delete aria-label="إغلاق"><span data-icon="x"></span></button></div><div class="modal-body"><div class="v288-delete-warning"><span>' +
       icon("alert-circle") +
-      '</span><div><strong data-v288-delete-title></strong><p data-v288-delete-message></p></div></div></div><div class="modal-actions"><button type="button" class="secondary-btn" data-v288-close-branch-delete>إلغاء</button><button type="button" class="primary-btn v288-confirm-delete" data-v288-confirm-branch-delete><span data-icon="trash"></span>تأكيد الحذف</button></div>';
+      '</span><div><strong data-v288-delete-title></strong><p data-v288-delete-message></p></div></div></div><div class="modal-actions"><button type="button" class="secondary-btn" data-v288-close-branch-delete>إلغاء</button><button type="button" class="primary-btn v289-transfer-first-btn" data-v289-open-branch-employees-from-delete hidden><span data-icon="users"></span>نقل الموظفين أولًا</button><button type="button" class="primary-btn v288-confirm-delete" data-v288-confirm-branch-delete><span data-icon="trash"></span>تأكيد الحذف</button></div>';
     document.body.appendChild(dialog);
     hydrate(dialog);
     return dialog;
@@ -75945,14 +75949,29 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     });
     if (!branch) return notify("لم يعد الفرع موجودًا");
     const count = metricsFor(branch);
-    if (count.employees > 0)
-      return notify(
-        "لا يمكن حذف الفرع لأنه مرتبط بـ " +
-          count.employees +
-          " موظف. انقل الموظفين أولًا",
-      );
     const dialog = ensureDeleteDialog();
     state.deletingId = branch.id;
+    dialog.dataset.branchId = branch.id;
+    const confirmButton = dialog.querySelector(
+      "[data-v288-confirm-branch-delete]",
+    );
+    const transferButton = dialog.querySelector(
+      "[data-v289-open-branch-employees-from-delete]",
+    );
+    if (count.employees > 0) {
+      dialog.querySelector("[data-v288-delete-title]").textContent =
+        "لا يمكن حذف «" + branch.name + "»";
+      dialog.querySelector("[data-v288-delete-message]").textContent =
+        "الفرع مرتبط بـ " +
+        count.employees +
+        " موظف. انقل الموظفين إلى فرع آخر قبل تنفيذ الحذف.";
+      confirmButton.hidden = true;
+      transferButton.hidden = false;
+      showDialog(dialog);
+      return;
+    }
+    confirmButton.hidden = false;
+    transferButton.hidden = true;
     dialog.querySelector("[data-v288-delete-title]").textContent =
       "سيتم حذف «" + branch.name + "» نهائيًا";
     dialog.querySelector("[data-v288-delete-message]").textContent =
@@ -75961,7 +75980,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
           count.documents +
           " وثيقة، وستُنقل إلى المنشأة الرئيسية قبل حذف الفرع."
         : "لا يوجد موظفون أو وثائق مرتبطة بهذا الفرع.";
-    dialog.querySelector("[data-v288-confirm-branch-delete]").disabled = false;
+    confirmButton.disabled = false;
     showDialog(dialog);
   }
 
@@ -76189,4 +76208,746 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
   };
 
   if (panelActive()) render(true);
+})();
+
+/* v289 - cloud-atomic employee transfers between branches. */
+(function v289BranchEmployeeTransfers() {
+  if (window.__v289BranchEmployeeTransfers) return;
+  window.__v289BranchEmployeeTransfers = true;
+
+  const BRANCH_KEY = "nawah-branches";
+  const EMPLOYEE_KEY = "nawah-employees";
+  const state = {
+    branchId: "",
+    query: "",
+    selected: new Set(),
+    saving: false,
+  };
+
+  function text(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function escape(value) {
+    try {
+      if (typeof escapeHtml === "function") return escapeHtml(text(value));
+    } catch (_) {}
+    return text(value).replace(/[&<>"']/g, function (character) {
+      return (
+        {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        }[character] || character
+      );
+    });
+  }
+
+  function icon(name) {
+    try {
+      if (typeof iconSvg === "function") return iconSvg(name);
+    } catch (_) {}
+    return '<span data-icon="' + escape(name) + '"></span>';
+  }
+
+  function hydrate(root) {
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(root || document);
+    } catch (_) {}
+  }
+
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") return showToast(message);
+    } catch (_) {}
+    console.info(message);
+  }
+
+  function readJson(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function writeJson(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  function clone(value) {
+    try {
+      return structuredClone(value);
+    } catch (_) {
+      return JSON.parse(JSON.stringify(value));
+    }
+  }
+
+  function uid(prefix) {
+    return (
+      prefix +
+      "-" +
+      Date.now().toString(36) +
+      "-" +
+      Math.random().toString(36).slice(2, 9)
+    );
+  }
+
+  function branches() {
+    const rows = readJson(BRANCH_KEY, []);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  function employeeRows() {
+    try {
+      if (Array.isArray(window.employees)) return window.employees;
+    } catch (_) {}
+    const rows = readJson(EMPLOYEE_KEY, []);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  function branchById(id, rows = branches()) {
+    return (
+      rows.find(function (branch) {
+        return text(branch?.id) === text(id);
+      }) || null
+    );
+  }
+
+  function employeeInBranch(employee, branch) {
+    const value = text(employee?.branch);
+    return Boolean(
+      branch &&
+        value &&
+        (value === text(branch.id) || value === text(branch.name)),
+    );
+  }
+
+  function employeesForBranch(branchId) {
+    const branch = branchById(branchId);
+    return employeeRows().filter(function (employee) {
+      return employeeInBranch(employee, branch);
+    });
+  }
+
+  function employeeLabel(employee, field, fallback) {
+    return text(employee?.[field]) || fallback || "—";
+  }
+
+  function actorName() {
+    return (
+      text(
+        document.querySelector(
+          ".user-info strong, .top-user-name, [data-current-user-name]",
+        )?.textContent,
+      ) || "مستخدم النظام"
+    );
+  }
+
+  function formatTransferDate(value) {
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "—";
+      return new Intl.DateTimeFormat("ar-SA", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(date);
+    } catch (_) {
+      return text(value) || "—";
+    }
+  }
+
+  function transferHistory(branchId) {
+    const byId = new Map();
+    branches().forEach(function (branch) {
+      const records = Array.isArray(branch?.transferHistory)
+        ? branch.transferHistory
+        : [];
+      records.forEach(function (record) {
+        if (
+          !record?.id ||
+          (text(record.fromBranchId) !== text(branchId) &&
+            text(record.toBranchId) !== text(branchId))
+        )
+          return;
+        byId.set(text(record.id), record);
+      });
+    });
+    return Array.from(byId.values()).sort(function (first, second) {
+      return text(second.createdAt).localeCompare(text(first.createdAt));
+    });
+  }
+
+  function destinationOptions(sourceId, selected) {
+    const rows = branches().filter(function (branch) {
+      return (
+        text(branch?.id) !== text(sourceId) && branch?.visible !== false
+      );
+    });
+    return (
+      '<option value="">اختر الفرع الجديد</option>' +
+      rows
+        .map(function (branch) {
+          return (
+            '<option value="' +
+            escape(branch.id) +
+            '"' +
+            (text(branch.id) === text(selected) ? " selected" : "") +
+            ">" +
+            escape(branch.name) +
+            "</option>"
+          );
+        })
+        .join("")
+    );
+  }
+
+  function ensureDialog() {
+    let dialog = document.getElementById("branchEmployeesModalV289");
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.id = "branchEmployeesModalV289";
+    dialog.className = "modal v289-branch-employees-modal";
+    dialog.innerHTML =
+      '<div class="modal-head v289-branch-employees-head"><div><span class="v289-modal-eyebrow">إدارة موظفي الفرع</span><h2 data-v289-employees-title>موظفو الفرع</h2><p data-v289-employees-subtitle>عرض الموظفين ونقلهم إلى فرع آخر.</p></div><button type="button" class="icon-btn" data-v289-close-branch-employees aria-label="إغلاق"><span data-icon="x"></span></button></div>' +
+      '<div class="modal-body v289-branch-employees-body"><section class="v289-branch-employees-tools"><label class="v289-branch-employee-search"><span>' +
+      icon("search") +
+      '</span><input type="search" data-v289-branch-employee-search placeholder="ابحث بالاسم أو الرقم أو الإدارة..."></label><span data-v289-selection-summary>لم يتم تحديد موظفين</span></section>' +
+      '<section class="v289-branch-employees-list-card"><div class="v289-branch-employees-table-wrap"><table class="v289-branch-employees-table"><thead><tr><th><label class="v289-check-line"><input type="checkbox" data-v289-select-all-employees><span>الكل</span></label></th><th>الموظف</th><th>الإدارة</th><th>القسم</th><th>المسمى الوظيفي</th></tr></thead><tbody data-v289-branch-employees-body></tbody></table></div><div class="v289-branch-employees-mobile" data-v289-branch-employees-mobile></div></section>' +
+      '<section class="v289-transfer-history-card"><header><div><strong>سجل النقل</strong><small>آخر العمليات المرتبطة بهذا الفرع.</small></div><span data-v289-history-count>0 عملية</span></header><div data-v289-transfer-history></div></section></div>' +
+      '<div class="modal-actions v289-transfer-actions"><div><label><span>الفرع الجديد</span><select data-v289-transfer-destination></select></label><small data-v289-transfer-hint>حدد الموظفين ثم اختر الفرع الجديد.</small></div><button type="button" class="secondary-btn" data-v289-close-branch-employees>إغلاق</button><button type="button" class="primary-btn" data-v289-transfer-employees disabled><span data-icon="arrow-left"></span><span data-v289-transfer-label>نقل الموظفين</span></button></div>';
+    document.body.appendChild(dialog);
+    hydrate(dialog);
+    return dialog;
+  }
+
+  function showDialog(dialog) {
+    try {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    } catch (_) {
+      dialog.setAttribute("open", "");
+    }
+  }
+
+  function closeDialog(dialog) {
+    try {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    } catch (_) {
+      dialog.removeAttribute("open");
+    }
+  }
+
+  function filteredEmployees() {
+    const query = text(state.query).toLocaleLowerCase("ar");
+    return employeesForBranch(state.branchId).filter(function (employee) {
+      if (!query) return true;
+      return [
+        employee?.employeeNumber,
+        employee?.name,
+        employee?.department,
+        employee?.section,
+        employee?.role,
+        employee?.jobTitle,
+      ]
+        .join(" ")
+        .toLocaleLowerCase("ar")
+        .includes(query);
+    });
+  }
+
+  function employeeRow(employee) {
+    const id = text(employee?.id);
+    const checked = state.selected.has(id);
+    return (
+      '<tr data-v289-employee-row="' +
+      escape(id) +
+      '"><td><input type="checkbox" data-v289-employee-select="' +
+      escape(id) +
+      '"' +
+      (checked ? " checked" : "") +
+      ' aria-label="تحديد الموظف"></td><td><div class="v289-employee-identity"><span>' +
+      escape(employeeLabel(employee, "employeeNumber", "—")) +
+      "</span><div><strong>" +
+      escape(employeeLabel(employee, "name", "بدون اسم")) +
+      "</strong><small>" +
+      escape(employeeLabel(employee, "phone", "—")) +
+      "</small></div></div></td><td>" +
+      escape(employeeLabel(employee, "department")) +
+      "</td><td>" +
+      escape(employeeLabel(employee, "section")) +
+      "</td><td>" +
+      escape(
+        employeeLabel(
+          employee,
+          "role",
+          employeeLabel(employee, "jobTitle"),
+        ),
+      ) +
+      "</td></tr>"
+    );
+  }
+
+  function employeeCard(employee) {
+    const id = text(employee?.id);
+    const checked = state.selected.has(id);
+    return (
+      '<label class="v289-employee-mobile-card"><input type="checkbox" data-v289-employee-select="' +
+      escape(id) +
+      '"' +
+      (checked ? " checked" : "") +
+      '><div><header><strong>' +
+      escape(employeeLabel(employee, "name", "بدون اسم")) +
+      "</strong><span>" +
+      escape(employeeLabel(employee, "employeeNumber", "—")) +
+      "</span></header><p>" +
+      escape(employeeLabel(employee, "department")) +
+      " · " +
+      escape(employeeLabel(employee, "section")) +
+      "</p><small>" +
+      escape(
+        employeeLabel(
+          employee,
+          "role",
+          employeeLabel(employee, "jobTitle"),
+        ),
+      ) +
+      "</small></div></label>"
+    );
+  }
+
+  function historyMarkup(branchId) {
+    const records = transferHistory(branchId).slice(0, 6);
+    if (!records.length)
+      return (
+        '<div class="v289-transfer-history-empty"><span>' +
+        icon("arrow-left") +
+        "</span><strong>لا توجد عمليات نقل مسجلة</strong><small>ستظهر هنا العمليات المؤكدة سحابيًا.</small></div>"
+      );
+    return records
+      .map(function (record) {
+        const incoming = text(record.toBranchId) === text(branchId);
+        const names = Array.isArray(record.employeeNames)
+          ? record.employeeNames
+          : [];
+        return (
+          '<article class="v289-transfer-history-row"><span class="' +
+          (incoming ? "is-incoming" : "is-outgoing") +
+          '">' +
+          icon(incoming ? "arrow-right" : "arrow-left") +
+          "</span><div><strong>" +
+          (incoming ? "استقبال " : "نقل ") +
+          Number(record.count || names.length || 0) +
+          " موظف</strong><small>" +
+          escape(
+            incoming
+              ? "من " + text(record.fromBranchName)
+              : "إلى " + text(record.toBranchName),
+          ) +
+          "</small><p>" +
+          escape(names.slice(0, 3).join("، ")) +
+          (names.length > 3 ? " وآخرون" : "") +
+          "</p></div><time>" +
+          escape(formatTransferDate(record.createdAt)) +
+          "</time></article>"
+        );
+      })
+      .join("");
+  }
+
+  function updateSelectionState() {
+    const dialog = ensureDialog();
+    const all = filteredEmployees();
+    const selectedCount = state.selected.size;
+    const summary = dialog.querySelector("[data-v289-selection-summary]");
+    const button = dialog.querySelector("[data-v289-transfer-employees]");
+    const destination = dialog.querySelector(
+      "[data-v289-transfer-destination]",
+    );
+    const selectAll = dialog.querySelector(
+      "[data-v289-select-all-employees]",
+    );
+    if (summary)
+      summary.textContent = selectedCount
+        ? "تم تحديد " + selectedCount + " موظف"
+        : "لم يتم تحديد موظفين";
+    if (button)
+      button.disabled = Boolean(
+        state.saving || !selectedCount || !text(destination?.value),
+      );
+    if (selectAll) {
+      const visibleIds = all.map(function (employee) {
+        return text(employee.id);
+      });
+      const checkedVisible = visibleIds.filter(function (id) {
+        return state.selected.has(id);
+      }).length;
+      selectAll.checked =
+        Boolean(visibleIds.length) && checkedVisible === visibleIds.length;
+      selectAll.indeterminate =
+        checkedVisible > 0 && checkedVisible < visibleIds.length;
+    }
+    dialog
+      .querySelectorAll("[data-v289-employee-select]")
+      .forEach(function (input) {
+        input.checked = state.selected.has(
+          text(input.dataset.v289EmployeeSelect),
+        );
+      });
+  }
+
+  function renderEmployeeRows() {
+    const dialog = ensureDialog();
+    const rows = filteredEmployees();
+    const body = dialog.querySelector("[data-v289-branch-employees-body]");
+    const mobile = dialog.querySelector(
+      "[data-v289-branch-employees-mobile]",
+    );
+    const emptyMarkup =
+      '<div class="v289-branch-employees-empty"><span>' +
+      icon("users") +
+      "</span><strong>لا يوجد موظفون مطابقون</strong><small>قد يكون الفرع خاليًا أو لا توجد نتيجة للبحث.</small></div>";
+    if (body)
+      body.innerHTML = rows.length
+        ? rows.map(employeeRow).join("")
+        : '<tr><td colspan="5">' + emptyMarkup + "</td></tr>";
+    if (mobile)
+      mobile.innerHTML = rows.length
+        ? rows.map(employeeCard).join("")
+        : emptyMarkup;
+    updateSelectionState();
+    hydrate(dialog);
+  }
+
+  function renderHistory() {
+    const dialog = ensureDialog();
+    const records = transferHistory(state.branchId);
+    const root = dialog.querySelector("[data-v289-transfer-history]");
+    const count = dialog.querySelector("[data-v289-history-count]");
+    if (root) root.innerHTML = historyMarkup(state.branchId);
+    if (count)
+      count.textContent =
+        records.length +
+        (records.length === 1 ? " عملية" : " عمليات");
+    hydrate(dialog);
+  }
+
+  function renderDialog() {
+    const dialog = ensureDialog();
+    const branch = branchById(state.branchId);
+    if (!branch) return false;
+    const currentDestination = text(
+      dialog.querySelector("[data-v289-transfer-destination]")?.value,
+    );
+    const total = employeesForBranch(branch.id).length;
+    dialog.querySelector("[data-v289-employees-title]").textContent =
+      "موظفو " + text(branch.name);
+    dialog.querySelector("[data-v289-employees-subtitle]").textContent =
+      total +
+      (total === 1
+        ? " موظف مرتبط بهذا الفرع."
+        : " موظفين مرتبطين بهذا الفرع.");
+    const destination = dialog.querySelector(
+      "[data-v289-transfer-destination]",
+    );
+    destination.innerHTML = destinationOptions(
+      branch.id,
+      currentDestination,
+    );
+    const hasDestination = destination.options.length > 1;
+    destination.disabled = !hasDestination;
+    dialog.querySelector("[data-v289-transfer-hint]").textContent =
+      hasDestination
+        ? "سيتم تحديث ملفات الموظفين وسجل الفرعين في حفظ سحابي واحد."
+        : "أضف أو فعّل فرعًا آخر قبل نقل الموظفين.";
+    renderEmployeeRows();
+    renderHistory();
+    return true;
+  }
+
+  function openBranchEmployees(branchId) {
+    const branch = branchById(branchId);
+    if (!branch) return notify("لم يعد الفرع موجودًا");
+    state.branchId = branch.id;
+    state.query = "";
+    state.selected.clear();
+    state.saving = false;
+    const dialog = ensureDialog();
+    dialog.querySelector("[data-v289-branch-employee-search]").value = "";
+    renderDialog();
+    showDialog(dialog);
+  }
+
+  async function persistEmployeeCache(rows) {
+    try {
+      employees = rows;
+    } catch (_) {}
+    window.employees = rows;
+    writeJson(EMPLOYEE_KEY, rows);
+    try {
+      if (typeof syncEmployeeLocalCache === "function")
+        await syncEmployeeLocalCache(rows);
+    } catch (_) {}
+  }
+
+  async function prepareCloud() {
+    const documentSync = window.nawahDocumentsSyncV227;
+    if (!documentSync?.prepare || !(await documentSync.prepare())) {
+      notify("تعذر الاتصال بالسحابة. لم يتم تنفيذ النقل");
+      return false;
+    }
+    return true;
+  }
+
+  async function rollback(previousEmployees, previousBranches) {
+    await persistEmployeeCache(previousEmployees);
+    writeJson(BRANCH_KEY, previousBranches);
+    try {
+      await window.nawahEmployeeContractSyncV238?.rollback?.();
+    } catch (_) {}
+    try {
+      await window.nawahDocumentsSyncV227?.rollback?.();
+    } catch (_) {}
+  }
+
+  function appendHistory(branch, record) {
+    const previous = Array.isArray(branch?.transferHistory)
+      ? branch.transferHistory
+      : [];
+    const withoutDuplicate = previous.filter(function (item) {
+      return text(item?.id) !== text(record.id);
+    });
+    return {
+      ...branch,
+      transferHistory: [...withoutDuplicate, record].slice(-60),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async function transferSelected() {
+    if (state.saving) return;
+    const dialog = ensureDialog();
+    const destinationId = text(
+      dialog.querySelector("[data-v289-transfer-destination]")?.value,
+    );
+    const requestedIds = Array.from(state.selected);
+    if (!requestedIds.length) return notify("حدد موظفًا واحدًا على الأقل");
+    if (!destinationId) return notify("اختر الفرع الجديد");
+    state.saving = true;
+    updateSelectionState();
+    const transferButton = dialog.querySelector(
+      "[data-v289-transfer-employees]",
+    );
+    const transferLabel = dialog.querySelector("[data-v289-transfer-label]");
+    if (transferLabel) transferLabel.textContent = "جاري النقل...";
+    if (!(await prepareCloud())) {
+      state.saving = false;
+      if (transferLabel) transferLabel.textContent = "نقل الموظفين";
+      updateSelectionState();
+      return;
+    }
+
+    const branchRows = branches();
+    const source = branchById(state.branchId, branchRows);
+    const destination = branchById(destinationId, branchRows);
+    if (!source || !destination || destination.visible === false) {
+      state.saving = false;
+      if (transferLabel) transferLabel.textContent = "نقل الموظفين";
+      updateSelectionState();
+      return notify("الفرع المحدد لم يعد متاحًا للنقل");
+    }
+
+    const currentEmployeeRows = employeeRows();
+    const transferable = currentEmployeeRows.filter(function (employee) {
+      return (
+        requestedIds.includes(text(employee?.id)) &&
+        employeeInBranch(employee, source)
+      );
+    });
+    if (!transferable.length) {
+      state.saving = false;
+      if (transferLabel) transferLabel.textContent = "نقل الموظفين";
+      state.selected.clear();
+      renderDialog();
+      return notify("تغير ارتباط الموظفين؛ حدّث القائمة وحاول مجددًا");
+    }
+
+    const previousEmployees = clone(currentEmployeeRows);
+    const previousBranches = clone(branchRows);
+    const transferredIds = new Set(
+      transferable.map(function (employee) {
+        return text(employee.id);
+      }),
+    );
+    const timestamp = new Date().toISOString();
+    const nextEmployees = currentEmployeeRows.map(function (employee) {
+      return transferredIds.has(text(employee?.id))
+        ? {
+            ...employee,
+            branch: destination.id,
+            updatedAt: timestamp,
+          }
+        : employee;
+    });
+    const record = {
+      id: uid("branch-transfer"),
+      fromBranchId: source.id,
+      fromBranchName: source.name,
+      toBranchId: destination.id,
+      toBranchName: destination.name,
+      employeeIds: transferable.map(function (employee) {
+        return text(employee.id);
+      }),
+      employeeNames: transferable.map(function (employee) {
+        return text(employee.name);
+      }),
+      count: transferable.length,
+      createdAt: timestamp,
+      performedBy: actorName(),
+    };
+    const nextBranches = branchRows.map(function (branch) {
+      return text(branch?.id) === text(source.id) ||
+        text(branch?.id) === text(destination.id)
+        ? appendHistory(branch, record)
+        : branch;
+    });
+
+    await persistEmployeeCache(nextEmployees);
+    writeJson(BRANCH_KEY, nextBranches);
+    window.nawahEmployeeContractSyncV238?.trackUpserts?.(
+      Array.from(transferredIds),
+    );
+    window.nawahDocumentsSyncV227?.trackUpserts?.(
+      BRANCH_KEY,
+      [source.id, destination.id],
+    );
+    window.nawahCloudSyncV228?.trackRecordUpserts?.(
+      "employees",
+      Array.from(transferredIds),
+    );
+
+    let saved = false;
+    try {
+      saved =
+        (await window.nawahCloudSyncV228?.save?.(
+          "branch-employees-transfer-v289",
+        )) === true;
+    } catch (_) {
+      saved = false;
+    }
+    if (!saved) {
+      await rollback(previousEmployees, previousBranches);
+      state.saving = false;
+      if (transferLabel) transferLabel.textContent = "نقل الموظفين";
+      updateSelectionState();
+      notify("تعذر تأكيد النقل في السحابة. أُعيدت البيانات السابقة");
+      return;
+    }
+
+    state.saving = false;
+    state.selected.clear();
+    if (transferLabel) transferLabel.textContent = "نقل الموظفين";
+    closeDialog(dialog);
+    window.nawahBranchDirectoryV288?.refresh?.();
+    try {
+      if (typeof populateFormOptions === "function") populateFormOptions();
+      if (typeof renderEmployees === "function") renderEmployees();
+    } catch (_) {}
+    notify(
+      "تم نقل " +
+        transferable.length +
+        (transferable.length === 1 ? " موظف" : " موظفين") +
+        " إلى " +
+        destination.name +
+        " وحفظ العملية سحابيًا",
+    );
+  }
+
+  function handleClick(event) {
+    const open = event.target?.closest?.("[data-v289-branch-employees]");
+    if (open) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      openBranchEmployees(open.dataset.v289BranchEmployees);
+      return;
+    }
+    if (
+      event.target?.closest?.(
+        "[data-v289-open-branch-employees-from-delete]",
+      )
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const deleteDialog = document.getElementById(
+        "branchDeleteModalV288",
+      );
+      const branchId = text(deleteDialog?.dataset.branchId);
+      closeDialog(deleteDialog);
+      if (branchId) openBranchEmployees(branchId);
+      return;
+    }
+    if (event.target?.closest?.("[data-v289-close-branch-employees]")) {
+      event.preventDefault();
+      if (!state.saving)
+        closeDialog(document.getElementById("branchEmployeesModalV289"));
+      return;
+    }
+    if (event.target?.closest?.("[data-v289-transfer-employees]")) {
+      event.preventDefault();
+      transferSelected();
+    }
+  }
+
+  function handleInput(event) {
+    const target = event.target;
+    if (target?.matches?.("[data-v289-branch-employee-search]")) {
+      state.query = target.value || "";
+      renderEmployeeRows();
+      target.focus();
+    }
+  }
+
+  function handleChange(event) {
+    const target = event.target;
+    if (target?.matches?.("[data-v289-employee-select]")) {
+      const id = text(target.dataset.v289EmployeeSelect);
+      if (target.checked) state.selected.add(id);
+      else state.selected.delete(id);
+      updateSelectionState();
+      return;
+    }
+    if (target?.matches?.("[data-v289-select-all-employees]")) {
+      filteredEmployees().forEach(function (employee) {
+        const id = text(employee.id);
+        if (target.checked) state.selected.add(id);
+        else state.selected.delete(id);
+      });
+      updateSelectionState();
+      return;
+    }
+    if (target?.matches?.("[data-v289-transfer-destination]"))
+      updateSelectionState();
+  }
+
+  document.addEventListener("click", handleClick, true);
+  document.addEventListener("input", handleInput, true);
+  document.addEventListener("change", handleChange, true);
+
+  window.nawahBranchEmployeesV289 = {
+    version: 289,
+    open: openBranchEmployees,
+    transfer: transferSelected,
+    history: transferHistory,
+    cloudAtomic: true,
+    employeeField: "branch",
+  };
 })();

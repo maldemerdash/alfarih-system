@@ -33738,3 +33738,621 @@ html.has-initial-login-bg .auth-gate,
   border-radius: 0 !important;
   background: transparent !important;
 }
+
+/* v289 — branch employees, cloud-confirmed transfers, and clear visibility semantics. */
+#settingsView button.v289-branch-employees-trigger {
+  border: 1px solid transparent;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+#settingsView button.v289-branch-employees-trigger:hover,
+#settingsView button.v289-branch-employees-trigger:focus-visible {
+  border-color: #9bd7dc;
+  outline: 0;
+  background: #eaf8f9;
+  color: #087f91;
+  transform: translateY(-1px);
+}
+
+#settingsView .v289-mobile-employee-count {
+  width: max-content;
+  min-width: 27px;
+  height: 27px;
+  padding: 0 8px;
+  border: 1px solid #d6e8ea;
+  border-radius: 9px;
+  background: #fff;
+  color: #26707b;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.v289-transfer-first-btn {
+  border: 0 !important;
+  background: linear-gradient(135deg, #14a9c2, #19b97d) !important;
+}
+
+.v289-branch-employees-modal {
+  width: min(960px, calc(100vw - 28px));
+  max-width: 960px;
+  max-height: min(88vh, 820px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d7e7e9;
+  border-radius: 21px;
+  background: #fff;
+  color: #18333b;
+  box-shadow: 0 32px 95px rgba(14, 42, 50, 0.24);
+}
+
+.v289-branch-employees-modal::backdrop {
+  background: rgba(13, 29, 35, 0.54);
+  backdrop-filter: blur(3px);
+}
+
+.v289-branch-employees-head {
+  min-height: 83px;
+  align-items: center;
+  padding: 16px 19px !important;
+  border-bottom: 1px solid #dfeaec;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(24, 185, 145, 0.13), transparent 31%),
+    linear-gradient(135deg, #fff, #f5fbfb);
+}
+
+.v289-modal-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: #0e8798;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.v289-branch-employees-head h2 {
+  margin: 0;
+  color: #17333b;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.v289-branch-employees-head p {
+  margin: 5px 0 0;
+  color: #748990;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.v289-branch-employees-body {
+  display: grid !important;
+  max-height: min(61vh, 590px);
+  gap: 11px !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 13px 15px !important;
+  background: #f6fafb;
+}
+
+.v289-branch-employees-tools {
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.v289-branch-employee-search {
+  position: relative;
+  display: block;
+  min-width: 0;
+  margin: 0;
+}
+
+.v289-branch-employee-search > span {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: 13px;
+  top: 50%;
+  width: 17px;
+  height: 17px;
+  color: #7e9399;
+  transform: translateY(-50%);
+}
+
+.v289-branch-employee-search svg {
+  width: 17px;
+  height: 17px;
+}
+
+.v289-branch-employee-search input {
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding-inline-start: 40px;
+  border: 1px solid #d8e6e9;
+  border-radius: 12px;
+  outline: 0;
+  background: #fff;
+  color: #243e45;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.v289-branch-employee-search input:focus {
+  border-color: #14a5b8;
+  box-shadow: 0 0 0 3px rgba(20, 165, 184, 0.09);
+}
+
+.v289-branch-employees-tools > span {
+  display: inline-flex;
+  min-height: 31px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid #d5e9e6;
+  border-radius: 999px;
+  background: #f0faf6;
+  color: #0c8567;
+  font-size: 9.5px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.v289-branch-employees-list-card,
+.v289-transfer-history-card {
+  overflow: hidden;
+  border: 1px solid #dce8eb;
+  border-radius: 15px;
+  background: #fff;
+}
+
+.v289-branch-employees-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.v289-branch-employees-table {
+  width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.v289-branch-employees-table th,
+.v289-branch-employees-table td {
+  min-width: 0;
+  overflow: hidden;
+  padding: 10px 9px;
+  border-bottom: 1px solid #e7eff1;
+  color: #3a545c;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: start;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.v289-branch-employees-table th {
+  background: #f4f9fa;
+  color: #70858c;
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.v289-branch-employees-table th:nth-child(1) { width: 9%; }
+.v289-branch-employees-table th:nth-child(2) { width: 31%; }
+.v289-branch-employees-table th:nth-child(3) { width: 20%; }
+.v289-branch-employees-table th:nth-child(4) { width: 20%; }
+.v289-branch-employees-table th:nth-child(5) { width: 20%; }
+
+.v289-branch-employees-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.v289-branch-employees-table tbody tr:hover {
+  background: #fbfefe;
+}
+
+.v289-branch-employees-table input[type="checkbox"],
+.v289-employee-mobile-card > input {
+  width: 16px;
+  height: 16px;
+  accent-color: #0fa39c;
+}
+
+.v289-check-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.v289-employee-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.v289-employee-identity > span {
+  display: grid;
+  min-width: 39px;
+  height: 30px;
+  place-items: center;
+  padding-inline: 6px;
+  border-radius: 9px;
+  background: #edf8fa;
+  color: #0b8294;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.v289-employee-identity > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.v289-employee-identity strong,
+.v289-employee-identity small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v289-employee-identity strong {
+  color: #213d45;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+.v289-employee-identity small {
+  color: #8a9a9f;
+  font-size: 8.5px;
+}
+
+.v289-branch-employees-mobile {
+  display: none;
+}
+
+.v289-branch-employees-empty {
+  display: grid;
+  min-height: 118px;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 14px;
+  color: #84969b;
+  text-align: center;
+}
+
+.v289-branch-employees-empty > span {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 13px;
+  background: #eff8f9;
+  color: #5e9da7;
+}
+
+.v289-branch-employees-empty strong {
+  color: #48636a;
+  font-size: 10.5px;
+}
+
+.v289-branch-employees-empty small {
+  font-size: 9px;
+}
+
+.v289-transfer-history-card > header {
+  display: flex;
+  min-height: 53px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e6eef0;
+  background: #fbfdfd;
+}
+
+.v289-transfer-history-card > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.v289-transfer-history-card > header strong {
+  color: #25434b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.v289-transfer-history-card > header small,
+.v289-transfer-history-card > header > span {
+  color: #819399;
+  font-size: 8.5px;
+  font-weight: 800;
+}
+
+.v289-transfer-history-card > header > span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #f0f6f7;
+  white-space: nowrap;
+}
+
+.v289-transfer-history-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #edf2f3;
+}
+
+.v289-transfer-history-row:last-child {
+  border-bottom: 0;
+}
+
+.v289-transfer-history-row > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 10px;
+  background: #eef8f4;
+  color: #118b68;
+}
+
+.v289-transfer-history-row > span.is-outgoing {
+  background: #edf7fa;
+  color: #0d8599;
+}
+
+.v289-transfer-history-row > span svg {
+  width: 15px;
+  height: 15px;
+}
+
+.v289-transfer-history-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.v289-transfer-history-row strong {
+  color: #2b4850;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.v289-transfer-history-row small,
+.v289-transfer-history-row p,
+.v289-transfer-history-row time {
+  color: #82949a;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+.v289-transfer-history-row p {
+  overflow: hidden;
+  margin: 1px 0 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v289-transfer-history-row time {
+  white-space: nowrap;
+}
+
+.v289-transfer-history-empty {
+  display: grid;
+  min-height: 92px;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  color: #82949a;
+  text-align: center;
+}
+
+.v289-transfer-history-empty > span {
+  color: #60a1aa;
+}
+
+.v289-transfer-history-empty strong {
+  color: #49656c;
+  font-size: 10px;
+}
+
+.v289-transfer-history-empty small {
+  font-size: 8.5px;
+}
+
+.v289-transfer-actions {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  align-items: end !important;
+  gap: 10px !important;
+  padding: 11px 15px !important;
+  border-top: 1px solid #dfeaec;
+  background: #fff;
+}
+
+.v289-transfer-actions > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(180px, 310px) minmax(0, 1fr);
+  align-items: end;
+  gap: 8px;
+}
+
+.v289-transfer-actions label {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  margin: 0;
+}
+
+.v289-transfer-actions label > span {
+  color: #667d84;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.v289-transfer-actions select {
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  border: 1px solid #d6e5e8;
+  border-radius: 11px;
+  outline: 0;
+  background: #fff;
+  color: #233e46;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.v289-transfer-actions select:focus {
+  border-color: #13a3b6;
+  box-shadow: 0 0 0 3px rgba(19, 163, 182, 0.09);
+}
+
+.v289-transfer-actions small {
+  align-self: center;
+  color: #84969b;
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.v289-transfer-actions > button {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.v289-transfer-actions [data-v289-transfer-employees] {
+  border: 0;
+  background: linear-gradient(135deg, #14a9c2, #19b97d);
+}
+
+.v289-transfer-actions [data-v289-transfer-employees]:disabled {
+  opacity: 0.52;
+}
+
+@media (max-width: 760px) {
+  .v289-branch-employees-modal {
+    width: min(96vw, 620px);
+    max-height: 92vh;
+  }
+
+  .v289-branch-employees-head {
+    min-height: 76px;
+    padding: 14px 15px !important;
+  }
+
+  .v289-branch-employees-body {
+    max-height: calc(92vh - 220px);
+    padding: 11px !important;
+  }
+
+  .v289-branch-employees-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .v289-branch-employees-tools > span {
+    justify-self: start;
+  }
+
+  .v289-branch-employees-table-wrap {
+    display: none;
+  }
+
+  .v289-branch-employees-mobile {
+    display: grid;
+    gap: 8px;
+    padding: 9px;
+  }
+
+  .v289-employee-mobile-card {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    align-items: start;
+    gap: 9px;
+    padding: 11px;
+    border: 1px solid #dce9eb;
+    border-radius: 13px;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  .v289-employee-mobile-card > div {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+  }
+
+  .v289-employee-mobile-card header {
+    display: flex;
+    min-width: 0;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .v289-employee-mobile-card header strong {
+    overflow: hidden;
+    color: #234149;
+    font-size: 10.5px;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .v289-employee-mobile-card header span {
+    color: #0d8395;
+    font-size: 9px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .v289-employee-mobile-card p,
+  .v289-employee-mobile-card small {
+    margin: 0;
+    color: #7d9096;
+    font-size: 8.5px;
+  }
+
+  .v289-transfer-actions {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .v289-transfer-actions > div {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
+  }
+
+  .v289-transfer-actions > button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .v289-transfer-history-row {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .v289-transfer-history-row time {
+    grid-column: 2;
+  }
+}
