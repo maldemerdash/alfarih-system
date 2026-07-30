@@ -75767,6 +75767,383 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     }, 0);
   }
 
+  function actorName() {
+    return (
+      text(
+        document.querySelector(
+          ".user-info strong, .top-user-name, [data-current-user-name]",
+        )?.textContent,
+      ) || "مستخدم النظام"
+    );
+  }
+
+  function appendBranchActivity(branch, type, label, detail) {
+    const previous = Array.isArray(branch?.activityLog)
+      ? branch.activityLog
+      : [];
+    const record = {
+      id: uid("branch-activity"),
+      type: text(type) || "update",
+      label: text(label) || "تحديث بيانات الفرع",
+      detail: text(detail),
+      createdAt: new Date().toISOString(),
+      performedBy: actorName(),
+    };
+    return {
+      ...branch,
+      activityLog: [...previous, record].slice(-80),
+    };
+  }
+
+  function formatProfileDate(value, withTime) {
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "—";
+      return new Intl.DateTimeFormat("ar-SA", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        ...(withTime
+          ? { hour: "numeric", minute: "2-digit" }
+          : {}),
+      }).format(date);
+    } catch (_) {
+      return text(value) || "—";
+    }
+  }
+
+  function documentTypeSettings() {
+    const settings = readJson("nawah-document-type-settings", {});
+    return settings && typeof settings === "object" ? settings : {};
+  }
+
+  function branchDocumentTitle(document) {
+    const settings = documentTypeSettings();
+    const type = (Array.isArray(settings.types) ? settings.types : []).find(
+      function (item) {
+        return text(item?.id) === text(document?.typeId);
+      },
+    );
+    return (
+      text(
+        document?.title ||
+          document?.name ||
+          document?.documentName ||
+          type?.name,
+      ) || "وثيقة منشأة"
+    );
+  }
+
+  function branchDocumentEndDate(document) {
+    const dates = (Array.isArray(document?.extensions)
+      ? document.extensions
+      : []
+    )
+      .map(function (extension) {
+        return text(
+          extension?.newExpiryDate ||
+            extension?.expiryDate ||
+            extension?.date,
+        );
+      })
+      .filter(Boolean)
+      .sort();
+    return dates.at(-1) || text(document?.expiryDate || document?.endDate);
+  }
+
+  function branchDocumentAttachmentId(document) {
+    const extensions = (Array.isArray(document?.extensions)
+      ? document.extensions
+      : []
+    )
+      .filter(function (extension) {
+        return text(extension?.attachmentId);
+      })
+      .sort(function (first, second) {
+        return text(
+          first?.newExpiryDate ||
+            first?.expiryDate ||
+            first?.date ||
+            first?.createdAt,
+        ).localeCompare(
+          text(
+            second?.newExpiryDate ||
+              second?.expiryDate ||
+              second?.date ||
+              second?.createdAt,
+          ),
+        );
+      });
+    return (
+      text(extensions.at(-1)?.attachmentId) ||
+      text(document?.attachmentId)
+    );
+  }
+
+  function branchDocumentStatus(value) {
+    const end = text(value);
+    if (!end) return { key: "neutral", label: "غير محدد" };
+    const date = new Date(end + "T12:00:00");
+    if (Number.isNaN(date.getTime()))
+      return { key: "neutral", label: "غير محدد" };
+    const now = new Date();
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      12,
+      0,
+      0,
+    );
+    const days = Math.ceil((date - today) / 864e5);
+    if (days < 0) return { key: "expired", label: "منتهية" };
+    if (days <= 30)
+      return { key: "warning", label: "تنتهي خلال " + days + " يوم" };
+    return { key: "valid", label: "سارية" };
+  }
+
+  function branchEmployees(branch) {
+    return employees().filter(function (employee) {
+      return employeeBelongsToBranch(employee, branch);
+    });
+  }
+
+  function branchDocuments(branch) {
+    return documents().filter(function (document) {
+      return text(document?.branchId) === text(branch?.id);
+    });
+  }
+
+  function employeeJob(employee) {
+    return text(employee?.role || employee?.jobTitle) || "—";
+  }
+
+  function branchActivity(branch) {
+    const records = [];
+    const activity = Array.isArray(branch?.activityLog)
+      ? branch.activityLog
+      : [];
+    activity.forEach(function (record) {
+      records.push({
+        ...record,
+        kind: "activity",
+      });
+    });
+    const transfers = Array.isArray(branch?.transferHistory)
+      ? branch.transferHistory
+      : [];
+    transfers.forEach(function (record) {
+      const incoming = text(record?.toBranchId) === text(branch?.id);
+      records.push({
+        id: text(record?.id),
+        kind: "transfer",
+        type: incoming ? "transfer-in" : "transfer-out",
+        label:
+          (incoming ? "استقبال " : "نقل ") +
+          Number(record?.count || 0) +
+          (Number(record?.count || 0) === 1 ? " موظف" : " موظفين"),
+        detail: incoming
+          ? "من " + text(record?.fromBranchName)
+          : "إلى " + text(record?.toBranchName),
+        createdAt: record?.createdAt,
+        performedBy: record?.performedBy,
+      });
+    });
+    if (
+      branch?.createdAt &&
+      !records.some(function (record) {
+        return record.type === "create";
+      })
+    )
+      records.push({
+        id: "branch-created-" + text(branch.id),
+        kind: "activity",
+        type: "create",
+        label: "إنشاء الفرع",
+        detail: "بداية سجل الفرع في النظام",
+        createdAt: branch.createdAt,
+        performedBy: "",
+      });
+    return records.sort(function (first, second) {
+      return text(second?.createdAt).localeCompare(text(first?.createdAt));
+    });
+  }
+
+  function employeeAvatarMarkup(employee) {
+    try {
+      if (typeof employeeAvatar === "function")
+        return employeeAvatar(employee);
+    } catch (_) {}
+    return (
+      '<span class="v290-employee-fallback">' +
+      icon("user") +
+      "</span>"
+    );
+  }
+
+  function employeeDirectoryMarkup(branch) {
+    const rows = branchEmployees(branch);
+    if (!rows.length)
+      return (
+        '<div class="v290-branch-profile-empty"><span>' +
+        icon("users") +
+        "</span><strong>لا يوجد موظفون مرتبطون بهذا الفرع</strong><small>يمكن نقل الموظفين من إدارة موظفي الفروع.</small></div>"
+      );
+    const desktop =
+      '<div class="v290-profile-employee-table-wrap"><table class="v290-profile-employee-table"><thead><tr><th>الموظف</th><th>الإدارة</th><th>القسم</th><th>المسمى</th><th>الملف</th></tr></thead><tbody>' +
+      rows
+        .slice(0, 6)
+        .map(function (employee) {
+          return (
+            '<tr><td><div class="v290-profile-employee-identity">' +
+            employeeAvatarMarkup(employee) +
+            "<div><strong>" +
+            escape(employee?.name || "بدون اسم") +
+            "</strong><small>" +
+            escape(employee?.employeeNumber || "—") +
+            "</small></div></div></td><td>" +
+            escape(employee?.department || "—") +
+            "</td><td>" +
+            escape(employee?.section || "—") +
+            "</td><td>" +
+            escape(employeeJob(employee)) +
+            '</td><td><button type="button" class="v290-profile-icon-btn" data-v290-open-employee="' +
+            escape(employee?.id) +
+            '" title="فتح ملف الموظف" aria-label="فتح ملف الموظف">' +
+            icon("eye") +
+            "</button></td></tr>"
+          );
+        })
+        .join("") +
+      "</tbody></table></div>";
+    const mobile =
+      '<div class="v290-profile-employee-mobile">' +
+      rows
+        .slice(0, 6)
+        .map(function (employee) {
+          return (
+            '<article><div class="v290-profile-employee-identity">' +
+            employeeAvatarMarkup(employee) +
+            "<div><strong>" +
+            escape(employee?.name || "بدون اسم") +
+            "</strong><small>" +
+            escape(employee?.employeeNumber || "—") +
+            "</small></div></div><p>" +
+            escape(employee?.department || "—") +
+            " · " +
+            escape(employee?.section || "—") +
+            "</p><footer><span>" +
+            escape(employeeJob(employee)) +
+            '</span><button type="button" class="v290-profile-icon-btn" data-v290-open-employee="' +
+            escape(employee?.id) +
+            '" title="فتح ملف الموظف">' +
+            icon("eye") +
+            "</button></footer></article>"
+          );
+        })
+        .join("") +
+      "</div>";
+    const remaining =
+      rows.length > 6
+        ? '<div class="v290-profile-more">و' +
+          (rows.length - 6) +
+          " موظفين آخرين ضمن إدارة موظفي الفرع</div>"
+        : "";
+    return desktop + mobile + remaining;
+  }
+
+  function documentDirectoryMarkup(branch) {
+    const rows = branchDocuments(branch);
+    if (!rows.length)
+      return (
+        '<div class="v290-branch-profile-empty"><span>' +
+        icon("file") +
+        "</span><strong>لا توجد وثائق مرتبطة بهذا الفرع</strong><small>تظهر الوثائق هنا بعد ربطها بالفرع.</small></div>"
+      );
+    return (
+      '<div class="v290-profile-document-grid">' +
+      rows
+        .slice(0, 6)
+        .map(function (document) {
+          const endDate = branchDocumentEndDate(document);
+          const status = branchDocumentStatus(endDate);
+          const attachmentId = branchDocumentAttachmentId(document);
+          return (
+            '<article><span class="v290-document-mark">' +
+            icon("file") +
+            "</span><div><strong>" +
+            escape(branchDocumentTitle(document)) +
+            "</strong><small>رقم الوثيقة: " +
+            escape(document?.number || "—") +
+            '</small><p><span class="v290-document-status is-' +
+            status.key +
+            '">' +
+            escape(status.label) +
+            "</span><time>النهاية: " +
+            escape(formatProfileDate(endDate, false)) +
+            "</time></p></div>" +
+            (attachmentId
+              ? '<button type="button" class="v290-profile-icon-btn" data-v290-view-document="' +
+                escape(attachmentId) +
+                '" title="معاينة الوثيقة" aria-label="معاينة الوثيقة">' +
+                icon("eye") +
+                "</button>"
+              : '<span class="v290-no-attachment">بلا مرفق</span>') +
+            "</article>"
+          );
+        })
+        .join("") +
+      (rows.length > 6
+        ? '<div class="v290-profile-more">و' +
+          (rows.length - 6) +
+          " وثائق أخرى مرتبطة بالفرع</div>"
+        : "") +
+      "</div>"
+    );
+  }
+
+  function activityIcon(type) {
+    if (type === "create") return "plus";
+    if (type === "activate") return "check-circle";
+    if (type === "deactivate") return "eye-off";
+    if (type === "transfer-in") return "arrow-right";
+    if (type === "transfer-out") return "arrow-left";
+    return "edit";
+  }
+
+  function activityMarkup(branch) {
+    const rows = branchActivity(branch).slice(0, 8);
+    if (!rows.length)
+      return (
+        '<div class="v290-branch-profile-empty"><span>' +
+        icon("notes") +
+        "</span><strong>لا توجد عمليات مسجلة</strong></div>"
+      );
+    return (
+      '<div class="v290-branch-activity-list">' +
+      rows
+        .map(function (record) {
+          return (
+            '<article><span class="is-' +
+            escape(record?.type || "update") +
+            '">' +
+            icon(activityIcon(record?.type)) +
+            "</span><div><strong>" +
+            escape(record?.label || "تحديث الفرع") +
+            "</strong><small>" +
+            escape(record?.detail || "") +
+            "</small></div><div><time>" +
+            escape(formatProfileDate(record?.createdAt, true)) +
+            "</time><small>" +
+            escape(record?.performedBy || "") +
+            "</small></div></article>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   async function saveEntry(event) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -75804,7 +76181,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       return branch.id === id;
     });
     const old = index >= 0 ? previous[index] : null;
-    const next = normalizeBranch(
+    let next = normalizeBranch(
       {
         ...(old || {}),
         id: id,
@@ -75823,6 +76200,14 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
         updatedAt: new Date().toISOString(),
       },
       index >= 0 ? index : previous.length,
+    );
+    next = appendBranchActivity(
+      next,
+      old ? "update" : "create",
+      old ? "تعديل بيانات الفرع" : "إنشاء الفرع",
+      old
+        ? "تم حفظ التعديلات على بيانات الفرع"
+        : "تمت إضافة الفرع إلى دليل المنشأة",
     );
     const rows = previous.slice();
     if (index >= 0) rows[index] = next;
@@ -75852,9 +76237,12 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     if (dialog) return dialog;
     dialog = document.createElement("dialog");
     dialog.id = "branchViewModalV288";
-    dialog.className = "modal v288-branch-view-modal";
+    dialog.className =
+      "modal v288-branch-view-modal v290-branch-profile-modal";
     dialog.innerHTML =
-      '<div class="modal-head"><div><span class="v288-modal-eyebrow">ملخص الفرع</span><h2 data-v288-branch-view-title></h2><p data-v288-branch-view-location></p></div><button type="button" class="icon-btn" data-v288-close-branch-view aria-label="إغلاق"><span data-icon="x"></span></button></div><div class="modal-body" data-v288-branch-view-body></div><div class="modal-actions"><button type="button" class="secondary-btn" data-v288-close-branch-view>إغلاق</button><button type="button" class="primary-btn" data-v288-view-edit><span data-icon="edit"></span>تعديل الفرع</button></div>';
+      '<div class="modal-head v290-branch-profile-head"><div class="v290-branch-profile-title"><span class="v290-branch-profile-mark">' +
+      icon("building") +
+      '</span><div><span class="v288-modal-eyebrow">ملف الفرع</span><h2 data-v288-branch-view-title></h2><p data-v288-branch-view-location></p></div></div><span class="v290-branch-profile-status" data-v290-branch-profile-status></span><button type="button" class="icon-btn" data-v288-close-branch-view aria-label="إغلاق"><span data-icon="x"></span></button></div><div class="modal-body v290-branch-profile-body" data-v288-branch-view-body></div><div class="modal-actions v290-branch-profile-actions"><button type="button" class="secondary-btn" data-v288-close-branch-view>إغلاق</button><button type="button" class="secondary-btn v290-manage-employees-btn" data-v290-manage-employees><span data-icon="users"></span>إدارة الموظفين</button><button type="button" class="primary-btn" data-v288-view-edit><span data-icon="edit"></span>تعديل الفرع</button></div>';
     document.body.appendChild(dialog);
     hydrate(dialog);
     return dialog;
@@ -75865,23 +76253,36 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       return item.id === text(id);
     });
     if (!branch) return notify("لم يعد الفرع موجودًا");
-    const count = metricsFor(branch);
+    const linkedEmployees = branchEmployees(branch);
+    const linkedDocuments = branchDocuments(branch);
     const dialog = ensureViewDialog();
     dialog.dataset.branchId = branch.id;
     dialog.querySelector("[data-v288-branch-view-title]").textContent =
       branch.name;
     dialog.querySelector("[data-v288-branch-view-location]").textContent =
       branchLocation(branch);
+    const status = dialog.querySelector(
+      "[data-v290-branch-profile-status]",
+    );
+    status.textContent = branch.visible ? "فرع نشط" : "فرع غير نشط";
+    status.className =
+      "v290-branch-profile-status " +
+      (branch.visible ? "is-active" : "is-inactive");
     dialog.querySelector("[data-v288-branch-view-body]").innerHTML =
-      '<div class="v288-branch-view-summary"><article><small>الحالة</small><strong>' +
-      (branch.visible ? "نشط" : "غير نشط") +
-      "</strong></article><article><small>الموظفون</small><strong>" +
-      count.employees +
-      "</strong></article><article><small>الوثائق</small><strong>" +
-      count.documents +
-      '</strong></article></div><div class="v288-branch-view-grid"><article><small>مدير الفرع</small><strong>' +
+      '<section class="v290-branch-profile-summary" aria-label="ملخص الفرع"><article><span class="is-blue">' +
+      icon("users") +
+      "</span><div><small>الموظفون</small><strong>" +
+      linkedEmployees.length +
+      "</strong><p>موظفون مرتبطون بالفرع</p></div></article><article><span class=\"is-green\">" +
+      icon("file") +
+      "</span><div><small>الوثائق</small><strong>" +
+      linkedDocuments.length +
+      "</strong><p>وثائق رسمية مرتبطة</p></div></article><article><span class=\"is-teal\">" +
+      icon("user-check") +
+      "</span><div><small>مدير الفرع</small><strong class=\"is-name\">" +
       escape(managerName(branch)) +
-      '</strong></article><article><small>رقم التواصل</small><strong dir="ltr">' +
+      "</strong><p>المسؤول الإداري المباشر</p></div></article></section>" +
+      '<section class="v290-branch-profile-section"><header><div><strong>بيانات الفرع</strong><small>بيانات التواصل والتسجيل الرسمية.</small></div></header><div class="v290-branch-facts"><article><small>رقم التواصل</small><strong dir="ltr">' +
       escape(branch.phone || "—") +
       "</strong></article><article><small>المنطقة</small><strong>" +
       escape(branch.region || "—") +
@@ -75891,7 +76292,23 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       escape(branch.commercialRegisterNumber || "—") +
       "</strong></article><article><small>الرقم الموحد</small><strong>" +
       escape(branch.unifiedNumber || "—") +
-      "</strong></article></div>";
+      "</strong></article><article><small>آخر تحديث</small><strong>" +
+      escape(formatProfileDate(branch.updatedAt || branch.createdAt, false)) +
+      "</strong></article></div></section>" +
+      '<section class="v290-branch-profile-section"><header><div><strong>موظفو الفرع</strong><small>عرض سريع للموظفين المرتبطين حاليًا.</small></div><button type="button" class="v290-section-action" data-v290-manage-employees>' +
+      icon("users") +
+      "إدارة الموظفين</button></header>" +
+      employeeDirectoryMarkup(branch) +
+      '</section><section class="v290-branch-profile-section"><header><div><strong>الوثائق الرسمية</strong><small>الحالة الحالية وآخر تاريخ انتهاء معتمد.</small></div></header>' +
+      documentDirectoryMarkup(branch) +
+      '</section><section class="v290-branch-profile-section"><header><div><strong>سجل عمليات الفرع</strong><small>الإنشاء والتعديلات وحالة الفرع وعمليات النقل.</small></div></header>' +
+      activityMarkup(branch) +
+      "</section>";
+    hydrate(dialog);
+    try {
+      if (typeof hydrateAttachmentImages === "function")
+        hydrateAttachmentImages(dialog);
+    } catch (_) {}
     showDialog(dialog);
   }
 
@@ -75911,11 +76328,16 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       return notify("لم يعد الفرع موجودًا");
     }
     const rows = previous.slice();
-    rows[index] = {
+    rows[index] = appendBranchActivity({
       ...rows[index],
       visible: !rows[index].visible,
       updatedAt: new Date().toISOString(),
-    };
+    },
+    rows[index].visible ? "deactivate" : "activate",
+    rows[index].visible ? "تعطيل الفرع" : "تفعيل الفرع",
+    rows[index].visible
+      ? "تم تغيير حالة الفرع إلى غير نشط"
+      : "تم تغيير حالة الفرع إلى نشط");
     saveBranches(rows);
     sync()?.trackUpserts(BRANCH_KEY, [rows[index].id]);
     if (!(await confirmCloudMutation("branch-directory-toggle-v288"))) {
@@ -76095,6 +76517,61 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       confirmDelete();
       return;
     }
+    const manageEmployees = event.target?.closest?.(
+      "[data-v290-manage-employees]",
+    );
+    if (manageEmployees) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const dialog = document.getElementById("branchViewModalV288");
+      const id = text(dialog?.dataset.branchId);
+      closeDialog(dialog);
+      if (id)
+        setTimeout(function () {
+          window.nawahBranchEmployeesV289?.open?.(id);
+        }, 0);
+      return;
+    }
+    const openEmployee = event.target?.closest?.(
+      "[data-v290-open-employee]",
+    );
+    if (openEmployee) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const employeeId = text(openEmployee.dataset.v290OpenEmployee);
+      closeDialog(document.getElementById("branchViewModalV288"));
+      if (employeeId)
+        setTimeout(function () {
+          try {
+            if (typeof openQuickView === "function")
+              openQuickView(employeeId);
+            else window.openQuickView?.(employeeId);
+          } catch (_) {
+            notify("تعذر فتح ملف الموظف");
+          }
+        }, 0);
+      return;
+    }
+    const viewDocument = event.target?.closest?.(
+      "[data-v290-view-document]",
+    );
+    if (viewDocument) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const attachmentId = text(viewDocument.dataset.v290ViewDocument);
+      if (attachmentId)
+        try {
+          if (typeof openAttachment === "function")
+            openAttachment(attachmentId);
+          else window.openAttachment?.(attachmentId);
+        } catch (_) {
+          notify("تعذر فتح مرفق الوثيقة");
+        }
+      return;
+    }
     if (event.target?.closest?.("[data-v288-close-branch-modal]")) {
       event.preventDefault();
       closeDialog(document.getElementById("branchDirectoryModalV288"));
@@ -76202,9 +76679,11 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     },
     refresh: refreshRows,
     open: openEntry,
+    view: openView,
     rows: branches,
     cloudBacked: true,
     deletionGuard: true,
+    profileVersion: 290,
   };
 
   if (panelActive()) render(true);
