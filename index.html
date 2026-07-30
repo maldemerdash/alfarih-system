@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=282" />
+    <link rel="stylesheet" href="style.css?v=283" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -538,33 +538,63 @@
             </div>
           </section>
           <section class="view" id="advancesView">
-            <div class="section-toolbar">
-              <div>
-                <h2 class="section-title">السلفيات</h2>
-                <p class="section-description">إضافة ومراجعة السلفيات المعتمدة حسب شهر المسير.</p>
-              </div>
-              <div class="toolbar-actions">
-                <button type="button" class="secondary-btn" id="advancesPrintBtn"><span data-icon="printer"></span>طباعة</button>
-                <button type="button" class="primary-btn" id="advancesAddBtn"><span data-icon="wallet"></span>إضافة سلفة</button>
-              </div>
-            </div>
-            <article class="panel advances-page-panel">
-              <div class="panel-head">
-                <div><h3>جدول السلفيات</h3><p id="advancesMonthLabel">السلفيات المعتمدة لهذا الشهر</p></div>
-                <div class="advances-period-controls" aria-label="تحديد شهر السلفيات">
-                  <button type="button" class="icon-btn" data-advances-month-shift="-1" aria-label="الشهر السابق"><span data-icon="chevron-right"></span></button>
-                  <select data-advances-month-select aria-label="الشهر"></select>
-                  <input type="number" data-advances-year-input aria-label="السنة" min="2000" max="2100" step="1" />
-                  <button type="button" class="icon-btn" data-advances-month-shift="1" aria-label="الشهر التالي"><span data-icon="chevron-left"></span></button>
+            <div class="v283-advances-workspace">
+              <header class="v283-advances-hero">
+                <div class="v283-advances-title">
+                  <span class="v283-advances-title-icon" data-icon="wallet"></span>
+                  <div>
+                    <span class="v283-advances-eyebrow">إدارة المستحقات المالية</span>
+                    <h2 class="section-title">السلفيات</h2>
+                    <p class="section-description">إضافة السلفيات ومتابعة السداد والمتبقي حسب شهر المسير.</p>
+                  </div>
                 </div>
-              </div>
-              <div class="table-wrap payroll-advances-table-wrap">
-                <table class="payroll-advances-table advances-page-table">
-                  <thead><tr><th>الموظف</th><th>إجمالي السلفيات</th></tr></thead>
-                  <tbody id="advancesTableBody"><tr><td colspan="2">لا توجد سلفيات لهذا الشهر</td></tr></tbody>
-                </table>
-              </div>
-            </article>
+                <div class="v283-advances-actions">
+                  <button type="button" class="secondary-btn" id="advancesPrintBtn"><span data-icon="printer"></span>طباعة</button>
+                  <button type="button" class="primary-btn" id="advancesAddBtn"><span data-icon="wallet"></span>إضافة سلفة</button>
+                </div>
+              </header>
+
+              <section class="v283-advances-summary" aria-label="ملخص السلفيات للشهر المحدد">
+                <article class="v283-advance-metric v283-advance-metric-total">
+                  <span class="v283-advance-metric-icon" data-icon="wallet"></span>
+                  <div><span>إجمالي السلفيات</span><strong data-advances-metric="total">0.00 ر.س</strong><small data-advances-period-label>الشهر المحدد</small></div>
+                </article>
+                <article class="v283-advance-metric v283-advance-metric-paid">
+                  <span class="v283-advance-metric-icon" data-icon="check-circle"></span>
+                  <div><span>إجمالي المسدد</span><strong data-advances-metric="paid">0.00 ر.س</strong><small>السداد المسجل والمعتمد</small></div>
+                </article>
+                <article class="v283-advance-metric v283-advance-metric-remaining">
+                  <span class="v283-advance-metric-icon" data-icon="clock"></span>
+                  <div><span>إجمالي المتبقي</span><strong data-advances-metric="remaining">0.00 ر.س</strong><small>المبلغ المتبقي على الموظفين</small></div>
+                </article>
+                <article class="v283-advance-metric v283-advance-metric-employees">
+                  <span class="v283-advance-metric-icon" data-icon="users"></span>
+                  <div><span>الموظفون</span><strong data-advances-metric="employees">0</strong><small>عدد الموظفين في السجل</small></div>
+                </article>
+              </section>
+
+              <article class="panel advances-page-panel v283-advances-table-panel">
+                <div class="panel-head v283-advances-table-head">
+                  <div class="v283-advances-table-title">
+                    <span data-icon="list"></span>
+                    <div><h3>سجل السلفيات</h3><p id="advancesMonthLabel">السلفيات المعتمدة لهذا الشهر</p></div>
+                  </div>
+                  <div class="advances-period-controls" aria-label="تحديد شهر السلفيات">
+                    <button type="button" class="icon-btn" data-advances-month-shift="-1" aria-label="الشهر السابق"><span data-icon="chevron-right"></span></button>
+                    <label><span>الشهر</span><select data-advances-month-select aria-label="الشهر"></select></label>
+                    <label><span>السنة</span><input type="number" data-advances-year-input aria-label="السنة" min="2000" max="2100" step="1" /></label>
+                    <button type="button" class="icon-btn" data-advances-month-shift="1" aria-label="الشهر التالي"><span data-icon="chevron-left"></span></button>
+                  </div>
+                </div>
+                <div class="v283-advances-table-note"><span data-icon="info"></span><span>اضغط على صف الموظف لعرض تفاصيل السلفيات والسداد والإجراءات.</span></div>
+                <div class="table-wrap payroll-advances-table-wrap">
+                  <table class="payroll-advances-table advances-page-table">
+                    <thead><tr><th>الموظف</th><th>إجمالي السلفيات</th></tr></thead>
+                    <tbody id="advancesTableBody"><tr><td colspan="2">لا توجد سلفيات لهذا الشهر</td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
           </section>
           <section class="view" id="payrollView">
             <div class="payroll-hero">
@@ -1516,6 +1546,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=282"></script>
+    <script src="app.js?v=283"></script>
   </body>
 </html>

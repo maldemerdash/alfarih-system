@@ -30016,3 +30016,796 @@ html.has-initial-login-bg .auth-gate,
     border-radius: 20px !important;
   }
 }
+
+/* v283 — Advances workspace. Presentation is isolated from payroll/cloud logic. */
+#advancesView {
+  --v283-advance-ink: #153d48;
+  --v283-advance-muted: #71878e;
+  --v283-advance-line: #dce9ec;
+  --v283-advance-blue: #2297c5;
+  --v283-advance-teal: #159aaa;
+  --v283-advance-green: #19ae75;
+  --v283-advance-red: #d85c66;
+}
+
+#advancesView .v283-advances-workspace {
+  display: grid;
+  gap: 14px;
+}
+
+#advancesView .v283-advances-hero {
+  position: relative;
+  display: flex;
+  min-height: 126px;
+  padding: 22px 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  overflow: hidden;
+  border: 1px solid var(--v283-advance-line);
+  border-radius: 25px;
+  background:
+    radial-gradient(circle at 11% 15%, rgba(34, 151, 197, 0.11), transparent 28%),
+    radial-gradient(circle at 88% 92%, rgba(25, 174, 117, 0.08), transparent 30%),
+    linear-gradient(135deg, #f9fcfd 0%, #fff 51%, #f7fbfa 100%);
+  box-shadow: 0 14px 32px rgba(15, 62, 74, 0.055);
+}
+
+#advancesView .v283-advances-hero::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--v283-advance-blue), #19b4bd 52%, var(--v283-advance-green));
+  content: "";
+}
+
+#advancesView .v283-advances-hero::after {
+  position: absolute;
+  inset: auto auto -82px -42px;
+  width: 220px;
+  height: 220px;
+  border: 34px solid rgba(34, 151, 197, 0.035);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+}
+
+#advancesView .v283-advances-title {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 15px;
+}
+
+#advancesView .v283-advances-title-icon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  place-items: center;
+  border: 1px solid rgba(21, 154, 170, 0.18);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #e9f8f7, #f2fbff);
+  color: #118d9f;
+  box-shadow: 0 9px 20px rgba(21, 154, 170, 0.09);
+}
+
+#advancesView .v283-advances-title-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+#advancesView .v283-advances-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: #168da0;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+#advancesView .v283-advances-title .section-title {
+  margin: 0;
+  color: var(--v283-advance-ink);
+  font-size: 23px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+#advancesView .v283-advances-title .section-description {
+  max-width: 620px;
+  margin: 4px 0 0;
+  color: var(--v283-advance-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+#advancesView .v283-advances-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+}
+
+#advancesView .v283-advances-actions button {
+  min-height: 42px;
+  padding-inline: 17px;
+  border-radius: 13px;
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+#advancesView #advancesPrintBtn {
+  border-color: #d7e5e8;
+  background: rgba(255, 255, 255, 0.88);
+  color: #49666e;
+  box-shadow: 0 7px 16px rgba(15, 62, 74, 0.045);
+}
+
+#advancesView #advancesAddBtn {
+  border: 0;
+  background: linear-gradient(135deg, #159aaa, #1ab17a);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(21, 154, 170, 0.19);
+}
+
+#advancesView .v283-advances-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 11px;
+}
+
+#advancesView .v283-advance-metric {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 106px;
+  padding: 16px 17px;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid var(--v283-advance-line);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 9px 22px rgba(15, 62, 74, 0.045);
+}
+
+#advancesView .v283-advance-metric::before {
+  position: absolute;
+  inset: 15px 0 auto auto;
+  width: 3px;
+  height: 38px;
+  border-radius: 999px 0 0 999px;
+  background: var(--v283-advance-blue);
+  content: "";
+}
+
+#advancesView .v283-advance-metric-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border: 1px solid rgba(34, 151, 197, 0.14);
+  border-radius: 14px;
+  background: #eef9fc;
+  color: var(--v283-advance-blue);
+}
+
+#advancesView .v283-advance-metric-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+#advancesView .v283-advance-metric > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+#advancesView .v283-advance-metric > div > span {
+  color: #687f86;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+#advancesView .v283-advance-metric strong {
+  overflow: hidden;
+  color: var(--v283-advance-ink);
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#advancesView .v283-advance-metric small {
+  overflow: hidden;
+  color: #9aa8ad;
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#advancesView .v283-advance-metric-paid {
+  border-color: rgba(25, 174, 117, 0.18);
+  background: linear-gradient(145deg, #f8fdfa, #fff 58%);
+}
+
+#advancesView .v283-advance-metric-paid::before {
+  background: var(--v283-advance-green);
+}
+
+#advancesView .v283-advance-metric-paid .v283-advance-metric-icon {
+  border-color: rgba(25, 174, 117, 0.15);
+  background: #eefbf5;
+  color: #159d68;
+}
+
+#advancesView .v283-advance-metric-paid strong {
+  color: #168a60;
+}
+
+#advancesView .v283-advance-metric-remaining {
+  border-color: rgba(216, 92, 102, 0.16);
+  background: linear-gradient(145deg, #fffafa, #fff 58%);
+}
+
+#advancesView .v283-advance-metric-remaining::before {
+  background: var(--v283-advance-red);
+}
+
+#advancesView .v283-advance-metric-remaining .v283-advance-metric-icon {
+  border-color: rgba(216, 92, 102, 0.14);
+  background: #fff3f4;
+  color: #cf5660;
+}
+
+#advancesView .v283-advance-metric-remaining strong {
+  color: #bd5059;
+}
+
+#advancesView .v283-advance-metric-employees::before {
+  background: #7489c7;
+}
+
+#advancesView .v283-advance-metric-employees .v283-advance-metric-icon {
+  border-color: rgba(116, 137, 199, 0.15);
+  background: #f2f4fc;
+  color: #6479b8;
+}
+
+#advancesView .v283-advances-table-panel {
+  overflow: hidden !important;
+  border: 1px solid var(--v283-advance-line);
+  border-radius: 23px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 62, 74, 0.05);
+}
+
+#advancesView .v283-advances-table-head {
+  min-height: 82px;
+  padding: 16px 18px !important;
+  border-bottom: 1px solid #e6eff1;
+  background: linear-gradient(135deg, rgba(34, 151, 197, 0.045), #fff 58%);
+}
+
+#advancesView .v283-advances-table-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+#advancesView .v283-advances-table-title > svg {
+  width: 20px;
+  height: 20px;
+  padding: 9px;
+  overflow: visible;
+  border: 1px solid rgba(21, 154, 170, 0.15);
+  border-radius: 13px;
+  background: #edf9fa;
+  color: #158b9d;
+  box-sizing: content-box;
+}
+
+#advancesView .v283-advances-table-title h3 {
+  margin: 0;
+  color: var(--v283-advance-ink);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+#advancesView .v283-advances-table-title p {
+  margin: 4px 0 0;
+  color: #87999f;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+#advancesView .v283-advances-table-head .advances-period-controls {
+  display: flex !important;
+  padding: 8px !important;
+  align-items: flex-end !important;
+  gap: 7px !important;
+  flex-wrap: nowrap !important;
+  border: 1px solid #dce8eb;
+  border-radius: 16px;
+  background: #f7fafb;
+}
+
+#advancesView .v283-advances-table-head .advances-period-controls label {
+  display: grid;
+  gap: 3px;
+}
+
+#advancesView .v283-advances-table-head .advances-period-controls label > span {
+  padding-inline: 4px;
+  color: #7b8f95;
+  font-size: 8.5px;
+  font-weight: 900;
+}
+
+#advancesView .v283-advances-table-head .advances-period-controls .icon-btn {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  border: 1px solid #d6e5e8 !important;
+  border-radius: 11px !important;
+  background: #fff !important;
+  color: #168da0 !important;
+  box-shadow: none !important;
+}
+
+#advancesView .v283-advances-table-head .advances-period-controls select,
+#advancesView .v283-advances-table-head .advances-period-controls input {
+  height: 38px !important;
+  min-height: 38px !important;
+  border: 1px solid #d6e5e8 !important;
+  border-radius: 11px !important;
+  background: #fff !important;
+  color: #294852 !important;
+  font-size: 11.5px !important;
+  font-weight: 900 !important;
+  box-shadow: none !important;
+}
+
+#advancesView .v283-advances-table-head .advances-period-controls select {
+  width: 118px !important;
+}
+
+#advancesView .v283-advances-table-head .advances-period-controls input {
+  width: 86px !important;
+  text-align: center !important;
+}
+
+#advancesView .v283-advances-table-head .advances-period-controls select:focus,
+#advancesView .v283-advances-table-head .advances-period-controls input:focus {
+  border-color: rgba(21, 154, 170, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(21, 154, 170, 0.08) !important;
+  outline: none !important;
+}
+
+#advancesView .v283-advances-table-note {
+  display: flex;
+  min-height: 38px;
+  padding: 8px 18px;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid #e9f0f2;
+  background: #fbfdfd;
+  color: #7d9197;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+#advancesView .v283-advances-table-note svg {
+  width: 15px;
+  height: 15px;
+  color: #1a96a6;
+}
+
+#advancesView .v283-advances-table-panel > .payroll-advances-table-wrap {
+  overflow-x: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+}
+
+#advancesView .advances-page-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+#advancesView .advances-page-table > thead th {
+  height: 43px !important;
+  padding: 9px 18px !important;
+  border-bottom: 1px solid #dce9ec;
+  background: #f1f7f8;
+  color: #52727a;
+  font-size: 10px !important;
+  font-weight: 900;
+}
+
+#advancesView .advances-page-table > thead th:first-child {
+  width: 72%;
+}
+
+#advancesView .advances-page-table > thead th:last-child {
+  width: 28%;
+  text-align: center;
+}
+
+#advancesView .advances-page-table > tbody > .advance-summary-row > td {
+  height: 62px !important;
+  padding: 9px 18px !important;
+  border-bottom: 1px solid #edf2f4;
+  background: #fff;
+  color: #38555e;
+  transition: background-color 0.16s ease;
+}
+
+#advancesView .advances-page-table > tbody > .advance-summary-row:hover > td {
+  background: #f8fbfc;
+}
+
+#advancesView .advances-page-table .advance-employee-cell {
+  gap: 10px;
+}
+
+#advancesView .advances-page-table .advance-toggle-btn {
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 30px !important;
+  border-color: rgba(21, 154, 170, 0.18) !important;
+  border-radius: 10px !important;
+  background: #f7fcfc !important;
+  color: #128b9c !important;
+  box-shadow: none !important;
+}
+
+#advancesView .advances-page-table .advance-employee-compact .avatar,
+#advancesView .advances-page-table .advance-employee-compact .employee-avatar,
+#advancesView .advances-page-table .advance-employee-compact .employee-initial {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  border-radius: 12px !important;
+}
+
+#advancesView .advances-page-table .advance-employee-compact .employee-name-link,
+#advancesView .advances-page-table .advance-employee-compact .employee-name {
+  color: #244550 !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.35 !important;
+}
+
+#advancesView .advances-page-table .advance-employee-compact small,
+#advancesView .advances-page-table .advance-employee-compact .employee-id,
+#advancesView .advances-page-table .advance-employee-compact .muted {
+  color: #8b9ba1 !important;
+  font-size: 9px !important;
+  line-height: 1.35 !important;
+}
+
+#advancesView .advances-page-table .advance-total-cell {
+  text-align: center;
+}
+
+#advancesView .advances-page-table .advance-total-cell strong {
+  color: #157f8f;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#advancesView .advances-page-table > tbody > .advance-detail-row > td {
+  padding: 10px 14px 14px !important;
+  border-bottom: 1px solid #e7eff1;
+  background: linear-gradient(180deg, #f5fafb, #f9fcfc);
+}
+
+#advancesView .advances-page-table .advance-detail-box {
+  overflow-x: auto;
+  border: 1px solid #d9e8eb;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 7px 16px rgba(15, 62, 74, 0.035);
+}
+
+#advancesView .advances-page-table .advance-detail-box table {
+  min-width: 740px;
+}
+
+#advancesView .advances-page-table .advance-detail-box th {
+  padding: 9px 10px !important;
+  border-bottom: 1px solid #dce9ec;
+  background: #eef6f7;
+  color: #5b747c;
+  font-size: 9px !important;
+  font-weight: 900;
+  text-align: center;
+}
+
+#advancesView .advances-page-table .advance-detail-box td {
+  padding: 10px !important;
+  border-bottom: 1px solid #edf2f4;
+  color: #405a63;
+  font-size: 10px !important;
+  text-align: center;
+  vertical-align: middle;
+}
+
+#advancesView .advances-page-table .advance-detail-box tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+#advancesView .advances-page-table .advance-amount-red {
+  color: #c5515a;
+}
+
+#advancesView .advances-page-table .advance-paid-green {
+  color: #168c61;
+}
+
+#advancesView .advances-page-table .advance-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+#advancesView .advances-page-table .advance-action-buttons .quick-view-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: 1px solid rgba(21, 154, 170, 0.17);
+  border-radius: 9px;
+  background: #f5fbfc;
+  color: #14899a;
+  box-shadow: none;
+}
+
+#advancesView .advances-page-table .advance-action-buttons .danger-inline-btn {
+  border-color: rgba(216, 92, 102, 0.17);
+  background: #fff6f6;
+  color: #d0505a;
+}
+
+#advancesView .advances-page-table .empty-state {
+  min-height: 150px;
+  color: #7c9096;
+}
+
+#advanceModal,
+#advancePaymentModal {
+  overflow: hidden;
+  border: 1px solid #d9e7ea;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 28px 70px rgba(15, 45, 54, 0.2);
+}
+
+#advanceModal .advance-modal-head,
+#advancePaymentModal .advance-modal-head {
+  min-height: 84px;
+  padding: 17px 18px;
+  align-items: center;
+  border-bottom: 1px solid #e2ecef;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 8% 0, rgba(34, 151, 197, 0.1), transparent 32%),
+    linear-gradient(135deg, #f8fcfd, #fff);
+}
+
+#advanceModal .v283-advance-modal-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+#advanceModal .v283-advance-modal-icon,
+#advancePaymentModal .advance-payment-title-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border: 1px solid rgba(21, 154, 170, 0.16);
+  border-radius: 14px;
+  background: #eaf8f8;
+  color: #158c9e;
+}
+
+#advanceModal .v283-advance-modal-icon svg,
+#advancePaymentModal .advance-payment-title-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+#advanceModal .advance-modal-head h2,
+#advancePaymentModal .advance-modal-head h2 {
+  margin: 0;
+  color: #173e49;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+#advanceModal .advance-modal-head p,
+#advancePaymentModal .advance-modal-head p {
+  margin: 4px 0 0;
+  color: #81949a;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+#advanceModal .advance-modal-head > .icon-btn,
+#advancePaymentModal .advance-modal-head > .icon-btn {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border: 1px solid #d9e6e9;
+  border-radius: 10px;
+  background: #fff;
+  color: #5f777f;
+  box-shadow: none;
+}
+
+#advanceModal .advance-modal-body,
+#advancePaymentModal .advance-payment-body {
+  padding: 20px;
+  background: #fff;
+}
+
+#advanceModal .advance-modal-body {
+  grid-template-columns: 1.35fr 0.85fr;
+  gap: 12px;
+}
+
+#advanceModal .advance-modal-body label > span,
+#advancePaymentModal .advance-payment-body label > span {
+  color: #526d75;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+#advanceModal .advance-modal-body select,
+#advanceModal .advance-modal-body input,
+#advancePaymentModal .advance-payment-body select,
+#advancePaymentModal .advance-payment-body input {
+  min-height: 43px;
+  border: 1px solid #d9e6e9;
+  border-radius: 12px;
+  background: #fbfcfd;
+  color: #294852;
+  font-size: 11.5px;
+  font-weight: 800;
+  box-shadow: none;
+}
+
+#advanceModal .advance-modal-body select:focus,
+#advanceModal .advance-modal-body input:focus,
+#advancePaymentModal .advance-payment-body select:focus,
+#advancePaymentModal .advance-payment-body input:focus {
+  border-color: rgba(21, 154, 170, 0.5);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(21, 154, 170, 0.08);
+  outline: none;
+}
+
+#advanceModal .modal-actions,
+#advancePaymentModal .modal-actions {
+  padding: 13px 18px 17px;
+  gap: 8px;
+  border-top: 1px solid #e6eef0;
+  background: #fbfdfd;
+}
+
+#advanceModal .modal-actions button,
+#advancePaymentModal .modal-actions button {
+  min-height: 40px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+#advanceModal .advance-submit-btn,
+#advancePaymentModal .modal-actions .primary-btn {
+  border: 0 !important;
+  background: linear-gradient(135deg, #159aaa, #1ab17a) !important;
+  box-shadow: 0 9px 20px rgba(21, 154, 170, 0.18) !important;
+}
+
+#advancePaymentModal .advance-payment-summary,
+#advancePaymentModal .advance-payment-preview {
+  border-color: #dce9ec;
+  border-radius: 14px;
+  background: #f7fbfb;
+}
+
+#advancePaymentModal .advance-payment-options {
+  border-color: #dce9ec;
+  border-radius: 14px;
+  background: #fff;
+}
+
+@media (max-width: 1100px) {
+  #advancesView .v283-advances-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  #advancesView .v283-advances-hero {
+    min-height: 0;
+    padding: 19px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #advancesView .v283-advances-title {
+    align-items: flex-start;
+  }
+
+  #advancesView .v283-advances-actions {
+    width: 100%;
+  }
+
+  #advancesView .v283-advances-actions button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  #advancesView .v283-advances-summary {
+    grid-template-columns: 1fr;
+  }
+
+  #advancesView .v283-advances-table-head {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  #advancesView .v283-advances-table-head .advances-period-controls {
+    width: 100%;
+  }
+
+  #advancesView .v283-advances-table-head .advances-period-controls label {
+    min-width: 0;
+    flex: 1;
+  }
+
+  #advancesView .v283-advances-table-head .advances-period-controls select,
+  #advancesView .v283-advances-table-head .advances-period-controls input {
+    width: 100% !important;
+  }
+
+  #advancesView .advances-page-table > thead th:first-child {
+    width: 65%;
+  }
+
+  #advancesView .advances-page-table > thead th:last-child {
+    width: 35%;
+  }
+
+  #advancesView .advances-page-table > thead th,
+  #advancesView .advances-page-table > tbody > .advance-summary-row > td {
+    padding-inline: 10px !important;
+  }
+
+  #advanceModal .advance-modal-body {
+    grid-template-columns: 1fr;
+  }
+}

@@ -3593,7 +3593,37 @@ function renderAdvancesPage() {
       String(e.employee.name || "").localeCompare(String(t.employee.name || ""), "ar"),
     ),
     o = document.querySelector("#advancesMonthLabel");
-  o && (o.textContent = `السلفيات المعتمدة خلال ${payrollMonthLabel(t)}`);
+  const periodLabel = payrollMonthLabel(t),
+    items = a.flatMap((group) => group.items),
+    totalAmount = items.reduce(
+      (sum, advance) => sum + payrollAdvanceAmountValue(advance),
+      0,
+    ),
+    paidAmount = items.reduce(
+      (sum, advance) => sum + payrollAdvancePaidAmount(advance),
+      0,
+    ),
+    remainingAmount = items.reduce(
+      (sum, advance) => sum + payrollAdvanceRemainingAmount(advance),
+      0,
+    ),
+    metrics = {
+      total: formatCurrencyEn(totalAmount),
+      paid: formatCurrencyEn(paidAmount),
+      remaining: formatCurrencyEn(remainingAmount),
+      employees: String(a.length),
+    };
+  (o && (o.textContent = `السلفيات المعتمدة خلال ${periodLabel}`),
+    Object.entries(metrics).forEach(([key, value]) => {
+      document
+        .querySelectorAll(`[data-advances-metric="${key}"]`)
+        .forEach((element) => {
+          element.textContent = value;
+        });
+    }),
+    document.querySelectorAll("[data-advances-period-label]").forEach((element) => {
+      element.textContent = periodLabel;
+    }));
   e.innerHTML = a.length
     ? a
         .map((e) => {
@@ -19456,7 +19486,7 @@ async function init() {
         (e.className = "modal small-modal advance-modal"),
         (e.id = "advanceModal"),
         (e.innerHTML =
-          '<form id="advanceForm" method="dialog"><div class="modal-head advance-modal-head"><div><h2>إضافة سلفة</h2><p>تسجل السلفة كاعتماد مباشر ضمن شهر المسير المعروض</p></div><button type="button" class="icon-btn" data-close-advance-modal><span data-icon="x"></span></button></div><div class="modal-body advance-modal-body"><label><span>الموظف</span><select id="advanceEmployeeSelect" required></select></label><label><span>قيمة السلفة</span><input id="advanceAmountInput" type="number" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required /></label></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-advance-modal>إلغاء</button><button type="submit" class="primary-btn advance-submit-btn">اعتماد السلفة</button></div></form>'),
+          '<form id="advanceForm" method="dialog"><div class="modal-head advance-modal-head"><div class="v283-advance-modal-heading"><span class="v283-advance-modal-icon" data-icon="wallet"></span><div><h2>إضافة سلفة</h2><p>تسجل السلفة كاعتماد مباشر ضمن شهر المسير المعروض</p></div></div><button type="button" class="icon-btn" data-close-advance-modal><span data-icon="x"></span></button></div><div class="modal-body advance-modal-body"><label><span>الموظف</span><select id="advanceEmployeeSelect" required></select></label><label><span>قيمة السلفة</span><input id="advanceAmountInput" type="number" min="1" step="0.01" inputmode="decimal" placeholder="0.00" required /></label></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close-advance-modal>إلغاء</button><button type="submit" class="primary-btn advance-submit-btn"><span data-icon="check"></span>اعتماد السلفة</button></div></form>'),
         document.body.appendChild(e),
         e
           .querySelectorAll("[data-close-advance-modal]")
