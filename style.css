@@ -28687,3 +28687,653 @@ html.has-initial-login-bg .auth-gate,
     display: none;
   }
 }
+
+/* v281 — Leave and travel workspace.
+   Presentation only: the v78 renderer, request actions, and cloud persistence
+   remain the sole owners of the underlying data and workflows. */
+#leavesView {
+  --v281-teal: #159aae;
+  --v281-green: #16a66a;
+  --v281-blue: #3b82c4;
+  --v281-amber: #d99a24;
+  --v281-ink: #18343d;
+  --v281-muted: #748991;
+  --v281-line: #deebee;
+}
+
+#leavesView .v78-leave-page.v281-leave-page {
+  height: calc(100vh - 138px);
+  min-height: 590px;
+  gap: 14px;
+  padding: 0 1px 1px;
+  overflow: hidden;
+}
+
+#leavesView .v281-leave-header {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 22px;
+  min-height: 104px;
+  padding: 18px 20px;
+  overflow: hidden;
+  border: 1px solid rgba(21, 154, 174, 0.16);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(20, 184, 166, 0.1), transparent 34%),
+    linear-gradient(135deg, #fbfeff 0%, #f2fbfb 52%, #f7fcf9 100%);
+  box-shadow: 0 14px 34px rgba(15, 86, 99, 0.065);
+}
+
+#leavesView .v281-leave-header::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  content: "";
+  background: linear-gradient(90deg, #2297c5, #14b8a6, #22c55e);
+}
+
+#leavesView .v281-leave-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+#leavesView .v281-leave-title-icon {
+  display: grid;
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  place-items: center;
+  border: 1px solid rgba(21, 154, 174, 0.17);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--v281-teal);
+  box-shadow: 0 10px 24px rgba(21, 154, 174, 0.1);
+}
+
+#leavesView .v281-leave-title-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
+#leavesView .v281-leave-eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--v281-teal);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+#leavesView .v281-leave-title h2 {
+  margin: 0;
+  color: var(--v281-ink);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+#leavesView .v281-leave-title p {
+  margin: 4px 0 0;
+  color: var(--v281-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+#leavesView .v281-leave-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(105px, 1fr));
+  gap: 9px;
+}
+
+#leavesView .v281-leave-metrics > div {
+  position: relative;
+  min-width: 105px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(21, 154, 174, 0.12);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+#leavesView .v281-leave-metrics > div::before {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 3px;
+  content: "";
+  background: var(--v281-blue);
+}
+
+#leavesView .v281-leave-metrics > div.is-pending::before {
+  background: var(--v281-amber);
+}
+
+#leavesView .v281-leave-metrics > div.is-active::before {
+  background: var(--v281-green);
+}
+
+#leavesView .v281-leave-metrics span {
+  display: block;
+  color: #71858c;
+  font-size: 9.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+#leavesView .v281-leave-metrics strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--v281-ink);
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+#leavesView .v78-page-tabs {
+  width: min(520px, 100%);
+  min-height: 54px;
+  padding: 6px;
+  gap: 6px;
+  border-color: var(--v281-line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 25px rgba(15, 62, 74, 0.05);
+}
+
+#leavesView .v78-page-tabs button {
+  min-height: 40px;
+  flex: 1;
+  justify-content: center;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  color: #647b83;
+  font-size: 12.5px;
+  font-weight: 900;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+#leavesView .v78-page-tabs button:hover,
+#leavesView .v78-page-tabs button:focus-visible {
+  border-color: #d9e9ec;
+  background: #f5fafb;
+  color: #315762;
+  outline: none;
+}
+
+#leavesView .v78-page-tabs button.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #2297c5, #14b8a6);
+  color: #fff;
+  box-shadow: 0 9px 20px rgba(21, 154, 174, 0.18);
+}
+
+#leavesView .v78-page-tabs button span {
+  min-width: 24px;
+  padding: 2px 7px;
+  background: #eaf1f3;
+  color: #547079;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+#leavesView .v78-page-tabs button.active span {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+#leavesView .v281-leave-page > .leave-balance-dashboard-card {
+  display: grid;
+  grid-template-columns:
+    minmax(145px, 0.72fr)
+    minmax(120px, auto)
+    minmax(330px, 1.45fr)
+    minmax(250px, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  padding: 12px 15px;
+  border: 1px solid rgba(22, 166, 106, 0.17);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(34, 197, 94, 0.075), transparent 34%),
+    linear-gradient(135deg, #f6fcfa, #f8fcfd);
+  box-shadow: 0 10px 25px rgba(15, 82, 71, 0.05);
+}
+
+#leavesView
+  .v281-leave-page
+  > .leave-balance-dashboard-card
+  .leave-balance-dashboard-title,
+#leavesView
+  .v281-leave-page
+  > .leave-balance-dashboard-card
+  .leave-balance-dashboard-number {
+  margin: 0;
+}
+
+#leavesView
+  .v281-leave-page
+  > .leave-balance-dashboard-card
+  .leave-balance-dashboard-title {
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+#leavesView
+  .v281-leave-page
+  > .leave-balance-dashboard-card
+  .leave-balance-dashboard-title
+  strong {
+  color: #177b68;
+  font-size: 12px;
+}
+
+#leavesView
+  .v281-leave-page
+  > .leave-balance-dashboard-card
+  .leave-balance-dashboard-number {
+  justify-content: center;
+}
+
+#leavesView
+  .v281-leave-page
+  > .leave-balance-dashboard-card
+  .leave-balance-dashboard-number
+  strong {
+  color: #159a68;
+  font-size: 25px;
+}
+
+#leavesView
+  .v281-leave-page
+  > .leave-balance-dashboard-card
+  .leave-balance-dashboard-grid {
+  gap: 7px;
+}
+
+#leavesView
+  .v281-leave-page
+  > .leave-balance-dashboard-card
+  .leave-balance-dashboard-grid
+  > div {
+  padding: 8px 9px;
+  border-color: #e0ece9;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+#leavesView .v281-leave-page > .leave-balance-dashboard-card > p {
+  margin: 0;
+  color: #71878a;
+  font-size: 9.5px;
+  line-height: 1.75;
+}
+
+#leavesView .v78-data-card {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--v281-line);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 62, 74, 0.055);
+}
+
+#leavesView .v78-data-card::before {
+  position: absolute;
+  z-index: 4;
+  inset: 0 0 auto;
+  height: 4px;
+  content: "";
+}
+
+#leavesView .v78-data-card[data-v78-panel="travel"]::before {
+  background: linear-gradient(90deg, #2297c5, #14b8a6);
+}
+
+#leavesView .v78-data-card[data-v78-panel="leave"]::before {
+  background: linear-gradient(90deg, #d99a24, #14b8a6);
+}
+
+#leavesView .v78-card-head {
+  min-height: 78px;
+  padding: 18px 20px 15px;
+  border-bottom: 1px solid #e8f0f2;
+  background: linear-gradient(180deg, #fff, #fbfdfd);
+}
+
+#leavesView .v78-data-card[data-v78-panel="travel"] .v78-card-head {
+  background: linear-gradient(135deg, rgba(34, 151, 197, 0.055), #fff 52%);
+}
+
+#leavesView .v78-data-card[data-v78-panel="leave"] .v78-card-head {
+  background: linear-gradient(135deg, rgba(217, 154, 36, 0.065), #fff 52%);
+}
+
+#leavesView .v78-card-head h3 {
+  color: var(--v281-ink);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+#leavesView .v78-card-head p {
+  margin-top: 4px;
+  color: #82949a;
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+#leavesView .v78-card-head .primary-btn {
+  min-height: 42px;
+  padding-inline: 17px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #2297c5, #14b8a6);
+  box-shadow: 0 9px 20px rgba(21, 154, 174, 0.17);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#leavesView .v193-travel-year-filter {
+  width: fit-content;
+  margin: 12px 18px 0;
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid #e1ecef;
+  border-radius: 13px;
+  background: #f4f8f9;
+}
+
+#leavesView .v193-travel-year-filter button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 10.5px;
+}
+
+#leavesView .v193-travel-year-filter button.active {
+  border: 0;
+  background: #fff;
+  color: #176c79;
+  box-shadow: 0 4px 12px rgba(31, 83, 94, 0.08);
+}
+
+#leavesView .v78-filter-row:not(.v193-travel-year-filter) {
+  min-height: 52px;
+  margin: 0;
+  padding: 9px 18px 10px;
+  gap: 7px;
+  border-bottom: 1px solid #edf2f4;
+}
+
+#leavesView .v78-filter-row:not(.v193-travel-year-filter) button {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #e1eaed;
+  border-radius: 11px;
+  background: #f9fbfc;
+  color: #62777f;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+#leavesView .v78-filter-row:not(.v193-travel-year-filter) button:hover,
+#leavesView .v78-filter-row:not(.v193-travel-year-filter) button:focus-visible {
+  border-color: #cfe3e7;
+  background: #f1f8f9;
+  color: #315e68;
+  outline: none;
+}
+
+#leavesView .v78-filter-row:not(.v193-travel-year-filter) button.active {
+  border-color: rgba(21, 154, 174, 0.24);
+  background: #eaf8fa;
+  color: #11798a;
+  box-shadow: none;
+}
+
+#leavesView .v78-filter-row button span {
+  min-width: 21px;
+  padding: 1px 6px;
+  background: #e9f0f2;
+  color: #57717a;
+  font-size: 9px;
+}
+
+#leavesView .v78-filter-row button.active span {
+  background: #159aae;
+  color: #fff;
+}
+
+#leavesView .v78-table-scroll {
+  margin: 0 16px 16px;
+  overflow-x: hidden;
+  border: 1px solid #dfeaec;
+  border-radius: 17px;
+  background: #fff;
+}
+
+#leavesView .v78-soft-table thead th {
+  height: 48px;
+  padding: 10px 8px;
+  border-bottom: 1px solid #dce9ec;
+  background: #f1f8f9;
+  color: #416b76;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.45;
+  vertical-align: middle;
+}
+
+#leavesView .v78-soft-table tbody td {
+  min-height: 62px;
+  padding: 11px 8px;
+  border-bottom-color: #edf2f4;
+  color: #3f5962;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+#leavesView .v78-soft-table tbody tr:nth-child(even) td {
+  background: #fcfefe;
+}
+
+#leavesView .v78-soft-table tbody tr:hover td {
+  background: #f6fbfb;
+}
+
+#leavesView .v78-soft-table .col-employee {
+  color: #234f5b;
+  font-weight: 800;
+}
+
+#leavesView .v78-soft-table .travel-actions {
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+#leavesView .v78-soft-table .travel-actions .primary-btn,
+#leavesView .v78-soft-table .travel-actions .secondary-btn {
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  font-size: 9.5px;
+  box-shadow: none;
+}
+
+#leavesView .v78-travel-table .c-number {
+  width: 7%;
+}
+
+#leavesView .v78-travel-table .c-employee {
+  width: 17%;
+}
+
+#leavesView .v78-travel-table .c-date {
+  width: 8.5%;
+}
+
+#leavesView .v78-travel-table .c-status {
+  width: 9.5%;
+}
+
+#leavesView .v78-travel-table .c-duration {
+  width: 8%;
+}
+
+#leavesView .v78-travel-table .c-attachments {
+  width: 7%;
+}
+
+#leavesView .v78-travel-table .c-actions {
+  width: 18%;
+}
+
+#leavesView .v78-leave-table .c-employee {
+  width: 23%;
+}
+
+#leavesView .v78-leave-table .c-type {
+  width: 13%;
+}
+
+#leavesView .v78-leave-table .c-date {
+  width: 11.5%;
+}
+
+#leavesView .v78-leave-table .c-duration {
+  width: 9%;
+}
+
+#leavesView .v78-leave-table .c-status {
+  width: 14%;
+}
+
+#leavesView .v78-leave-table .c-actions {
+  width: 17%;
+}
+
+#leavesView .v78-table-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+#leavesView .v78-table-scroll::-webkit-scrollbar-track {
+  background: #f3f7f8;
+}
+
+#leavesView .v78-table-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid #f3f7f8;
+  border-radius: 999px;
+  background: #b9cdd2;
+}
+
+@media (max-width: 1120px) {
+  #leavesView .v281-leave-header {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  #leavesView .v281-leave-metrics {
+    width: 100%;
+  }
+
+  #leavesView .v78-leave-page.v281-leave-page {
+    height: auto;
+    min-height: 590px;
+    overflow: visible;
+  }
+
+  #leavesView .v78-data-card {
+    min-height: 540px;
+  }
+
+  #leavesView .v281-leave-page > .leave-balance-dashboard-card {
+    grid-template-columns: minmax(145px, 0.8fr) auto minmax(320px, 1.5fr);
+  }
+
+  #leavesView .v281-leave-page > .leave-balance-dashboard-card > p {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  #leavesView .v281-leave-header {
+    padding: 17px;
+  }
+
+  #leavesView .v78-table-scroll {
+    overflow-x: auto;
+  }
+
+  #leavesView .v78-travel-table {
+    min-width: 920px;
+  }
+
+  #leavesView .v78-leave-table {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 660px) {
+  #leavesView .v281-leave-title {
+    align-items: flex-start;
+  }
+
+  #leavesView .v281-leave-title-icon {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+
+  #leavesView .v281-leave-title h2 {
+    font-size: 17px;
+  }
+
+  #leavesView .v281-leave-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  #leavesView .v281-leave-metrics > div {
+    min-width: 0;
+  }
+
+  #leavesView .v281-leave-page > .leave-balance-dashboard-card {
+    grid-template-columns: 1fr;
+  }
+
+  #leavesView
+    .v281-leave-page
+    > .leave-balance-dashboard-card
+    .leave-balance-dashboard-number {
+    justify-content: flex-start;
+  }
+
+  #leavesView .v78-page-tabs {
+    width: 100%;
+  }
+
+  #leavesView .v78-card-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #leavesView .v78-card-head .primary-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  #leavesView .v193-travel-year-filter {
+    width: auto;
+  }
+}

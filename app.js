@@ -28813,7 +28813,8 @@ async function init() {
       const e = document.querySelector("#leavesView");
       if (!e) return;
       if (e.querySelector(".leave-balance-dashboard-card")) return;
-      const t = e.querySelector(".leave-tabs"),
+      const t = e.querySelector(".v78-page-tabs, .leave-tabs"),
+        i = e.querySelector(".v281-leave-page, .v78-leave-page"),
         n = (function () {
           const e = c().filter((e) => e && "terminated" !== e.status);
           if (!e.length) return "";
@@ -28847,9 +28848,11 @@ async function init() {
       if (!n) return;
       const o = document.createElement("div");
       ((o.innerHTML = n),
-        t && t.nextSibling
-          ? e.insertBefore(o.firstElementChild, t.nextSibling)
-          : e.prepend(o.firstElementChild));
+        i && t && t.parentElement === i
+          ? i.insertBefore(o.firstElementChild, t.nextSibling)
+          : i
+            ? i.prepend(o.firstElementChild)
+            : e.prepend(o.firstElementChild));
     }
     function w() {
       const e = document.querySelector("#leaveForm"),
@@ -37036,6 +37039,21 @@ async function init() {
 	          : scopedLeaves.filter(function (r) {
 	              return leaveCategory(r) === leaveFilter;
 	            });
+      var pendingTravelCount = countBy(
+        travels,
+        travelCategory,
+        "pending",
+      );
+      var pendingLeaveCount = countBy(
+        leaveArr,
+        leaveCategory,
+        "pending",
+      );
+      var activeTravelerCount = countBy(
+        travels,
+        travelCategory,
+        "active",
+      );
       var renderSignature = JSON.stringify({
         activeTab: activeTab,
         travelFilter: travelFilter,
@@ -37059,7 +37077,15 @@ async function init() {
       )
         return;
       view.innerHTML =
-        '<div class="v78-leave-page"><div class="v78-page-tabs"><button type="button" class="' +
+        '<div class="v78-leave-page v281-leave-page"><header class="v281-leave-header"><div class="v281-leave-title"><span class="v281-leave-title-icon">' +
+        icon("calendar") +
+        '</span><div><span class="v281-leave-eyebrow">إدارة الطلبات</span><h2>الإجازات والسفر</h2><p>متابعة الطلبات والاعتمادات وتسجيل المباشرة من شاشة واحدة واضحة.</p></div></div><div class="v281-leave-metrics"><div><span>إجمالي الطلبات</span><strong>' +
+        num(travels.length + leaveArr.length) +
+        '</strong></div><div class="is-pending"><span>بانتظار الإجراء</span><strong>' +
+        num(pendingTravelCount + pendingLeaveCount) +
+        '</strong></div><div class="is-active"><span>مسافرون حاليًا</span><strong>' +
+        num(activeTravelerCount) +
+        '</strong></div></div></header><div class="v78-page-tabs"><button type="button" class="' +
         (activeTab === "travel" ? "active" : "") +
         '" data-v78-tab="travel">السفر <span>' +
         num(travels.length) +
