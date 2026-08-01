@@ -80989,6 +80989,31 @@ window.nawahNotificationRulesV294 = {
       return Boolean(a[key]) === Boolean(b[key]);
     });
   }
+  async function verifyCloudProfile(id, desired, role, employeeId) {
+    const delays = [0, 180, 420, 850];
+    let latest = null;
+    let lastError = null;
+    for (const delay of delays) {
+      if (delay)
+        await new Promise(function (resolve) {
+          setTimeout(resolve, delay);
+        });
+      try {
+        latest = await fetchProfile(id);
+        lastError = null;
+        if (
+          latest &&
+          samePermissions(latest.permissions, desired, role) &&
+          clean(latest.employee_id) === clean(employeeId)
+        )
+          return latest;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!latest && lastError) throw lastError;
+    return latest;
+  }
   function isDirty() {
     const profile = selectedProfile();
     if (!profile || !state.baseline) return false;
@@ -81463,9 +81488,12 @@ window.nawahNotificationRulesV294 = {
       }
       if (!mutated)
         throw new Error("تم تعديل السجل في متصفح آخر؛ لم يتم استبدال بياناته");
-      const verified = window.nawahPermissionAuditV296?.commit
-        ? mutated
-        : await fetchProfile(remote.id);
+      const verified = await verifyCloudProfile(
+        remote.id,
+        desired,
+        remote.role,
+        remote.employee_id,
+      );
       if (
         !verified ||
         !samePermissions(verified.permissions, desired, remote.role) ||
@@ -81746,7 +81774,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 299,
+    version: 302,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -82588,6 +82616,31 @@ window.nawahNotificationRulesV294 = {
     const b = normalizePermissions(right, role);
     return ALL_KEYS.every(function (key) { return Boolean(a[key]) === Boolean(b[key]); });
   }
+  async function verifyCloudProfile(id, desired, role, employeeId) {
+    const delays = [0, 180, 420, 850];
+    let latest = null;
+    let lastError = null;
+    for (const delay of delays) {
+      if (delay)
+        await new Promise(function (resolve) {
+          setTimeout(resolve, delay);
+        });
+      try {
+        latest = await fetchProfile(id);
+        lastError = null;
+        if (
+          latest &&
+          samePermissions(latest.permissions, desired, role) &&
+          clean(latest.employee_id) === clean(employeeId)
+        )
+          return latest;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!latest && lastError) throw lastError;
+    return latest;
+  }
   async function writeAuditIfUnchanged(row, payload) {
     const client = db();
     const now = new Date().toISOString();
@@ -82665,7 +82718,12 @@ window.nawahNotificationRulesV294 = {
     try {
       mutated = await updateProfileIfUnchanged(remote, desired);
       if (!mutated) throw new Error("تم تعديل السجل في متصفح آخر؛ لم يتم استبدال بياناته");
-      const verified = await fetchProfile(remote.id);
+      const verified = await verifyCloudProfile(
+        remote.id,
+        desired,
+        remote.role,
+        remote.employee_id,
+      );
       if (
         !verified ||
         !samePermissions(verified.permissions, desired, remote.role) ||
