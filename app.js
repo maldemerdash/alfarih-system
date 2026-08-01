@@ -78368,3 +78368,1343 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     employeeField: "branch",
   };
 })();
+/* v293 - professional personal account with Supabase Auth and cloud profile persistence. */
+(function v293ProfessionalPersonalAccount() {
+  if (window.__v293ProfessionalPersonalAccount) return;
+  window.__v293ProfessionalPersonalAccount = true;
+
+  const PROFILE_FIELDS =
+    "id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at";
+  const PREFS_KEY = "account_preferences_v293";
+  const AVATAR_KEY = "account_avatar_attachment_id_v293";
+  const PASSWORD_CHANGED_KEY = "password_changed_at_v293";
+  const DEFAULT_PREFERENCES = Object.freeze({
+    dateFormat: "site",
+    timezone: "Asia/Riyadh",
+    inAppNotifications: true,
+    emailNotifications: false,
+    audioNotifications: true,
+    reducedMotion: false,
+  });
+  let rendering = false;
+  let renderGeneration = 0;
+  let currentPreferences = { ...DEFAULT_PREFERENCES };
+  let currentAvatarUrl = "";
+  let currentAvatarObjectUrl = "";
+  let accountObserver = null;
+  let cloudRefreshPromise = null;
+  let lastCloudRefreshAt = 0;
+  const avatarUrlCache = new Map();
+  const avatarUrlPending = new Map();
+
+  function clean(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function esc(value) {
+    try {
+      if (typeof escapeHtml === "function") return escapeHtml(clean(value));
+    } catch (_) {}
+    return clean(value).replace(/[&<>\"]/g, function (character) {
+      return (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[
+          character
+        ] || character
+      );
+    });
+  }
+
+  function icon(name) {
+    try {
+      if (typeof iconSvg === "function") return iconSvg(name);
+    } catch (_) {}
+    return '<span data-icon="' + esc(name) + '"></span>';
+  }
+
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") return showToast(message);
+      if (typeof toast === "function") return toast(message);
+    } catch (_) {}
+  }
+
+  function client() {
+    try {
+      if (!supabaseClient && typeof initSupabaseClient === "function")
+        initSupabaseClient();
+      return supabaseClient || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function currentUserRecord() {
+    try {
+      return authUser || window.authUser || null;
+    } catch (_) {
+      return window.authUser || null;
+    }
+  }
+
+  function currentProfileRecord() {
+    try {
+      return authProfile || window.authProfile || {};
+    } catch (_) {
+      return window.authProfile || {};
+    }
+  }
+
+  function installUser(user) {
+    if (!user) return;
+    try {
+      authUser = user;
+    } catch (_) {}
+    window.authUser = user;
+  }
+
+  function installProfile(profile) {
+    if (!profile) return;
+    try {
+      authProfile = { ...(authProfile || {}), ...profile };
+    } catch (_) {}
+    window.authProfile = { ...(window.authProfile || {}), ...profile };
+    try {
+      if (typeof updateTopbarUser === "function") updateTopbarUser();
+    } catch (_) {}
+  }
+
+  function metadata(user) {
+    return user?.user_metadata && typeof user.user_metadata === "object"
+      ? { ...user.user_metadata }
+      : {};
+  }
+
+  function normalizePreferences(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const dateFormat = ["site", "dmy", "iso"].includes(source.dateFormat)
+      ? source.dateFormat
+      : DEFAULT_PREFERENCES.dateFormat;
+    const timezone = [
+      "Asia/Riyadh",
+      "Asia/Kuwait",
+      "Asia/Dubai",
+      "Africa/Cairo",
+    ].includes(source.timezone)
+      ? source.timezone
+      : DEFAULT_PREFERENCES.timezone;
+    return {
+      dateFormat,
+      timezone,
+      inAppNotifications: source.inAppNotifications !== false,
+      emailNotifications: source.emailNotifications === true,
+      audioNotifications: source.audioNotifications !== false,
+      reducedMotion: source.reducedMotion === true,
+    };
+  }
+
+  function preferencesFromUser(user) {
+    return normalizePreferences(metadata(user)[PREFS_KEY]);
+  }
+
+  function applyPreferences(preferences) {
+    currentPreferences = normalizePreferences(preferences);
+    document.documentElement.dataset.v293ReducedMotion =
+      currentPreferences.reducedMotion ? "1" : "0";
+    document.documentElement.dataset.v293DateFormat =
+      currentPreferences.dateFormat;
+    document.documentElement.dataset.v293Timezone =
+      currentPreferences.timezone;
+    document.documentElement.dataset.v293AudioNotifications =
+      currentPreferences.audioNotifications ? "1" : "0";
+    document.dispatchEvent(
+      new CustomEvent("nawah:user-preferences-updated", {
+        detail: { ...currentPreferences },
+      }),
+    );
+  }
+
+  function accountPanel() {
+    return (
+      document.querySelector(
+        '#settingsView [data-settings-panel="account"]',
+      ) || document.querySelector('[data-settings-panel="account"]')
+    );
+  }
+
+  function accountActive() {
+    const panel = accountPanel();
+    return Boolean(
+      panel &&
+        panel.classList.contains("active") &&
+        !panel.hidden &&
+        panel.style.display !== "none",
+    );
+  }
+
+  function employeesList() {
+    try {
+      return Array.isArray(window.employees)
+        ? window.employees
+        : typeof employees !== "undefined" && Array.isArray(employees)
+          ? employees
+          : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function linkedEmployee(profile) {
+    try {
+      const employee = window.employeePermissionMatrix?.linkedEmployee?.();
+      if (employee) return employee;
+    } catch (_) {}
+    const id = clean(
+      profile?.employee_id ||
+        profile?.employeeId ||
+        profile?.linked_employee_id,
+    );
+    const email = clean(profile?.email).toLowerCase();
+    return (
+      employeesList().find(function (employee) {
+        return (
+          (id && clean(employee?.id || employee?.employeeId) === id) ||
+          (email &&
+            clean(
+              employee?.email ||
+                employee?.workEmail ||
+                employee?.personalEmail,
+            ).toLowerCase() === email)
+        );
+      }) || null
+    );
+  }
+
+  function employeeName(employee) {
+    return (
+      clean(
+        employee?.name ||
+          employee?.fullName ||
+          employee?.full_name ||
+          employee?.employeeName,
+      ) || "غير مرتبط"
+    );
+  }
+
+  function employeeNumber(employee) {
+    return clean(
+      employee?.employeeNumber ||
+        employee?.employee_number ||
+        employee?.employeeId ||
+        employee?.number,
+    );
+  }
+
+  function employeePhone(employee) {
+    return clean(
+      employee?.phone ||
+        employee?.mobile ||
+        employee?.mobileNumber ||
+        employee?.phoneNumber,
+    );
+  }
+
+  function employeeJobTitle(employee) {
+    return clean(
+      employee?.role ||
+        employee?.jobTitle ||
+        employee?.profession ||
+        employee?.position,
+    );
+  }
+
+  function roleLabel(role) {
+    const value = clean(role);
+    return (
+      {
+        admin: "مدير النظام",
+        hr: "الموارد البشرية",
+        accountant: "المحاسب",
+        manager: "مدير مباشر",
+        employee: "موظف",
+      }[value] || value || "غير محدد"
+    );
+  }
+
+  function displayName(profile, user) {
+    return (
+      clean(profile?.full_name || profile?.name) ||
+      clean(metadata(user).full_name) ||
+      clean(user?.email).split("@")[0] ||
+      "مستخدم النظام"
+    );
+  }
+
+  function initials(value) {
+    const parts = clean(value).split(/\s+/).filter(Boolean).slice(0, 2);
+    return parts.map(function (part) {
+      return part.charAt(0);
+    }).join("") || "م";
+  }
+
+  function formatAccountDate(value, includeTime) {
+    if (!value) return "غير مسجل";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return clean(value) || "غير مسجل";
+    try {
+      return new Intl.DateTimeFormat("ar-SA-u-nu-latn", {
+        timeZone: currentPreferences.timezone,
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        ...(includeTime ? { hour: "2-digit", minute: "2-digit" } : {}),
+      }).format(date);
+    } catch (_) {
+      return date.toISOString().slice(0, includeTime ? 16 : 10).replace("T", " ");
+    }
+  }
+
+  function deviceLabel() {
+    const agent = clean(navigator.userAgent);
+    const platform = /Macintosh|Mac OS X/i.test(agent)
+      ? "macOS"
+      : /Windows/i.test(agent)
+        ? "Windows"
+        : /Android/i.test(agent)
+          ? "Android"
+          : /iPhone|iPad/i.test(agent)
+            ? "iOS"
+            : /Linux/i.test(agent)
+              ? "Linux"
+              : "جهاز غير محدد";
+    const browser = /Edg\//i.test(agent)
+      ? "Edge"
+      : /Chrome\//i.test(agent)
+        ? "Chrome"
+        : /Firefox\//i.test(agent)
+          ? "Firefox"
+          : /Safari\//i.test(agent)
+            ? "Safari"
+            : "متصفح الويب";
+    return browser + " على " + platform;
+  }
+
+  function setCloudState(kind, message) {
+    const root = accountPanel()?.querySelector("[data-v293-cloud-state]");
+    if (!root) return;
+    root.className =
+      "v293-cloud-state" +
+      (kind === "saving"
+        ? " is-saving"
+        : kind === "error"
+          ? " is-error"
+          : "");
+    root.innerHTML =
+      icon(kind === "error" ? "x" : kind === "saving" ? "clock" : "check-circle") +
+      '<span>' + esc(message) + "</span>";
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(root);
+    } catch (_) {}
+  }
+
+  async function fetchProfileFresh(user) {
+    const db = client();
+    if (!db?.from || !user) throw new Error("تعذر الاتصال بالسحابة");
+    let result = await db
+      .from("app_user_profiles")
+      .select(PROFILE_FIELDS)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    if (result.data) return result.data;
+    const email = clean(user.email).toLowerCase();
+    if (!email) throw new Error("لا يوجد ملف مستخدم مرتبط");
+    result = await db
+      .from("app_user_profiles")
+      .select(PROFILE_FIELDS)
+      .eq("email", email)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    if (!result.data) throw new Error("لا يوجد ملف مستخدم مرتبط");
+    return result.data;
+  }
+
+  async function refreshAuthUser(fallback) {
+    const auth = client()?.auth;
+    if (auth?.getUser) {
+      const result = await auth.getUser();
+      if (result.error) throw result.error;
+      if (result.data?.user) {
+        installUser(result.data.user);
+        return result.data.user;
+      }
+    }
+    if (fallback) installUser(fallback);
+    return fallback || currentUserRecord();
+  }
+
+  async function refreshAccountCloudState(force) {
+    const now = Date.now();
+    if (!force && lastCloudRefreshAt && now - lastCloudRefreshAt < 1500)
+      return {
+        user: currentUserRecord(),
+        profile: currentProfileRecord(),
+      };
+    if (cloudRefreshPromise) return cloudRefreshPromise;
+    cloudRefreshPromise = (async function () {
+      const initialUser = currentUserRecord();
+      if (!initialUser) return { user: null, profile: null };
+      const user = await refreshAuthUser(initialUser);
+      const profile = await fetchProfileFresh(user);
+      installProfile(profile);
+      lastCloudRefreshAt = Date.now();
+      return { user, profile };
+    })().finally(function () {
+      cloudRefreshPromise = null;
+    });
+    return cloudRefreshPromise;
+  }
+
+  async function resolveAvatarUrl(user, employee) {
+    const meta = metadata(user);
+    const accountAttachmentId = clean(meta[AVATAR_KEY]);
+    const employeeAttachmentId = clean(employee?.photoAttachmentId);
+    const attachmentId = accountAttachmentId || employeeAttachmentId;
+    if (attachmentId) {
+      if (avatarUrlCache.has(attachmentId))
+        return {
+          url: avatarUrlCache.get(attachmentId),
+          source: accountAttachmentId ? "account" : "employee",
+          attachmentId,
+        };
+      try {
+        if (typeof attachmentUrl === "function") {
+          if (!avatarUrlPending.has(attachmentId))
+            avatarUrlPending.set(
+              attachmentId,
+              Promise.resolve(attachmentUrl(attachmentId)).then(clean),
+            );
+          const url = clean(await avatarUrlPending.get(attachmentId));
+          avatarUrlPending.delete(attachmentId);
+          if (url)
+            avatarUrlCache.set(attachmentId, url);
+          if (url)
+            return {
+              url,
+              source: accountAttachmentId ? "account" : "employee",
+              attachmentId,
+            };
+        }
+      } catch (_) {
+        avatarUrlPending.delete(attachmentId);
+      }
+    }
+    const legacy = clean(
+      employee?.legacyPhoto || employee?.photo || employee?.photoDataUrl,
+    );
+    return {
+      url: legacy,
+      source: legacy ? "employee" : "fallback",
+      attachmentId: "",
+    };
+  }
+
+  function renderShell() {
+    const panel = accountPanel();
+    if (!panel) return null;
+    const existing = panel.querySelector(".v293-account-page");
+    if (existing) return existing;
+    rendering = true;
+    panel.dataset.v293Ready = "1";
+    panel.dataset.v293AccountState = "ready";
+    panel.setAttribute("aria-busy", "false");
+    panel.classList.remove("v156-settings-modern", "v157-settings-clean");
+    panel.innerHTML = `
+      <div class="v293-account-page">
+        <header class="v293-account-head">
+          <div class="v293-account-head-title">
+            <span class="v293-account-head-mark">${icon("user")}</span>
+            <div><h3>الحساب الشخصي</h3><p>بيانات الحساب والأمان والتفضيلات الخاصة بهذا المستخدم فقط.</p></div>
+          </div>
+          <span class="v293-cloud-state" data-v293-cloud-state>${icon("check-circle")}<span>متصل بالسحابة</span></span>
+        </header>
+        <div class="v293-account-grid">
+          <form class="v293-account-card v293-profile-card" data-v293-profile-form novalidate>
+            <header class="v293-card-head"><span>${icon("user")}</span><div><h4>الملف الشخصي</h4><p>الاسم الظاهر والصورة، مع بيانات الموظف المرتبط دون تكرار.</p></div></header>
+            <section class="v293-avatar-block">
+              <div class="v293-avatar-identity">
+                <span class="v293-avatar-preview" data-v293-avatar-preview aria-label="الصورة الشخصية"><b data-v293-avatar-fallback>م</b></span>
+                <div class="v293-avatar-copy"><strong data-v293-profile-name>مستخدم النظام</strong><span data-v293-profile-email>—</span></div>
+              </div>
+              <div class="v293-avatar-actions">
+                <label class="v293-avatar-upload" data-v293-avatar-upload>${icon("camera")}<span>رفع صورة</span><input type="file" accept="image/jpeg,image/png,image/webp" data-v293-avatar-input aria-label="رفع الصورة الشخصية"></label>
+                <button type="button" class="v293-icon-action" data-v293-view-avatar aria-label="معاينة الصورة" title="معاينة الصورة">${icon("eye")}</button>
+                <button type="button" class="v293-icon-action is-danger" data-v293-delete-avatar aria-label="حذف الصورة" title="حذف الصورة" hidden>${icon("trash")}</button>
+              </div>
+            </section>
+            <div class="v293-fields">
+              <label class="v293-field"><span>الاسم الظاهر</span><input name="fullName" maxlength="120" required autocomplete="name"></label>
+              <label class="v293-field"><span>البريد الإلكتروني</span><input name="email" type="email" readonly dir="ltr"></label>
+              <div class="v293-fields two">
+                <label class="v293-field"><span>رقم الجوال</span><input name="mobile" readonly dir="ltr"></label>
+                <label class="v293-field"><span>المسمى الوظيفي</span><input name="jobTitle" readonly></label>
+              </div>
+              <div class="v293-fields two">
+                <label class="v293-field"><span>الصلاحية</span><input name="role" readonly></label>
+                <div class="v293-field"><span>الموظف المرتبط</span><div class="v293-readonly-line"><strong data-v293-linked-employee>غير مرتبط</strong><button type="button" class="v293-mini-open" data-v293-open-employee aria-label="فتح ملف الموظف" title="فتح ملف الموظف" hidden>${icon("eye")}</button></div></div>
+              </div>
+            </div>
+            <div class="v293-settings-note">البريد والصلاحية وربط الموظف تُدار من «إدارة المستخدمين». رقم الجوال والمسمى يُقرآن من ملف الموظف حتى لا تتكرر البيانات.</div>
+            <footer class="v293-card-actions"><button type="submit" class="v293-primary" data-v293-save-profile>${icon("check")}<span>حفظ الملف سحابيًا</span></button></footer>
+          </form>
+
+          <form class="v293-account-card v293-security-card" data-v293-password-form novalidate>
+            <header class="v293-card-head"><span>${icon("shield")}</span><div><h4>الأمان وكلمة المرور</h4><p>تغيير محمي بعد التحقق من كلمة المرور الحالية.</p></div></header>
+            <div class="v293-security-summary">
+              <article><span>آخر تسجيل دخول</span><strong data-v293-last-login>غير مسجل</strong></article>
+              <article><span>آخر تغيير لكلمة المرور</span><strong data-v293-password-changed>غير مسجل</strong></article>
+              <article style="grid-column:1/-1"><span>الجهاز الحالي</span><strong data-v293-device>—</strong></article>
+            </div>
+            <div class="v293-fields">
+              <label class="v293-field"><span>كلمة المرور الحالية</span><input name="currentPassword" type="password" autocomplete="current-password" required></label>
+              <label class="v293-field"><span>كلمة المرور الجديدة</span><input name="newPassword" type="password" autocomplete="new-password" minlength="8" required data-v293-new-password></label>
+              <div class="v293-password-strength" data-v293-password-strength data-score="0"><i></i><i></i><i></i><i></i></div><small class="v293-strength-copy" data-v293-strength-copy>استخدم 8 أحرف على الأقل مع أرقام ورموز.</small>
+              <label class="v293-field"><span>تأكيد كلمة المرور الجديدة</span><input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+            </div>
+            <footer class="v293-card-actions"><button type="submit" class="v293-primary" data-v293-change-password>${icon("shield")}<span>تحديث كلمة المرور</span></button><button type="button" class="v293-secondary" data-v293-manage-sessions>${icon("clock")}<span>إدارة الجلسات</span></button></footer>
+          </form>
+
+          <form class="v293-account-card v293-preferences-card" data-v293-preferences-form novalidate>
+            <header class="v293-card-head"><span>${icon("settings")}</span><div><h4>تفضيلات المستخدم</h4><p>إعدادات مستقلة لهذا الحساب ولا تؤثر على بقية المستخدمين.</p></div></header>
+            <div class="v293-fields two">
+              <label class="v293-field"><span>طريقة عرض التاريخ</span><select name="dateFormat"><option value="site">تنسيق الموقع</option><option value="dmy">يوم / شهر / سنة</option><option value="iso">سنة - شهر - يوم</option></select></label>
+              <label class="v293-field"><span>المنطقة الزمنية</span><select name="timezone"><option value="Asia/Riyadh">الرياض</option><option value="Asia/Kuwait">الكويت</option><option value="Asia/Dubai">دبي</option><option value="Africa/Cairo">القاهرة</option></select></label>
+            </div>
+            <div class="v293-toggle-list">
+              <label class="v293-toggle-row"><span><strong>تنبيهات داخل النظام</strong><small>إظهار التنبيهات الخاصة بالحساب داخل الموقع.</small></span><input type="checkbox" name="inAppNotifications"></label>
+              <label class="v293-toggle-row"><span><strong>تنبيهات البريد الإلكتروني</strong><small>حفظ تفضيل استقبال الرسائل عند توفر قناة البريد.</small></span><input type="checkbox" name="emailNotifications"></label>
+              <label class="v293-toggle-row"><span><strong>صوت التنبيهات</strong><small>تشغيل الصوت للتنبيهات المسموعة لهذا المستخدم.</small></span><input type="checkbox" name="audioNotifications"></label>
+              <label class="v293-toggle-row"><span><strong>خفض الحركة</strong><small>تقليل المؤثرات والحركة لعرض أكثر هدوءًا.</small></span><input type="checkbox" name="reducedMotion"></label>
+            </div>
+            <div class="v293-settings-note">تُحفظ هذه التفضيلات في ملف المصادقة السحابي للمستخدم، ولا تُخزن في المتصفح.</div>
+            <footer class="v293-card-actions"><button type="submit" class="v293-primary" data-v293-save-preferences>${icon("check")}<span>حفظ التفضيلات سحابيًا</span></button></footer>
+          </form>
+        </div>
+      </div>`;
+    rendering = false;
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(panel);
+    } catch (_) {}
+    return panel.querySelector(".v293-account-page");
+  }
+
+  function fillPreferenceForm(form, preferences) {
+    if (!form?.elements) return;
+    form.elements.dateFormat.value = preferences.dateFormat;
+    form.elements.timezone.value = preferences.timezone;
+    form.elements.inAppNotifications.checked =
+      preferences.inAppNotifications;
+    form.elements.emailNotifications.checked =
+      preferences.emailNotifications;
+    form.elements.audioNotifications.checked =
+      preferences.audioNotifications;
+    form.elements.reducedMotion.checked = preferences.reducedMotion;
+  }
+
+  function preferencesFromForm(form) {
+    return normalizePreferences({
+      dateFormat: form.elements.dateFormat.value,
+      timezone: form.elements.timezone.value,
+      inAppNotifications: form.elements.inAppNotifications.checked,
+      emailNotifications: form.elements.emailNotifications.checked,
+      audioNotifications: form.elements.audioNotifications.checked,
+      reducedMotion: form.elements.reducedMotion.checked,
+    });
+  }
+
+  function updateAvatarView(result, name) {
+    const root = accountPanel();
+    const preview = root?.querySelector("[data-v293-avatar-preview]");
+    if (!preview) return;
+    currentAvatarUrl = clean(result?.url);
+    preview.innerHTML = currentAvatarUrl
+      ? '<img src="' + esc(currentAvatarUrl) + '" alt="الصورة الشخصية">'
+      : '<b data-v293-avatar-fallback>' + esc(initials(name)) + "</b>";
+    preview.dataset.source = result?.source || "fallback";
+    const view = root.querySelector("[data-v293-view-avatar]");
+    if (view) view.disabled = !currentAvatarUrl;
+    const remove = root.querySelector("[data-v293-delete-avatar]");
+    if (remove) remove.hidden = result?.source !== "account";
+  }
+
+  async function hydrateAccount(cloudConfirmed) {
+    const generation = ++renderGeneration;
+    const root = renderShell();
+    if (!root) return;
+    const user = currentUserRecord();
+    const profile = currentProfileRecord();
+    const employee = linkedEmployee(profile);
+    const name = displayName(profile, user);
+    const email = clean(user?.email || profile?.email);
+    const profileForm = root.querySelector("[data-v293-profile-form]");
+    if (profileForm?.elements) {
+      profileForm.elements.fullName.value = name;
+      profileForm.elements.email.value = email;
+      profileForm.elements.mobile.value = employeePhone(employee) || "—";
+      profileForm.elements.jobTitle.value = employeeJobTitle(employee) || "—";
+      profileForm.elements.role.value = roleLabel(profile?.role);
+    }
+    const nameNode = root.querySelector("[data-v293-profile-name]");
+    const emailNode = root.querySelector("[data-v293-profile-email]");
+    if (nameNode) nameNode.textContent = name;
+    if (emailNode) emailNode.textContent = email || "لا يوجد بريد";
+    const linked = root.querySelector("[data-v293-linked-employee]");
+    if (linked)
+      linked.textContent = employee
+        ? (employeeNumber(employee) ? employeeNumber(employee) + " - " : "") +
+          employeeName(employee)
+        : "غير مرتبط";
+    const openEmployee = root.querySelector("[data-v293-open-employee]");
+    if (openEmployee) {
+      openEmployee.hidden = !employee?.id;
+      openEmployee.dataset.employeeId = clean(employee?.id);
+    }
+    currentPreferences = preferencesFromUser(user);
+    fillPreferenceForm(
+      root.querySelector("[data-v293-preferences-form]"),
+      currentPreferences,
+    );
+    applyPreferences(currentPreferences);
+    const lastLogin = root.querySelector("[data-v293-last-login]");
+    const passwordChanged = root.querySelector("[data-v293-password-changed]");
+    const device = root.querySelector("[data-v293-device]");
+    if (lastLogin)
+      lastLogin.textContent = formatAccountDate(user?.last_sign_in_at, true);
+    if (passwordChanged)
+      passwordChanged.textContent = formatAccountDate(
+        metadata(user)[PASSWORD_CHANGED_KEY],
+        true,
+      );
+    if (device) device.textContent = deviceLabel();
+    updateAvatarView({ url: "", source: "fallback" }, name);
+    const avatar = await resolveAvatarUrl(user, employee);
+    if (generation !== renderGeneration || !accountPanel()?.contains(root))
+      return;
+    updateAvatarView(avatar, name);
+    if (cloudConfirmed) setCloudState("saved", "متصل بالسحابة");
+  }
+
+  async function renderAccount() {
+    renderShell();
+    void hydrateAccount(false);
+    try {
+      await refreshAccountCloudState(false);
+    } catch (error) {
+      console.warn("v293 account cloud refresh failed", error);
+      setCloudState("error", "تعذر التحديث؛ تُعرض آخر بيانات مؤكدة");
+      return;
+    }
+    return hydrateAccount(true);
+  }
+
+  function setButtonBusy(button, busy, busyText) {
+    if (!button) return;
+    if (!button.dataset.defaultLabel)
+      button.dataset.defaultLabel = button.querySelector("span:last-child")?.textContent ||
+        button.textContent;
+    button.disabled = Boolean(busy);
+    const label = button.querySelector("span:last-child");
+    if (label)
+      label.textContent = busy ? busyText : button.dataset.defaultLabel;
+  }
+
+  async function saveProfile(form) {
+    const button = form.querySelector("[data-v293-save-profile]");
+    if (button?.disabled) return;
+    const value = clean(form.elements.fullName.value).replace(/\s+/g, " ");
+    if (value.length < 2) return notify("أدخل اسمًا ظاهرًا صحيحًا");
+    const db = client();
+    const user = currentUserRecord();
+    if (!db?.from || !db?.auth?.updateUser || !user)
+      return notify("تعذر الاتصال بحساب المستخدم السحابي");
+    setButtonBusy(button, true, "جاري الحفظ...");
+    setCloudState("saving", "جاري الحفظ السحابي");
+    let before = null;
+    let saved = null;
+    const oldMetadata = metadata(user);
+    let authMetadataChanged = false;
+    try {
+      before = await fetchProfileFresh(user);
+      const updatedAt = new Date().toISOString();
+      let query = db
+        .from("app_user_profiles")
+        .update({ full_name: value, updated_at: updatedAt })
+        .eq("id", before.id);
+      if (before.updated_at) query = query.eq("updated_at", before.updated_at);
+      const result = await query.select(PROFILE_FIELDS).maybeSingle();
+      if (result.error) throw result.error;
+      saved = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (!saved?.id)
+        throw new Error("تم تعديل الملف في متصفح آخر؛ حدّث الصفحة ثم أعد المحاولة");
+      const authResult = await db.auth.updateUser({
+        data: { ...oldMetadata, full_name: value },
+      });
+      if (authResult.error) throw authResult.error;
+      authMetadataChanged = true;
+      const confirmedProfile = await fetchProfileFresh(user);
+      const confirmedUser = await refreshAuthUser(authResult.data?.user);
+      if (
+        clean(confirmedProfile.full_name) !== value ||
+        clean(metadata(confirmedUser).full_name) !== value
+      )
+        throw new Error("لم يكتمل تأكيد الحفظ السحابي");
+      installProfile(confirmedProfile);
+      const nameNode = form.closest(".v293-account-page")?.querySelector(
+        "[data-v293-profile-name]",
+      );
+      if (nameNode) nameNode.textContent = value;
+      setCloudState("saved", "تم الحفظ سحابيًا");
+      notify("تم حفظ الملف الشخصي سحابيًا");
+    } catch (error) {
+      console.warn("v293 profile cloud save failed", error);
+      if (before?.id && saved?.id) {
+        try {
+          await db
+            .from("app_user_profiles")
+            .update({
+              full_name: before.full_name,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", before.id)
+            .eq("updated_at", saved.updated_at);
+        } catch (_) {}
+      }
+      if (authMetadataChanged) {
+        try {
+          await db.auth.updateUser({
+            data: {
+              ...oldMetadata,
+              full_name: Object.prototype.hasOwnProperty.call(
+                oldMetadata,
+                "full_name",
+              )
+                ? oldMetadata.full_name
+                : null,
+            },
+          });
+          await refreshAuthUser(user);
+        } catch (_) {}
+      }
+      form.elements.fullName.value = clean(before?.full_name) ||
+        displayName(currentProfileRecord(), currentUserRecord());
+      setCloudState("error", "تعذر الحفظ؛ أُعيدت البيانات السابقة");
+      notify(clean(error?.message) || "تعذر حفظ الملف الشخصي سحابيًا");
+    } finally {
+      setButtonBusy(button, false, "");
+    }
+  }
+
+  async function savePreferences(form) {
+    const button = form.querySelector("[data-v293-save-preferences]");
+    if (button?.disabled) return;
+    const db = client();
+    const user = currentUserRecord();
+    if (!db?.auth?.updateUser || !user)
+      return notify("تعذر الاتصال بحساب المستخدم السحابي");
+    const next = preferencesFromForm(form);
+    const oldMetadata = metadata(user);
+    const hadPreviousPreferences = Object.prototype.hasOwnProperty.call(
+      oldMetadata,
+      PREFS_KEY,
+    );
+    const previous = normalizePreferences(oldMetadata[PREFS_KEY]);
+    setButtonBusy(button, true, "جاري الحفظ...");
+    setCloudState("saving", "جاري حفظ التفضيلات");
+    try {
+      const result = await db.auth.updateUser({
+        data: { ...oldMetadata, [PREFS_KEY]: next },
+      });
+      if (result.error) throw result.error;
+      const confirmedUser = await refreshAuthUser(result.data?.user);
+      const confirmed = preferencesFromUser(confirmedUser);
+      if (JSON.stringify(confirmed) !== JSON.stringify(next))
+        throw new Error("لم يكتمل تأكيد حفظ التفضيلات");
+      applyPreferences(confirmed);
+      fillPreferenceForm(form, confirmed);
+      setCloudState("saved", "تم حفظ التفضيلات سحابيًا");
+      notify("تم حفظ تفضيلات الحساب سحابيًا");
+    } catch (error) {
+      console.warn("v293 preferences cloud save failed", error);
+      try {
+        await db.auth.updateUser({
+          data: {
+            ...oldMetadata,
+            [PREFS_KEY]: hadPreviousPreferences
+              ? oldMetadata[PREFS_KEY]
+              : null,
+          },
+        });
+      } catch (_) {}
+      installUser(user);
+      applyPreferences(previous);
+      fillPreferenceForm(form, previous);
+      setCloudState("error", "تعذر الحفظ؛ أُعيدت التفضيلات السابقة");
+      notify(clean(error?.message) || "تعذر حفظ التفضيلات سحابيًا");
+    } finally {
+      setButtonBusy(button, false, "");
+    }
+  }
+
+  function passwordScore(value) {
+    const password = String(value || "");
+    if (!password) return 0;
+    let score = password.length >= 8 ? 1 : 0;
+    if (password.length >= 12) score += 1;
+    if (/[a-z\u0600-\u06ff]/.test(password) && /[A-Z]/.test(password)) score += 1;
+    if (/\d/.test(password) && /[^\w\s\u0600-\u06ff]/.test(password)) score += 1;
+    return Math.min(4, score);
+  }
+
+  function updatePasswordStrength(input) {
+    const form = input?.closest("[data-v293-password-form]");
+    const strength = form?.querySelector("[data-v293-password-strength]");
+    const copy = form?.querySelector("[data-v293-strength-copy]");
+    const score = passwordScore(input?.value);
+    if (strength) strength.dataset.score = String(score);
+    if (copy)
+      copy.textContent =
+        [
+          "استخدم 8 أحرف على الأقل مع أرقام ورموز.",
+          "كلمة المرور ضعيفة.",
+          "كلمة المرور مقبولة، ويمكن تقويتها.",
+          "كلمة المرور قوية.",
+          "كلمة المرور قوية جدًا.",
+        ][score] || "";
+  }
+
+  async function changePassword(form) {
+    const button = form.querySelector("[data-v293-change-password]");
+    if (button?.disabled) return;
+    const currentPassword = String(form.elements.currentPassword.value || "");
+    const nextPassword = String(form.elements.newPassword.value || "");
+    const confirmation = String(form.elements.confirmPassword.value || "");
+    if (!currentPassword) return notify("أدخل كلمة المرور الحالية");
+    if (nextPassword.length < 8)
+      return notify("كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف");
+    if (nextPassword !== confirmation)
+      return notify("تأكيد كلمة المرور الجديدة غير مطابق");
+    if (nextPassword === currentPassword)
+      return notify("اختر كلمة مرور جديدة مختلفة عن الحالية");
+    const db = client();
+    const user = currentUserRecord();
+    const email = clean(user?.email);
+    if (!db?.auth?.signInWithPassword || !db.auth.updateUser || !email)
+      return notify("تعذر الاتصال بنظام المصادقة");
+    setButtonBusy(button, true, "جاري التحقق...");
+    setCloudState("saving", "جاري التحقق من كلمة المرور");
+    try {
+      const verified = await db.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+      if (verified.error) throw verified.error;
+      if (verified.data?.user) installUser(verified.data.user);
+      const changedAt = new Date().toISOString();
+      const nextMetadata = {
+        ...metadata(verified.data?.user || user),
+        [PASSWORD_CHANGED_KEY]: changedAt,
+      };
+      setButtonBusy(button, true, "جاري التحديث...");
+      const result = await db.auth.updateUser({
+        password: nextPassword,
+        data: nextMetadata,
+      });
+      if (result.error) throw result.error;
+      const confirmedUser = await refreshAuthUser(result.data?.user);
+      if (clean(metadata(confirmedUser)[PASSWORD_CHANGED_KEY]) !== changedAt)
+        throw new Error("تم التحديث لكن تعذر تأكيد سجل التغيير");
+      form.reset();
+      updatePasswordStrength(form.elements.newPassword);
+      const changedNode = accountPanel()?.querySelector(
+        "[data-v293-password-changed]",
+      );
+      if (changedNode)
+        changedNode.textContent = formatAccountDate(changedAt, true);
+      setCloudState("saved", "تم تحديث كلمة المرور بأمان");
+      notify("تم تحديث كلمة المرور عبر نظام المصادقة");
+    } catch (error) {
+      console.warn("v293 password update failed", error);
+      form.elements.currentPassword.value = "";
+      form.elements.newPassword.value = "";
+      form.elements.confirmPassword.value = "";
+      updatePasswordStrength(form.elements.newPassword);
+      setCloudState("error", "تعذر تحديث كلمة المرور");
+      notify("تعذر التحقق أو تحديث كلمة المرور. تأكد من كلمة المرور الحالية");
+    } finally {
+      setButtonBusy(button, false, "");
+    }
+  }
+
+  function loadImage(file) {
+    return new Promise(function (resolve, reject) {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = function () {
+        resolve({ image, url });
+      };
+      image.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error("تعذر قراءة الصورة"));
+      };
+      image.src = url;
+    });
+  }
+
+  async function compressAvatar(file) {
+    if (!file || !/^image\/(jpeg|png|webp)$/i.test(file.type || ""))
+      throw new Error("اختر صورة بصيغة JPG أو PNG أو WEBP");
+    if (Number(file.size || 0) > 8 * 1024 * 1024)
+      throw new Error("حجم الصورة يتجاوز 8 ميجابايت");
+    const loaded = await loadImage(file);
+    try {
+      const max = 512;
+      const scale = Math.min(
+        1,
+        max / Math.max(loaded.image.naturalWidth, loaded.image.naturalHeight),
+      );
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(loaded.image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(loaded.image.naturalHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("تعذر تجهيز الصورة");
+      context.drawImage(loaded.image, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(function (resolve) {
+        canvas.toBlob(resolve, "image/webp", 0.82);
+      });
+      if (!blob) throw new Error("تعذر ضغط الصورة");
+      return new File([blob], "account-avatar-" + Date.now() + ".webp", {
+        type: "image/webp",
+      });
+    } finally {
+      URL.revokeObjectURL(loaded.url);
+    }
+  }
+
+  async function cleanupAttachment(id) {
+    const attachmentId = clean(id);
+    if (!attachmentId) return;
+    avatarUrlCache.delete(attachmentId);
+    avatarUrlPending.delete(attachmentId);
+    const db = client();
+    try {
+      const record =
+        typeof getAttachment === "function"
+          ? await getAttachment(attachmentId)
+          : null;
+      const path = clean(record?.storagePath || record?.storage_path);
+      if (path && db?.storage) {
+        const parts = path.split("/");
+        const bucket = parts.shift();
+        const key = parts.join("/");
+        if (bucket && key) await db.storage.from(bucket).remove([key]);
+      }
+    } catch (_) {}
+    try {
+      if (db?.from)
+        await db.from("attachments").delete().eq("id", attachmentId);
+    } catch (_) {}
+  }
+
+  async function uploadAvatar(input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+    const root = accountPanel();
+    const upload = root?.querySelector("[data-v293-avatar-upload]");
+    const preview = root?.querySelector("[data-v293-avatar-preview]");
+    const user = currentUserRecord();
+    const db = client();
+    if (!user || !db?.auth?.updateUser || typeof saveAttachment !== "function") {
+      input.value = "";
+      return notify("تعذر الاتصال بمرفقات الحساب السحابية");
+    }
+    const previousUser = user;
+    const previousMetadata = metadata(user);
+    const previousId = clean(previousMetadata[AVATAR_KEY]);
+    const previousAvatar = currentAvatarUrl;
+    if (currentAvatarObjectUrl) URL.revokeObjectURL(currentAvatarObjectUrl);
+    currentAvatarObjectUrl = URL.createObjectURL(file);
+    if (preview)
+      preview.innerHTML =
+        '<img src="' + esc(currentAvatarObjectUrl) + '" alt="معاينة الصورة">';
+    upload?.classList.add("is-busy");
+    setCloudState("saving", "جاري رفع الصورة للسحابة");
+    let newId = "";
+    try {
+      const compressed = await compressAvatar(file);
+      newId = clean(
+        await saveAttachment(
+          compressed,
+          "account-avatar-" + clean(user.id),
+          { cloudOnly: true },
+        ),
+      );
+      if (!newId) throw new Error("لم يرجع معرّف المرفق السحابي");
+      const result = await db.auth.updateUser({
+        data: { ...previousMetadata, [AVATAR_KEY]: newId },
+      });
+      if (result.error) throw result.error;
+      const confirmedUser = await refreshAuthUser(result.data?.user);
+      if (clean(metadata(confirmedUser)[AVATAR_KEY]) !== newId)
+        throw new Error("لم يكتمل تأكيد الصورة السحابية");
+      if (currentAvatarObjectUrl) {
+        URL.revokeObjectURL(currentAvatarObjectUrl);
+        currentAvatarObjectUrl = "";
+      }
+      const url =
+        typeof attachmentUrl === "function"
+          ? clean(await attachmentUrl(newId))
+          : "";
+      if (url) avatarUrlCache.set(newId, url);
+      updateAvatarView({ url, source: "account", attachmentId: newId }, displayName(currentProfileRecord(), confirmedUser));
+      if (previousId && previousId !== newId) void cleanupAttachment(previousId);
+      setCloudState("saved", "تم حفظ الصورة سحابيًا");
+      notify("تم رفع الصورة وحفظها سحابيًا");
+    } catch (error) {
+      console.warn("v293 avatar upload failed", error);
+      if (newId) void cleanupAttachment(newId);
+      try {
+        await db.auth.updateUser({
+          data: {
+            ...previousMetadata,
+            [AVATAR_KEY]: previousId || null,
+          },
+        });
+      } catch (_) {}
+      installUser(previousUser);
+      if (currentAvatarObjectUrl) {
+        URL.revokeObjectURL(currentAvatarObjectUrl);
+        currentAvatarObjectUrl = "";
+      }
+      updateAvatarView(
+        { url: previousAvatar, source: previousId ? "account" : previousAvatar ? "employee" : "fallback" },
+        displayName(currentProfileRecord(), previousUser),
+      );
+      setCloudState("error", "تعذر الرفع؛ بقيت الصورة السابقة");
+      notify(clean(error?.message) || "تعذر رفع الصورة سحابيًا");
+    } finally {
+      upload?.classList.remove("is-busy");
+      input.value = "";
+    }
+  }
+
+  async function deleteAvatar(button) {
+    if (button?.disabled) return;
+    const db = client();
+    const user = currentUserRecord();
+    if (!db?.auth?.updateUser || !user)
+      return notify("تعذر الاتصال بحساب المستخدم السحابي");
+    const oldMetadata = metadata(user);
+    const oldId = clean(oldMetadata[AVATAR_KEY]);
+    if (!oldId) return;
+    button.disabled = true;
+    setCloudState("saving", "جاري حذف الصورة من الحساب");
+    try {
+      const result = await db.auth.updateUser({
+        data: { ...oldMetadata, [AVATAR_KEY]: null },
+      });
+      if (result.error) throw result.error;
+      const confirmedUser = await refreshAuthUser(result.data?.user);
+      if (clean(metadata(confirmedUser)[AVATAR_KEY]))
+        throw new Error("لم يكتمل تأكيد حذف الصورة");
+      void cleanupAttachment(oldId);
+      const fallback = await resolveAvatarUrl(
+        confirmedUser,
+        linkedEmployee(currentProfileRecord()),
+      );
+      updateAvatarView(
+        fallback,
+        displayName(currentProfileRecord(), confirmedUser),
+      );
+      setCloudState("saved", "تم حذف الصورة سحابيًا");
+      notify("تم حذف صورة الحساب سحابيًا");
+    } catch (error) {
+      console.warn("v293 avatar delete failed", error);
+      try {
+        await db.auth.updateUser({ data: oldMetadata });
+      } catch (_) {}
+      setCloudState("error", "تعذر حذف الصورة");
+      notify("تعذر حذف الصورة من الحساب السحابي");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function ensureSessionDialog() {
+    let dialog = document.getElementById("v293SessionDialog");
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.id = "v293SessionDialog";
+    dialog.className = "v293-session-dialog";
+    dialog.innerHTML = `
+      <header><div><h3>إدارة الجلسات</h3><p>مراجعة الجهاز الحالي وإنهاء الجلسات المفتوحة في الأجهزة الأخرى.</p></div><button type="button" class="v293-session-close" data-v293-close-sessions aria-label="إغلاق">${icon("x")}</button></header>
+      <div class="v293-session-body">
+        <div class="v293-session-current v293-session-device"><span>${icon("shield")}</span><div><strong>هذه الجلسة نشطة الآن</strong><small data-v293-session-device-copy></small></div></div>
+        <p class="v293-session-note">حفاظًا على الخصوصية لا يعرض المتصفح كلمات المرور أو رموز الجلسات. يمكنك إنهاء كل الجلسات الأخرى مع إبقاء هذا الجهاز مسجلًا.</p>
+        <div class="v293-session-confirm" data-v293-session-confirm-box hidden>سيحتاج كل جهاز آخر إلى تسجيل الدخول مجددًا. هذه الجلسة الحالية ستبقى نشطة.</div>
+      </div>
+      <div class="v293-session-actions"><button type="button" class="v293-secondary" data-v293-close-sessions>إغلاق</button><button type="button" class="v293-danger" data-v293-reveal-session-end>${icon("logout")}<span>إنهاء الجلسات الأخرى</span></button><button type="button" class="v293-danger" data-v293-confirm-session-end hidden>${icon("check")}<span>تأكيد الإنهاء</span></button></div>`;
+    document.body.appendChild(dialog);
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(dialog);
+    } catch (_) {}
+    return dialog;
+  }
+
+  function openSessions() {
+    const dialog = ensureSessionDialog();
+    const user = currentUserRecord();
+    const copy = dialog.querySelector("[data-v293-session-device-copy]");
+    if (copy)
+      copy.textContent =
+        deviceLabel() + " · آخر دخول " + formatAccountDate(user?.last_sign_in_at, true);
+    dialog.querySelector("[data-v293-session-confirm-box]").hidden = true;
+    dialog.querySelector("[data-v293-confirm-session-end]").hidden = true;
+    dialog.querySelector("[data-v293-reveal-session-end]").hidden = false;
+    try {
+      dialog.showModal();
+    } catch (_) {
+      dialog.setAttribute("open", "");
+    }
+  }
+
+  async function endOtherSessions(button) {
+    if (button?.disabled) return;
+    const auth = client()?.auth;
+    if (!auth?.signOut) return notify("تعذر الاتصال بإدارة الجلسات");
+    setButtonBusy(button, true, "جاري الإنهاء...");
+    try {
+      const result = await auth.signOut({ scope: "others" });
+      if (result?.error) throw result.error;
+      const dialog = ensureSessionDialog();
+      dialog.querySelector("[data-v293-session-confirm-box]").textContent =
+        "تم إنهاء الجلسات الأخرى بنجاح، وبقي هذا الجهاز مسجلًا.";
+      dialog.querySelector("[data-v293-session-confirm-box]").hidden = false;
+      button.hidden = true;
+      notify("تم إنهاء الجلسات الأخرى");
+    } catch (error) {
+      console.warn("v293 end other sessions failed", error);
+      notify("تعذر إنهاء الجلسات الأخرى");
+    } finally {
+      setButtonBusy(button, false, "");
+    }
+  }
+
+  async function openLinkedEmployee(button) {
+    const id = clean(button?.dataset.employeeId);
+    if (!id) return;
+    try {
+      if (typeof switchView === "function") switchView("employees");
+      else if (typeof window.switchView === "function")
+        window.switchView("employees");
+      if (typeof openEmployeeModal === "function") await openEmployeeModal(id);
+      else if (typeof window.openEmployeeModal === "function")
+        await window.openEmployeeModal(id);
+    } catch (error) {
+      console.warn("v293 open linked employee failed", error);
+      notify("تعذر فتح ملف الموظف المرتبط");
+    }
+  }
+
+  function activateAccount() {
+    document
+      .querySelectorAll("#settingsNav [data-settings-section]")
+      .forEach(function (button) {
+        button.classList.toggle(
+          "active",
+          button.dataset.settingsSection === "account",
+        );
+      });
+    document
+      .querySelectorAll("#settingsView [data-settings-panel]")
+      .forEach(function (panel) {
+        const active = panel.dataset.settingsPanel === "account";
+        panel.classList.toggle("active", active);
+        panel.hidden = !active;
+        panel.style.display = active ? "block" : "none";
+        panel.style.pointerEvents = active ? "auto" : "";
+      });
+    return renderAccount();
+  }
+
+  document.addEventListener(
+    "submit",
+    function (event) {
+      const profile = event.target?.closest?.("[data-v293-profile-form]");
+      if (profile) {
+        event.preventDefault();
+        void saveProfile(profile);
+        return;
+      }
+      const password = event.target?.closest?.("[data-v293-password-form]");
+      if (password) {
+        event.preventDefault();
+        void changePassword(password);
+        return;
+      }
+      const preferences = event.target?.closest?.(
+        "[data-v293-preferences-form]",
+      );
+      if (preferences) {
+        event.preventDefault();
+        void savePreferences(preferences);
+      }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "input",
+    function (event) {
+      if (event.target?.matches?.("[data-v293-new-password]"))
+        updatePasswordStrength(event.target);
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (event.target?.matches?.("[data-v293-avatar-input]"))
+        void uploadAvatar(event.target);
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const viewAvatar = event.target?.closest?.("[data-v293-view-avatar]");
+      if (viewAvatar) {
+        event.preventDefault();
+        if (currentAvatarUrl) window.open(currentAvatarUrl, "_blank", "noopener");
+        return;
+      }
+      const deleteAvatarButton = event.target?.closest?.(
+        "[data-v293-delete-avatar]",
+      );
+      if (deleteAvatarButton) {
+        event.preventDefault();
+        void deleteAvatar(deleteAvatarButton);
+        return;
+      }
+      const employeeButton = event.target?.closest?.("[data-v293-open-employee]");
+      if (employeeButton) {
+        event.preventDefault();
+        void openLinkedEmployee(employeeButton);
+        return;
+      }
+      if (event.target?.closest?.("[data-v293-manage-sessions]")) {
+        event.preventDefault();
+        openSessions();
+        return;
+      }
+      if (event.target?.closest?.("[data-v293-close-sessions]")) {
+        event.preventDefault();
+        ensureSessionDialog().close();
+        return;
+      }
+      if (event.target?.closest?.("[data-v293-reveal-session-end]")) {
+        event.preventDefault();
+        const dialog = ensureSessionDialog();
+        dialog.querySelector("[data-v293-session-confirm-box]").hidden = false;
+        dialog.querySelector("[data-v293-confirm-session-end]").hidden = false;
+        dialog.querySelector("[data-v293-reveal-session-end]").hidden = true;
+        return;
+      }
+      const confirmSessions = event.target?.closest?.(
+        "[data-v293-confirm-session-end]",
+      );
+      if (confirmSessions) {
+        event.preventDefault();
+        void endOtherSessions(confirmSessions);
+      }
+    },
+    true,
+  );
+
+  const previousActivate = window.__stableActivateSettingsSection;
+  if (typeof previousActivate === "function") {
+    const wrappedActivate = function (key) {
+      if (key === "account") return activateAccount();
+      return previousActivate.apply(this, arguments);
+    };
+    wrappedActivate.__v293ProfessionalPersonalAccount = true;
+    window.__stableActivateSettingsSection = wrappedActivate;
+  }
+
+  const previousRenderer = window.__stableSettingsRenderPanel;
+  if (typeof previousRenderer === "function") {
+    const wrappedRenderer = function (key) {
+      if (key === "account") return renderAccount();
+      return previousRenderer.apply(this, arguments);
+    };
+    wrappedRenderer.__v293ProfessionalPersonalAccount = true;
+    window.__stableSettingsRenderPanel = wrappedRenderer;
+  }
+
+  try {
+    const panel = accountPanel();
+    if (panel && typeof MutationObserver === "function") {
+      accountObserver = new MutationObserver(function () {
+        if (
+          !rendering &&
+          accountActive() &&
+          !panel.querySelector(".v293-account-page")
+        )
+          void renderAccount();
+      });
+      accountObserver.observe(panel, { childList: true });
+    }
+  } catch (_) {}
+
+  try {
+    const originalFormatDate =
+      typeof formatDate === "function" ? formatDate : window.formatDate;
+    const preferredDateFormatter = function (value) {
+      if (!value || currentPreferences.dateFormat === "site")
+        return originalFormatDate ? originalFormatDate(value) : clean(value) || "—";
+      const parsed =
+        typeof parseDate === "function" ? parseDate(value) : new Date(value);
+      if (!parsed || Number.isNaN(parsed.getTime())) return "—";
+      const year = parsed.getFullYear();
+      const month = String(parsed.getMonth() + 1).padStart(2, "0");
+      const day = String(parsed.getDate()).padStart(2, "0");
+      return currentPreferences.dateFormat === "dmy"
+        ? day + "/" + month + "/" + year
+        : year + "-" + month + "-" + day;
+    };
+    preferredDateFormatter.__v293UserPreference = true;
+    try {
+      formatDate = preferredDateFormatter;
+    } catch (_) {}
+    window.formatDate = preferredDateFormatter;
+  } catch (_) {}
+
+  applyPreferences(preferencesFromUser(currentUserRecord()));
+  if (accountActive()) void renderAccount();
+
+  window.nawahPersonalAccountV293 = {
+    version: 293,
+    render: renderAccount,
+    activate: activateAccount,
+    preferences: function () {
+      return { ...currentPreferences };
+    },
+    formatDate: function (value) {
+      return window.formatDate ? window.formatDate(value) : clean(value);
+    },
+    cloudBacked: true,
+    passwordProvider: "supabase-auth",
+    profileTable: "app_user_profiles",
+    localStorage: false,
+  };
+})();

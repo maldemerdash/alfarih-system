@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=292" />
+    <link rel="stylesheet" href="style.css?v=293" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -829,13 +829,7 @@
                 <article class="panel settings-panel">
                 <section class="settings-section active" data-settings-panel="company" data-v236-company-state="pending" aria-busy="true"></section>
 
-                <section class="settings-section" data-settings-panel="account">
-                  <div class="panel-head"><div><h3>الحساب الشخصي</h3><p>بيانات المستخدم الحالي وتفضيلات الحساب.</p></div></div>
-                  <div class="settings-placeholder-card">
-                    <span data-icon="user"></span>
-                    <div><strong>سيتم ربط الحساب الشخصي لاحقًا</strong><p>هذه الشاشة مفعّلة للعرض والتنظيم، وسيتم ربطها بالمستخدمين عند إضافة تسجيل الدخول.</p></div>
-                  </div>
-                </section>
+                <section class="settings-section" data-settings-panel="account" data-v293-account-state="pending"></section>
 
                 <section class="settings-section" data-settings-panel="notifications">
                   <div class="panel-head"><div><h3>الإشعارات</h3><p>إعداد تنبيهات انتهاء الوثائق والغياب والعقود.</p></div></div>
@@ -1595,6 +1589,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=292"></script>
+    <script src="app.js?v=293"></script>
   </body>
 </html>
