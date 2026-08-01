@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=294" />
+    <link rel="stylesheet" href="style.css?v=295" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -833,10 +833,7 @@
 
                 <section class="settings-section" data-settings-panel="notifications" data-v294-notifications-state="pending" aria-busy="true"></section>
 
-                <section class="settings-section" data-settings-panel="permissions">
-                  <div class="panel-head"><div><h3>الصلاحيات والأمان</h3><p>تجهيز الصلاحيات لكل جزء في النظام، والتنفيذ التفصيلي مؤجل.</p></div></div>
-                  <div class="permissions-preview-grid" id="permissionsPreviewGrid"></div>
-                </section>
+                <section class="settings-section" data-settings-panel="permissions" data-v295-permissions-state="pending" aria-busy="true"></section>
 
                 <section class="settings-section" data-settings-panel="work">
                   <div class="panel-head"><div><h3>إعداد العمل</h3><p>تحديد أيام العمل وساعات الدوام، مع إمكانية إضافة أكثر من فترة لليوم الواحد.</p></div></div>
@@ -1583,6 +1580,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=294"></script>
+    <script src="app.js?v=295"></script>
   </body>
 </html>

@@ -41857,6 +41857,9 @@ async function init() {
   let running = false;
   let timer = null;
   let observer = null;
+  let realtimeChannel = null;
+  let realtimeTimer = 0;
+  let lastFocusRefresh = 0;
   let internal = false;
   function avatar() {
     return document.querySelector(".topbar-user-mark");
@@ -80571,7 +80574,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
   } catch (_) {}
   if (isActive()) renderNotifications();
 
-  window.nawahNotificationRulesV294 = {
+window.nawahNotificationRulesV294 = {
     version: 294,
     render: renderNotifications,
     activate: activateNotifications,
@@ -80584,5 +80587,981 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     cloudTable: "app_settings",
     cloudField: "v136Settings.notifications",
     localStorageRole: "cache",
+  };
+})();
+
+/* v295 - professional cloud-confirmed account permissions and security */
+(function v295ProfessionalPermissions() {
+  if (window.__v295ProfessionalPermissions) return;
+  window.__v295ProfessionalPermissions = true;
+
+  const PROFILE_FIELDS =
+    "id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at";
+  const TEMPLATE_LABELS = {
+    employee: "موظف - صلاحياته الذاتية",
+    hr: "الموارد البشرية",
+    finance: "المالية والرواتب",
+    manager: "مدير مباشر",
+    view: "عرض فقط",
+    admin: "مدير النظام",
+  };
+  const GROUP_ICONS = {
+    sidebar: "grid",
+    dashboard: "home",
+    employees: "users",
+    attendance: "clock",
+    leaves: "calendar",
+    finance: "wallet",
+    payroll: "wallet",
+    documents: "file",
+    organization: "grid",
+    settings: "shield",
+  };
+  const state = {
+    profiles: [],
+    selectedId: "",
+    query: "",
+    roleFilter: "all",
+    statusFilter: "all",
+    templateId: "employee",
+    draft: {},
+    baseline: null,
+    loading: false,
+    saving: false,
+    rendering: false,
+    lastActor: "",
+    lastSavedProfileId: "",
+  };
+  let observer = null;
+
+  function clean(value) {
+    return String(value == null ? "" : value).trim();
+  }
+  function esc(value) {
+    return clean(value).replace(/[&<>"']/g, function (character) {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[character];
+    });
+  }
+  function icon(name) {
+    try {
+      if (typeof iconSvg === "function") return iconSvg(name);
+    } catch (_) {}
+    return '<span data-icon="' + esc(name) + '"></span>';
+  }
+  function hydrate(root) {
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(root || document);
+    } catch (_) {}
+  }
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") return showToast(message);
+      if (typeof toast === "function") return toast(message);
+    } catch (_) {}
+  }
+  function db() {
+    try {
+      return supabaseClient || null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function panel() {
+    return document.querySelector(
+      '#settingsView [data-settings-panel="permissions"]',
+    );
+  }
+  function isActive() {
+    const root = panel();
+    return Boolean(
+      root &&
+        (root.classList.contains("active") ||
+          document.querySelector(
+            '#settingsNav [data-settings-section="permissions"].active',
+          )),
+    );
+  }
+  function currentProfile() {
+    try {
+      return authProfile || window.authProfile || null;
+    } catch (_) {
+      return window.authProfile || null;
+    }
+  }
+  function isAdmin() {
+    return clean(currentProfile()?.role).toLowerCase() === "admin";
+  }
+  function actorName() {
+    const profile = currentProfile() || {};
+    return clean(profile.full_name || profile.fullName || profile.email) ||
+      "مدير النظام";
+  }
+  function currentIdentity(profile) {
+    const current = currentProfile() || {};
+    return [current.id, current.user_id, current.email]
+      .filter(Boolean)
+      .map(function (value) {
+        return clean(value).toLowerCase();
+      })
+      .some(function (value) {
+        return [profile?.id, profile?.user_id, profile?.email]
+          .filter(Boolean)
+          .map(function (item) {
+            return clean(item).toLowerCase();
+          })
+          .includes(value);
+      });
+  }
+  function employeesList() {
+    try {
+      return Array.isArray(employees)
+        ? employees
+        : Array.isArray(window.employees)
+          ? window.employees
+          : [];
+    } catch (_) {
+      return Array.isArray(window.employees) ? window.employees : [];
+    }
+  }
+  function employeeFor(profile) {
+    const linkedId = clean(profile?.employee_id || profile?.employeeId);
+    const email = clean(profile?.email).toLowerCase();
+    return (
+      employeesList().find(function (employee) {
+        const id = clean(employee?.id || employee?.employeeId);
+        const employeeEmail = clean(
+          employee?.email || employee?.workEmail || employee?.personalEmail,
+        ).toLowerCase();
+        return (linkedId && id === linkedId) || (email && employeeEmail === email);
+      }) || null
+    );
+  }
+  function groups() {
+    const source = window.employeePermissionMatrix?.groups;
+    if (!Array.isArray(source)) return [];
+    return source
+      .filter(function (group) {
+        return Array.isArray(group?.items) && group.items.length;
+      })
+      .map(function (group) {
+        return {
+          ...group,
+          icon: group.icon || GROUP_ICONS[group.id] || "shield",
+        };
+      });
+  }
+  function allKeys() {
+    return Array.from(
+      new Set(
+        groups().flatMap(function (group) {
+          return group.items.map(function (item) {
+            return item[0];
+          });
+        }),
+      ),
+    );
+  }
+  function blankPermissions() {
+    const output = {};
+    allKeys().forEach(function (key) {
+      output[key] = false;
+    });
+    return output;
+  }
+  function normalizePermissions(permissions, role) {
+    try {
+      const normalizer = window.employeePermissionMatrix?.normalizePermissions;
+      if (typeof normalizer === "function")
+        return normalizer(permissions || {}, role || "employee");
+    } catch (_) {}
+    const output = blankPermissions();
+    Object.keys(output).forEach(function (key) {
+      output[key] = Boolean(permissions?.[key]);
+    });
+    if (role === "admin")
+      Object.keys(output).forEach(function (key) {
+        output[key] = true;
+      });
+    return output;
+  }
+  function setMatching(output, matcher, value) {
+    Object.keys(output).forEach(function (key) {
+      if (matcher(key)) output[key] = value;
+    });
+  }
+  function setKeys(output, keys, value) {
+    keys.forEach(function (key) {
+      if (Object.prototype.hasOwnProperty.call(output, key)) output[key] = value;
+    });
+  }
+  function templatePermissions(templateId) {
+    const output = blankPermissions();
+    if (templateId === "admin") {
+      Object.keys(output).forEach(function (key) {
+        output[key] = true;
+      });
+      return normalizePermissions(output, "admin");
+    }
+    if (templateId === "employee") {
+      setKeys(output, [
+        "nav.dashboard",
+        "dashboard.stats",
+        "nav.employees",
+        "employees.viewSelf",
+        "nav.attendance",
+        "attendance.viewSelf",
+        "nav.leaves",
+        "leaves.viewOwn",
+        "leaves.createLeave",
+        "leaves.createTravel",
+        "nav.payroll",
+        "payroll.viewSelf",
+        "payroll.advances.viewSelf",
+      ], true);
+    } else if (templateId === "hr") {
+      setMatching(output, function (key) {
+        return /^(dashboard|employees|attendance|leaves|organization)\./.test(key);
+      }, true);
+      setKeys(output, [
+        "nav.dashboard",
+        "nav.employees",
+        "nav.attendance",
+        "nav.leaves",
+        "nav.departments",
+        "nav.settings",
+        "settings.view",
+      ], true);
+      setKeys(output, ["employees.delete", "dashboard.advanceShortcut"], false);
+    } else if (templateId === "finance") {
+      setMatching(output, function (key) {
+        return /^(finance|payroll)\./.test(key);
+      }, true);
+      setKeys(output, [
+        "nav.dashboard",
+        "dashboard.stats",
+        "nav.employees",
+        "employees.viewAll",
+        "nav.finance",
+        "nav.payroll",
+      ], true);
+    } else if (templateId === "manager") {
+      setKeys(output, [
+        "nav.dashboard",
+        "dashboard.stats",
+        "dashboard.attendanceOverview",
+        "dashboard.reviewRequests",
+        "dashboard.reviewActions",
+        "nav.employees",
+        "employees.viewAll",
+        "nav.attendance",
+        "attendance.viewAll",
+        "attendance.markAbsent",
+        "attendance.export",
+        "nav.leaves",
+        "leaves.viewAll",
+        "leaves.createForAll",
+        "leaves.approve",
+        "leaves.reject",
+        "leaves.resume",
+        "leaves.viewTravelers",
+        "nav.departments",
+        "organization.view",
+      ], true);
+    } else if (templateId === "view") {
+      setMatching(output, function (key) {
+        return /(\.view|\.viewAll|\.viewSelf|\.viewOwn|\.stats$|\.attendanceOverview$|\.reviewRequests$|\.recentEmployees$)/.test(key);
+      }, true);
+      setKeys(output, [
+        "nav.dashboard",
+        "nav.employees",
+        "nav.attendance",
+        "nav.leaves",
+        "nav.finance",
+        "nav.payroll",
+        "nav.establishmentDocuments",
+        "nav.departments",
+      ], true);
+    }
+    return normalizePermissions(output, "employee");
+  }
+  function roleTemplate(profile) {
+    return profile?.role === "admin" ? "admin" : "employee";
+  }
+  function profileLabel(profile) {
+    return clean(profile?.full_name || profile?.email) || "حساب مستخدم";
+  }
+  function roleLabel(profile) {
+    return profile?.role === "admin" ? "مدير النظام" : "مستخدم مخصص";
+  }
+  function initial(profile) {
+    return profileLabel(profile).replace(/[^\p{L}\p{N}]+/gu, "").slice(0, 1) || "م";
+  }
+  function formatDateTime(value) {
+    if (!clean(value)) return "لم يُسجل تحديث";
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "محفوظ سحابيًا";
+      return new Intl.DateTimeFormat("ar-SA", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(date);
+    } catch (_) {
+      return "محفوظ سحابيًا";
+    }
+  }
+  function activeAdminCount(profiles) {
+    return profiles.filter(function (profile) {
+      return profile.role === "admin" && profile.is_active !== false;
+    }).length;
+  }
+  function selectedProfile() {
+    return state.profiles.find(function (profile) {
+      return clean(profile.id) === clean(state.selectedId);
+    }) || null;
+  }
+  function isProtectedAdmin(profile) {
+    return Boolean(
+      profile?.role === "admin" &&
+        profile.is_active !== false &&
+        activeAdminCount(state.profiles) <= 1,
+    );
+  }
+  function permissionType(key) {
+    if (/delete|reject/.test(key)) return { label: "حذف/رفض", className: "danger" };
+    if (/create|add|upload/.test(key)) return { label: "إضافة", className: "create" };
+    if (/print|export/.test(key)) return { label: "طباعة/تصدير", className: "print" };
+    if (/edit|manage|approve|process|closeDay|markAbsent|resume/.test(key))
+      return { label: "إدارة", className: "manage" };
+    return { label: "عرض", className: "view" };
+  }
+  function permissionStats() {
+    const base = templatePermissions(state.templateId);
+    const keys = allKeys();
+    return {
+      enabled: keys.filter(function (key) {
+        return Boolean(state.draft[key]);
+      }).length,
+      total: keys.length,
+      exceptions: keys.filter(function (key) {
+        return Boolean(state.draft[key]) !== Boolean(base[key]);
+      }).length,
+    };
+  }
+  function samePermissions(left, right, role) {
+    const a = normalizePermissions(left, role);
+    const b = normalizePermissions(right, role);
+    return allKeys().every(function (key) {
+      return Boolean(a[key]) === Boolean(b[key]);
+    });
+  }
+  function isDirty() {
+    const profile = selectedProfile();
+    if (!profile || !state.baseline) return false;
+    return !samePermissions(state.baseline.permissions, state.draft, profile.role);
+  }
+  async function fetchProfiles() {
+    const client = db();
+    if (!client?.from) throw new Error("تعذر الاتصال بقاعدة البيانات السحابية");
+    const result = await client
+      .from("app_user_profiles")
+      .select(PROFILE_FIELDS)
+      .order("created_at", { ascending: false });
+    if (result.error) throw result.error;
+    state.profiles = Array.isArray(result.data) ? result.data.map(function (item) {
+      return { ...item };
+    }) : [];
+    try {
+      appUserProfilesCache = state.profiles;
+    } catch (_) {}
+    window.appUserProfilesCache = state.profiles;
+    return state.profiles;
+  }
+  async function fetchProfile(id) {
+    const client = db();
+    if (!client?.from) throw new Error("تعذر الاتصال بقاعدة البيانات السحابية");
+    const result = await client
+      .from("app_user_profiles")
+      .select(PROFILE_FIELDS)
+      .eq("id", id)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    return Array.isArray(result.data) ? result.data[0] || null : result.data || null;
+  }
+  function filteredProfiles() {
+    const query = state.query.toLowerCase();
+    return state.profiles.filter(function (profile) {
+      const employee = employeeFor(profile);
+      const haystack = [
+        profile.full_name,
+        profile.email,
+        employee?.name,
+        employee?.fullName,
+        employee?.employeeNumber,
+      ].map(clean).join(" ").toLowerCase();
+      const roleOk =
+        state.roleFilter === "all" || profile.role === state.roleFilter;
+      const statusOk =
+        state.statusFilter === "all" ||
+        (state.statusFilter === "active" && profile.is_active !== false) ||
+        (state.statusFilter === "inactive" && profile.is_active === false) ||
+        (state.statusFilter === "unlinked" && !employee);
+      return (!query || haystack.includes(query)) && roleOk && statusOk;
+    });
+  }
+  function summaryMarkup() {
+    const total = state.profiles.length;
+    const active = state.profiles.filter(function (profile) {
+      return profile.is_active !== false;
+    }).length;
+    const admins = state.profiles.filter(function (profile) {
+      return profile.role === "admin";
+    }).length;
+    const unlinked = state.profiles.filter(function (profile) {
+      return !employeeFor(profile);
+    }).length;
+    return (
+      '<div class="v295-summary">' +
+      '<article><span>' + icon("users") + '</span><div><small>إجمالي الحسابات</small><strong>' + total + '</strong></div></article>' +
+      '<article><span class="is-active">' + icon("check-circle") + '</span><div><small>الحسابات النشطة</small><strong>' + active + '</strong></div></article>' +
+      '<article><span class="is-admin">' + icon("shield") + '</span><div><small>مديرو النظام</small><strong>' + admins + '</strong></div></article>' +
+      '<article><span class="is-unlinked">' + icon("link") + '</span><div><small>غير مربوط بموظف</small><strong>' + unlinked + '</strong></div></article>' +
+      '</div>'
+    );
+  }
+  function userListMarkup() {
+    const rows = filteredProfiles();
+    if (!rows.length)
+      return '<div class="v295-list-empty"><span>' + icon("search") + '</span><strong>لا توجد نتائج مطابقة</strong><small>غيّر البحث أو عوامل التصفية.</small></div>';
+    return rows.map(function (profile) {
+      const employee = employeeFor(profile);
+      const selected = clean(profile.id) === clean(state.selectedId);
+      return (
+        '<button type="button" class="v295-user-row' + (selected ? " is-selected" : "") + '" data-v295-user="' + esc(profile.id) + '">' +
+        '<span class="v295-user-avatar">' + esc(initial(profile)) + '</span>' +
+        '<span class="v295-user-copy"><strong>' + esc(profileLabel(profile)) + '</strong><small dir="ltr">' + esc(profile.email || "—") + '</small><em>' + (employee ? 'مرتبط بـ ' + esc(employee.name || employee.fullName || "موظف") : "غير مربوط بملف موظف") + '</em></span>' +
+        '<span class="v295-user-badges"><b class="is-' + (profile.role === "admin" ? "admin" : "custom") + '">' + esc(roleLabel(profile)) + '</b><i class="is-' + (profile.is_active === false ? "inactive" : "active") + '">' + (profile.is_active === false ? "موقوف" : "نشط") + '</i></span>' +
+        '</button>'
+      );
+    }).join("");
+  }
+  function editorEmptyMarkup() {
+    return '<div class="v295-editor-empty"><span>' + icon("shield") + '</span><strong>اختر حسابًا لإدارة صلاحياته</strong><p>ستظهر القوالب والصلاحيات التفصيلية وسجل آخر تحديث هنا.</p></div>';
+  }
+  function templateOptions(profile) {
+    const keys = profile?.role === "admin"
+      ? ["admin"]
+      : ["employee", "hr", "finance", "manager", "view"];
+    return keys.map(function (key) {
+      return '<option value="' + key + '"' + (key === state.templateId ? " selected" : "") + '>' + esc(TEMPLATE_LABELS[key]) + '</option>';
+    }).join("");
+  }
+  function groupMarkup(group, profile) {
+    const base = templatePermissions(state.templateId);
+    const items = group.items || [];
+    const active = items.filter(function (item) {
+      return Boolean(state.draft[item[0]]);
+    }).length;
+    const locked = profile.role === "admin";
+    return (
+      '<section class="v295-permission-group" data-v295-group="' + esc(group.id) + '">' +
+      '<header><span>' + icon(group.icon) + '</span><div><strong>' + esc(group.title) + '</strong><small><b data-v295-group-count>' + active + '</b> من ' + items.length + ' مفعلة</small></div><button type="button" data-v295-toggle-group="' + esc(group.id) + '"' + (locked ? " disabled" : "") + '>' + (active === items.length ? "إلغاء الكل" : "تحديد الكل") + '</button></header>' +
+      '<div class="v295-permission-items">' +
+      items.map(function (item) {
+        const key = item[0];
+        const on = Boolean(state.draft[key]);
+        const inherited = on === Boolean(base[key]);
+        const type = permissionType(key);
+        return (
+          '<label class="v295-permission-row' + (on ? " is-on" : "") + (inherited ? " is-inherited" : " is-exception") + '">' +
+          '<input type="checkbox" data-v295-permission="' + esc(key) + '"' + (on ? " checked" : "") + (locked ? " disabled" : "") + '>' +
+          '<span class="v295-toggle"><i></i></span>' +
+          '<span class="v295-permission-copy"><strong>' + esc(item[1]) + '</strong><small>' + (inherited ? "من القالب الأساسي" : on ? "استثناء مفعّل" : "استثناء معطّل") + '</small></span>' +
+          '<em class="is-' + type.className + '">' + type.label + '</em>' +
+          '</label>'
+        );
+      }).join("") +
+      '</div></section>'
+    );
+  }
+  function editorMarkup() {
+    const profile = selectedProfile();
+    if (!profile) return editorEmptyMarkup();
+    const employee = employeeFor(profile);
+    const stats = permissionStats();
+    const protectedAdmin = isProtectedAdmin(profile);
+    const dirty = isDirty();
+    return (
+      '<div class="v295-editor" data-v295-editor>' +
+      '<header class="v295-account-head"><div class="v295-account-identity"><span>' + esc(initial(profile)) + '</span><div><p>الحساب المحدد</p><h3>' + esc(profileLabel(profile)) + '</h3><small dir="ltr">' + esc(profile.email || "—") + '</small></div></div>' +
+      '<div class="v295-account-status"><b class="is-' + (profile.role === "admin" ? "admin" : "custom") + '">' + esc(roleLabel(profile)) + '</b><b class="is-' + (profile.is_active === false ? "inactive" : "active") + '">' + (profile.is_active === false ? "الحساب موقوف" : "الحساب نشط") + '</b>' + (protectedAdmin ? '<b class="is-protected">' + icon("lock") + ' آخر مدير محمي</b>' : "") + '</div></header>' +
+      '<section class="v295-account-meta"><article><span>ملف الموظف المرتبط</span><strong>' + (employee ? esc(employee.name || employee.fullName || "موظف") : "لا يوجد ربط") + '</strong><small>' + (employee ? esc(employee.employeeNumber || employee.employee_number || "ربط سحابي مؤكد") : "اربطه من إدارة المستخدمين عند الحاجة") + '</small></article><article><span>آخر تحديث سحابي</span><strong>' + esc(formatDateTime(profile.updated_at)) + '</strong><small>' + (state.lastActor && clean(state.lastSavedProfileId) === clean(profile.id) ? 'آخر حفظ في هذه الجلسة بواسطة ' + esc(state.lastActor) : "من سجل app_user_profiles") + '</small></article><article><span>الحساب الحالي</span><strong>' + (currentIdentity(profile) ? "نعم - التطبيق فوري" : "حساب آخر") + '</strong><small>' + (currentIdentity(profile) ? "تنعكس الصلاحيات دون تحديث الصفحة" : "تظهر في جلسته فور مزامنة السحابة") + '</small></article></section>' +
+      '<section class="v295-template-card"><div><span>' + icon("grid") + '</span><div><strong>قالب الصلاحيات</strong><small>القالب يجهز الصلاحيات، والاستثناءات المخصصة تظهر بوضوح أدناه.</small></div></div><label><span>القالب المختار</span><select data-v295-template' + (profile.role === "admin" ? " disabled" : "") + '>' + templateOptions(profile) + '</select></label><button type="button" data-v295-apply-template' + (profile.role === "admin" ? " disabled" : "") + '>' + icon("check") + '<span>تطبيق القالب</span></button></section>' +
+      '<div class="v295-editor-stats"><span><b>' + stats.enabled + '</b> صلاحية مفعلة</span><span><b>' + stats.exceptions + '</b> استثناء مخصص</span><span><b>' + stats.total + '</b> إجمالي الصلاحيات</span></div>' +
+      (profile.role === "admin" ? '<div class="v295-admin-note"><span>' + icon("shield") + '</span><div><strong>مدير النظام يملك جميع الصلاحيات</strong><small>تغيير الدور أو حالة الحساب يتم من إدارة المستخدمين، ولا يمكن تعطيل صلاحيات آخر مدير فعّال من هنا.</small></div></div>' : "") +
+      '<div class="v295-permission-groups">' + groups().map(function (group) {
+        return groupMarkup(group, profile);
+      }).join("") + '</div>' +
+      '<footer class="v295-actions"><div class="v295-save-assurance"><span>' + icon("shield") + '</span><div><strong>حفظ سحابي مؤكد</strong><small>يتم التحقق بإعادة القراءة، والتراجع تلقائيًا عند عدم التطابق.</small></div></div><div><button type="button" class="v295-secondary" data-v295-reset-draft' + (!dirty ? " disabled" : "") + '>' + icon("refresh") + '<span>إلغاء التعديلات</span></button><button type="button" class="v295-primary" data-v295-save' + (!dirty || state.saving || profile.role === "admin" ? " disabled" : "") + '>' + icon("check") + '<span>' + (state.saving ? "جاري التحقق..." : "حفظ الصلاحيات") + '</span></button></div></footer>' +
+      '</div>'
+    );
+  }
+  function shellMarkup() {
+    return (
+      '<div class="v295-permissions-page" data-v295-permissions-page>' +
+      '<header class="v295-page-head"><div class="v295-title"><span>' + icon("shield") + '</span><div><p>الإعدادات العامة</p><h2>الصلاحيات والأمان</h2><small>إدارة وصول الحسابات بالقوالب والاستثناءات، مع حماية حسابات الإدارة وحفظ سحابي مؤكد.</small></div></div><div class="v295-cloud-state"><i></i><div><strong>متصل بالحفظ السحابي</strong><small>التطبيق المباشر مفعّل</small></div></div></header>' +
+      summaryMarkup() +
+      '<section class="v295-toolbar"><label class="v295-search"><span>' + icon("search") + '</span><input type="search" data-v295-search placeholder="ابحث بالاسم أو البريد أو رقم الموظف..." value="' + esc(state.query) + '"></label><label><span>الدور</span><select data-v295-role-filter><option value="all">كل الأدوار</option><option value="admin"' + (state.roleFilter === "admin" ? " selected" : "") + '>مديرو النظام</option><option value="employee"' + (state.roleFilter === "employee" ? " selected" : "") + '>المستخدمون المخصصون</option></select></label><label><span>الحالة</span><select data-v295-status-filter><option value="all">كل الحالات</option><option value="active"' + (state.statusFilter === "active" ? " selected" : "") + '>نشط</option><option value="inactive"' + (state.statusFilter === "inactive" ? " selected" : "") + '>موقوف</option><option value="unlinked"' + (state.statusFilter === "unlinked" ? " selected" : "") + '>غير مربوط</option></select></label><button type="button" data-v295-refresh>' + icon("refresh") + '<span>تحديث من السحابة</span></button></section>' +
+      '<div class="v295-workspace"><aside class="v295-directory"><header><div><strong>حسابات المستخدمين</strong><small><b data-v295-visible-count>' + filteredProfiles().length + '</b> حساب ظاهر</small></div><span>' + icon("users") + '</span></header><div class="v295-user-list" data-v295-user-list>' + userListMarkup() + '</div></aside><main class="v295-editor-host" data-v295-editor-host>' + editorMarkup() + '</main></div>' +
+      '</div>'
+    );
+  }
+  function loadingMarkup() {
+    return '<div class="v295-permissions-page is-loading" data-v295-permissions-page><header class="v295-page-head"><div class="v295-title"><span>' + icon("shield") + '</span><div><p>الإعدادات العامة</p><h2>الصلاحيات والأمان</h2><small>جاري قراءة الحسابات والصلاحيات من السحابة...</small></div></div></header><div class="v295-loading-grid"><i></i><i></i><i></i><i></i></div><div class="v295-loading-body"><aside></aside><main></main></div></div>';
+  }
+  function renderShell() {
+    const root = panel();
+    if (!root) return;
+    state.rendering = true;
+    root.classList.add("v295-permissions-panel");
+    root.classList.remove("v158-permissions-final");
+    root.dataset.v295PermissionsState = "ready";
+    root.dataset.v234PermissionsDirty = "1";
+    root.removeAttribute("aria-busy");
+    root.innerHTML = shellMarkup();
+    hydrate(root);
+    state.rendering = false;
+  }
+  function renderDirectory() {
+    const root = panel();
+    const list = root?.querySelector("[data-v295-user-list]");
+    if (list) list.innerHTML = userListMarkup();
+    const count = root?.querySelector("[data-v295-visible-count]");
+    if (count) count.textContent = String(filteredProfiles().length);
+    hydrate(list);
+  }
+  function renderEditor() {
+    const root = panel();
+    const host = root?.querySelector("[data-v295-editor-host]");
+    if (!host) return;
+    const previousScroll = host.scrollTop;
+    host.innerHTML = editorMarkup();
+    host.scrollTop = previousScroll;
+    hydrate(host);
+  }
+  function selectProfile(id) {
+    if (state.saving) return;
+    if (isDirty() && !confirm("لديك تعديلات غير محفوظة. هل تريد تجاهلها؟")) return;
+    const profile = state.profiles.find(function (item) {
+      return clean(item.id) === clean(id);
+    });
+    state.selectedId = profile?.id || "";
+    state.templateId = roleTemplate(profile);
+    state.draft = profile
+      ? normalizePermissions(profile.permissions || {}, profile.role)
+      : {};
+    state.baseline = profile ? { ...profile, permissions: { ...(profile.permissions || {}) } } : null;
+    renderDirectory();
+    renderEditor();
+  }
+  function chooseInitialProfile(preferred) {
+    const exists = state.profiles.some(function (profile) {
+      return clean(profile.id) === clean(preferred || state.selectedId);
+    });
+    const id = exists
+      ? clean(preferred || state.selectedId)
+      : clean(
+          state.profiles.find(function (profile) {
+            return currentIdentity(profile);
+          })?.id || state.profiles[0]?.id,
+        );
+    state.selectedId = id;
+    const profile = selectedProfile();
+    state.templateId = roleTemplate(profile);
+    state.draft = profile
+      ? normalizePermissions(profile.permissions || {}, profile.role)
+      : {};
+    state.baseline = profile ? { ...profile, permissions: { ...(profile.permissions || {}) } } : null;
+  }
+  function accessDeniedMarkup() {
+    return '<div class="v295-permissions-page"><div class="v295-denied"><span>' + icon("lock") + '</span><strong>هذه القائمة مخصصة لمدير النظام</strong><p>لا يمكن عرض حسابات المستخدمين أو تعديل الصلاحيات من هذا الحساب.</p></div></div>';
+  }
+  async function renderPermissions(force) {
+    const root = panel();
+    if (!root || state.rendering) return;
+    root.classList.add("v295-permissions-panel");
+    root.dataset.v234PermissionsDirty = "1";
+    if (!isAdmin()) {
+      root.dataset.v295PermissionsState = "ready";
+      root.removeAttribute("aria-busy");
+      root.innerHTML = accessDeniedMarkup();
+      hydrate(root);
+      return;
+    }
+    if (!root.querySelector("[data-v295-permissions-page]")) {
+      root.innerHTML = loadingMarkup();
+      hydrate(root);
+    }
+    if (state.loading) return;
+    state.loading = true;
+    const previousId = state.selectedId;
+    try {
+      if (force || !state.profiles.length) await fetchProfiles();
+      chooseInitialProfile(previousId);
+      renderShell();
+    } catch (error) {
+      console.warn("v295 permissions load failed", error);
+      root.dataset.v295PermissionsState = "error";
+      root.removeAttribute("aria-busy");
+      root.innerHTML = '<div class="v295-permissions-page"><div class="v295-denied is-error"><span>' + icon("shield") + '</span><strong>تعذر تحميل الصلاحيات من السحابة</strong><p>تحقق من الاتصال ثم أعد المحاولة.</p><button type="button" data-v295-refresh>إعادة المحاولة</button></div></div>';
+      hydrate(root);
+    } finally {
+      state.loading = false;
+    }
+  }
+  function cacheSavedProfile(saved) {
+    state.profiles = state.profiles.map(function (profile) {
+      return clean(profile.id) === clean(saved.id) ? { ...profile, ...saved } : profile;
+    });
+    try {
+      appUserProfilesCache = state.profiles;
+    } catch (_) {}
+    window.appUserProfilesCache = state.profiles;
+  }
+  async function conditionalUpdate(profile, permissions) {
+    const client = db();
+    const updatedAt = new Date().toISOString();
+    let query = client
+      .from("app_user_profiles")
+      .update({ permissions: permissions, updated_at: updatedAt })
+      .eq("id", profile.id);
+    if (profile.updated_at) query = query.eq("updated_at", profile.updated_at);
+    const result = await query.select(PROFILE_FIELDS).maybeSingle();
+    if (result.error) throw result.error;
+    return Array.isArray(result.data) ? result.data[0] || null : result.data || null;
+  }
+  async function rollbackProfile(original, mutated) {
+    if (!original?.id || !mutated?.id) return false;
+    try {
+      const client = db();
+      let query = client
+        .from("app_user_profiles")
+        .update({
+          permissions: original.permissions || {},
+          employee_id: original.employee_id || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", original.id);
+      if (mutated.updated_at) query = query.eq("updated_at", mutated.updated_at);
+      const result = await query.select(PROFILE_FIELDS).maybeSingle();
+      if (result.error || !result.data) return false;
+      const verified = await fetchProfile(original.id);
+      return Boolean(
+        verified &&
+          samePermissions(verified.permissions, original.permissions, original.role),
+      );
+    } catch (error) {
+      console.warn("v295 permission rollback failed", error);
+      return false;
+    }
+  }
+  function syncCurrentProfile(saved) {
+    if (!currentIdentity(saved)) return;
+    try {
+      if (authProfile) authProfile.permissions = saved.permissions || {};
+    } catch (_) {}
+    try {
+      if (window.authProfile) window.authProfile.permissions = saved.permissions || {};
+    } catch (_) {}
+    try {
+      if (typeof applyRolePermissions === "function") applyRolePermissions();
+      else if (typeof window.applyRolePermissions === "function")
+        window.applyRolePermissions();
+    } catch (error) {
+      console.warn("v295 live permission apply failed", error);
+    }
+    try {
+      window.dispatchEvent(
+        new CustomEvent("nawah:permissions-updated", {
+          detail: { profileId: saved.id, permissions: saved.permissions || {} },
+        }),
+      );
+    } catch (_) {}
+  }
+  async function savePermissions(button) {
+    if (!isAdmin()) return notify("هذه الشاشة للمدير فقط");
+    if (state.saving) return;
+    const profile = selectedProfile();
+    const baseline = state.baseline ? { ...state.baseline, permissions: { ...(state.baseline.permissions || {}) } } : null;
+    if (!profile || !baseline) return notify("اختر حسابًا أولًا");
+    if (profile.role === "admin") return notify("مدير النظام يملك الصلاحيات كاملة تلقائيًا");
+    if (!isDirty()) return notify("لا توجد تعديلات جديدة للحفظ");
+    state.saving = true;
+    renderEditor();
+    let mutated = null;
+    try {
+      const remote = await fetchProfile(profile.id);
+      if (!remote) throw new Error("تعذر العثور على الحساب في السحابة");
+      if (clean(remote.updated_at) !== clean(baseline.updated_at))
+        throw new Error("تم تعديل الصلاحيات في متصفح آخر؛ حدّث الشاشة قبل الحفظ");
+      if (remote.role === "admin" && activeAdminCount(state.profiles) <= 1)
+        throw new Error("لا يمكن تعديل صلاحيات آخر مدير نظام فعّال");
+      const desired = normalizePermissions(state.draft, remote.role);
+      mutated = await conditionalUpdate(remote, desired);
+      if (!mutated)
+        throw new Error("تم تعديل السجل في متصفح آخر؛ لم يتم استبدال بياناته");
+      const verified = await fetchProfile(remote.id);
+      if (
+        !verified ||
+        !samePermissions(verified.permissions, desired, remote.role) ||
+        clean(verified.employee_id) !== clean(remote.employee_id)
+      ) {
+        const rolledBack = await rollbackProfile(baseline, verified || mutated);
+        throw new Error(
+          rolledBack
+            ? "لم تتطابق القراءة السحابية وتمت استعادة الصلاحيات السابقة"
+            : "لم تتطابق القراءة السحابية وتعذر تأكيد الاستعادة؛ حدّث الشاشة",
+        );
+      }
+      cacheSavedProfile(verified);
+      state.draft = normalizePermissions(verified.permissions || {}, verified.role);
+      state.baseline = { ...verified, permissions: { ...(verified.permissions || {}) } };
+      state.lastActor = actorName();
+      state.lastSavedProfileId = verified.id;
+      syncCurrentProfile(verified);
+      renderShell();
+      notify("تم حفظ الصلاحيات وتأكيدها من السحابة");
+    } catch (error) {
+      console.warn("v295 permissions save failed", error);
+      if (mutated) {
+        const latest = await fetchProfile(profile.id).catch(function () {
+          return mutated;
+        });
+        if (latest && samePermissions(latest.permissions, state.draft, profile.role))
+          await rollbackProfile(baseline, latest);
+      }
+      await fetchProfiles().catch(function () {});
+      chooseInitialProfile(profile.id);
+      renderShell();
+      notify(clean(error?.message) || "تعذر حفظ الصلاحيات سحابيًا");
+    } finally {
+      state.saving = false;
+      button?.removeAttribute("aria-busy");
+      renderEditor();
+    }
+  }
+  function activatePermissions() {
+    document
+      .querySelectorAll("#settingsNav [data-settings-section]")
+      .forEach(function (button) {
+        button.classList.toggle(
+          "active",
+          button.dataset.settingsSection === "permissions",
+        );
+      });
+    document
+      .querySelectorAll("#settingsView [data-settings-panel]")
+      .forEach(function (section) {
+        const active = section.dataset.settingsPanel === "permissions";
+        section.classList.toggle("active", active);
+        section.hidden = !active;
+        section.style.display = active ? "block" : "none";
+        section.style.pointerEvents = active ? "auto" : "";
+      });
+    return renderPermissions(!state.profiles.length);
+  }
+  function refreshIfSafe() {
+    if (!isActive() || state.loading || state.saving || isDirty()) return;
+    return renderPermissions(true);
+  }
+  function startRealtime() {
+    const client = db();
+    if (realtimeChannel || !client?.channel) return;
+    try {
+      realtimeChannel = client
+        .channel("nawah-app-user-profiles-v295")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "app_user_profiles" },
+          function () {
+            clearTimeout(realtimeTimer);
+            realtimeTimer = setTimeout(function () {
+              void refreshIfSafe();
+            }, 100);
+          },
+        )
+        .subscribe();
+    } catch (error) {
+      realtimeChannel = null;
+      console.info("v295 permissions realtime unavailable; focus refresh remains active");
+    }
+  }
+
+  document.addEventListener(
+    "input",
+    function (event) {
+      if (!event.target?.matches?.("[data-v295-search]")) return;
+      state.query = event.target.value || "";
+      renderDirectory();
+    },
+    true,
+  );
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (event.target?.matches?.("[data-v295-role-filter]")) {
+        state.roleFilter = event.target.value || "all";
+        renderDirectory();
+        return;
+      }
+      if (event.target?.matches?.("[data-v295-status-filter]")) {
+        state.statusFilter = event.target.value || "all";
+        renderDirectory();
+        return;
+      }
+      if (event.target?.matches?.("[data-v295-template]")) {
+        state.templateId = event.target.value || roleTemplate(selectedProfile());
+        renderEditor();
+        return;
+      }
+      if (event.target?.matches?.("[data-v295-permission]")) {
+        state.draft[event.target.dataset.v295Permission] = Boolean(event.target.checked);
+        state.draft = normalizePermissions(state.draft, selectedProfile()?.role || "employee");
+        renderEditor();
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    function (event) {
+      const user = event.target?.closest?.("[data-v295-user]");
+      if (user) {
+        event.preventDefault();
+        selectProfile(user.dataset.v295User);
+        return;
+      }
+      const refresh = event.target?.closest?.("[data-v295-refresh]");
+      if (refresh) {
+        event.preventDefault();
+        if (isDirty() && !confirm("سيتم تجاهل التعديلات غير المحفوظة. هل تريد المتابعة؟")) return;
+        void renderPermissions(true);
+        return;
+      }
+      const apply = event.target?.closest?.("[data-v295-apply-template]");
+      if (apply) {
+        event.preventDefault();
+        state.draft = templatePermissions(state.templateId);
+        renderEditor();
+        return;
+      }
+      const group = event.target?.closest?.("[data-v295-toggle-group]");
+      if (group) {
+        event.preventDefault();
+        const meta = groups().find(function (item) {
+          return item.id === group.dataset.v295ToggleGroup;
+        });
+        if (!meta || selectedProfile()?.role === "admin") return;
+        const next = meta.items.some(function (item) {
+          return !state.draft[item[0]];
+        });
+        meta.items.forEach(function (item) {
+          state.draft[item[0]] = next;
+        });
+        state.draft = normalizePermissions(state.draft, "employee");
+        renderEditor();
+        return;
+      }
+      const reset = event.target?.closest?.("[data-v295-reset-draft]");
+      if (reset) {
+        event.preventDefault();
+        const profile = selectedProfile();
+        state.templateId = roleTemplate(profile);
+        state.draft = profile
+          ? normalizePermissions(state.baseline?.permissions || profile.permissions || {}, profile.role)
+          : {};
+        renderEditor();
+        return;
+      }
+      const save = event.target?.closest?.("[data-v295-save]");
+      if (save) {
+        event.preventDefault();
+        save.setAttribute("aria-busy", "true");
+        void savePermissions(save);
+      }
+    },
+    true,
+  );
+
+  const previousActivate = window.__stableActivateSettingsSection;
+  if (typeof previousActivate === "function") {
+    const wrappedActivate = function (key) {
+      if (key === "permissions") return activatePermissions();
+      return previousActivate.apply(this, arguments);
+    };
+    wrappedActivate.__v295ProfessionalPermissions = true;
+    window.__stableActivateSettingsSection = wrappedActivate;
+  }
+  const previousRenderer = window.__stableSettingsRenderPanel;
+  if (typeof previousRenderer === "function") {
+    const wrappedRenderer = function (key) {
+      if (key === "permissions") return renderPermissions(!state.profiles.length);
+      return previousRenderer.apply(this, arguments);
+    };
+    wrappedRenderer.__v295ProfessionalPermissions = true;
+    window.__stableSettingsRenderPanel = wrappedRenderer;
+  }
+  try {
+    const root = panel();
+    if (root && typeof MutationObserver === "function") {
+      observer = new MutationObserver(function () {
+        if (
+          !state.rendering &&
+          isActive() &&
+          !root.querySelector("[data-v295-permissions-page]")
+        )
+          void renderPermissions(false);
+      });
+      observer.observe(root, { childList: true });
+    }
+  } catch (_) {}
+
+  window.addEventListener("nawah:employees-ready", function () {
+    if (isActive()) renderShell();
+  });
+  window.addEventListener("focus", function () {
+    const now = Date.now();
+    if (now - lastFocusRefresh < 1600) return;
+    lastFocusRefresh = now;
+    void refreshIfSafe();
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") void refreshIfSafe();
+  });
+  setTimeout(startRealtime, 0);
+  if (isActive()) void renderPermissions(true);
+
+  window.nawahPermissionsV295 = {
+    version: 295,
+    render: renderPermissions,
+    activate: activatePermissions,
+    refresh: function () {
+      return renderPermissions(true);
+    },
+    templates: TEMPLATE_LABELS,
+    normalize: normalizePermissions,
+    cloudBacked: true,
+    cloudTable: "app_user_profiles",
+    cloudField: "permissions",
+    liveApply: true,
+    rollbackOnMismatch: true,
   };
 })();
