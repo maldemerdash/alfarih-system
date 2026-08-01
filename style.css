@@ -37883,3 +37883,366 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     grid-column: auto;
   }
 }
+
+/* v305 - permission review, change visibility and explicit cloud-save states */
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-permission-review {
+  overflow: hidden;
+  border: 1px solid #d7e7eb;
+  border-radius: 19px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(30, 77, 92, .04);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-bar {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) auto minmax(210px, .85fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #f8fcfd, #f6fcf9);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-title,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-title > span {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cae7ec;
+  border-radius: 12px;
+  color: #07889e;
+  background: #fff;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-title svg {
+  width: 17px;
+  height: 17px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-title strong,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state strong {
+  display: block;
+  color: #2d4e61;
+  font-size: 11px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-title small,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state small {
+  display: block;
+  margin-top: 2px;
+  color: #80939e;
+  font-size: 8.7px;
+  line-height: 1.55;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(74px, 1fr));
+  gap: 6px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics article {
+  min-height: 48px;
+  padding: 7px 9px;
+  border: 1px solid #dfebee;
+  border-radius: 12px;
+  text-align: center;
+  background: rgba(255, 255, 255, .86);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics article.has-changes {
+  border-color: #f0d7a5;
+  background: #fffaf0;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics strong,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics span {
+  display: block;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics strong {
+  color: #087f95;
+  font-size: 13px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics .has-changes strong {
+  color: #a76b00;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics span {
+  margin-top: 2px;
+  color: #7d909b;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state {
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid #dce8eb;
+  border-radius: 13px;
+  background: #fff;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state > i {
+  width: 9px;
+  height: 9px;
+  min-width: 9px;
+  border-radius: 50%;
+  background: #9aabb3;
+  box-shadow: 0 0 0 4px rgba(154, 171, 179, .12);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state.is-draft > i {
+  background: #e4a72e;
+  box-shadow: 0 0 0 4px rgba(228, 167, 46, .13);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state.is-saving > i {
+  background: #0da5bf;
+  box-shadow: 0 0 0 4px rgba(13, 165, 191, .13);
+  animation: v305SavePulse 1s ease-in-out infinite;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state.is-saved > i,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state.is-clean > i {
+  background: #18a873;
+  box-shadow: 0 0 0 4px rgba(24, 168, 115, .12);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state.is-error > i {
+  background: #e34e4e;
+  box-shadow: 0 0 0 4px rgba(227, 78, 78, .12);
+}
+
+@keyframes v305SavePulse {
+  50% { opacity: .38; transform: scale(.78); }
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v305-toggle-changes] {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #bfe2e8;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #087f94;
+  background: #fff;
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v305-toggle-changes][aria-pressed="true"] {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(105deg, #12a9c8, #20bd7c);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v305-toggle-changes]:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v305-toggle-changes] svg {
+  width: 14px;
+  height: 14px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-review {
+  border-top: 1px solid #e2ecef;
+  padding: 12px 14px 14px;
+  background: #fff;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-review > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-review > header strong {
+  display: block;
+  color: #315164;
+  font-size: 10.5px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-review > header small {
+  display: block;
+  margin-top: 2px;
+  color: #84959f;
+  font-size: 8.5px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-review > header b {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #986300;
+  background: #fff5dc;
+  font-size: 8.5px;
+  white-space: nowrap;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list > button {
+  min-width: 0;
+  min-height: 54px;
+  padding: 8px 10px;
+  border: 1px solid #e0eaed;
+  border-radius: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 7px;
+  text-align: start;
+  background: #fbfdfd;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list > button:hover {
+  border-color: #bfe0e6;
+  background: #f6fcfd;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list span {
+  min-width: 0;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list small,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list small {
+  color: #8798a1;
+  font-size: 7.8px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list strong {
+  margin-top: 2px;
+  color: #345264;
+  font-size: 9.5px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list em {
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list em.is-on {
+  color: #07825f;
+  background: #e9f9f2;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list em.is-off {
+  color: #bd4545;
+  background: #fff0f0;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list i {
+  color: #9aabb3;
+  font-size: 12px;
+  font-style: normal;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-no-group-changes {
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #7f929c;
+  text-align: center;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-no-group-changes > span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: #168961;
+  background: #ebfaf3;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-no-group-changes strong,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-no-group-changes small {
+  display: block;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-no-group-changes strong {
+  color: #45616f;
+  font-size: 10px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-no-group-changes small {
+  margin-top: 3px;
+  font-size: 8.5px;
+}
+
+@media (max-width: 1320px) {
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-bar {
+    grid-template-columns: minmax(220px, 1fr) minmax(250px, auto);
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-save-state,
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v305-toggle-changes] {
+    width: 100%;
+  }
+}
+
+@media (max-width: 820px) {
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-bar,
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list > button {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+  }
+}
+
+@media (max-width: 480px) {
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-review-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list > button {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v305-change-list i {
+    display: none;
+  }
+}

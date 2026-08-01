@@ -80642,6 +80642,10 @@ window.nawahNotificationRulesV294 = {
     lastSavedProfileId: "",
     draftTouched: false,
     selectedGroupId: "",
+    showChangesOnly: false,
+    saveStatus: "idle",
+    saveMessage: "",
+    lastSavedAt: "",
   };
   let observer = null;
   let realtimeChannel = null;
@@ -81038,6 +81042,84 @@ window.nawahNotificationRulesV294 = {
     if (!profile || !state.baseline) return false;
     return !samePermissions(state.baseline.permissions, state.draft, profile.role);
   }
+  function permissionChanges() {
+    const profile = selectedProfile();
+    if (!profile || !state.baseline) return [];
+    const baseline = normalizePermissions(
+      state.baseline.permissions || {},
+      profile.role,
+    );
+    return groups().flatMap(function (group) {
+      return (group.items || [])
+        .filter(function (item) {
+          return Boolean(baseline[item[0]]) !== Boolean(state.draft[item[0]]);
+        })
+        .map(function (item) {
+          return {
+            key: item[0],
+            label: item[1],
+            groupId: group.id,
+            groupTitle: group.title,
+            before: Boolean(baseline[item[0]]),
+            after: Boolean(state.draft[item[0]]),
+          };
+        });
+    });
+  }
+  function permissionChanged(key) {
+    return permissionChanges().some(function (change) {
+      return change.key === key;
+    });
+  }
+  function groupChangeCount(group) {
+    const keys = new Set(
+      (group?.items || []).map(function (item) {
+        return item[0];
+      }),
+    );
+    return permissionChanges().filter(function (change) {
+      return keys.has(change.key);
+    }).length;
+  }
+  function saveStateMeta() {
+    if (state.saving || state.saveStatus === "saving")
+      return {
+        key: "saving",
+        title: "جارٍ الحفظ والتحقق",
+        note: "يتم الآن اعتماد التغييرات وإعادة قراءتها من السحابة.",
+      };
+    if (state.saveStatus === "error")
+      return {
+        key: "error",
+        title: "تعذر تأكيد الحفظ",
+        note: state.saveMessage || "راجع الرسالة ثم أعد المحاولة.",
+      };
+    if (isDirty())
+      return {
+        key: "draft",
+        title: "تعديلات غير محفوظة",
+        note: "راجع التغييرات ثم احفظها مرة واحدة.",
+      };
+    if (state.saveStatus === "saved")
+      return {
+        key: "saved",
+        title: "تم الحفظ سحابيًا",
+        note: state.lastSavedAt
+          ? "آخر تأكيد: " + formatDateTime(state.lastSavedAt)
+          : state.saveMessage || "تمت مطابقة القراءة السحابية بنجاح.",
+      };
+    return {
+      key: "clean",
+      title: "الصلاحيات متطابقة",
+      note: "لا توجد تغييرات معلقة على هذا المستخدم.",
+    };
+  }
+  function markDraftChanged() {
+    state.draftTouched = isDirty();
+    state.saveStatus = "idle";
+    state.saveMessage = "";
+    if (!state.draftTouched) state.showChangesOnly = false;
+  }
   async function fetchProfiles() {
     const client = db();
     if (!client?.from) throw new Error("تعذر الاتصال بقاعدة البيانات السحابية");
@@ -81135,7 +81217,16 @@ window.nawahNotificationRulesV294 = {
     const enabled = items.filter(function (item) {
       return Boolean(state.draft[item[0]]);
     }).length;
-    return (group?.title || "مجموعة صلاحيات") + " — " + enabled + " من " + items.length + " مفعلة";
+    const changed = groupChangeCount(group);
+    return (
+      (group?.title || "مجموعة صلاحيات") +
+      " — " +
+      enabled +
+      " من " +
+      items.length +
+      " مفعلة" +
+      (changed ? "  ●  " + changed + " تعديل" : "")
+    );
   }
   function groupOptionsMarkup() {
     const selected = selectedPermissionGroup();
@@ -81152,6 +81243,83 @@ window.nawahNotificationRulesV294 = {
         );
       })
       .join("");
+  }
+  function changeReviewMarkup(changes) {
+    if (!state.showChangesOnly) return "";
+    if (!changes.length)
+      return (
+        '<div class="v305-change-review is-empty"><span>' +
+        icon("check-circle") +
+        '</span><div><strong>لا توجد تغييرات للمراجعة</strong><small>الصلاحيات الحالية مطابقة للحفظ السحابي.</small></div></div>'
+      );
+    return (
+      '<div class="v305-change-review"><header><div><strong>تفاصيل التغييرات قبل الحفظ</strong><small>اختر أي تغيير للانتقال مباشرة إلى مجموعته.</small></div><b>' +
+      changes.length +
+      ' تغيير</b></header><div class="v305-change-list">' +
+      changes
+        .map(function (change) {
+          return (
+            '<button type="button" data-v305-review-group="' +
+            esc(change.groupId) +
+            '"><span><small>' +
+            esc(change.groupTitle) +
+            '</small><strong>' +
+            esc(change.label) +
+            '</strong></span><em class="is-' +
+            (change.before ? "on" : "off") +
+            '">' +
+            (change.before ? "مفعلة" : "معطلة") +
+            '</em><i>←</i><em class="is-' +
+            (change.after ? "on" : "off") +
+            '">' +
+            (change.after ? "مفعلة" : "معطلة") +
+            "</em></button>"
+          );
+        })
+        .join("") +
+      "</div></div>"
+    );
+  }
+  function reviewMarkup() {
+    const profile = selectedProfile();
+    if (!profile) return "";
+    const changes = permissionChanges();
+    const modifiedGroups = new Set(
+      changes.map(function (change) {
+        return change.groupId;
+      }),
+    ).size;
+    const stats = permissionStats();
+    const status = saveStateMeta();
+    return (
+      '<section class="v305-permission-review" data-v305-review><div class="v305-review-bar"><div class="v305-review-title"><span>' +
+      icon("file") +
+      '</span><div><strong>مراجعة الصلاحيات</strong><small>ملخص مباشر لجميع المجموعات قبل الحفظ السحابي.</small></div></div><div class="v305-review-metrics"><article><strong>' +
+      stats.enabled +
+      '</strong><span>صلاحية مفعلة</span></article><article class="' +
+      (changes.length ? "has-changes" : "") +
+      '"><strong>' +
+      changes.length +
+      '</strong><span>تعديل معلق</span></article><article><strong>' +
+      modifiedGroups +
+      '</strong><span>مجموعة معدلة</span></article></div><div class="v305-save-state is-' +
+      status.key +
+      '"><i></i><div><strong>' +
+      esc(status.title) +
+      '</strong><small>' +
+      esc(status.note) +
+      '</small></div></div><button type="button" data-v305-toggle-changes aria-pressed="' +
+      (state.showChangesOnly ? "true" : "false") +
+      '"' +
+      (!changes.length ? " disabled" : "") +
+      ">" +
+      icon(state.showChangesOnly ? "x" : "eye") +
+      '<span>' +
+      (state.showChangesOnly ? "إغلاق المراجعة" : "عرض التغييرات فقط") +
+      "</span></button></div>" +
+      changeReviewMarkup(changes) +
+      "</section>"
+    );
   }
   function pickerMarkup() {
     const profile = selectedProfile();
@@ -81202,6 +81370,11 @@ window.nawahNotificationRulesV294 = {
   function groupMarkup(group, profile) {
     const base = templatePermissions(state.templateId);
     const items = group.items || [];
+    const visibleItems = state.showChangesOnly
+      ? items.filter(function (item) {
+          return permissionChanged(item[0]);
+        })
+      : items;
     const active = items.filter(function (item) {
       return Boolean(state.draft[item[0]]);
     }).length;
@@ -81212,7 +81385,8 @@ window.nawahNotificationRulesV294 = {
       '<section class="v295-permission-group" data-v295-group="' + esc(group.id) + '">' +
       '<header><span>' + icon(group.icon) + '</span><div><strong>' + esc(group.title) + '</strong><small>' + esc(group.description || "صلاحيات مرتبطة فعليًا بعمليات هذه القائمة") + '</small><small><b data-v295-group-count>' + active + '</b> من ' + items.length + ' مفعلة</small></div><em class="v296-actual-badge">مرتبط فعليًا</em><b class="v296-group-state is-' + stateClass + '">' + stateLabel + '</b><button type="button" data-v295-toggle-group="' + esc(group.id) + '"' + (locked ? " disabled" : "") + '>' + (active === items.length ? "إلغاء الكل" : "تحديد الكل") + '</button></header>' +
       '<div class="v295-permission-items">' +
-      items.map(function (item) {
+      (visibleItems.length
+        ? visibleItems.map(function (item) {
         const key = item[0];
         const on = Boolean(state.draft[key]);
         const inherited = on === Boolean(base[key]);
@@ -81225,7 +81399,8 @@ window.nawahNotificationRulesV294 = {
           '<em class="is-' + type.className + '">' + type.label + '</em>' +
           '</label>'
         );
-      }).join("") +
+      }).join("")
+        : '<div class="v305-no-group-changes"><span>' + icon("check-circle") + '</span><div><strong>لا توجد تغييرات في هذه المجموعة</strong><small>اختر مجموعة مميزة بعلامة ● من القائمة أعلاه.</small></div></div>') +
       '</div></section>'
     );
   }
@@ -81244,6 +81419,7 @@ window.nawahNotificationRulesV294 = {
       '<section class="v295-account-meta"><article><span>ملف الموظف المرتبط</span><strong>' + (employee ? esc(employee.name || employee.fullName || "موظف") : "لا يوجد ربط") + '</strong><small>' + (employee ? esc(employee.employeeNumber || employee.employee_number || "ربط سحابي مؤكد") : "اربطه من إدارة المستخدمين عند الحاجة") + '</small></article><article><span>آخر تحديث سحابي</span><strong>' + esc(formatDateTime(profile.updated_at)) + '</strong><small>' + (state.lastActor && clean(state.lastSavedProfileId) === clean(profile.id) ? 'آخر حفظ في هذه الجلسة بواسطة ' + esc(state.lastActor) : "من سجل app_user_profiles") + '</small></article><article><span>الحساب الحالي</span><strong>' + (currentIdentity(profile) ? "نعم - التطبيق فوري" : "حساب آخر") + '</strong><small>' + (currentIdentity(profile) ? "تنعكس الصلاحيات دون تحديث الصفحة" : "تظهر في جلسته فور مزامنة السحابة") + '</small></article></section>' +
       '<section class="v295-template-card"><div><span>' + icon("grid") + '</span><div><strong>قالب الصلاحيات</strong><small>القالب يجهز الصلاحيات، والاستثناءات المخصصة تظهر بوضوح أدناه.</small></div></div><label><span>القالب المختار</span><select data-v295-template' + (profile.role === "admin" ? " disabled" : "") + '>' + templateOptions(profile) + '</select></label><button type="button" data-v295-apply-template' + (profile.role === "admin" ? " disabled" : "") + '>' + icon("check") + '<span>تطبيق القالب</span></button></section>' +
       '<div class="v295-editor-stats"><span><b>' + stats.enabled + '</b> صلاحية مفعلة</span><span><b>' + stats.exceptions + '</b> استثناء مخصص</span><span><b>' + stats.total + '</b> إجمالي الصلاحيات</span></div>' +
+      reviewMarkup() +
       (profile.role === "admin" ? '<div class="v295-admin-note"><span>' + icon("shield") + '</span><div><strong>مدير النظام يملك جميع الصلاحيات</strong><small>تغيير الدور أو حالة الحساب يتم من إدارة المستخدمين، ولا يمكن تعطيل صلاحيات آخر مدير فعّال من هنا.</small></div></div>' : "") +
       '<div class="v295-permission-groups v304-single-permission-group">' +
       (permissionGroup
@@ -81376,6 +81552,11 @@ window.nawahNotificationRulesV294 = {
         if (statValues[index] != null)
           element.textContent = String(statValues[index]);
       });
+    const review = host.querySelector("[data-v305-review]");
+    if (review) {
+      review.outerHTML = reviewMarkup();
+      hydrate(host);
+    }
     const dirty = isDirty();
     const reset = host.querySelector("[data-v295-reset-draft]");
     const save = host.querySelector("[data-v295-save]");
@@ -81383,6 +81564,11 @@ window.nawahNotificationRulesV294 = {
     if (save)
       save.disabled =
         !dirty || state.saving || profile.role === "admin";
+    const saveLabel = save?.querySelector("span:last-child");
+    if (saveLabel)
+      saveLabel.textContent = state.saving
+        ? "جاري الحفظ والتحقق..."
+        : "حفظ الصلاحيات";
     host.dataset.v295DraftState = dirty ? "dirty" : "clean";
     root.dataset.v295DraftState = dirty ? "dirty" : "clean";
     root.dataset.v234PermissionsDirty = "1";
@@ -81408,6 +81594,9 @@ window.nawahNotificationRulesV294 = {
       : {};
     state.baseline = profile ? { ...profile, permissions: { ...(profile.permissions || {}) } } : null;
     state.draftTouched = false;
+    state.showChangesOnly = false;
+    state.saveStatus = "idle";
+    state.saveMessage = "";
     renderDirectory();
     renderEditor();
     setTimeout(function () {
@@ -81431,6 +81620,9 @@ window.nawahNotificationRulesV294 = {
       : {};
     state.baseline = profile ? { ...profile, permissions: { ...(profile.permissions || {}) } } : null;
     state.draftTouched = false;
+    state.showChangesOnly = false;
+    state.saveStatus = "idle";
+    state.saveMessage = "";
     setTimeout(function () {
       window.nawahPermissionAuditV296?.load?.(state.selectedId);
     }, 0);
@@ -81563,7 +81755,9 @@ window.nawahNotificationRulesV294 = {
       return notify("لا توجد تعديلات جديدة للحفظ");
     }
     state.saving = true;
-    renderEditor();
+    state.saveStatus = "saving";
+    state.saveMessage = "يتم اعتماد التغييرات وإعادة قراءتها من السحابة.";
+    syncEditorDraftUi();
     let mutated = null;
     try {
       const remote = await fetchProfile(profile.id);
@@ -81612,10 +81806,18 @@ window.nawahNotificationRulesV294 = {
       state.draft = normalizePermissions(verified.permissions || {}, verified.role);
       state.baseline = { ...verified, permissions: { ...(verified.permissions || {}) } };
       state.draftTouched = false;
+      state.showChangesOnly = false;
+      state.saveStatus = "saved";
+      state.saveMessage = "تمت مطابقة القراءة السحابية واعتماد جميع التغييرات.";
+      state.lastSavedAt = new Date().toISOString();
       state.lastActor = actorName();
       state.lastSavedProfileId = verified.id;
       syncCurrentProfile(verified);
-      renderShell();
+      renderDirectory();
+      renderEditor();
+      setTimeout(function () {
+        window.nawahPermissionAuditV296?.load?.(verified.id);
+      }, 0);
       notify("تم حفظ الصلاحيات وتأكيدها من السحابة");
     } catch (error) {
       console.warn("v295 permissions save failed", error);
@@ -81628,12 +81830,15 @@ window.nawahNotificationRulesV294 = {
       }
       await fetchProfiles().catch(function () {});
       chooseInitialProfile(profile.id);
-      renderShell();
-      notify(clean(error?.message) || "تعذر حفظ الصلاحيات سحابيًا");
+      state.saveStatus = "error";
+      state.saveMessage =
+        clean(error?.message) || "تعذر حفظ الصلاحيات سحابيًا";
+      renderDirectory();
+      renderEditor();
+      notify(state.saveMessage);
     } finally {
       state.saving = false;
       button?.removeAttribute("aria-busy");
-      renderEditor();
       syncEditorDraftUi();
     }
   }
@@ -81746,8 +81951,9 @@ window.nawahNotificationRulesV294 = {
           );
         else state.draft[key] = enabled;
         state.draft = normalizePermissions(state.draft, selectedProfile()?.role || "employee");
-        state.draftTouched = isDirty();
-        syncEditorDraftUi();
+        markDraftChanged();
+        if (state.showChangesOnly) renderEditor();
+        else syncEditorDraftUi();
       }
     },
     true,
@@ -81755,6 +81961,34 @@ window.nawahNotificationRulesV294 = {
   document.addEventListener(
     "click",
     function (event) {
+      const reviewToggle = event.target?.closest?.(
+        "[data-v305-toggle-changes]",
+      );
+      if (reviewToggle) {
+        event.preventDefault();
+        if (!permissionChanges().length) return;
+        state.showChangesOnly = !state.showChangesOnly;
+        renderEditor();
+        renderDirectory();
+        return;
+      }
+      const reviewChange = event.target?.closest?.(
+        "[data-v305-review-group]",
+      );
+      if (reviewChange) {
+        event.preventDefault();
+        const requested = clean(reviewChange.dataset.v305ReviewGroup);
+        if (
+          groups().some(function (group) {
+            return clean(group.id) === requested;
+          })
+        )
+          state.selectedGroupId = requested;
+        state.showChangesOnly = true;
+        renderEditor();
+        renderDirectory();
+        return;
+      }
       const user = event.target?.closest?.("[data-v295-user]");
       if (user) {
         event.preventDefault();
@@ -81777,6 +82011,9 @@ window.nawahNotificationRulesV294 = {
             )
           : {};
         state.draftTouched = false;
+        state.showChangesOnly = false;
+        state.saveStatus = "idle";
+        state.saveMessage = "";
         void renderPermissions(true);
         return;
       }
@@ -81784,7 +82021,7 @@ window.nawahNotificationRulesV294 = {
       if (apply) {
         event.preventDefault();
         state.draft = templatePermissions(state.templateId);
-        state.draftTouched = isDirty();
+        markDraftChanged();
         renderEditor();
         renderDirectory();
         return;
@@ -81809,8 +82046,9 @@ window.nawahNotificationRulesV294 = {
           else state.draft[item[0]] = next;
         });
         state.draft = normalizePermissions(state.draft, "employee");
-        state.draftTouched = isDirty();
-        syncEditorDraftUi();
+        markDraftChanged();
+        if (state.showChangesOnly) renderEditor();
+        else syncEditorDraftUi();
         return;
       }
       const reset = event.target?.closest?.("[data-v295-reset-draft]");
@@ -81822,6 +82060,9 @@ window.nawahNotificationRulesV294 = {
           ? normalizePermissions(state.baseline?.permissions || profile.permissions || {}, profile.role)
           : {};
         state.draftTouched = false;
+        state.showChangesOnly = false;
+        state.saveStatus = "idle";
+        state.saveMessage = "";
         renderEditor();
         renderDirectory();
         return;
@@ -81895,7 +82136,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 304,
+    version: 305,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -82440,7 +82681,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 304,
+      version: 305,
       granular: true,
       canonicalPermissions: true,
     };
@@ -83001,7 +83242,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 304,
+    version: 305,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
