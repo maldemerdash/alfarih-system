@@ -52929,6 +52929,16 @@ async function init() {
     }
     function add(item) {
       if (!item || !can(item.type)) return;
+      const configuredImportance = String(
+        cfg[item.type]?.importance || cfg[item.type]?.severity || "normal",
+      ).toLowerCase();
+      item.importance = configuredImportance;
+      if (configuredImportance === "urgent") item.severity = "danger";
+      else if (
+        configuredImportance === "important" &&
+        item.severity !== "danger"
+      )
+        item.severity = "warning";
       counts[item.type] = (counts[item.type] || 0) + 1;
       out.push(item);
     }
@@ -69887,6 +69897,10 @@ window.nawahLeaveBalanceReportV185 = {
     refresh: () => refreshCloudStateV221(true),
     save: (reason = "manual") =>
       saveCloudStateNowV221({ force: true, reason }),
+    saveConfirmed: (reason = "manual-confirmed") => {
+      clearTimeout(saveTimer);
+      return saveCloudStateNowV221({ force: true, reason });
+    },
     trackFields: (fields) => {
       markDirty(fields);
       return queueCloudStateSaveV221();
@@ -79706,5 +79720,869 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     passwordProvider: "supabase-auth",
     profileTable: "app_user_profiles",
     localStorage: false,
+  };
+})();
+
+/* v294 - professional cloud-confirmed system notification rules */
+(function () {
+  if (window.__v294ProfessionalNotificationRules) return;
+  window.__v294ProfessionalNotificationRules = true;
+
+  const STORAGE_KEY = "nawah-v136-notification-settings";
+  const CLOUD_STATE_KEY = "app_state";
+  const RULES = {
+    contract: {
+      legacy: "contractExpiry",
+      title: "انتهاء عقد الموظف",
+      description: "تنبيه استباقي قبل نهاية العقد المسجلة.",
+      days: 60,
+      importance: "important",
+      category: "employees",
+    },
+    identity: {
+      legacy: "identityExpiry",
+      title: "انتهاء الهوية أو الإقامة",
+      description: "متابعة صلاحية الهوية والإقامة للموظفين.",
+      days: 30,
+      importance: "urgent",
+      category: "employees",
+    },
+    passport: {
+      legacy: "passportExpiry",
+      title: "انتهاء جواز السفر",
+      description: "إشعار قبل انتهاء الجواز بمدة كافية.",
+      days: 30,
+      importance: "important",
+      category: "employees",
+    },
+    workPermit: {
+      legacy: "workPermitExpiry",
+      title: "انتهاء رخصة العمل",
+      description: "متابعة تاريخ انتهاء رخص العمل.",
+      days: 30,
+      importance: "urgent",
+      category: "employees",
+    },
+    documents: {
+      legacy: "documentsExpiry",
+      title: "وثائق المنشأة والفروع",
+      description: "السجل التجاري والتراخيص والوثائق الأخرى.",
+      days: 15,
+      importance: "important",
+      category: "establishment",
+    },
+    notice: {
+      legacy: "contractNotice",
+      title: "فترة الإشعار",
+      description: "صفر يعني استخدام الفترة المسجلة في عقد الموظف.",
+      days: 0,
+      importance: "important",
+      category: "operations",
+    },
+    absence: {
+      legacy: "absence",
+      title: "الغياب الذي يحتاج مراجعة",
+      description: "إظهار سجلات الغياب الحديثة في الجرس.",
+      days: 1,
+      importance: "urgent",
+      category: "operations",
+    },
+    leaves: {
+      legacy: "leaveTravel",
+      title: "طلبات الإجازة والسفر",
+      description: "إظهار الطلبات المعلقة التي تنتظر الإجراء.",
+      days: 3,
+      importance: "normal",
+      category: "operations",
+    },
+  };
+  const CATEGORIES = [
+    {
+      id: "employees",
+      title: "وثائق الموظفين",
+      description: "العقود والهوية والجواز ورخص العمل",
+      icon: "users",
+    },
+    {
+      id: "establishment",
+      title: "وثائق المنشأة",
+      description: "جاهزية الفروع والوثائق النظامية",
+      icon: "building",
+    },
+    {
+      id: "operations",
+      title: "التنبيهات التشغيلية",
+      description: "الغياب والطلبات وفترات الإشعار",
+      icon: "clock",
+    },
+  ];
+  const IMPORTANCE = {
+    normal: { label: "عادي", copy: "تنبيه للمتابعة", className: "normal" },
+    important: {
+      label: "مهم",
+      copy: "تنبيه يحتاج انتباهًا",
+      className: "important",
+    },
+    urgent: {
+      label: "عاجل",
+      copy: "تنبيه ذو أولوية عالية",
+      className: "urgent",
+    },
+  };
+  let rendering = false;
+  let observer = null;
+  let cachedBellCounts = null;
+
+  function clean(value) {
+    return String(value == null ? "" : value).trim();
+  }
+  function esc(value) {
+    return clean(value).replace(/[&<>"']/g, function (character) {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[character];
+    });
+  }
+  function icon(name) {
+    try {
+      return typeof iconSvg === "function"
+        ? iconSvg(name)
+        : '<span data-icon="' + esc(name) + '"></span>';
+    } catch (_) {
+      return '<span data-icon="' + esc(name) + '"></span>';
+    }
+  }
+  function readJson(key, fallback) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "null");
+      return parsed && typeof parsed === "object" ? parsed : fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") return showToast(message);
+      if (typeof toast === "function") return toast(message);
+    } catch (_) {}
+  }
+  function actorName() {
+    const profile =
+        window.authProfile ||
+        (typeof authProfile !== "undefined" ? authProfile : null) ||
+        {},
+      user =
+        window.authUser ||
+        (typeof authUser !== "undefined" ? authUser : null) ||
+        {};
+    return clean(
+      profile.full_name ||
+        profile.fullName ||
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.email ||
+        "مستخدم النظام",
+    );
+  }
+  function panel() {
+    return document.querySelector(
+      '#settingsView [data-settings-panel="notifications"]',
+    );
+  }
+  function isActive() {
+    const root = panel();
+    return Boolean(
+      root &&
+        (root.classList.contains("active") ||
+          document.querySelector(
+            '#settingsNav [data-settings-section="notifications"].active',
+          )),
+    );
+  }
+  function clampDays(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number)
+      ? Math.min(365, Math.max(0, Math.round(number)))
+      : fallback;
+  }
+  function normalizeImportance(value, fallback) {
+    const key = clean(value).toLowerCase();
+    return Object.prototype.hasOwnProperty.call(IMPORTANCE, key)
+      ? key
+      : fallback;
+  }
+  function normalizeSettings(input) {
+    const source = input && typeof input === "object" ? input : {};
+    const normalized = {};
+    Object.keys(RULES).forEach(function (key) {
+      const meta = RULES[key],
+        value =
+          (source[key] && typeof source[key] === "object" && source[key]) ||
+          (source[meta.legacy] &&
+            typeof source[meta.legacy] === "object" &&
+            source[meta.legacy]) ||
+          {};
+      normalized[key] = {
+        enabled: value.enabled !== false,
+        days: clampDays(value.days, meta.days),
+        importance: normalizeImportance(
+          value.importance || value.severity,
+          meta.importance,
+        ),
+      };
+    });
+    normalized.updatedAt = clean(source.updatedAt || source.updated_at);
+    normalized.updatedBy = clean(source.updatedBy || source.updated_by);
+    return normalized;
+  }
+  function currentSettings() {
+    return normalizeSettings(readJson(STORAGE_KEY, {}));
+  }
+  function storagePayload(settings, metadata) {
+    const normalized = normalizeSettings(settings),
+      payload = {
+        schemaVersion: 294,
+        updatedAt: clean(metadata?.updatedAt || normalized.updatedAt),
+        updatedBy: clean(metadata?.updatedBy || normalized.updatedBy),
+      };
+    Object.keys(RULES).forEach(function (key) {
+      const rule = {
+        enabled: normalized[key].enabled,
+        days: normalized[key].days,
+        importance: normalized[key].importance,
+      };
+      payload[key] = { ...rule };
+      payload[RULES[key].legacy] = { ...rule };
+    });
+    return payload;
+  }
+  function settingsEqual(left, right) {
+    const a = normalizeSettings(left),
+      b = normalizeSettings(right);
+    return Object.keys(RULES).every(function (key) {
+      return (
+        a[key].enabled === b[key].enabled &&
+        a[key].days === b[key].days &&
+        a[key].importance === b[key].importance
+      );
+    });
+  }
+  function formatUpdated(value) {
+    if (!clean(value)) return "لم يُحفظ بعد";
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "محفوظ سحابيًا";
+      return new Intl.DateTimeFormat("ar-SA", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(date);
+    } catch (_) {
+      return "محفوظ سحابيًا";
+    }
+  }
+  function bellCounts(force) {
+    if (!force && cachedBellCounts) return { ...cachedBellCounts };
+    const counts = {};
+    Object.keys(RULES).forEach(function (key) {
+      counts[key] = 0;
+    });
+    try {
+      const alerts = window.v141BellNotifications?.collect?.() || [];
+      alerts.forEach(function (alert) {
+        const key = Object.keys(RULES).find(function (candidate) {
+          return (
+            RULES[candidate].legacy === alert?.type || candidate === alert?.type
+          );
+        });
+        if (key) counts[key] += 1;
+      });
+    } catch (_) {}
+    cachedBellCounts = { ...counts };
+    return counts;
+  }
+  function importanceOptions(selected) {
+    return Object.keys(IMPORTANCE)
+      .map(function (key) {
+        return (
+          '<option value="' +
+          key +
+          '"' +
+          (key === selected ? " selected" : "") +
+          ">" +
+          esc(IMPORTANCE[key].label) +
+          "</option>"
+        );
+      })
+      .join("");
+  }
+  function ruleMarkup(key, settings, counts) {
+    const rule = settings[key],
+      meta = RULES[key],
+      importance = IMPORTANCE[rule.importance];
+    return (
+      '<article class="v294-rule ' +
+      (rule.enabled ? "is-enabled" : "is-disabled") +
+      '" data-v294-rule="' +
+      esc(key) +
+      '"><div class="v294-rule-head"><label class="v294-switch" aria-label="تفعيل ' +
+      esc(meta.title) +
+      '"><input type="checkbox" name="' +
+      esc(key) +
+      '_enabled"' +
+      (rule.enabled ? " checked" : "") +
+      '><span></span></label><div><strong>' +
+      esc(meta.title) +
+      "</strong><small>" +
+      esc(meta.description) +
+      '</small></div><b class="v294-impact" title="التنبيهات الظاهرة حاليًا في الجرس"><i></i><span data-v294-impact-count>' +
+      esc(counts[key] || 0) +
+      '</span> متأثر</b></div><div class="v294-rule-controls"><label><span>التنبيه قبل</span><div class="v294-number"><input type="number" inputmode="numeric" min="0" max="365" step="1" name="' +
+      esc(key) +
+      '_days" value="' +
+      esc(rule.days) +
+      '"' +
+      (rule.enabled ? "" : " disabled") +
+      '><em>يوم</em></div></label><label><span>الأهمية</span><select name="' +
+      esc(key) +
+      '_importance"' +
+      (rule.enabled ? "" : " disabled") +
+      ">" +
+      importanceOptions(rule.importance) +
+      '</select></label></div><div class="v294-rule-preview is-' +
+      esc(importance.className) +
+      '" data-v294-rule-preview><span>' +
+      icon("bell") +
+      "</span><small>" +
+      esc(importance.copy) +
+      " · " +
+      (rule.days === 0 ? "وفق التاريخ أو الفترة المسجلة" : "قبل " + rule.days + " يوم") +
+      "</small></div></article>"
+    );
+  }
+  function categoryMarkup(category, settings, counts) {
+    const keys = Object.keys(RULES).filter(function (key) {
+      return RULES[key].category === category.id;
+    });
+    const footer =
+      category.id === "establishment"
+        ? '<div class="v294-document-types"><span>السجل التجاري</span><span>التراخيص</span><span>وثائق أخرى</span></div>'
+        : "";
+    return (
+      '<section class="v294-category is-' +
+      esc(category.id) +
+      '"><header><span>' +
+      icon(category.icon) +
+      "</span><div><h3>" +
+      esc(category.title) +
+      "</h3><p>" +
+      esc(category.description) +
+      "</p></div><b>" +
+      keys.length +
+      ' قواعد</b></header><div class="v294-category-rules">' +
+      keys
+        .map(function (key) {
+          return ruleMarkup(key, settings, counts);
+        })
+        .join("") +
+      "</div>" +
+      footer +
+      "</section>"
+    );
+  }
+  function summaryMarkup(settings, counts) {
+    const keys = Object.keys(RULES),
+      active = keys.filter(function (key) {
+        return settings[key].enabled;
+      }).length,
+      urgent = keys.filter(function (key) {
+        return settings[key].enabled && settings[key].importance === "urgent";
+      }).length,
+      affected = keys.reduce(function (total, key) {
+        return total + Number(counts[key] || 0);
+      }, 0);
+    return (
+      '<div class="v294-summary"><article><span>' +
+      icon("check-circle") +
+      '</span><div><small>القواعد المفعلة</small><strong data-v294-summary-active>' +
+      active +
+      ' من ' +
+      keys.length +
+      '</strong></div></article><article><span class="is-urgent">' +
+      icon("bell") +
+      '</span><div><small>عالية الأولوية</small><strong data-v294-summary-urgent>' +
+      urgent +
+      '</strong></div></article><article><span class="is-affected">' +
+      icon("eye") +
+      '</span><div><small>الظاهر الآن في الجرس</small><strong data-v294-summary-affected>' +
+      affected +
+      '</strong></div></article><article><span class="is-cloud">' +
+      icon("shield") +
+      '</span><div><small>نطاق التطبيق</small><strong>جميع المستخدمين</strong></div></article></div>'
+    );
+  }
+  function shellMarkup(settings, counts) {
+    return (
+      '<div class="v294-notifications-page" data-v294-notifications-page><header class="v294-notifications-head"><div class="v294-head-title"><span>' +
+      icon("bell") +
+      '</span><div><p>الإعدادات العامة</p><h2>قواعد إشعارات النظام</h2><small>حدّد موعد ظهور التنبيهات وأولويتها لجميع المستخدمين دون تغيير تفضيلات الحساب الشخصي.</small></div></div><div class="v294-cloud-state is-saved" data-v294-cloud-state="saved"><i></i><div><strong data-v294-cloud-copy>متصل بالحفظ السحابي</strong><small>آخر تحديث: <span data-v294-last-updated>' +
+      esc(formatUpdated(settings.updatedAt)) +
+      '</span></small></div></div></header>' +
+      summaryMarkup(settings, counts) +
+      '<form class="v294-notifications-form" data-v294-notifications-form novalidate><div class="v294-categories">' +
+      CATEGORIES.map(function (category) {
+        return categoryMarkup(category, settings, counts);
+      }).join("") +
+      '</div><section class="v294-live-preview"><div><span>' +
+      icon("eye") +
+      '</span><div><strong>معاينة مباشرة</strong><small data-v294-live-copy>تظهر التنبيهات في الجرس بحسب القواعد المحفوظة، مع تقديم العاجل ثم المهم.</small></div></div><button type="button" data-v294-open-bell>' +
+      icon("bell") +
+      '<span>فتح جرس التنبيهات</span></button></section><footer class="v294-actions"><div class="v294-save-note"><span>' +
+      icon("shield") +
+      '</span><div><strong>حفظ مؤكد على السحابة</strong><small>لن تظهر رسالة النجاح إلا بعد إعادة قراءة القواعد من السحابة.</small></div></div><div><button type="button" class="v294-reset" data-v294-reset>' +
+      icon("refresh") +
+      '<span>استعادة الافتراضي</span></button><button type="submit" class="v294-save" data-v294-save>' +
+      icon("check") +
+      '<span>حفظ قواعد الإشعارات</span></button></div></footer></form></div>'
+    );
+  }
+  function setCloudState(state, copy, timestamp) {
+    const root = panel(),
+      node = root?.querySelector("[data-v294-cloud-state]");
+    if (!node) return;
+    node.dataset.v294CloudState = state;
+    node.className = "v294-cloud-state is-" + state;
+    const copyNode = node.querySelector("[data-v294-cloud-copy]");
+    if (copyNode) copyNode.textContent = copy;
+    const timeNode = node.querySelector("[data-v294-last-updated]");
+    if (timeNode && timestamp !== undefined)
+      timeNode.textContent = formatUpdated(timestamp);
+  }
+  function setButtonBusy(button, busy, copy) {
+    if (!button) return;
+    button.disabled = Boolean(busy);
+    button.classList.toggle("is-busy", Boolean(busy));
+    const span = button.querySelector("span");
+    if (span) {
+      if (!button.dataset.defaultCopy) button.dataset.defaultCopy = span.textContent;
+      span.textContent = busy ? copy : button.dataset.defaultCopy;
+    }
+  }
+  function applySettingsToForm(settings, counts) {
+    const root = panel(),
+      form = root?.querySelector("[data-v294-notifications-form]");
+    if (!form) return;
+    Object.keys(RULES).forEach(function (key) {
+      const rule = settings[key],
+        enabled = form.elements[key + "_enabled"],
+        days = form.elements[key + "_days"],
+        importance = form.elements[key + "_importance"],
+        row = form.querySelector('[data-v294-rule="' + key + '"]');
+      if (enabled) enabled.checked = rule.enabled;
+      if (days) {
+        days.value = String(rule.days);
+        days.disabled = !rule.enabled;
+      }
+      if (importance) {
+        importance.value = rule.importance;
+        importance.disabled = !rule.enabled;
+      }
+      row?.classList.toggle("is-enabled", rule.enabled);
+      row?.classList.toggle("is-disabled", !rule.enabled);
+      const countNode = row?.querySelector("[data-v294-impact-count]");
+      if (countNode) countNode.textContent = String(counts[key] || 0);
+      refreshRulePreview(row, key, rule);
+    });
+    form.closest("[data-v294-notifications-page]")?.removeAttribute(
+      "data-dirty",
+    );
+    updateSummary(settings, counts);
+    setCloudState(
+      "saved",
+      settings.updatedAt ? "محفوظ ومؤكد سحابيًا" : "متصل بالحفظ السحابي",
+      settings.updatedAt,
+    );
+  }
+  function refreshRulePreview(row, key, rule) {
+    if (!row) return;
+    const preview = row.querySelector("[data-v294-rule-preview]"),
+      level = IMPORTANCE[rule.importance] || IMPORTANCE.normal;
+    if (!preview) return;
+    preview.className = "v294-rule-preview is-" + level.className;
+    const copy = preview.querySelector("small");
+    if (copy)
+      copy.textContent =
+        level.copy +
+        " · " +
+        (rule.days === 0
+          ? "وفق التاريخ أو الفترة المسجلة"
+          : "قبل " + rule.days + " يوم");
+  }
+  function updateSummary(settings, counts) {
+    const root = panel(),
+      keys = Object.keys(RULES),
+      active = keys.filter(function (key) {
+        return settings[key].enabled;
+      }).length,
+      urgent = keys.filter(function (key) {
+        return settings[key].enabled && settings[key].importance === "urgent";
+      }).length,
+      affected = keys.reduce(function (total, key) {
+        return total + Number(counts[key] || 0);
+      }, 0);
+    const activeNode = root?.querySelector("[data-v294-summary-active]"),
+      urgentNode = root?.querySelector("[data-v294-summary-urgent]"),
+      affectedNode = root?.querySelector("[data-v294-summary-affected]");
+    if (activeNode) activeNode.textContent = active + " من " + keys.length;
+    if (urgentNode) urgentNode.textContent = String(urgent);
+    if (affectedNode) affectedNode.textContent = String(affected);
+  }
+  function renderNotifications(force) {
+    const root = panel();
+    if (!root || rendering) return root;
+    rendering = true;
+    try {
+      const settings = currentSettings(),
+        counts = bellCounts(Boolean(force));
+      let page = root.querySelector("[data-v294-notifications-page]");
+      if (!page) {
+        root.innerHTML = shellMarkup(settings, counts);
+        page = root.querySelector("[data-v294-notifications-page]");
+      } else if (force || page.dataset.dirty !== "1") {
+        applySettingsToForm(settings, counts);
+      }
+      root.dataset.v294NotificationsState = "ready";
+      root.removeAttribute("aria-busy");
+      root.classList.add("v294-notifications-panel");
+      try {
+        if (typeof hydrateIcons === "function") hydrateIcons(root);
+      } catch (_) {}
+      return root;
+    } finally {
+      rendering = false;
+    }
+  }
+  function collectDraft(form, validate) {
+    const output = {};
+    Object.keys(RULES).forEach(function (key) {
+      const daysInput = form.elements[key + "_days"],
+        rawDays = Number(daysInput?.value),
+        enabled = Boolean(form.elements[key + "_enabled"]?.checked);
+      if (
+        validate &&
+        (!Number.isInteger(rawDays) || rawDays < 0 || rawDays > 365)
+      ) {
+        daysInput?.focus?.();
+        throw new Error("يجب أن يكون عدد الأيام بين 0 و365");
+      }
+      output[key] = {
+        enabled: enabled,
+        days: clampDays(rawDays, RULES[key].days),
+        importance: normalizeImportance(
+          form.elements[key + "_importance"]?.value,
+          RULES[key].importance,
+        ),
+      };
+    });
+    return normalizeSettings(output);
+  }
+  function refreshDraft(form, changedKey) {
+    let draft;
+    try {
+      draft = collectDraft(form, false);
+    } catch (_) {
+      return;
+    }
+    const page = form.closest("[data-v294-notifications-page]");
+    if (page) page.dataset.dirty = "1";
+    Object.keys(RULES).forEach(function (key) {
+      const row = form.querySelector('[data-v294-rule="' + key + '"]'),
+        enabled = draft[key].enabled,
+        days = form.elements[key + "_days"],
+        importance = form.elements[key + "_importance"];
+      row?.classList.toggle("is-enabled", enabled);
+      row?.classList.toggle("is-disabled", !enabled);
+      if (days) days.disabled = !enabled;
+      if (importance) importance.disabled = !enabled;
+      refreshRulePreview(row, key, draft[key]);
+    });
+    updateSummary(draft, bellCounts(false));
+    const meta = RULES[changedKey] || RULES.contract,
+      level = IMPORTANCE[draft[changedKey]?.importance] || IMPORTANCE.normal,
+      live = form.querySelector("[data-v294-live-copy]");
+    if (live && draft[changedKey])
+      live.textContent =
+        meta.title +
+        ": " +
+        (draft[changedKey].enabled
+          ? level.label +
+            " · " +
+            (draft[changedKey].days === 0
+              ? "وفق الفترة المسجلة"
+              : "قبل " + draft[changedKey].days + " يوم")
+          : "القاعدة غير مفعلة");
+    setCloudState("dirty", "تغييرات غير محفوظة");
+  }
+  function cloudSync() {
+    return (
+      window.nawahCloudSyncV228 ||
+      window.nawahCloudSyncV221 ||
+      window.nawahCloudSyncV227 ||
+      null
+    );
+  }
+  function cloudClient() {
+    try {
+      if (window.supabaseClient?.from) return window.supabaseClient;
+    } catch (_) {}
+    try {
+      if (typeof supabaseClient !== "undefined" && supabaseClient?.from)
+        return supabaseClient;
+    } catch (_) {}
+    return null;
+  }
+  async function prepareCloudMutation() {
+    const sync = cloudSync(),
+      client = cloudClient();
+    if (!sync?.save || !client) return false;
+    const pending = sync.pendingFields?.() || [];
+    if (pending.length) {
+      const flushed = await (sync.saveConfirmed || sync.save)(
+        "notification-rules-preflight-v294",
+      );
+      if (!flushed || (sync.pendingFields?.() || []).length) return false;
+    }
+    return true;
+  }
+  async function readRemoteRules() {
+    const client = cloudClient();
+    if (!client) throw new Error("cloud-client-unavailable");
+    const result = await client
+      .from("app_settings")
+      .select("setting_value, updated_at")
+      .eq("setting_key", CLOUD_STATE_KEY)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    return {
+      rules: result.data?.setting_value?.v136Settings?.notifications || null,
+      updatedAt: clean(result.data?.updated_at),
+    };
+  }
+  async function rollback(previousRaw) {
+    if (previousRaw == null) localStorage.removeItem(STORAGE_KEY);
+    else localStorage.setItem(STORAGE_KEY, previousRaw);
+    const sync = cloudSync();
+    sync?.trackFields?.(["v136Settings"]);
+    try {
+      const save = sync?.saveConfirmed || sync?.save;
+      await save?.call(sync, "notification-rules-rollback-v294");
+    } catch (_) {}
+    try {
+      window.v141BellNotifications?.render?.();
+    } catch (_) {}
+    cachedBellCounts = null;
+    renderNotifications(true);
+  }
+  async function saveRules(settings, button, options) {
+    if (button?.disabled) return false;
+    setButtonBusy(button, true, "جاري الحفظ...");
+    setCloudState("saving", "جاري تأكيد الحفظ السحابي");
+    let previousRaw = null,
+      mutated = false;
+    try {
+      previousRaw = localStorage.getItem(STORAGE_KEY);
+      if (!(await prepareCloudMutation()))
+        throw new Error("تعذر تجهيز الاتصال بالسحابة");
+      const timestamp = new Date().toISOString(),
+        payload = storagePayload(settings, {
+          updatedAt: timestamp,
+          updatedBy: actorName(),
+        });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      mutated = true;
+      const sync = cloudSync();
+      sync?.trackFields?.(["v136Settings"]);
+      const saved = await (sync.saveConfirmed || sync.save)(
+        "notification-rules-save-v294",
+      );
+      if (!saved) throw new Error("cloud-save-not-confirmed");
+      const remote = await readRemoteRules();
+      if (!remote.rules || !settingsEqual(remote.rules, payload))
+        throw new Error("cloud-readback-mismatch");
+      cachedBellCounts = null;
+      try {
+        window.v141BellNotifications?.render?.();
+      } catch (_) {}
+      renderNotifications(true);
+      setCloudState("saved", "محفوظ ومؤكد سحابيًا", timestamp);
+      notify(
+        options?.reset
+          ? "تمت استعادة قواعد الإشعارات وحفظها سحابيًا"
+          : "تم حفظ قواعد الإشعارات سحابيًا",
+      );
+      return true;
+    } catch (error) {
+      console.warn("v294 notification rules save failed", error);
+      if (mutated) await rollback(previousRaw);
+      else renderNotifications(true);
+      setCloudState("error", "تعذر التأكيد؛ أُعيدت القيم السابقة");
+      notify("تعذر تأكيد الحفظ السحابي، ولم تعتمد التغييرات");
+      return false;
+    } finally {
+      setButtonBusy(button, false, "");
+    }
+  }
+  function defaultSettings() {
+    const output = {};
+    Object.keys(RULES).forEach(function (key) {
+      output[key] = {
+        enabled: true,
+        days: RULES[key].days,
+        importance: RULES[key].importance,
+      };
+    });
+    return normalizeSettings(output);
+  }
+  function activateNotifications() {
+    document
+      .querySelectorAll("#settingsNav [data-settings-section]")
+      .forEach(function (button) {
+        button.classList.toggle(
+          "active",
+          button.dataset.settingsSection === "notifications",
+        );
+      });
+    document
+      .querySelectorAll("#settingsView [data-settings-panel]")
+      .forEach(function (section) {
+        const active = section.dataset.settingsPanel === "notifications";
+        section.classList.toggle("active", active);
+        section.hidden = !active;
+        section.style.display = active ? "block" : "none";
+        section.style.pointerEvents = active ? "auto" : "";
+      });
+    return renderNotifications(true);
+  }
+
+  document.addEventListener(
+    "submit",
+    function (event) {
+      const form = event.target?.closest?.("[data-v294-notifications-form]");
+      if (!form) return;
+      event.preventDefault();
+      try {
+        const draft = collectDraft(form, true),
+          button = form.querySelector("[data-v294-save]");
+        void saveRules(draft, button);
+      } catch (error) {
+        notify(clean(error?.message) || "راجع قيم أيام التنبيه");
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "input",
+    function (event) {
+      const form = event.target?.closest?.("[data-v294-notifications-form]");
+      if (!form) return;
+      const row = event.target.closest?.("[data-v294-rule]");
+      refreshDraft(form, row?.dataset.v294Rule || "contract");
+    },
+    true,
+  );
+  document.addEventListener(
+    "change",
+    function (event) {
+      const form = event.target?.closest?.("[data-v294-notifications-form]");
+      if (!form) return;
+      const row = event.target.closest?.("[data-v294-rule]");
+      refreshDraft(form, row?.dataset.v294Rule || "contract");
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (event.target?.closest?.("[data-v294-open-bell]")) {
+        event.preventDefault();
+        try {
+          window.v141BellNotifications?.render?.();
+          window.v141BellNotifications?.open?.(true);
+        } catch (_) {}
+        return;
+      }
+      const reset = event.target?.closest?.("[data-v294-reset]");
+      if (reset) {
+        event.preventDefault();
+        void saveRules(defaultSettings(), reset, { reset: true });
+      }
+    },
+    true,
+  );
+  window.addEventListener("storage", function (event) {
+    if (event.key === STORAGE_KEY) {
+      cachedBellCounts = null;
+      renderNotifications(true);
+    }
+  });
+
+  const previousActivate = window.__stableActivateSettingsSection;
+  if (typeof previousActivate === "function") {
+    const wrappedActivate = function (key) {
+      if (key === "notifications") return activateNotifications();
+      return previousActivate.apply(this, arguments);
+    };
+    wrappedActivate.__v294ProfessionalNotificationRules = true;
+    window.__stableActivateSettingsSection = wrappedActivate;
+  }
+  const previousRenderer = window.__stableSettingsRenderPanel;
+  if (typeof previousRenderer === "function") {
+    const wrappedRenderer = function (key) {
+      if (key === "notifications") return renderNotifications(true);
+      return previousRenderer.apply(this, arguments);
+    };
+    wrappedRenderer.__v294ProfessionalNotificationRules = true;
+    window.__stableSettingsRenderPanel = wrappedRenderer;
+  }
+  if (!window.v136Settings) window.v136Settings = {};
+  window.v136Settings.renderNotificationsPanel = function () {
+    return renderNotifications(true);
+  };
+
+  try {
+    const root = panel();
+    if (root && typeof MutationObserver === "function") {
+      observer = new MutationObserver(function () {
+        if (
+          !rendering &&
+          isActive() &&
+          !root.querySelector("[data-v294-notifications-page]")
+        )
+          renderNotifications();
+      });
+      observer.observe(root, { childList: true });
+    }
+  } catch (_) {}
+  if (isActive()) renderNotifications();
+
+  window.nawahNotificationRulesV294 = {
+    version: 294,
+    render: renderNotifications,
+    activate: activateNotifications,
+    read: currentSettings,
+    normalize: normalizeSettings,
+    storagePayload: storagePayload,
+    save: saveRules,
+    counts: bellCounts,
+    cloudBacked: true,
+    cloudTable: "app_settings",
+    cloudField: "v136Settings.notifications",
+    localStorageRole: "cache",
   };
 })();
