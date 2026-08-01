@@ -81212,37 +81212,46 @@ window.nawahNotificationRulesV294 = {
         .join("")
     );
   }
-  function groupOptionLabel(group) {
-    const items = group?.items || [];
-    const enabled = items.filter(function (item) {
-      return Boolean(state.draft[item[0]]);
-    }).length;
-    const changed = groupChangeCount(group);
-    return (
-      (group?.title || "مجموعة صلاحيات") +
-      " — " +
-      enabled +
-      " من " +
-      items.length +
-      " مفعلة" +
-      (changed ? "  ●  " + changed + " تعديل" : "")
-    );
-  }
-  function groupOptionsMarkup() {
+  function groupCardsMarkup() {
     const selected = selectedPermissionGroup();
-    return groups()
+    const cards = groups()
       .map(function (group) {
+        const items = group.items || [];
+        const enabled = items.filter(function (item) {
+          return Boolean(state.draft[item[0]]);
+        }).length;
+        const changed = groupChangeCount(group);
         return (
-          '<option value="' +
+          '<button type="button" class="v306-group-card' +
+          (clean(selected?.id) === clean(group.id) ? " is-selected" : "") +
+          (changed ? " has-changes" : "") +
+          '" data-v306-group-card="' +
           esc(group.id) +
-          '"' +
-          (selected?.id === group.id ? " selected" : "") +
+          '" role="tab" aria-selected="' +
+          (clean(selected?.id) === clean(group.id) ? "true" : "false") +
+          '"><span>' +
+          icon(group.icon) +
+          '</span><div><strong>' +
+          esc(group.title || "مجموعة صلاحيات") +
+          '</strong><small><b data-v306-card-enabled>' +
+          enabled +
+          '</b> من ' +
+          items.length +
+          ' مفعلة</small></div><em data-v306-card-changes' +
+          (changed ? "" : " hidden") +
           '>' +
-          esc(groupOptionLabel(group)) +
-          "</option>"
+          changed +
+          " تعديل</em></button>"
         );
       })
       .join("");
+    return (
+      '<section class="v306-group-selector"><header><div><strong>اختر قائمة الصلاحيات</strong><small>اختر البطاقة، وستظهر تفاصيلها مباشرة في الأسفل دون مغادرة موضع العمل.</small></div><b>' +
+      groups().length +
+      ' قائمة</b></header><div class="v306-group-cards" role="tablist">' +
+      cards +
+      "</div></section>"
+    );
   }
   function changeReviewMarkup(changes) {
     if (!state.showChangesOnly) return "";
@@ -81322,20 +81331,12 @@ window.nawahNotificationRulesV294 = {
     );
   }
   function pickerMarkup() {
-    const profile = selectedProfile();
-    const group = selectedPermissionGroup();
     return (
       '<section class="v304-permission-picker"><header><span>' +
       icon("shield") +
-      '</span><div><strong>تخصيص صلاحيات المستخدم</strong><small>اختر المستخدم ثم انتقل بين مجموعات الصلاحيات؛ تبقى جميع التعديلات محفوظة داخل الشاشة حتى اعتمادها.</small></div></header><div class="v304-picker-grid"><label><span>المستخدم</span><select data-v304-user-select>' +
+      '</span><div><strong>تخصيص صلاحيات المستخدم</strong><small>اختر المستخدم أولًا، ثم اختر قائمة الصلاحيات من البطاقات الملاصقة للتفاصيل.</small></div></header><div class="v304-picker-grid v306-user-picker"><label><span>المستخدم</span><select data-v304-user-select>' +
       userOptionsMarkup() +
-      '</select><small>مديرو النظام مستبعدون لأن صلاحياتهم كاملة تلقائيًا.</small></label><label><span>مجموعة الصلاحيات</span><select data-v304-group-select' +
-      (!profile ? " disabled" : "") +
-      ">" +
-      groupOptionsMarkup() +
-      '</select><small data-v304-group-help>' +
-      (group ? esc(group.description || "صلاحيات مرتبطة بهذه القائمة") : "اختر مستخدمًا أولًا") +
-      '</small></label><button type="button" data-v295-refresh>' +
+      '</select><small>مديرو النظام مستبعدون لأن صلاحياتهم كاملة تلقائيًا.</small></label><button type="button" data-v295-refresh>' +
       icon("refresh") +
       '<span>تحديث من السحابة</span></button></div></section>'
     );
@@ -81400,7 +81401,7 @@ window.nawahNotificationRulesV294 = {
           '</label>'
         );
       }).join("")
-        : '<div class="v305-no-group-changes"><span>' + icon("check-circle") + '</span><div><strong>لا توجد تغييرات في هذه المجموعة</strong><small>اختر مجموعة مميزة بعلامة ● من القائمة أعلاه.</small></div></div>') +
+        : '<div class="v305-no-group-changes"><span>' + icon("check-circle") + '</span><div><strong>لا توجد تغييرات في هذه المجموعة</strong><small>اختر بطاقة مميزة بعدد التعديلات من الأعلى.</small></div></div>') +
       '</div></section>'
     );
   }
@@ -81421,12 +81422,12 @@ window.nawahNotificationRulesV294 = {
       '<div class="v295-editor-stats"><span><b>' + stats.enabled + '</b> صلاحية مفعلة</span><span><b>' + stats.exceptions + '</b> استثناء مخصص</span><span><b>' + stats.total + '</b> إجمالي الصلاحيات</span></div>' +
       reviewMarkup() +
       (profile.role === "admin" ? '<div class="v295-admin-note"><span>' + icon("shield") + '</span><div><strong>مدير النظام يملك جميع الصلاحيات</strong><small>تغيير الدور أو حالة الحساب يتم من إدارة المستخدمين، ولا يمكن تعطيل صلاحيات آخر مدير فعّال من هنا.</small></div></div>' : "") +
+      groupCardsMarkup() +
       '<div class="v295-permission-groups v304-single-permission-group">' +
       (permissionGroup
         ? groupMarkup(permissionGroup, profile)
         : '<div class="v295-list-empty"><strong>لا توجد مجموعة صلاحيات متاحة</strong></div>') +
       '</div>' +
-      (window.nawahPermissionAuditV296?.markup?.(profile.id) || '<section class="v296-audit-card"><header><div><strong>سجل تغييرات الصلاحيات</strong><small>سيظهر السجل السحابي بعد اكتمال القراءة.</small></div></header><div class="v296-audit-loading">جاري تحميل السجل...</div></section>') +
       '<footer class="v295-actions"><div class="v295-save-assurance"><span>' + icon("shield") + '</span><div><strong>حفظ سحابي مؤكد</strong><small>يتم التحقق بإعادة القراءة، والتراجع تلقائيًا عند عدم التطابق.</small></div></div><div><button type="button" class="v295-secondary" data-v295-reset-draft' + (!dirty ? " disabled" : "") + '>' + icon("refresh") + '<span>إلغاء التعديلات</span></button><button type="button" class="v295-primary" data-v295-save' + (!dirty || state.saving || profile.role === "admin" ? " disabled" : "") + '>' + icon("check") + '<span>' + (state.saving ? "جاري التحقق..." : "حفظ الصلاحيات") + '</span></button></div></footer>' +
       '</div>'
     );
@@ -81464,22 +81465,29 @@ window.nawahNotificationRulesV294 = {
     const root = panel();
     const userSelect = root?.querySelector("[data-v304-user-select]");
     if (userSelect) userSelect.value = clean(state.selectedId);
-    const groupSelect = root?.querySelector("[data-v304-group-select]");
     const selectedGroup = selectedPermissionGroup();
-    if (groupSelect) {
-      groupSelect.value = selectedGroup?.id || "";
-      Array.from(groupSelect.options).forEach(function (option) {
-        const group = groups().find(function (item) {
-          return clean(item.id) === clean(option.value);
-        });
-        if (group) option.textContent = groupOptionLabel(group);
+    root?.querySelectorAll("[data-v306-group-card]").forEach(function (card) {
+      const group = groups().find(function (item) {
+        return clean(item.id) === clean(card.dataset.v306GroupCard);
       });
-    }
-    const help = root?.querySelector("[data-v304-group-help]");
-    if (help)
-      help.textContent = selectedGroup
-        ? selectedGroup.description || "صلاحيات مرتبطة بهذه القائمة"
-        : "اختر مستخدمًا أولًا";
+      if (!group) return;
+      const items = group.items || [];
+      const enabled = items.filter(function (item) {
+        return Boolean(state.draft[item[0]]);
+      }).length;
+      const changed = groupChangeCount(group);
+      const selected = clean(selectedGroup?.id) === clean(group.id);
+      card.classList.toggle("is-selected", selected);
+      card.classList.toggle("has-changes", Boolean(changed));
+      card.setAttribute("aria-selected", selected ? "true" : "false");
+      const enabledElement = card.querySelector("[data-v306-card-enabled]");
+      if (enabledElement) enabledElement.textContent = String(enabled);
+      const changedElement = card.querySelector("[data-v306-card-changes]");
+      if (changedElement) {
+        changedElement.hidden = !changed;
+        changedElement.textContent = changed + " تعديل";
+      }
+    });
   }
   function renderEditor() {
     const root = panel();
@@ -81599,9 +81607,6 @@ window.nawahNotificationRulesV294 = {
     state.saveMessage = "";
     renderDirectory();
     renderEditor();
-    setTimeout(function () {
-      window.nawahPermissionAuditV296?.load?.(state.selectedId);
-    }, 0);
     return true;
   }
   function chooseInitialProfile(preferred) {
@@ -81623,9 +81628,6 @@ window.nawahNotificationRulesV294 = {
     state.showChangesOnly = false;
     state.saveStatus = "idle";
     state.saveMessage = "";
-    setTimeout(function () {
-      window.nawahPermissionAuditV296?.load?.(state.selectedId);
-    }, 0);
   }
   function accessDeniedMarkup() {
     return '<div class="v295-permissions-page"><div class="v295-denied"><span>' + icon("lock") + '</span><strong>هذه القائمة مخصصة لمدير النظام</strong><p>لا يمكن عرض حسابات المستخدمين أو تعديل الصلاحيات من هذا الحساب.</p></div></div>';
@@ -81815,9 +81817,6 @@ window.nawahNotificationRulesV294 = {
       syncCurrentProfile(verified);
       renderDirectory();
       renderEditor();
-      setTimeout(function () {
-        window.nawahPermissionAuditV296?.load?.(verified.id);
-      }, 0);
       notify("تم حفظ الصلاحيات وتأكيدها من السحابة");
     } catch (error) {
       console.warn("v295 permissions save failed", error);
@@ -81914,17 +81913,6 @@ window.nawahNotificationRulesV294 = {
         renderDirectory();
         return;
       }
-      if (event.target?.matches?.("[data-v304-group-select]")) {
-        const requested = clean(event.target.value);
-        state.selectedGroupId = groups().some(function (group) {
-          return clean(group.id) === requested;
-        })
-          ? requested
-          : selectedPermissionGroup()?.id || "";
-        renderEditor();
-        renderDirectory();
-        return;
-      }
       if (event.target?.matches?.("[data-v295-role-filter]")) {
         state.roleFilter = event.target.value || "all";
         renderDirectory();
@@ -81961,6 +81949,20 @@ window.nawahNotificationRulesV294 = {
   document.addEventListener(
     "click",
     function (event) {
+      const groupCard = event.target?.closest?.("[data-v306-group-card]");
+      if (groupCard) {
+        event.preventDefault();
+        const requested = clean(groupCard.dataset.v306GroupCard);
+        if (
+          groups().some(function (group) {
+            return clean(group.id) === requested;
+          })
+        )
+          state.selectedGroupId = requested;
+        renderEditor();
+        renderDirectory();
+        return;
+      }
       const reviewToggle = event.target?.closest?.(
         "[data-v305-toggle-changes]",
       );
@@ -82136,7 +82138,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 305,
+    version: 306,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -82681,7 +82683,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 305,
+      version: 306,
       granular: true,
       canonicalPermissions: true,
     };
@@ -83242,7 +83244,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 305,
+    version: 306,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
