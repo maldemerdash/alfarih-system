@@ -591,6 +591,313 @@
   }
 }
 
+/* v292 - branch operational settings with safe global inheritance. */
+.v292-global-grace-block .section-title-with-action {
+  align-items: end;
+}
+
+.v292-global-grace-block label {
+  display: grid;
+  min-width: 145px;
+  gap: 6px;
+}
+
+.v292-global-grace-block label span {
+  color: #657d84;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.v292-global-grace-block input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d7e5e8;
+  border-radius: 12px;
+  background: #fff;
+  color: #263f47;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.v292-branch-operations-section {
+  border-top: 3px solid #15a5b7 !important;
+}
+
+.v288-branch-modal-body > .v292-branch-operations-section > header {
+  flex-wrap: wrap;
+}
+
+.v288-branch-modal-body > .v292-branch-operations-section > header > .v292-operation-mode-badge {
+  display: inline-flex;
+  width: auto;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-inline-start: auto;
+  padding: 0 10px;
+  border: 1px solid #c9e7eb;
+  border-radius: 999px;
+  background: #edf9fa;
+  color: #087f92;
+  font-size: 8.5px;
+  font-weight: 900;
+}
+
+.v288-branch-modal-body > .v292-branch-operations-section > header > .v292-operation-mode-badge.is-custom {
+  border-color: #bcebdc;
+  background: #effbf6;
+  color: #087a5c;
+}
+
+.v292-span-2 {
+  grid-column: span 2;
+}
+
+.v292-operation-mode-field {
+  align-self: stretch;
+}
+
+.v292-global-schedule-summary {
+  display: grid;
+  min-height: 69px;
+  align-content: center;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid #d9eaed;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fcfd, #f3fbf8);
+}
+
+.v292-global-schedule-summary span,
+.v292-global-schedule-summary small {
+  color: #7a9096;
+  font-size: 8.5px;
+  font-weight: 800;
+}
+
+.v292-global-schedule-summary strong {
+  color: #157c8c;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.v292-custom-operation-panel {
+  margin: 0 13px 14px;
+  overflow: hidden;
+  border: 1px solid #cfe7e8;
+  border-radius: 14px;
+  background: #fbfefe;
+}
+
+.v292-custom-operation-panel[hidden] {
+  display: none !important;
+}
+
+.v292-custom-operation-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2eeee;
+  background: linear-gradient(90deg, rgba(18, 169, 181, 0.08), rgba(26, 188, 132, 0.06));
+}
+
+.v292-custom-operation-note > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: #fff;
+  color: #0a8da0;
+}
+
+.v292-custom-operation-note svg {
+  width: 15px;
+  height: 15px;
+}
+
+.v292-custom-operation-note div {
+  display: grid;
+  gap: 2px;
+}
+
+.v292-custom-operation-note strong {
+  color: #28515a;
+  font-size: 9.5px;
+  font-weight: 900;
+}
+
+.v292-custom-operation-note small {
+  color: #789097;
+  font-size: 8.5px;
+}
+
+.v292-custom-operation-panel > .v288-branch-form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-bottom: 8px;
+}
+
+.v292-workdays {
+  margin: 0 13px 13px;
+  padding: 10px 12px 12px;
+  border: 1px solid #dce9eb;
+  border-radius: 12px;
+}
+
+.v292-workdays legend {
+  padding: 0 6px;
+  color: #627a82;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.v292-workdays > div {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.v292-workdays label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.v292-workdays input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.v292-workdays label span {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dce8ea;
+  border-radius: 10px;
+  background: #fff;
+  color: #6d838a;
+  font-size: 8.5px;
+  font-weight: 900;
+}
+
+.v292-workdays input:checked + span {
+  border-color: #85d9cb;
+  background: #eafaf4;
+  color: #087a5d;
+  box-shadow: inset 0 0 0 1px rgba(8, 122, 93, 0.05);
+}
+
+.v292-profile-mode {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid #cce7ea;
+  border-radius: 999px;
+  background: #eff9fa;
+  color: #087f91;
+  font-size: 8.5px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.v292-profile-mode.is-custom {
+  border-color: #bde8da;
+  background: #eefaf5;
+  color: #087858;
+}
+
+.v292-operation-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 11px 12px 2px;
+}
+
+.v292-operation-summary article {
+  display: flex;
+  min-width: 0;
+  min-height: 58px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid #dfeaec;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f9fcfd, #f5fbf9);
+}
+
+.v292-operation-summary article > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: #eaf8f8;
+  color: #0a8999;
+}
+
+.v292-operation-summary svg {
+  width: 15px;
+  height: 15px;
+}
+
+.v292-operation-summary article > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.v292-operation-summary small {
+  color: #81949a;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.v292-operation-summary strong {
+  overflow: hidden;
+  color: #2c4a52;
+  font-size: 9.5px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v292-operation-facts {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding-top: 8px;
+}
+
+.v292-operation-facts .v292-address-fact {
+  grid-column: span 2;
+}
+
+@media (max-width: 700px) {
+  .v292-span-2 {
+    grid-column: auto;
+  }
+
+  .v292-custom-operation-panel > .v288-branch-form-grid,
+  .v292-operation-summary,
+  .v292-operation-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .v292-workdays > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .v292-operation-facts .v292-address-fact {
+    grid-column: auto;
+  }
+}
+
 /* v288 — professional branch directory; one stable surface with no horizontal scroll. */
 #settingsView [data-settings-panel="branches"][data-v288-branches="ready"] {
   overflow: visible;
@@ -1478,6 +1785,11 @@
   .v288-branch-modal-body {
     max-height: calc(100vh - 190px);
   }
+}
+
+.v288-branch-modal {
+  width: min(820px, calc(100vw - 28px));
+  max-width: 820px;
 }
 
 /* v287 — professional company profile with one stable paint path. */

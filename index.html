@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=291" />
+    <link rel="stylesheet" href="style.css?v=292" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -854,6 +854,12 @@
                   <div class="panel-head"><div><h3>إعداد العمل</h3><p>تحديد أيام العمل وساعات الدوام، مع إمكانية إضافة أكثر من فترة لليوم الواحد.</p></div></div>
                   <form id="workSettingsForm" class="settings-form work-settings-form">
                     <div class="work-settings-summary" id="workSettingsSummary"></div>
+                    <div class="work-settings-block v292-global-grace-block">
+                      <div class="section-title-with-action">
+                        <div><h4>فترة السماح العامة</h4><p>تُطبّق على الفروع التي تستخدم إعداد المنشأة العام، ويمكن تجاوزها داخل إعداد الفرع المخصص.</p></div>
+                        <label><span>الدقائق</span><input type="number" name="globalGraceMinutes" min="0" max="240" step="1" value="0" /></label>
+                      </div>
+                    </div>
                     <div class="work-settings-block">
                       <div class="section-title-with-action">
                         <div><h4>الفترات</h4><p>عرّف الفترات المتاحة، ثم أضف فترة أو أكثر لكل يوم عمل.</p></div>
@@ -1589,6 +1595,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=291"></script>
+    <script src="app.js?v=292"></script>
   </body>
 </html>

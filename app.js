@@ -224,6 +224,7 @@ const ICONS = {
   ],
   WORKDAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"],
   DEFAULT_WORK_SETTINGS = {
+    graceMinutes: 0,
     shifts: [
       {
         id: "shift-basic",
@@ -2460,6 +2461,12 @@ function updateAbsencePeriodVisibility() {
 }
 function renderWorkSettings() {
   ((workSettings = normalizeWorkSettings(workSettings)),
+    (() => {
+      const input = document.querySelector(
+        '#workSettingsForm [name="globalGraceMinutes"]',
+      );
+      if (input) input.value = String(workSettings.graceMinutes || 0);
+    })(),
     renderWorkSettingsSummary(),
     renderShiftList(),
     renderWorkdayList(),
@@ -2869,7 +2876,14 @@ function normalizeWorkSettings(e = DEFAULT_WORK_SETTINGS) {
             ];
     i[e] = { enabled: Boolean(a?.enabled), shifts: s.map(r) };
   }
-  return { shifts: a, days: i };
+  return {
+    shifts: a,
+    days: i,
+    graceMinutes: Math.min(
+      240,
+      Math.max(0, Number(n.graceMinutes ?? t.graceMinutes ?? 0) || 0),
+    ),
+  };
 }
 function minutesBetween(e = OFFICIAL_CHECK_IN, t = OFFICIAL_CHECK_OUT) {
   const [n = 0, a = 0] = String(e).split(":").map(Number),
@@ -2887,7 +2901,7 @@ function formatWorkMinutes(e) {
       ? `${arabicNumber(t)} س`
       : `${arabicNumber(n)} د`;
 }
-function workScheduleForDate(e) {
+function workScheduleForDate(e, subject = null) {
   const t = parseDate(e);
   if (!t)
     return {
@@ -2900,7 +2914,14 @@ function workScheduleForDate(e) {
       shifts: [],
     };
   const n = t.getDay(),
-    a = normalizeWorkSettings(workSettings),
+    branchSettings = (() => {
+      try {
+        return window.nawahBranchOperationsV292?.resolveSettings?.(subject);
+      } catch (_) {
+        return null;
+      }
+    })(),
+    a = normalizeWorkSettings(branchSettings || workSettings),
     o = a.days[n] || DEFAULT_WORK_SETTINGS.days[n],
     r = (o.shifts || []).map((e) => {
       const t = a.shifts.find((t) => t.id === e.shiftId) || a.shifts[0],
@@ -2932,10 +2953,11 @@ function workScheduleForDate(e) {
     minutes: s,
     hours: i ? formatWorkMinutes(s) : "—",
     shiftNames: d,
+    graceMinutes: Number(a.graceMinutes || 0),
   };
 }
-function isWorkday(e) {
-  return Boolean(workScheduleForDate(e).enabled);
+function isWorkday(e, subject = null) {
+  return Boolean(workScheduleForDate(e, subject).enabled);
 }
 function dateWithinRange(e, t, n) {
   const a = parseDate(e)?.getTime(),
@@ -2991,8 +3013,8 @@ function attendanceTimeToMinutes(e) {
     .map(Number);
   return 60 * t + n;
 }
-function liveAttendanceStateForToday(e) {
-  const t = workScheduleForDate(e),
+function liveAttendanceStateForToday(e, subject = null) {
+  const t = workScheduleForDate(e, subject),
     n = Array.isArray(t.shifts) ? t.shifts : [],
     a = new Date(),
     o = 60 * a.getHours() + a.getMinutes(),
@@ -3043,7 +3065,7 @@ function liveAttendanceStateForToday(e) {
   };
 }
 function attendanceStateForEmployee(e, t) {
-  const n = isWorkday(t),
+  const n = isWorkday(t, e),
     a = approvedLeaveForDate(e, t),
     o = absenceForDate(e, t);
   if (!n)
@@ -3127,8 +3149,9 @@ function attendanceStateForEmployee(e, t) {
       leave: !1,
       late: !1,
     };
-  const r = workScheduleForDate(t);
-  if (attendanceDatePosition(t) === 0) return liveAttendanceStateForToday(t);
+  const r = workScheduleForDate(t, e);
+  if (attendanceDatePosition(t) === 0)
+    return liveAttendanceStateForToday(t, e);
   return {
     key: "auto-present",
     checkIn: r.start,
@@ -3166,7 +3189,7 @@ function attendanceSummaryForDate(e = selectedAttendanceDate) {
       leave: 0,
       late: 0,
       total: t.length,
-      isWorkday: isWorkday(e),
+      isWorkday: t.some(({ state }) => state.key !== "weekly-off"),
     },
   );
 }
@@ -3202,9 +3225,13 @@ function renderAttendance(e = "") {
   const n = document.querySelector("#attendanceCurrentDay");
   n && (n.textContent = formatAttendanceDateLabel(selectedAttendanceDate));
   const a = document.querySelector("#attendanceCurrentSubtitle"),
-    o = isWorkday(selectedAttendanceDate);
+    o = employees.some((employee) =>
+      isWorkday(selectedAttendanceDate, employee),
+    );
   a &&
-    (a.textContent = o ? "سجل الحضور اليومي" : "اليوم خارج أيام الدوام الرسمي");
+    (a.textContent = o
+      ? "سجل الحضور اليومي بحسب إعداد فرع كل موظف"
+      : "اليوم خارج أيام الدوام الرسمي");
   const r = e.trim().toLowerCase(),
     i = attendanceRowsForDate(selectedAttendanceDate).filter(
       ({ employee: e }) => {
@@ -5032,7 +5059,7 @@ function calculateEmployeeMonthlyAttendanceStats(e, t = todayAtNoon()) {
   for (let t = new Date(o); t <= r; t = addDays(t, 1)) {
     const a = formatInputDate(t);
     try {
-      if (!a || !isWorkday(a)) continue;
+      if (!a || !isWorkday(a, e)) continue;
       n.workdays += 1;
       const t = attendanceStateForEmployee(e, a) || {};
       (t.present && (n.present += 1),
@@ -7281,6 +7308,16 @@ function setupEvents() {
     document
       .querySelector("#workSettingsForm")
       ?.addEventListener("change", (e) => {
+        if (e.target.matches('[name="globalGraceMinutes"]')) {
+          const next = normalizeWorkSettings(workSettings);
+          next.graceMinutes = Math.min(
+            240,
+            Math.max(0, Number(e.target.value || 0) || 0),
+          );
+          workSettings = normalizeWorkSettings(next);
+          renderWorkSettingsSummary();
+          return;
+        }
         const t = e.target.closest(
           "[data-shift-name], [data-shift-start], [data-shift-end]",
         );
@@ -45665,7 +45702,7 @@ async function init() {
 	    return direct || "الفترة " + arabicNumber((idx || 0) + 1);
 	  }
 	  function attendancePeriodLinesForReport(emp, date, state, options) {
-	    var schedule = workScheduleForDate(date),
+	    var schedule = workScheduleForDate(date, emp),
 	      today = reportTodayInput(),
 	      isToday = String(date || "").slice(0, 10) === today,
 	      capFuture = options && options.capFuture,
@@ -75344,8 +75381,47 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     );
   }
 
+  function clone(value) {
+    try {
+      return structuredClone(value);
+    } catch (_) {
+      return JSON.parse(JSON.stringify(value));
+    }
+  }
+
+  function globalOperationalSettings() {
+    try {
+      return normalizeWorkSettings(workSettings);
+    } catch (_) {
+      return normalizeWorkSettings(DEFAULT_WORK_SETTINGS);
+    }
+  }
+
+  function normalizeBranchOperationalSettings(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const schedule = normalizeWorkSettings(
+      source.workSettings || source.schedule || globalOperationalSettings(),
+    );
+    const graceMinutes = Math.min(
+      240,
+      Math.max(
+        0,
+        Number(source.graceMinutes ?? schedule.graceMinutes ?? 0) || 0,
+      ),
+    );
+    return {
+      workSettings: { ...schedule, graceMinutes: graceMinutes },
+      graceMinutes: graceMinutes,
+    };
+  }
+
   function normalizeBranch(branch, index) {
     const source = branch && typeof branch === "object" ? branch : {};
+    const operationMode =
+      source.operationMode === "custom" ||
+      source.operationalSettings?.mode === "custom"
+        ? "custom"
+        : "global";
     return {
       ...source,
       id: text(source.id) || uid("branch-" + index),
@@ -75363,10 +75439,70 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       unifiedNumber: text(source.unifiedNumber),
       commercialRegisterDocId: text(source.commercialRegisterDocId),
       unifiedNumberDocId: text(source.unifiedNumberDocId),
+      branchCode: text(source.branchCode || source.code),
+      costCenter: text(source.costCenter || source.costCenterCode),
+      operationalAddress: text(
+        source.operationalAddress || source.workAddress || source.address,
+      ),
+      operationMode: operationMode,
+      operationalSettings: {
+        ...normalizeBranchOperationalSettings(source.operationalSettings),
+        mode: operationMode,
+      },
       visible: source.visible !== false,
       createdAt: source.createdAt || new Date().toISOString(),
       updatedAt: source.updatedAt || "",
     };
+  }
+
+  function branchForSubject(subject) {
+    if (!subject) return null;
+    if (
+      typeof subject === "object" &&
+      (subject.operationalSettings || subject.operationMode)
+    )
+      return normalizeBranch(subject, 0);
+    const value = text(
+      typeof subject === "object"
+        ? subject.branchId || subject.branch || subject.branchName
+        : subject,
+    );
+    if (!value) return null;
+    return (
+      branches().find(function (branch) {
+        return value === text(branch.id) || value === text(branch.name);
+      }) || null
+    );
+  }
+
+  function resolveSettings(subject) {
+    const branch = branchForSubject(subject);
+    if (!branch || branch.operationMode !== "custom")
+      return clone(globalOperationalSettings());
+    return clone(
+      normalizeBranchOperationalSettings(branch.operationalSettings)
+        .workSettings,
+    );
+  }
+
+  function dayNamesForSettings(settings) {
+    const normalized = normalizeWorkSettings(settings);
+    return DAY_NAMES.filter(function (_, index) {
+      return normalized.days[index]?.enabled;
+    });
+  }
+
+  function dayOffNamesForSettings(settings) {
+    const normalized = normalizeWorkSettings(settings);
+    return DAY_NAMES.filter(function (_, index) {
+      return !normalized.days[index]?.enabled;
+    });
+  }
+
+  function scheduleRange(settings) {
+    const normalized = normalizeWorkSettings(settings);
+    const first = normalized.shifts[0];
+    return first ? first.start + " - " + first.end : "—";
   }
 
   function branches() {
@@ -76104,7 +76240,16 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       '</span><div><strong>الإدارة والتواصل</strong><small>المسؤول المباشر ورقم التواصل المعتمد.</small></div></header><div class="v288-branch-form-grid"><label><span>مدير الفرع</span><select name="managerId"></select></label><label><span>رقم التواصل</span><input name="phone" dir="ltr" inputmode="tel" placeholder="05xxxxxxxx"></label></div></section>' +
       '<section><header><span>' +
       icon("file") +
-      '</span><div><strong>البيانات الرسمية</strong><small>السجل التجاري والرقم الموحد وربط الوثائق.</small></div></header><div class="v288-branch-form-grid"><label><span>وثيقة السجل التجاري</span><select name="commercialRegisterDocId"></select></label><label><span>رقم السجل التجاري</span><input name="commercialRegisterNumber" inputmode="numeric"></label><label><span>وثيقة الرقم الموحد</span><select name="unifiedNumberDocId"></select></label><label><span>الرقم الموحد</span><input name="unifiedNumber" inputmode="numeric"></label></div></section><input type="hidden" name="id"></div>' +
+      '</span><div><strong>البيانات الرسمية</strong><small>السجل التجاري والرقم الموحد وربط الوثائق.</small></div></header><div class="v288-branch-form-grid"><label><span>وثيقة السجل التجاري</span><select name="commercialRegisterDocId"></select></label><label><span>رقم السجل التجاري</span><input name="commercialRegisterNumber" inputmode="numeric"></label><label><span>وثيقة الرقم الموحد</span><select name="unifiedNumberDocId"></select></label><label><span>الرقم الموحد</span><input name="unifiedNumber" inputmode="numeric"></label></div></section>' +
+      '<section class="v292-branch-operations-section"><header><span>' +
+      icon("clock") +
+      '</span><div><strong>إعداد تشغيل الفرع</strong><small>يرث الفرع إعداد المنشأة تلقائيًا، ويمكن تخصيصه دون تكرار القيم داخل الموظفين.</small></div><span class="v292-operation-mode-badge" data-v292-operation-mode-badge>إعداد المنشأة العام</span></header><div class="v288-branch-form-grid"><label><span>رمز الفرع</span><input name="branchCode" placeholder="مثال: RUH-01"></label><label><span>مركز التكلفة</span><input name="costCenter" placeholder="مثال: CC-1001"></label><label class="v292-span-2"><span>العنوان التشغيلي</span><input name="operationalAddress" placeholder="الموقع المستخدم في التشغيل والحضور"></label><label class="v292-operation-mode-field"><span>مصدر إعداد الدوام</span><select name="operationMode"><option value="global">إعداد المنشأة العام</option><option value="custom">إعداد مخصص لهذا الفرع</option></select></label><div class="v292-global-schedule-summary" data-v292-global-schedule-summary></div></div><div class="v292-custom-operation-panel" data-v292-custom-operation-panel hidden><div class="v292-custom-operation-note"><span>' +
+      icon("info") +
+      '</span><div><strong>تخصيص مباشر للفرع فقط</strong><small>سيُحتسب دوام الموظف من فرعه أثناء العرض والتقارير دون نسخ هذه القيم إلى ملفه.</small></div></div><div class="v288-branch-form-grid"><label><span>بداية الدوام</span><input type="time" name="operationStart"></label><label><span>نهاية الدوام</span><input type="time" name="operationEnd"></label><label><span>فترة السماح (دقيقة)</span><input type="number" name="graceMinutes" min="0" max="240" step="1" value="0"></label></div><fieldset class="v292-workdays"><legend>أيام العمل</legend><div>' +
+      DAY_NAMES.map(function (day, index) {
+        return '<label><input type="checkbox" name="operationWorkdays" value="' + index + '"><span>' + escape(day) + '</span></label>';
+      }).join("") +
+      '</div></fieldset></div></section><input type="hidden" name="id"></div>' +
       '<div class="modal-actions"><button type="button" class="secondary-btn" data-v288-close-branch-modal>إلغاء</button><button type="submit" class="primary-btn"><span data-icon="check"></span><span data-v288-branch-submit-label>حفظ الفرع</span></button></div></form>';
     document.body.appendChild(dialog);
     const form = dialog.querySelector("#branchDirectoryFormV288");
@@ -76127,8 +76272,34 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       if (document && !text(form.elements.unifiedNumber.value))
         form.elements.unifiedNumber.value = text(document.number);
     });
+    form.elements.operationMode.addEventListener("change", function () {
+      updateOperationEditor(form);
+    });
     hydrate(dialog);
     return dialog;
+  }
+
+  function updateOperationEditor(form) {
+    if (!form) return;
+    const custom = form.elements.operationMode.value === "custom";
+    const panel = form.querySelector("[data-v292-custom-operation-panel]");
+    const badge = form.querySelector("[data-v292-operation-mode-badge]");
+    if (panel) panel.hidden = !custom;
+    if (badge) {
+      badge.textContent = custom
+        ? "إعداد مخصص للفرع"
+        : "إعداد المنشأة العام";
+      badge.classList.toggle("is-custom", custom);
+    }
+    const global = globalOperationalSettings();
+    const summary = form.querySelector("[data-v292-global-schedule-summary]");
+    if (summary)
+      summary.innerHTML =
+        '<span>الإعداد العام الحالي</span><strong>' +
+        escape(scheduleRange(global)) +
+        '</strong><small>' +
+        escape(dayNamesForSettings(global).join("، ") || "لا توجد أيام مفعلة") +
+        "</small>";
   }
 
   function openEntry(id) {
@@ -76160,6 +76331,29 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       ? branch.commercialRegisterNumber
       : "";
     form.elements.unifiedNumber.value = id ? branch.unifiedNumber : "";
+    form.elements.branchCode.value = id ? branch.branchCode : "";
+    form.elements.costCenter.value = id ? branch.costCenter : "";
+    form.elements.operationalAddress.value = id
+      ? branch.operationalAddress
+      : "";
+    form.elements.operationMode.value = branch.operationMode;
+    const customSettings = normalizeBranchOperationalSettings(
+      branch.operationalSettings,
+    );
+    const customSchedule = customSettings.workSettings;
+    form.elements.operationStart.value =
+      customSchedule.shifts[0]?.start || OFFICIAL_CHECK_IN;
+    form.elements.operationEnd.value =
+      customSchedule.shifts[0]?.end || OFFICIAL_CHECK_OUT;
+    form.elements.graceMinutes.value = String(customSettings.graceMinutes || 0);
+    form
+      .querySelectorAll('[name="operationWorkdays"]')
+      .forEach(function (input) {
+        input.checked = Boolean(
+          customSchedule.days[Number(input.value)]?.enabled,
+        );
+      });
+    updateOperationEditor(form);
     dialog.querySelector("[data-v288-branch-modal-title]").textContent = id
       ? "تعديل الفرع"
       : "إضافة فرع";
@@ -76719,9 +76913,20 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     event.preventDefault();
     const form = event.currentTarget;
     if (form.dataset.saving === "1") return;
-    const values = Object.fromEntries(new FormData(form).entries());
+    const formData = new FormData(form);
+    const values = Object.fromEntries(formData.entries());
     const name = text(values.name);
     if (!name) return notify("أدخل مسمى الفرع");
+    const operationMode =
+      values.operationMode === "custom" ? "custom" : "global";
+    const selectedWorkdays = formData
+      .getAll("operationWorkdays")
+      .map(Number)
+      .filter(function (day) {
+        return Number.isInteger(day) && day >= 0 && day <= 6;
+      });
+    if (operationMode === "custom" && !selectedWorkdays.length)
+      return notify("اختر يوم عمل واحدًا على الأقل للإعداد المخصص");
     form.dataset.saving = "1";
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
@@ -76752,6 +76957,44 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       return branch.id === id;
     });
     const old = index >= 0 ? previous[index] : null;
+    const operationStart = /^\d{2}:\d{2}$/.test(text(values.operationStart))
+      ? text(values.operationStart)
+      : OFFICIAL_CHECK_IN;
+    const operationEnd = /^\d{2}:\d{2}$/.test(text(values.operationEnd))
+      ? text(values.operationEnd)
+      : OFFICIAL_CHECK_OUT;
+    const graceMinutes = Math.min(
+      240,
+      Math.max(0, Number(values.graceMinutes || 0) || 0),
+    );
+    const customWorkSettings = {
+      graceMinutes: graceMinutes,
+      shifts: [
+        {
+          id: "branch-primary",
+          name: "الفترة الأساسية",
+          start: operationStart,
+          end: operationEnd,
+        },
+      ],
+      days: Object.fromEntries(
+        DAY_NAMES.map(function (_, day) {
+          return [
+            day,
+            {
+              enabled: selectedWorkdays.includes(day),
+              shifts: [
+                {
+                  shiftId: "branch-primary",
+                  start: operationStart,
+                  end: operationEnd,
+                },
+              ],
+            },
+          ];
+        }),
+      ),
+    };
     let next = normalizeBranch(
       {
         ...(old || {}),
@@ -76767,6 +77010,19 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
         commercialRegisterNumber: text(values.commercialRegisterNumber),
         unifiedNumberDocId: text(values.unifiedNumberDocId),
         unifiedNumber: text(values.unifiedNumber),
+        branchCode: text(values.branchCode),
+        costCenter: text(values.costCenter),
+        operationalAddress: text(values.operationalAddress),
+        operationMode: operationMode,
+        operationalSettings: {
+          mode: operationMode,
+          graceMinutes: graceMinutes,
+          workSettings:
+            operationMode === "custom"
+              ? customWorkSettings
+              : old?.operationalSettings?.workSettings ||
+                globalOperationalSettings(),
+        },
         createdAt: old?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -76777,15 +77033,19 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       old ? "update" : "create",
       old ? "تعديل بيانات الفرع" : "إنشاء الفرع",
       old
-        ? "تم حفظ التعديلات على بيانات الفرع"
-        : "تمت إضافة الفرع إلى دليل المنشأة",
+        ? "تم حفظ بيانات الفرع وضبط التشغيل على " +
+            (operationMode === "custom"
+              ? "إعداد مخصص"
+              : "إعداد المنشأة العام")
+        : "تمت إضافة الفرع إلى دليل المنشأة بإعداد " +
+            (operationMode === "custom" ? "مخصص" : "عام"),
     );
     const rows = previous.slice();
     if (index >= 0) rows[index] = next;
     else rows.unshift(next);
     saveBranches(rows);
     sync()?.trackUpserts(BRANCH_KEY, [id]);
-    if (!(await confirmCloudMutation("branch-directory-upsert-v288"))) {
+    if (!(await confirmCloudMutation("branch-directory-upsert-v292"))) {
       await rollback(previous);
       delete form.dataset.saving;
       submit.disabled = false;
@@ -76801,6 +77061,42 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
         window.renderEmployeeBranchOptions();
     } catch (_) {}
     notify(index >= 0 ? "تم تحديث الفرع سحابيًا" : "تمت إضافة الفرع سحابيًا");
+  }
+
+  function operationalProfileMarkup(branch) {
+    const settings = resolveSettings(branch);
+    const custom = branch.operationMode === "custom";
+    const days = dayNamesForSettings(settings);
+    const offDays = dayOffNamesForSettings(settings);
+    return (
+      '<section class="v290-branch-profile-section v292-operational-profile"><header><div><strong>إعداد تشغيل الفرع</strong><small>الإعداد الفعلي الذي يطبّق على موظفي الفرع وقت الاحتساب.</small></div><span class="v292-profile-mode ' +
+      (custom ? "is-custom" : "is-global") +
+      '">' +
+      (custom ? "إعداد مخصص" : "إعداد المنشأة العام") +
+      '</span></header><div class="v292-operation-summary"><article><span>' +
+      icon("clock") +
+      '</span><div><small>ساعات الدوام</small><strong dir="ltr">' +
+      escape(scheduleRange(settings)) +
+      '</strong></div></article><article><span>' +
+      icon("calendar") +
+      '</span><div><small>أيام العمل</small><strong>' +
+      escape(days.join("، ") || "لا توجد أيام مفعلة") +
+      '</strong></div></article><article><span>' +
+      icon("calendar") +
+      '</span><div><small>الإجازة الأسبوعية</small><strong>' +
+      escape(offDays.join("، ") || "لا توجد") +
+      '</strong></div></article><article><span>' +
+      icon("clock") +
+      '</span><div><small>فترة السماح</small><strong>' +
+      escape(String(Number(settings.graceMinutes || 0))) +
+      ' دقيقة</strong></div></article></div><div class="v290-branch-facts v292-operation-facts"><article><small>رمز الفرع</small><strong dir="ltr">' +
+      escape(branch.branchCode || "—") +
+      '</strong></article><article><small>مركز التكلفة</small><strong dir="ltr">' +
+      escape(branch.costCenter || "—") +
+      '</strong></article><article class="v292-address-fact"><small>العنوان التشغيلي</small><strong>' +
+      escape(branch.operationalAddress || "—") +
+      "</strong></article></div></section>"
+    );
   }
 
   function ensureViewDialog() {
@@ -76866,6 +77162,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       "</strong></article><article><small>آخر تحديث</small><strong>" +
       escape(formatProfileDate(branch.updatedAt || branch.createdAt, false)) +
       "</strong></article></div></section>" +
+      operationalProfileMarkup(branch) +
       '<section class="v290-branch-profile-section"><header><div><strong>موظفو الفرع</strong><small>عرض سريع للموظفين المرتبطين حاليًا.</small></div><button type="button" class="v290-section-action" data-v290-manage-employees>' +
       icon("users") +
       "إدارة الموظفين</button></header>" +
@@ -77296,7 +77593,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
   } catch (_) {}
 
   window.nawahBranchDirectoryV288 = {
-    version: 291,
+    version: 292,
     render: function () {
       return render(true);
     },
@@ -77308,8 +77605,23 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     deletionGuard: true,
     profileVersion: 290,
     complianceVersion: 291,
+    operationsVersion: 292,
     compliance: complianceFor,
     configureCompliance: openComplianceSettings,
+  };
+
+  window.nawahBranchOperationsV292 = {
+    version: 292,
+    resolveBranch: branchForSubject,
+    resolveSettings: resolveSettings,
+    modeFor: function (subject) {
+      return branchForSubject(subject)?.operationMode || "global";
+    },
+    globalSettings: function () {
+      return clone(globalOperationalSettings());
+    },
+    cloudBacked: true,
+    employeeValuesDuplicated: false,
   };
 
   if (panelActive()) render(true);
