@@ -15998,7 +15998,12 @@ async function init() {
       if ("admin" === String(t || "").trim())
         return Object.fromEntries(o.map((e) => [e, !0]));
       const n = e && "object" == typeof e && !Array.isArray(e) ? e : {},
-        a = { ...r };
+        a = {
+          ...r,
+          ...Object.fromEntries(
+            Object.entries(n).map(([e, t]) => [e, Boolean(t)]),
+          ),
+        };
       return (
         o.forEach((e) => {
           Object.prototype.hasOwnProperty.call(n, e) && (a[e] = Boolean(n[e]));
@@ -80612,10 +80617,14 @@ window.nawahNotificationRulesV294 = {
     attendance: "clock",
     leaves: "calendar",
     finance: "wallet",
+    advances: "wallet",
     payroll: "wallet",
+    reports: "file",
     documents: "file",
+    privateAlerts: "bell",
     organization: "grid",
     settings: "shield",
+    users: "users",
   };
   const state = {
     profiles: [],
@@ -80695,7 +80704,12 @@ window.nawahNotificationRulesV294 = {
     }
   }
   function isAdmin() {
-    return clean(currentProfile()?.role).toLowerCase() === "admin";
+    if (clean(currentProfile()?.role).toLowerCase() === "admin") return true;
+    try {
+      return Boolean(window.employeePermissionMatrix?.can?.("security.manage"));
+    } catch (_) {
+      return false;
+    }
   }
   function actorName() {
     const profile = currentProfile() || {};
@@ -80823,10 +80837,12 @@ window.nawahNotificationRulesV294 = {
         "nav.payroll",
         "payroll.viewSelf",
         "payroll.advances.viewSelf",
+        "nav.advances",
+        "advances.viewSelf",
       ], true);
     } else if (templateId === "hr") {
       setMatching(output, function (key) {
-        return /^(dashboard|employees|attendance|leaves|organization)\./.test(key);
+        return /^(dashboard|employees|attendance|leaves|organization|reports)\./.test(key);
       }, true);
       setKeys(output, [
         "nav.dashboard",
@@ -80834,13 +80850,14 @@ window.nawahNotificationRulesV294 = {
         "nav.attendance",
         "nav.leaves",
         "nav.departments",
+        "nav.reports",
         "nav.settings",
         "settings.view",
       ], true);
       setKeys(output, ["employees.delete", "dashboard.advanceShortcut"], false);
     } else if (templateId === "finance") {
       setMatching(output, function (key) {
-        return /^(finance|payroll)\./.test(key);
+        return /^(finance|payroll|advances|reports)\./.test(key);
       }, true);
       setKeys(output, [
         "nav.dashboard",
@@ -80849,6 +80866,8 @@ window.nawahNotificationRulesV294 = {
         "employees.viewAll",
         "nav.finance",
         "nav.payroll",
+        "nav.advances",
+        "nav.reports",
       ], true);
     } else if (templateId === "manager") {
       setKeys(output, [
@@ -80871,6 +80890,8 @@ window.nawahNotificationRulesV294 = {
         "leaves.resume",
         "leaves.viewTravelers",
         "nav.departments",
+        "nav.reports",
+        "reports.view",
         "organization.view",
       ], true);
     } else if (templateId === "view") {
@@ -80886,6 +80907,7 @@ window.nawahNotificationRulesV294 = {
         "nav.payroll",
         "nav.establishmentDocuments",
         "nav.departments",
+        "nav.reports",
       ], true);
     }
     return normalizePermissions(output, "employee");
@@ -81071,9 +81093,11 @@ window.nawahNotificationRulesV294 = {
       return Boolean(state.draft[item[0]]);
     }).length;
     const locked = profile.role === "admin";
+    const stateClass = active === 0 ? "none" : active === items.length ? "full" : "partial";
+    const stateLabel = active === 0 ? "غير مسموح" : active === items.length ? "كامل" : "جزئي";
     return (
       '<section class="v295-permission-group" data-v295-group="' + esc(group.id) + '">' +
-      '<header><span>' + icon(group.icon) + '</span><div><strong>' + esc(group.title) + '</strong><small><b data-v295-group-count>' + active + '</b> من ' + items.length + ' مفعلة</small></div><button type="button" data-v295-toggle-group="' + esc(group.id) + '"' + (locked ? " disabled" : "") + '>' + (active === items.length ? "إلغاء الكل" : "تحديد الكل") + '</button></header>' +
+      '<header><span>' + icon(group.icon) + '</span><div><strong>' + esc(group.title) + '</strong><small>' + esc(group.description || "صلاحيات مرتبطة فعليًا بعمليات هذه القائمة") + '</small><small><b data-v295-group-count>' + active + '</b> من ' + items.length + ' مفعلة</small></div><em class="v296-actual-badge">مرتبط فعليًا</em><b class="v296-group-state is-' + stateClass + '">' + stateLabel + '</b><button type="button" data-v295-toggle-group="' + esc(group.id) + '"' + (locked ? " disabled" : "") + '>' + (active === items.length ? "إلغاء الكل" : "تحديد الكل") + '</button></header>' +
       '<div class="v295-permission-items">' +
       items.map(function (item) {
         const key = item[0];
@@ -81110,6 +81134,7 @@ window.nawahNotificationRulesV294 = {
       '<div class="v295-permission-groups">' + groups().map(function (group) {
         return groupMarkup(group, profile);
       }).join("") + '</div>' +
+      (window.nawahPermissionAuditV296?.markup?.(profile.id) || '<section class="v296-audit-card"><header><div><strong>سجل تغييرات الصلاحيات</strong><small>سيظهر السجل السحابي بعد اكتمال القراءة.</small></div></header><div class="v296-audit-loading">جاري تحميل السجل...</div></section>') +
       '<footer class="v295-actions"><div class="v295-save-assurance"><span>' + icon("shield") + '</span><div><strong>حفظ سحابي مؤكد</strong><small>يتم التحقق بإعادة القراءة، والتراجع تلقائيًا عند عدم التطابق.</small></div></div><div><button type="button" class="v295-secondary" data-v295-reset-draft' + (!dirty ? " disabled" : "") + '>' + icon("refresh") + '<span>إلغاء التعديلات</span></button><button type="button" class="v295-primary" data-v295-save' + (!dirty || state.saving || profile.role === "admin" ? " disabled" : "") + '>' + icon("check") + '<span>' + (state.saving ? "جاري التحقق..." : "حفظ الصلاحيات") + '</span></button></div></footer>' +
       '</div>'
     );
@@ -81171,6 +81196,9 @@ window.nawahNotificationRulesV294 = {
     state.baseline = profile ? { ...profile, permissions: { ...(profile.permissions || {}) } } : null;
     renderDirectory();
     renderEditor();
+    setTimeout(function () {
+      window.nawahPermissionAuditV296?.load?.(state.selectedId);
+    }, 0);
   }
   function chooseInitialProfile(preferred) {
     const exists = state.profiles.some(function (profile) {
@@ -81190,6 +81218,9 @@ window.nawahNotificationRulesV294 = {
       ? normalizePermissions(profile.permissions || {}, profile.role)
       : {};
     state.baseline = profile ? { ...profile, permissions: { ...(profile.permissions || {}) } } : null;
+    setTimeout(function () {
+      window.nawahPermissionAuditV296?.load?.(state.selectedId);
+    }, 0);
   }
   function accessDeniedMarkup() {
     return '<div class="v295-permissions-page"><div class="v295-denied"><span>' + icon("lock") + '</span><strong>هذه القائمة مخصصة لمدير النظام</strong><p>لا يمكن عرض حسابات المستخدمين أو تعديل الصلاحيات من هذا الحساب.</p></div></div>';
@@ -81315,10 +81346,24 @@ window.nawahNotificationRulesV294 = {
       if (remote.role === "admin" && activeAdminCount(state.profiles) <= 1)
         throw new Error("لا يمكن تعديل صلاحيات آخر مدير نظام فعّال");
       const desired = normalizePermissions(state.draft, remote.role);
-      mutated = await conditionalUpdate(remote, desired);
+      if (window.nawahPermissionAuditV296?.commit) {
+        const transaction = await window.nawahPermissionAuditV296.commit({
+          remote: remote,
+          baseline: baseline,
+          desired: desired,
+          templateId: state.templateId,
+          actorName: actorName(),
+          kind: "save",
+        });
+        mutated = transaction?.verified || null;
+      } else {
+        mutated = await conditionalUpdate(remote, desired);
+      }
       if (!mutated)
         throw new Error("تم تعديل السجل في متصفح آخر؛ لم يتم استبدال بياناته");
-      const verified = await fetchProfile(remote.id);
+      const verified = window.nawahPermissionAuditV296?.commit
+        ? mutated
+        : await fetchProfile(remote.id);
       if (
         !verified ||
         !samePermissions(verified.permissions, desired, remote.role) ||
@@ -81549,7 +81594,7 @@ window.nawahNotificationRulesV294 = {
   setTimeout(startRealtime, 0);
   if (isActive()) void renderPermissions(true);
 
-  window.nawahPermissionsV295 = {
+window.nawahPermissionsV295 = {
     version: 295,
     render: renderPermissions,
     activate: activatePermissions,
@@ -81563,5 +81608,945 @@ window.nawahNotificationRulesV294 = {
     cloudField: "permissions",
     liveApply: true,
     rollbackOnMismatch: true,
+  };
+})();
+
+/* v296 - actual granular permissions, guarded actions and cloud audit history */
+(function v296GranularPermissionsAndAudit() {
+  if (window.__v296GranularPermissionsAndAudit) return;
+  window.__v296GranularPermissionsAndAudit = true;
+
+  const AUDIT_KEY = "permission_audit_v296";
+  const PROFILE_FIELDS =
+    "id,user_id,full_name,email,role,is_active,employee_id,permissions,created_at,updated_at";
+  const previousMatrix = window.employeePermissionMatrix || {};
+  const GROUPS = [
+    {
+      id: "sidebar",
+      title: "القوائم الجانبية",
+      icon: "grid",
+      description: "التحكم في ظهور كل قائمة رئيسية بصورة مستقلة.",
+      items: [
+        ["nav.dashboard", "إظهار الصفحة الرئيسية"],
+        ["nav.employees", "إظهار الموظفين"],
+        ["nav.attendance", "إظهار الحضور والانصراف"],
+        ["nav.leaves", "إظهار الإجازات والسفر"],
+        ["nav.finance", "إظهار المالية"],
+        ["nav.advances", "إظهار السلفيات"],
+        ["nav.payroll", "إظهار الرواتب"],
+        ["nav.reports", "إظهار التقارير"],
+        ["nav.establishmentDocuments", "إظهار وثائق المنشأة"],
+        ["nav.privateAlerts", "إظهار التنبيهات الخاصة"],
+        ["nav.departments", "إظهار الأقسام والإدارات"],
+        ["nav.settings", "إظهار الإعدادات"],
+        ["nav.users", "إظهار إدارة المستخدمين"],
+      ],
+    },
+    {
+      id: "dashboard",
+      title: "الصفحة الرئيسية",
+      icon: "home",
+      description: "تفصيل البطاقات والاختصارات وطلبات المراجعة في الرئيسية.",
+      items: [
+        ["dashboard.stats", "عرض بطاقات الإحصائيات"],
+        ["dashboard.attendanceOverview", "عرض بطاقة المسافرين والحضور"],
+        ["dashboard.reviewRequests", "عرض الطلبات التي تحتاج مراجعة"],
+        ["dashboard.reviewActions", "الموافقة والرفض من الصفحة الرئيسية"],
+        ["dashboard.establishmentExpiringDocs", "عرض وثائق المنشأة القريبة من الانتهاء"],
+        ["dashboard.employeeExpiringDocs", "عرض وثائق الموظفين القريبة من الانتهاء"],
+        ["dashboard.recentEmployees", "عرض أحدث الموظفين"],
+        ["dashboard.absenceShortcut", "استخدام اختصار تسجيل الغياب"],
+        ["dashboard.reviewShortcut", "استخدام اختصار مراجعة الطلبات"],
+        ["dashboard.advanceShortcut", "استخدام اختصار إضافة سلفة"],
+      ],
+    },
+    {
+      id: "employees",
+      title: "الموظفون",
+      icon: "users",
+      description: "الملفات والبيانات الداخلية والعمليات الحساسة لكل موظف.",
+      items: [
+        ["employees.viewSelf", "عرض ملف الموظف المرتبط فقط"],
+        ["employees.viewAll", "عرض جميع الموظفين"],
+        ["employees.create", "إضافة موظف جديد"],
+        ["employees.edit", "تعديل بيانات الموظفين"],
+        ["employees.delete", "حذف الموظفين"],
+        ["employees.attachments", "عرض ورفع مرفقات الهوية والجواز"],
+        ["employees.personal", "عرض وتعديل البيانات الشخصية"],
+        ["employees.identity", "عرض وتعديل الهوية والجوازات"],
+        ["employees.employment", "عرض وتعديل البيانات الوظيفية"],
+        ["employees.salary", "عرض وتعديل تفاصيل الراتب"],
+        ["employees.leaveTravel", "عرض سجل الإجازات والسفر داخل الملف"],
+        ["employees.commissions", "عرض وإدارة عمولات الموظف"],
+        ["employees.banking", "عرض وإدارة البيانات البنكية"],
+        ["employees.contact", "عرض وتعديل بيانات الاتصال"],
+        ["employees.notes", "عرض وإدارة الملاحظات والمحاضر"],
+        ["employees.documents", "عرض وإدارة وثائق الموظف"],
+        ["employees.documentation", "عرض التوثيق وتوقيع الموظف"],
+        ["employees.print", "طباعة ملف الموظف وتقاريره"],
+        ["employees.endService", "إنهاء خدمات الموظف"],
+      ],
+    },
+    {
+      id: "attendance",
+      title: "الحضور والانصراف",
+      icon: "clock",
+      description: "العرض وتسجيل الغياب والحذف والطباعة حسب نطاق الموظف.",
+      items: [
+        ["attendance.viewSelf", "عرض حضور الموظف المرتبط فقط"],
+        ["attendance.viewAll", "عرض حضور جميع الموظفين"],
+        ["attendance.markAbsent", "تسجيل غياب"],
+        ["attendance.deleteAbsence", "حذف سجل غياب"],
+        ["attendance.export", "طباعة وتصدير تقرير الحضور"],
+      ],
+    },
+    {
+      id: "leaves",
+      title: "الإجازات والسفر",
+      icon: "calendar",
+      description: "إنشاء الطلبات واعتمادها ورفضها وتسجيل المباشرة وطباعتها.",
+      items: [
+        ["leaves.viewOwn", "عرض طلبات الموظف المرتبط فقط"],
+        ["leaves.viewAll", "عرض طلبات جميع الموظفين"],
+        ["leaves.createLeave", "إنشاء طلب إجازة لنفسه"],
+        ["leaves.createTravel", "إنشاء طلب سفر لنفسه"],
+        ["leaves.createForAll", "إنشاء طلب لموظف آخر"],
+        ["leaves.approve", "اعتماد طلبات الإجازة والسفر"],
+        ["leaves.reject", "رفض طلبات الإجازة والسفر"],
+        ["leaves.resume", "تسجيل المباشرة بعد العودة"],
+        ["leaves.viewTravelers", "عرض قائمة المسافرين"],
+        ["leaves.print", "طباعة خطابات وتقارير الطلبات"],
+        ["leaves.delete", "حذف سجلات الإجازة والسفر"],
+      ],
+    },
+    {
+      id: "finance",
+      title: "المالية",
+      icon: "wallet",
+      description: "اليومية المالية والمبالغ المعلقة والإقفال والإعداد المالي.",
+      items: [
+        ["finance.view", "عرض الشاشة والملخص المالي"],
+        ["finance.editTables", "إضافة وتعديل جداول المالية"],
+        ["finance.deleteRows", "حذف صفوف المالية"],
+        ["finance.closeDay", "إقفال واعتماد اليوم المالي"],
+        ["finance.settings", "تعديل إعدادات وأرصدة المالية"],
+        ["finance.print", "طباعة وتصدير التقرير المالي"],
+      ],
+    },
+    {
+      id: "advances",
+      title: "السلفيات",
+      icon: "wallet",
+      description: "عرض السلف وإضافتها وصرفها وحذفها وتصديرها بصورة مستقلة.",
+      items: [
+        ["advances.viewSelf", "عرض سلفيات الموظف المرتبط فقط"],
+        ["advances.viewAll", "عرض سلفيات جميع الموظفين"],
+        ["advances.create", "إضافة واعتماد سلفة"],
+        ["advances.pay", "صرف السلفة"],
+        ["advances.delete", "حذف السلفة"],
+        ["advances.print", "طباعة وتصدير السلفيات"],
+      ],
+    },
+    {
+      id: "payroll",
+      title: "الرواتب والعمولات",
+      icon: "wallet",
+      description: "المسير والفترات والصرف والتعديل والمخالصة والعمولات.",
+      items: [
+        ["payroll.viewSelf", "عرض مسير راتبه فقط"],
+        ["payroll.viewAll", "عرض مسيرات جميع الموظفين"],
+        ["payroll.periods.select", "اختيار شهر وسنة المسير"],
+        ["payroll.runs.process", "اعتماد وصرف مسير الرواتب"],
+        ["payroll.runs.print", "طباعة وتصدير مسير الرواتب"],
+        ["payroll.edit", "تعديل تفاصيل الرواتب"],
+        ["payroll.commissions", "إدارة وصرف العمولات"],
+        ["payroll.printClearance", "طباعة مخالصة العمولة"],
+      ],
+    },
+    {
+      id: "reports",
+      title: "التقارير",
+      icon: "file",
+      description: "تحديد أنواع التقارير المسموحة والطباعة والتصدير لكل نوع.",
+      items: [
+        ["reports.view", "فتح شاشة التقارير"],
+        ["reports.leaveTravel", "عرض تقرير الإجازات والسفر"],
+        ["reports.banking", "عرض تقرير البيانات البنكية"],
+        ["reports.absences", "عرض تقرير الغياب"],
+        ["reports.advances", "عرض تقرير السلفيات"],
+        ["reports.payrollRun", "عرض تقرير مسير الرواتب"],
+        ["reports.contracts", "عرض تقرير العقود"],
+        ["reports.attendance", "عرض تقرير الحضور"],
+        ["reports.leaveBalance", "عرض تقرير رصيد الإجازات"],
+        ["reports.print", "طباعة التقارير"],
+        ["reports.export", "تصدير التقارير"],
+      ],
+    },
+    {
+      id: "documents",
+      title: "وثائق المنشأة",
+      icon: "file",
+      description: "سجل وثائق المنشأة والمرفقات والتمديد والمعاينة والتنزيل.",
+      items: [
+        ["documents.view", "عرض وثائق المنشأة"],
+        ["documents.create", "إضافة وثيقة منشأة"],
+        ["documents.edit", "تعديل وثيقة منشأة"],
+        ["documents.delete", "حذف وثيقة منشأة"],
+        ["documents.upload", "رفع مرفقات وثائق المنشأة"],
+        ["documents.extend", "تمديد تاريخ الوثيقة"],
+        ["documents.preview", "معاينة المرفقات"],
+        ["documents.download", "تنزيل المرفقات"],
+      ],
+    },
+    {
+      id: "privateAlerts",
+      title: "التنبيهات الخاصة",
+      icon: "bell",
+      description: "إنشاء التنبيهات وإنجازها وتأجيلها وحذفها.",
+      items: [
+        ["privateAlerts.view", "عرض التنبيهات الخاصة"],
+        ["privateAlerts.create", "إضافة تنبيه خاص"],
+        ["privateAlerts.complete", "تحديد التنبيه كمكتمل"],
+        ["privateAlerts.postpone", "تأجيل تاريخ التذكير"],
+        ["privateAlerts.delete", "حذف التنبيه"],
+      ],
+    },
+    {
+      id: "organization",
+      title: "التنظيم الإداري",
+      icon: "grid",
+      description: "الفروع والإدارات والأقسام والمهن والربط الإداري.",
+      items: [
+        ["organization.view", "عرض التنظيم الإداري"],
+        ["organization.branches", "إدارة الفروع"],
+        ["organization.departments", "إدارة الإدارات"],
+        ["organization.sections", "إدارة الأقسام"],
+        ["organization.jobs", "إدارة المهن والمسميات"],
+        ["organization.manage", "الإدارة الكاملة للتنظيم"],
+      ],
+    },
+    {
+      id: "settings",
+      title: "الإعدادات",
+      icon: "shield",
+      description: "تفصيل الوصول إلى كل قائمة إعدادات دون منح الإدارة الكاملة.",
+      items: [
+        ["settings.view", "فتح شاشة الإعدادات"],
+        ["settings.company", "إدارة بيانات المنشأة"],
+        ["settings.branches", "إدارة قائمة الفروع"],
+        ["settings.departments", "إدارة الإدارات والأقسام والمهن"],
+        ["settings.documentTypes", "إدارة أنواع الوثائق"],
+        ["settings.account", "إدارة الحساب الشخصي"],
+        ["settings.notifications", "إدارة قواعد الإشعارات"],
+        ["settings.permissions", "فتح مركز الصلاحيات"],
+        ["settings.work", "إدارة إعدادات العمل"],
+        ["settings.salary", "إدارة إعداد الراتب"],
+        ["settings.financialAmounts", "إدارة المبالغ المالية"],
+        ["settings.managers", "إدارة المدراء والتوقيعات"],
+        ["settings.absence", "إدارة إعدادات الغياب"],
+        ["settings.minutes", "إدارة إعدادات المحاضر"],
+        ["security.manage", "إدارة الصلاحيات والأمان"],
+      ],
+    },
+    {
+      id: "users",
+      title: "إدارة المستخدمين",
+      icon: "users",
+      description: "الحسابات والربط بالموظفين والحالة والجلسات والحذف.",
+      items: [
+        ["users.view", "عرض حسابات المستخدمين"],
+        ["users.create", "إضافة حساب مستخدم"],
+        ["users.edit", "تعديل بيانات الحساب"],
+        ["users.link", "ربط الحساب بملف موظف"],
+        ["users.toggle", "تنشيط وإيقاف الحساب"],
+        ["users.delete", "حذف حساب المستخدم"],
+        ["users.sessions", "إدارة الجلسات النشطة"],
+        ["users.manage", "الإدارة الكاملة للمستخدمين"],
+      ],
+    },
+  ];
+  const ALL_KEYS = Array.from(
+    new Set(GROUPS.flatMap(function (group) {
+      return group.items.map(function (item) {
+        return item[0];
+      });
+    })),
+  );
+  const DEFAULTS = Object.fromEntries(
+    ALL_KEYS.map(function (key) {
+      return [key, false];
+    }),
+  );
+  Object.assign(DEFAULTS, {
+    "nav.dashboard": true,
+    "nav.leaves": true,
+    "employees.viewSelf": true,
+    "attendance.viewSelf": true,
+    "leaves.viewOwn": true,
+    "leaves.createLeave": true,
+    "leaves.createTravel": true,
+  });
+
+  const GROUP_BY_KEY = {};
+  const LABEL_BY_KEY = {};
+  GROUPS.forEach(function (group) {
+    group.items.forEach(function (item) {
+      GROUP_BY_KEY[item[0]] = group;
+      LABEL_BY_KEY[item[0]] = item[1];
+    });
+  });
+
+  function clean(value) {
+    return String(value == null ? "" : value).trim();
+  }
+  function esc(value) {
+    return clean(value).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+  function profile() {
+    try {
+      return authProfile || window.authProfile || null;
+    } catch (_) {
+      return window.authProfile || null;
+    }
+  }
+  function user() {
+    try {
+      return authUser || window.authUser || null;
+    } catch (_) {
+      return window.authUser || null;
+    }
+  }
+  function isAdmin(role) {
+    return clean(role == null ? profile()?.role : role).toLowerCase() === "admin";
+  }
+  function db() {
+    try {
+      if (window.supabaseClient?.from) return window.supabaseClient;
+    } catch (_) {}
+    try {
+      if (supabaseClient?.from) return supabaseClient;
+    } catch (_) {}
+    return null;
+  }
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") return showToast(message);
+      if (typeof toast === "function") return toast(message);
+    } catch (_) {}
+    console.warn(message);
+  }
+  function icon(name) {
+    try {
+      if (typeof iconSvg === "function") return iconSvg(name);
+    } catch (_) {}
+    return "";
+  }
+  function hydrate(root) {
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(root || document);
+    } catch (_) {}
+  }
+  function normalizePermissions(input, role) {
+    if (isAdmin(role)) return Object.fromEntries(ALL_KEYS.map(function (key) { return [key, true]; }));
+    const source = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+    const output = { ...DEFAULTS };
+    ALL_KEYS.forEach(function (key) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) output[key] = Boolean(source[key]);
+    });
+
+    const aliases = [
+      ["advances.viewSelf", "payroll.advances.viewSelf"],
+      ["advances.viewAll", "payroll.advances.viewAll"],
+      ["advances.create", "payroll.advances.create"],
+    ];
+    aliases.forEach(function (pair) {
+      const modern = pair[0], legacy = pair[1];
+      if (!Object.prototype.hasOwnProperty.call(source, modern) && source[legacy] != null)
+        output[modern] = Boolean(source[legacy]);
+      output[legacy] = Boolean(output[modern]);
+    });
+    if (source["users.manage"] === true) {
+      ["users.view", "users.create", "users.edit", "users.link", "users.toggle", "users.delete", "users.sessions"].forEach(function (key) {
+        if (!Object.prototype.hasOwnProperty.call(source, key)) output[key] = true;
+      });
+    }
+    if (source["organization.manage"] === true) {
+      ["organization.branches", "organization.departments", "organization.sections", "organization.jobs"].forEach(function (key) {
+        if (!Object.prototype.hasOwnProperty.call(source, key)) output[key] = true;
+      });
+    }
+
+    const dependencies = {
+      employees: { nav: "nav.employees", view: "employees.viewAll", scopes: ["employees.viewSelf", "employees.viewAll"] },
+      attendance: { nav: "nav.attendance", view: "attendance.viewAll", scopes: ["attendance.viewSelf", "attendance.viewAll"] },
+      leaves: { nav: "nav.leaves", view: "leaves.viewAll", scopes: ["leaves.viewOwn", "leaves.viewAll"] },
+      finance: { nav: "nav.finance", view: "finance.view", scopes: ["finance.view"] },
+      advances: { nav: "nav.advances", view: "advances.viewAll", scopes: ["advances.viewSelf", "advances.viewAll"] },
+      payroll: { nav: "nav.payroll", view: "payroll.viewAll", scopes: ["payroll.viewSelf", "payroll.viewAll"] },
+      reports: { nav: "nav.reports", view: "reports.view", scopes: ["reports.view"] },
+      documents: { nav: "nav.establishmentDocuments", view: "documents.view", scopes: ["documents.view"] },
+      privateAlerts: { nav: "nav.privateAlerts", view: "privateAlerts.view", scopes: ["privateAlerts.view"] },
+      organization: { nav: "nav.departments", view: "organization.view", scopes: ["organization.view"] },
+      settings: { nav: "nav.settings", view: "settings.view", scopes: ["settings.view"] },
+      users: { nav: "nav.users", view: "users.view", scopes: ["users.view"] },
+    };
+    Object.keys(dependencies).forEach(function (prefix) {
+      const rule = dependencies[prefix];
+      const enabled = Object.keys(output).filter(function (key) {
+        return key.startsWith(prefix + ".") && output[key];
+      });
+      if (enabled.length) output[rule.nav] = true;
+      if (enabled.some(function (key) { return !rule.scopes.includes(key); })) output[rule.view] = true;
+    });
+    if (output["security.manage"] || output["settings.permissions"]) {
+      output["settings.permissions"] = true;
+      output["security.manage"] = true;
+      output["settings.view"] = true;
+      output["nav.settings"] = true;
+    }
+    output["users.manage"] = Boolean(
+      output["users.create"] && output["users.edit"] && output["users.toggle"] && output["users.delete"],
+    );
+    output["organization.manage"] = Boolean(
+      output["organization.branches"] && output["organization.departments"] && output["organization.sections"] && output["organization.jobs"],
+    );
+    return output;
+  }
+  function can(key) {
+    const current = profile();
+    if (!current) return true;
+    if (isAdmin(current.role)) return true;
+    return Boolean(normalizePermissions(current.permissions || {}, current.role)[key]);
+  }
+  window.employeePermissionMatrix = {
+    ...previousMatrix,
+    groups: GROUPS,
+    defaults: DEFAULTS,
+    can: can,
+    normalizePermissions: normalizePermissions,
+    version: 296,
+    granular: true,
+  };
+
+  const VIEW_KEYS = {
+    dashboard: "nav.dashboard",
+    employees: "nav.employees",
+    attendance: "nav.attendance",
+    leaves: "nav.leaves",
+    finance: "nav.finance",
+    advances: "nav.advances",
+    payroll: "nav.payroll",
+    reports: "nav.reports",
+    establishmentDocuments: "nav.establishmentDocuments",
+    privateAlerts: "nav.privateAlerts",
+    departments: "nav.departments",
+    settings: "nav.settings",
+    users: "nav.users",
+  };
+  const UI_RULES = [
+    ["employees.create", "#quickAddBtn, .add-employee-btn, [data-open-employee-modal=\"new\"]"],
+    [["employees.viewSelf", "employees.viewAll"], "[data-quick-view], [data-view-employee]"],
+    ["employees.edit", "[data-edit-employee], [data-employee-name-edit]"],
+    ["employees.delete", "[data-delete-employee]"],
+    ["employees.personal", "[data-employee-section=\"personal\"]"],
+    ["employees.identity", "[data-employee-section=\"identity\"]"],
+    ["employees.employment", "[data-employee-section=\"employment\"]"],
+    ["employees.salary", "[data-employee-section=\"salary\"]"],
+    ["employees.leaveTravel", "[data-employee-section=\"leaveTravelHistory\"]"],
+    ["employees.commissions", "[data-employee-section=\"commissions\"]"],
+    ["employees.banking", "[data-employee-section=\"banking\"]"],
+    ["employees.contact", "[data-employee-section=\"contact\"]"],
+    ["employees.notes", "[data-employee-section=\"notes\"]"],
+    ["employees.documents", "[data-employee-section=\"documents\"]"],
+    ["employees.documentation", "[data-employee-section=\"documentation\"]"],
+    ["employees.endService", "#endEmployeeServiceBtn"],
+    ["attendance.markAbsent", "#newAbsenceBtn, #dashboardAbsenceBtn, [data-open-absence-modal]"],
+    ["attendance.deleteAbsence", "[data-delete-absence]"],
+    ["attendance.export", "[data-attendance-print-run]"],
+    [["leaves.createLeave", "leaves.createForAll"], "#newLeaveBtn"],
+    [["leaves.createTravel", "leaves.createForAll"], "#newTravelBtn"],
+    ["leaves.approve", "[data-travel-approve], [data-leave-action=\"approved\"]"],
+    ["leaves.reject", "[data-travel-reject], [data-leave-action=\"rejected\"]"],
+    ["leaves.resume", "[data-travel-resume], [data-leave-return]"],
+    ["leaves.print", "[data-print-request-letter], [data-v81-print], [data-v80-print]"],
+    ["finance.editTables", "#financeAddAdvanceBtn"],
+    ["finance.deleteRows", "[data-finance-delete-pending-index]"],
+    ["finance.closeDay", "[data-finance-close-confirm], .finance-close-day-btn"],
+    ["finance.settings", "#financeSettingsForm"],
+    ["advances.create", "#advancesAddBtn"],
+    ["advances.print", "#advancesPrintBtn"],
+    ["advances.pay", "[data-pay-payroll-advance]"],
+    ["advances.delete", "[data-delete-payroll-advance]"],
+    ["payroll.runs.process", "#processPayrollBtn"],
+    ["payroll.runs.print", "#payrollExportBtn"],
+    ["payroll.commissions", "#payCommissionBtn, [data-delete-commission], [data-v102-delete-commissions-all]"],
+    ["payroll.printClearance", "[data-print-commission]"],
+    ["reports.print", "[data-report-print]"],
+    ["reports.export", "[data-report-export]"],
+    ["documents.create", "#addEstablishmentDocumentBtn, [data-add-establishment-document]"],
+    ["documents.edit", "[data-edit-establishment-document], [data-edit-est-doc], [data-hard-edit-est-doc]"],
+    ["documents.delete", "[data-delete-establishment-document], [data-remove-est-doc], [data-hard-remove-est-doc]"],
+    ["documents.extend", "[data-add-est-doc-extension]"],
+    ["documents.preview", "[data-open-establishment-document]"],
+    ["documents.download", "[data-document-attachment]"],
+    ["privateAlerts.create", "#addPrivateAlertBtn"],
+    ["privateAlerts.complete", "[data-private-alert-done]"],
+    ["privateAlerts.postpone", "[data-private-alert-postpone]"],
+    ["privateAlerts.delete", "[data-private-alert-delete]"],
+    ["users.create", "#openUserProfileModal"],
+    ["users.edit", "[data-edit-user-profile]"],
+    ["users.toggle", "[data-toggle-user-profile]"],
+    ["users.delete", "[data-delete-user-profile]"],
+    ["users.sessions", "[data-v293-manage-sessions]"],
+  ];
+  const SETTINGS_KEYS = {
+    company: "settings.company",
+    branches: "settings.branches",
+    departmentsSettings: "settings.departments",
+    documentTypes: "settings.documentTypes",
+    account: "settings.account",
+    notifications: "settings.notifications",
+    permissions: "settings.permissions",
+    work: "settings.work",
+    salarySettings: "settings.salary",
+    financialAmounts: "settings.financialAmounts",
+    managers: "settings.managers",
+    absence: "settings.absence",
+    minuteSettings: "settings.minutes",
+  };
+  const REPORT_KEYS = {
+    leaveTravel: "reports.leaveTravel",
+    banking: "reports.banking",
+    absences: "reports.absences",
+    advances: "reports.advances",
+    payrollRun: "reports.payrollRun",
+    contracts: "reports.contracts",
+    attendance: "reports.attendance",
+    leaveBalance: "reports.leaveBalance",
+  };
+  function markHidden(element, hidden) {
+    if (!element) return;
+    element.classList.toggle("is-v296-permission-hidden", hidden);
+    element.classList.toggle("is-permission-hidden", hidden);
+    if (hidden) element.setAttribute("aria-hidden", "true");
+    else element.removeAttribute("aria-hidden");
+  }
+  function allowed(keys) {
+    return (Array.isArray(keys) ? keys : [keys]).some(function (key) { return can(key); });
+  }
+  function applyDetailedUi() {
+    if (!profile()) return;
+    Object.keys(VIEW_KEYS).forEach(function (view) {
+      document.querySelectorAll('[data-view="' + view + '"]').forEach(function (element) {
+        markHidden(element, !can(VIEW_KEYS[view]));
+      });
+    });
+    UI_RULES.forEach(function (rule) {
+      document.querySelectorAll(rule[1]).forEach(function (element) {
+        markHidden(element, !allowed(rule[0]));
+      });
+    });
+    Object.keys(SETTINGS_KEYS).forEach(function (section) {
+      document.querySelectorAll('[data-settings-section="' + section + '"]').forEach(function (element) {
+        markHidden(element, !can(SETTINGS_KEYS[section]));
+      });
+    });
+    Object.keys(REPORT_KEYS).forEach(function (type) {
+      document.querySelectorAll('[data-report-tab="' + type + '"]').forEach(function (element) {
+        markHidden(element, !can(REPORT_KEYS[type]));
+      });
+      document.querySelectorAll('[data-report-panel="' + type + '"]').forEach(function (element) {
+        if (!can(REPORT_KEYS[type])) element.classList.remove("active");
+      });
+    });
+  }
+  function denied(message) {
+    notify(message || "ليست لديك صلاحية تنفيذ هذه العملية");
+  }
+  function guardEvent(event) {
+    const target = event.target;
+    if (!target?.closest) return;
+    const nav = target.closest("[data-view]");
+    if (nav && VIEW_KEYS[nav.dataset.view] && !can(VIEW_KEYS[nav.dataset.view])) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return denied("ليست لديك صلاحية فتح هذه القائمة");
+    }
+    const setting = target.closest("[data-settings-section]");
+    if (setting && SETTINGS_KEYS[setting.dataset.settingsSection] && !can(SETTINGS_KEYS[setting.dataset.settingsSection])) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return denied("ليست لديك صلاحية فتح قسم الإعدادات هذا");
+    }
+    const report = target.closest("[data-report-tab]");
+    if (report && REPORT_KEYS[report.dataset.reportTab] && !can(REPORT_KEYS[report.dataset.reportTab])) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return denied("ليست لديك صلاحية عرض هذا التقرير");
+    }
+    for (const rule of UI_RULES) {
+      if (target.closest(rule[1]) && !allowed(rule[0])) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return denied("ليست لديك صلاحية تنفيذ هذه العملية");
+      }
+    }
+    const employeeSave = target.closest("#saveEmployeeBtn, .save-employee-btn, [data-save-employee]");
+    if (employeeSave) {
+      const id = document.querySelector('#employeeForm [name="employeeId"]')?.value;
+      const key = clean(id) ? "employees.edit" : "employees.create";
+      if (!can(key)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return denied("ليست لديك صلاحية حفظ بيانات هذا الموظف");
+      }
+    }
+  }
+  window.addEventListener("click", guardEvent, true);
+  window.addEventListener("submit", function (event) {
+    const form = event.target;
+    let key = "";
+    if (form?.matches?.("#financeSettingsForm")) key = "finance.settings";
+    else if (form?.matches?.("#appUserProfileForm"))
+      key = clean(form.elements?.profileId?.value || form.elements?.id?.value) ? "users.edit" : "users.create";
+    else if (form?.matches?.("#employeeForm"))
+      key = clean(form.elements?.employeeId?.value) ? "employees.edit" : "employees.create";
+    if (key && !can(key)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      denied("ليست لديك صلاحية حفظ هذه البيانات");
+    }
+  }, true);
+
+  const previousRoleCanOpen = typeof roleCanOpen === "function" ? roleCanOpen : window.roleCanOpen;
+  const wrappedRoleCanOpen = function (view) {
+    if (VIEW_KEYS[view]) return can(VIEW_KEYS[view]);
+    return typeof previousRoleCanOpen === "function" ? previousRoleCanOpen.apply(this, arguments) : true;
+  };
+  wrappedRoleCanOpen.__v296Granular = true;
+  try { roleCanOpen = wrappedRoleCanOpen; } catch (_) {}
+  window.roleCanOpen = wrappedRoleCanOpen;
+
+  const previousSwitchView = typeof switchView === "function" ? switchView : window.switchView;
+  const wrappedSwitchView = function (view) {
+    if (VIEW_KEYS[view] && !can(VIEW_KEYS[view])) {
+      denied("ليست لديك صلاحية فتح هذه القائمة");
+      return false;
+    }
+    return typeof previousSwitchView === "function" ? previousSwitchView.apply(this, arguments) : false;
+  };
+  wrappedSwitchView.__v296Granular = true;
+  try { switchView = wrappedSwitchView; } catch (_) {}
+  window.switchView = wrappedSwitchView;
+
+  const previousApply = typeof applyRolePermissions === "function" ? applyRolePermissions : window.applyRolePermissions;
+  const wrappedApply = function () {
+    const result = typeof previousApply === "function" ? previousApply.apply(this, arguments) : undefined;
+    applyDetailedUi();
+    return result;
+  };
+  wrappedApply.__v296Granular = true;
+  try { applyRolePermissions = wrappedApply; } catch (_) {}
+  window.applyRolePermissions = wrappedApply;
+
+  let uiTimer = null;
+  if (typeof MutationObserver === "function") {
+    new MutationObserver(function () {
+      clearTimeout(uiTimer);
+      uiTimer = setTimeout(applyDetailedUi, 16);
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  }
+  window.addEventListener("nawah:permissions-updated", applyDetailedUi);
+  setTimeout(applyDetailedUi, 0);
+
+  const auditState = {
+    loaded: false,
+    loading: false,
+    row: null,
+    records: [],
+  };
+  function auditPayload(value) {
+    const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    return {
+      version: 296,
+      records: Array.isArray(source.records) ? source.records.slice(0, 200) : [],
+    };
+  }
+  async function readAuditRow() {
+    const client = db();
+    if (!client) throw new Error("تعذر الاتصال بقاعدة البيانات السحابية");
+    const result = await client
+      .from("app_settings")
+      .select("setting_key,setting_value,updated_at")
+      .eq("setting_key", AUDIT_KEY)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    const data = Array.isArray(result.data) ? result.data[0] || null : result.data || null;
+    return data ? { ...data, setting_value: auditPayload(data.setting_value) } : null;
+  }
+  async function ensureAuditRow() {
+    let row = await readAuditRow();
+    if (row) return row;
+    const client = db();
+    const now = new Date().toISOString();
+    const result = await client
+      .from("app_settings")
+      .upsert(
+        { setting_key: AUDIT_KEY, setting_value: auditPayload(null), updated_at: now },
+        { onConflict: "setting_key", ignoreDuplicates: true },
+      )
+      .select("setting_key,setting_value,updated_at")
+      .maybeSingle();
+    if (result.error) throw result.error;
+    row = await readAuditRow();
+    if (!row) throw new Error("تعذر إنشاء سجل تدقيق الصلاحيات سحابيًا");
+    return row;
+  }
+  async function fetchProfile(id) {
+    const client = db();
+    const result = await client
+      .from("app_user_profiles")
+      .select(PROFILE_FIELDS)
+      .eq("id", id)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    return Array.isArray(result.data) ? result.data[0] || null : result.data || null;
+  }
+  async function updateProfileIfUnchanged(remote, permissions) {
+    const client = db();
+    const now = new Date().toISOString();
+    let query = client
+      .from("app_user_profiles")
+      .update({ permissions: permissions, updated_at: now })
+      .eq("id", remote.id);
+    if (remote.updated_at) query = query.eq("updated_at", remote.updated_at);
+    const result = await query.select(PROFILE_FIELDS).maybeSingle();
+    if (result.error) throw result.error;
+    return Array.isArray(result.data) ? result.data[0] || null : result.data || null;
+  }
+  function samePermissions(left, right, role) {
+    const a = normalizePermissions(left, role);
+    const b = normalizePermissions(right, role);
+    return ALL_KEYS.every(function (key) { return Boolean(a[key]) === Boolean(b[key]); });
+  }
+  async function writeAuditIfUnchanged(row, payload) {
+    const client = db();
+    const now = new Date().toISOString();
+    let query = client
+      .from("app_settings")
+      .update({ setting_value: payload, updated_at: now })
+      .eq("setting_key", AUDIT_KEY);
+    if (row.updated_at) query = query.eq("updated_at", row.updated_at);
+    const result = await query.select("setting_key,setting_value,updated_at").maybeSingle();
+    if (result.error) throw result.error;
+    const data = Array.isArray(result.data) ? result.data[0] || null : result.data || null;
+    return data ? { ...data, setting_value: auditPayload(data.setting_value) } : null;
+  }
+  async function rollbackProfile(original, mutated) {
+    if (!original?.id || !mutated?.id) return false;
+    const client = db();
+    let query = client
+      .from("app_user_profiles")
+      .update({ permissions: original.permissions || {}, updated_at: new Date().toISOString() })
+      .eq("id", original.id);
+    if (mutated.updated_at) query = query.eq("updated_at", mutated.updated_at);
+    const result = await query.select(PROFILE_FIELDS).maybeSingle();
+    if (result.error || !result.data) return false;
+    const verified = await fetchProfile(original.id);
+    return Boolean(verified && samePermissions(verified.permissions, original.permissions, original.role));
+  }
+  function changeList(before, after, role) {
+    const left = normalizePermissions(before, role);
+    const right = normalizePermissions(after, role);
+    return ALL_KEYS.filter(function (key) { return Boolean(left[key]) !== Boolean(right[key]); }).map(function (key) {
+      const group = GROUP_BY_KEY[key] || {};
+      return {
+        key: key,
+        label: LABEL_BY_KEY[key] || key,
+        groupId: group.id || "other",
+        groupTitle: group.title || "أخرى",
+        before: Boolean(left[key]),
+        after: Boolean(right[key]),
+      };
+    });
+  }
+  function auditRecord(options) {
+    const actor = profile() || {};
+    const remote = options.remote || {};
+    const before = normalizePermissions(remote.permissions || {}, remote.role);
+    const after = normalizePermissions(options.desired || {}, remote.role);
+    return {
+      id: "permission-audit-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9),
+      profileId: clean(remote.id),
+      profileName: clean(remote.full_name || remote.email) || "حساب مستخدم",
+      profileEmail: clean(remote.email),
+      actorId: clean(actor.id || actor.user_id || user()?.id),
+      actorName: clean(options.actorName || actor.full_name || actor.email) || "مدير النظام",
+      actorEmail: clean(actor.email || user()?.email),
+      templateId: clean(options.templateId || "custom"),
+      before: before,
+      after: after,
+      changes: changeList(before, after, remote.role),
+      kind: options.kind === "restore" ? "restore" : "save",
+      restoredFromId: clean(options.restoredFromId),
+      createdAt: new Date().toISOString(),
+    };
+  }
+  async function commit(options) {
+    const remote = options?.remote;
+    const baseline = options?.baseline || remote;
+    if (!remote?.id || !baseline?.id) throw new Error("تعذر تحديد حساب الصلاحيات");
+    if (clean(remote.updated_at) !== clean(baseline.updated_at))
+      throw new Error("تم تعديل الصلاحيات في متصفح آخر؛ حدّث الشاشة قبل الحفظ");
+    const desired = normalizePermissions(options.desired || {}, remote.role);
+    const row = await ensureAuditRow();
+    const record = auditRecord({ ...options, remote: remote, desired: desired });
+    let mutated = null;
+    let writtenAudit = null;
+    try {
+      mutated = await updateProfileIfUnchanged(remote, desired);
+      if (!mutated) throw new Error("تم تعديل السجل في متصفح آخر؛ لم يتم استبدال بياناته");
+      const verified = await fetchProfile(remote.id);
+      if (
+        !verified ||
+        !samePermissions(verified.permissions, desired, remote.role) ||
+        clean(verified.employee_id) !== clean(remote.employee_id)
+      )
+        throw new Error("لم تتطابق قراءة الصلاحيات السحابية");
+      const payload = auditPayload(row.setting_value);
+      payload.records = [record].concat(payload.records.filter(function (item) { return item?.id !== record.id; })).slice(0, 200);
+      writtenAudit = await writeAuditIfUnchanged(row, payload);
+      if (!writtenAudit) throw new Error("تغير سجل التدقيق في متصفح آخر؛ لم تعتمد العملية");
+      const auditVerified = await readAuditRow();
+      if (!auditVerified?.setting_value?.records?.some(function (item) { return item?.id === record.id; }))
+        throw new Error("تعذر تأكيد سجل التغيير السحابي");
+      auditState.loaded = true;
+      auditState.row = auditVerified;
+      auditState.records = auditVerified.setting_value.records;
+      return { verified: verified, record: record, audit: auditVerified };
+    } catch (error) {
+      if (writtenAudit) {
+        try {
+          await writeAuditIfUnchanged(writtenAudit, auditPayload(row.setting_value));
+        } catch (rollbackAuditError) {
+          console.warn("v296 audit rollback failed", rollbackAuditError);
+        }
+      }
+      if (mutated) {
+        const latest = await fetchProfile(remote.id).catch(function () { return mutated; });
+        const rolledBack = await rollbackProfile(baseline, latest).catch(function () { return false; });
+        if (!rolledBack)
+          throw new Error("تعذر توثيق التغيير وتعذر تأكيد استعادة الصلاحيات السابقة؛ حدّث الشاشة");
+      }
+      throw error;
+    }
+  }
+  function formatDate(value) {
+    try {
+      return new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+    } catch (_) {
+      return "—";
+    }
+  }
+  function auditMarkup(profileId) {
+    const records = auditState.records.filter(function (record) { return clean(record?.profileId) === clean(profileId); });
+    const body = !auditState.loaded
+      ? '<div class="v296-audit-loading">جاري تحميل السجل السحابي...</div>'
+      : records.length
+        ? records.slice(0, 15).map(function (record) {
+            const changes = Array.isArray(record.changes) ? record.changes : [];
+            return '<article class="v296-audit-entry"><div class="v296-audit-line"><span class="is-' + (record.kind === "restore" ? "restore" : "save") + '">' + icon(record.kind === "restore" ? "refresh" : "shield") + '</span><div><strong>' + (record.kind === "restore" ? "استعادة إصدار سابق" : "تعديل الصلاحيات") + '</strong><small>' + esc(formatDate(record.createdAt)) + ' · بواسطة ' + esc(record.actorName || "مدير النظام") + '</small></div><b>' + changes.length + ' تغيير</b></div><details><summary>عرض التفاصيل والمقارنة</summary><div class="v296-audit-changes">' + (changes.length ? changes.map(function (change) { return '<p><span>' + esc(change.groupTitle) + '</span><strong>' + esc(change.label) + '</strong><em class="is-' + (change.after ? "on" : "off") + '">' + (change.before ? "مسموح" : "غير مسموح") + ' ← ' + (change.after ? "مسموح" : "غير مسموح") + '</em></p>'; }).join("") : '<p class="is-empty">لا توجد فروقات قابلة للعرض.</p>') + '</div><button type="button" data-v296-restore="' + esc(record.id) + '" data-v296-profile="' + esc(profileId) + '">' + icon("refresh") + '<span>استعادة الحالة السابقة لهذا التغيير</span></button></details></article>';
+          }).join("")
+        : '<div class="v296-audit-empty"><strong>لا توجد تغييرات مسجلة لهذا الحساب</strong><small>سيظهر أول سجل بعد حفظ تعديل فعلي.</small></div>';
+    return '<section class="v296-audit-card" data-v296-audit data-profile-id="' + esc(profileId) + '"><header><div><strong>سجل تغييرات الصلاحيات</strong><small>سجل سحابي موثق باسم المنفذ مع إمكانية الاستعادة الآمنة.</small></div><b>' + records.length + ' سجل</b></header><div class="v296-audit-list">' + body + '</div></section>';
+  }
+  function renderAudit(profileId) {
+    const escapedId = window.CSS?.escape
+      ? window.CSS.escape(clean(profileId))
+      : clean(profileId).replace(/["\\]/g, "\\$&");
+    document.querySelectorAll('[data-v296-audit][data-profile-id="' + escapedId + '"]').forEach(function (root) {
+      root.outerHTML = auditMarkup(profileId);
+    });
+    hydrate(document);
+  }
+  async function loadAudit(profileId) {
+    if (auditState.loading) return;
+    auditState.loading = true;
+    try {
+      const row = await ensureAuditRow();
+      auditState.row = row;
+      auditState.records = row.setting_value.records;
+      auditState.loaded = true;
+    } catch (error) {
+      console.warn("v296 permission audit load failed", error);
+      auditState.loaded = true;
+      auditState.records = [];
+    } finally {
+      auditState.loading = false;
+      renderAudit(profileId);
+    }
+  }
+  function syncProfileCache(saved) {
+    if (!saved?.id) return;
+    const list = Array.isArray(window.appUserProfilesCache) ? window.appUserProfilesCache : [];
+    window.appUserProfilesCache = list.map(function (item) { return clean(item.id) === clean(saved.id) ? { ...item, ...saved } : item; });
+    const current = profile();
+    if ([current?.id, current?.user_id, current?.email].filter(Boolean).map(clean).some(function (value) {
+      return [saved.id, saved.user_id, saved.email].filter(Boolean).map(clean).includes(value);
+    })) {
+      try { if (authProfile) authProfile.permissions = saved.permissions || {}; } catch (_) {}
+      try { if (window.authProfile) window.authProfile.permissions = saved.permissions || {}; } catch (_) {}
+      wrappedApply();
+    }
+  }
+  async function restoreRecord(recordId, button) {
+    if (!isAdmin() && !can("security.manage")) return notify("ليست لديك صلاحية استعادة الصلاحيات");
+    const record = auditState.records.find(function (item) { return clean(item?.id) === clean(recordId); });
+    if (!record) return notify("تعذر العثور على هذا الإصدار في السجل السحابي");
+    if (!confirm("سيتم استعادة حالة الصلاحيات السابقة وتوثيق العملية كسجل جديد. هل تريد المتابعة؟")) return;
+    button?.setAttribute("aria-busy", "true");
+    try {
+      const remote = await fetchProfile(record.profileId);
+      if (!remote) throw new Error("تعذر العثور على حساب المستخدم");
+      const transaction = await commit({
+        remote: remote,
+        baseline: remote,
+        desired: record.before || {},
+        templateId: "restored",
+        actorName: clean(profile()?.full_name || profile()?.email) || "مدير النظام",
+        kind: "restore",
+        restoredFromId: record.id,
+      });
+      syncProfileCache(transaction.verified);
+      notify("تمت استعادة الصلاحيات وتوثيقها سحابيًا");
+      await window.nawahPermissionsV295?.refresh?.();
+    } catch (error) {
+      console.warn("v296 permission restore failed", error);
+      notify(clean(error?.message) || "تعذر استعادة الصلاحيات سحابيًا");
+    } finally {
+      button?.removeAttribute("aria-busy");
+    }
+  }
+  document.addEventListener("click", function (event) {
+    const button = event.target?.closest?.("[data-v296-restore]");
+    if (!button) return;
+    event.preventDefault();
+    void restoreRecord(button.dataset.v296Restore, button);
+  }, true);
+
+  window.nawahPermissionAuditV296 = {
+    version: 296,
+    key: AUDIT_KEY,
+    table: "app_settings",
+    cloudBacked: true,
+    immutableFromUi: true,
+    commit: commit,
+    load: loadAudit,
+    markup: auditMarkup,
+    normalize: normalizePermissions,
+    groups: GROUPS,
+    apply: applyDetailedUi,
   };
 })();
