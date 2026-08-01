@@ -53016,6 +53016,143 @@ async function init() {
         });
       }
     });
+    if (cfg.documentsExpiry.enabled) {
+      const branchSettings = parseStored(
+        localStorage.getItem("nawah-branch-compliance-settings"),
+      );
+      const docSettings = parseStored(
+        localStorage.getItem("nawah-document-type-settings"),
+      );
+      const branchRows = arr(
+        parseStored(localStorage.getItem("nawah-branches")),
+      );
+      const establishmentDocuments = arr(
+        parseStored(
+          localStorage.getItem("nawah-establishment-documents"),
+        ),
+      );
+      const types = arr(docSettings.types);
+      const typeNames = Object.fromEntries(
+        types.map(function (type) {
+          return [String(type?.id || ""), String(type?.name || "وثيقة")];
+        }),
+      );
+      const activeTypeIds = new Set(
+        types
+          .filter(function (type) {
+            return type?.visible !== false && String(type?.id || "").trim();
+          })
+          .map(function (type) {
+            return String(type.id);
+          }),
+      );
+      const requiredTypeIds = arr(branchSettings.requiredTypeIds)
+        .map(String)
+        .filter(function (id) {
+          return activeTypeIds.has(id);
+        });
+      const warningDays = Math.min(
+        365,
+        Math.max(1, Number(branchSettings.warningDays || 30) || 30),
+      );
+      function branchDocEnd(document) {
+        const extensionDates = arr(document?.extensions)
+          .map(function (extension) {
+            return String(
+              first(extension, [
+                "newExpiryDate",
+                "expiryDate",
+                "date",
+              ]) || "",
+            ).trim();
+          })
+          .filter(Boolean)
+          .sort();
+        return (
+          extensionDates.at(-1) ||
+          first(document, ["expiryDate", "endDate"])
+        );
+      }
+      function currentBranchDocs(branchId) {
+        const byType = new Map();
+        establishmentDocuments
+          .filter(function (document) {
+            return String(document?.branchId || "") === String(branchId);
+          })
+          .forEach(function (document, index) {
+            const typeId = String(document?.typeId || "").trim();
+            const key = typeId || "document-" + String(document?.id || index);
+            const previous = byType.get(key);
+            if (
+              !previous ||
+              String(branchDocEnd(document) || "").localeCompare(
+                String(branchDocEnd(previous) || ""),
+              ) >= 0
+            )
+              byType.set(key, document);
+          });
+        return Array.from(byType.values());
+      }
+      branchRows
+        .filter(function (branch) {
+          return branch?.visible !== false && String(branch?.id || "").trim();
+        })
+        .forEach(function (branch) {
+          if (!can("documentsExpiry")) return;
+          const branchId = String(branch.id);
+          const branchName = String(branch.name || "فرع");
+          const linked = currentBranchDocs(branchId);
+          const linkedTypeIds = new Set(
+            linked.map(function (document) {
+              return String(document?.typeId || "");
+            }),
+          );
+          const missing = requiredTypeIds.filter(function (typeId) {
+            return !linkedTypeIds.has(typeId);
+          });
+          if (missing.length && can("documentsExpiry"))
+            add({
+              type: "documentsExpiry",
+              severity: "danger",
+              title: "وثائق مطلوبة ناقصة في " + branchName,
+              subtitle: "جاهزية الفروع",
+              detail:
+                "الوثائق الناقصة: " +
+                missing
+                  .map(function (id) {
+                    return typeNames[id] || "وثيقة مطلوبة";
+                  })
+                  .join("، "),
+              days: null,
+              date: new Date(),
+              action: "branch",
+              branchId: branchId,
+            });
+          linked.forEach(function (document) {
+            if (!can("documentsExpiry")) return;
+            const date = branchDocEnd(document);
+            const left = daysLeft(date);
+            if (!allowedByWindow(left, warningDays)) return;
+            const typeName =
+              typeNames[String(document?.typeId || "")] ||
+              String(document?.title || document?.name || "وثيقة");
+            add({
+              type: "documentsExpiry",
+              severity: severity(left),
+              title:
+                "وثيقة " +
+                typeName +
+                (left < 0 ? " منتهية" : " قريبة الانتهاء"),
+              subtitle: "فرع " + branchName,
+              detail: "تاريخ الانتهاء: " + fmt(date),
+              days: left,
+              date: date,
+              action: "branch",
+              branchId: branchId,
+            });
+          });
+        });
+    }
     if (cfg.leaveTravel.enabled) {
       leaveList().forEach(function (r) {
         if ((counts.leaveTravel || 0) >= LIMIT_PER_TYPE) return;
@@ -53334,6 +53471,20 @@ async function init() {
   function openItem(item) {
     if (!item) return;
     open(false);
+    if (item.action === "branch" && item.branchId) {
+      try {
+        if (typeof switchView === "function") switchView("settings");
+      } catch (_) {}
+      setTimeout(function () {
+        try {
+          window.__stableActivateSettingsSection?.("branches");
+          window.nawahBranchDirectoryV288?.view?.(item.branchId, {
+            documents: true,
+          });
+        } catch (_) {}
+      }, 60);
+      return;
+    }
     if (item.action === "leaves") {
       try {
         if (typeof switchView === "function") switchView("leaves");
@@ -68078,6 +68229,7 @@ window.nawahLeaveBalanceReportV185 = {
     "nawah-document-type-settings",
     "nawah-establishment-documents",
     "nawah-branches",
+    "nawah-branch-compliance-settings",
   ];
   const EMPLOYEE_ENGLISH_NAMES_FIELD_V270 =
     "employeeEnglishNamesV270";
@@ -68119,6 +68271,7 @@ window.nawahLeaveBalanceReportV185 = {
     "nawah-document-type-settings": ["documentLocalState"],
     "nawah-establishment-documents": ["documentLocalState"],
     "nawah-branches": ["documentLocalState"],
+    "nawah-branch-compliance-settings": ["documentLocalState"],
   };
 
   let baselineState = null;
@@ -68344,7 +68497,10 @@ window.nawahLeaveBalanceReportV185 = {
       if (hasLocalValue || !Object.prototype.hasOwnProperty.call(next, key))
         next[key] = readJson(
           key,
-          key === "nawah-document-type-settings" ? {} : [],
+          key === "nawah-document-type-settings" ||
+            key === "nawah-branch-compliance-settings"
+            ? {}
+            : [],
         );
     });
     return next;
@@ -69012,6 +69168,28 @@ window.nawahLeaveBalanceReportV185 = {
     collect(upsertIds, "upserts");
     groups.forEach((group) => {
       const localValue = local[group.storageKey];
+      if (
+        group.storageKey === "nawah-branch-compliance-settings" &&
+        group.section === "fields"
+      ) {
+        const remoteSettings =
+            merged[group.storageKey] &&
+            typeof merged[group.storageKey] === "object" &&
+            !Array.isArray(merged[group.storageKey])
+              ? { ...merged[group.storageKey] }
+              : {},
+          localSettings =
+            localValue && typeof localValue === "object" && !Array.isArray(localValue)
+              ? localValue
+              : {};
+        group.deletes.forEach((field) => delete remoteSettings[field]);
+        group.upserts.forEach((field) => {
+          if (Object.prototype.hasOwnProperty.call(localSettings, field))
+            remoteSettings[field] = clone(localSettings[field]);
+        });
+        merged[group.storageKey] = remoteSettings;
+        return;
+      }
       if (group.section === "records") {
         merged[group.storageKey] = mergeDocumentRowsV227(
           merged[group.storageKey],
@@ -69571,6 +69749,8 @@ window.nawahLeaveBalanceReportV185 = {
         } else if (typeof renderAll === "function") renderAll();
         if (typeof window.syncSalaryEmployeeUiV237 === "function")
           window.syncSalaryEmployeeUiV237();
+        if (typeof window.v141BellNotifications?.render === "function")
+          window.v141BellNotifications.render();
       } catch (error) {
         console.warn("v221: تعذر تحديث العرض بعد المزامنة.", error);
       }
@@ -75087,6 +75267,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
 
   const BRANCH_KEY = "nawah-branches";
   const DOCUMENTS_KEY = "nawah-establishment-documents";
+  const COMPLIANCE_KEY = "nawah-branch-compliance-settings";
   const MANAGERS_KEY = "nawah-managers";
   const EMPLOYEES_KEY = "nawah-employees";
   const panelSelector = '[data-settings-panel="branches"]';
@@ -75094,6 +75275,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     query: "",
     status: "all",
     city: "all",
+    compliance: "all",
     rendering: false,
     deletingId: "",
   };
@@ -75220,6 +75402,180 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     return Array.isArray(rows) ? rows : [];
   }
 
+  function complianceSettings() {
+    const source = readJson(COMPLIANCE_KEY, {});
+    const requiredTypeIds = Array.from(
+      new Set(
+        (Array.isArray(source?.requiredTypeIds)
+          ? source.requiredTypeIds
+          : []
+        )
+          .map(text)
+          .filter(Boolean),
+      ),
+    );
+    const warningDays = Math.min(
+      365,
+      Math.max(1, Number(source?.warningDays || 30) || 30),
+    );
+    return {
+      requiredTypeIds: requiredTypeIds,
+      warningDays: warningDays,
+      updatedAt: text(source?.updatedAt),
+      updatedBy: text(source?.updatedBy),
+    };
+  }
+
+  function establishmentDocumentTypes() {
+    const settings = documentTypeSettings();
+    const categories = Array.isArray(settings?.categories)
+      ? settings.categories
+      : [];
+    const types = Array.isArray(settings?.types) ? settings.types : [];
+    return types
+      .filter(function (type) {
+        if (!text(type?.id) || !text(type?.name) || type?.visible === false)
+          return false;
+        const category = categories.find(function (item) {
+          return text(item?.id) === text(type?.categoryId);
+        });
+        return text(category?.beneficiary).toLowerCase() !== "employee";
+      })
+      .map(function (type) {
+        return { id: text(type.id), name: text(type.name) };
+      })
+      .sort(function (first, second) {
+        return first.name.localeCompare(second.name, "ar");
+      });
+  }
+
+  function complianceDocumentEndDate(document) {
+    const extensionDates = (Array.isArray(document?.extensions)
+      ? document.extensions
+      : []
+    )
+      .map(function (extension) {
+        return text(
+          extension?.newExpiryDate ||
+            extension?.expiryDate ||
+            extension?.date,
+        );
+      })
+      .filter(Boolean)
+      .sort();
+    return (
+      extensionDates.at(-1) ||
+      text(document?.expiryDate || document?.endDate)
+    );
+  }
+
+  function complianceDocumentState(document, warningDays) {
+    const value = complianceDocumentEndDate(document);
+    if (!value) return { key: "valid", days: null };
+    const expiry = new Date(value + "T12:00:00");
+    if (Number.isNaN(expiry.getTime()))
+      return { key: "valid", days: null };
+    const now = new Date();
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      12,
+    );
+    const days = Math.ceil((expiry - today) / 864e5);
+    if (days < 0) return { key: "expired", days: days };
+    if (days <= warningDays) return { key: "warning", days: days };
+    return { key: "valid", days: days };
+  }
+
+  function currentComplianceDocuments(branch) {
+    const linked = documents().filter(function (document) {
+      return text(document?.branchId) === text(branch?.id);
+    });
+    const byType = new Map();
+    const withoutType = [];
+    linked.forEach(function (document) {
+      const typeId = text(document?.typeId);
+      if (!typeId) {
+        withoutType.push(document);
+        return;
+      }
+      const previous = byType.get(typeId);
+      if (
+        !previous ||
+        complianceDocumentEndDate(document).localeCompare(
+          complianceDocumentEndDate(previous),
+        ) >= 0
+      )
+        byType.set(typeId, document);
+    });
+    return [...byType.values(), ...withoutType];
+  }
+
+  function complianceFor(branch) {
+    const settings = complianceSettings();
+    const availableTypes = establishmentDocumentTypes();
+    const availableTypeIds = new Set(
+      availableTypes.map(function (type) {
+        return type.id;
+      }),
+    );
+    const requiredTypeIds = settings.requiredTypeIds.filter(function (id) {
+      return availableTypeIds.has(id);
+    });
+    const linked = currentComplianceDocuments(branch);
+    const linkedTypeIds = new Set(
+      linked.map(function (document) {
+        return text(document?.typeId);
+      }),
+    );
+    const missingTypeIds = requiredTypeIds.filter(function (id) {
+      return !linkedTypeIds.has(id);
+    });
+    const states = linked.map(function (document) {
+      return {
+        document: document,
+        ...complianceDocumentState(document, settings.warningDays),
+      };
+    });
+    const expired = states.filter(function (item) {
+      return item.key === "expired";
+    });
+    const warning = states.filter(function (item) {
+      return item.key === "warning";
+    });
+    let key = "complete";
+    let label = "مكتمل";
+    if (expired.length) {
+      key = "expired";
+      label = "منتهي";
+    } else if (missingTypeIds.length) {
+      key = "missing";
+      label = "ناقص";
+    } else if (warning.length) {
+      key = "warning";
+      label = "قرب الانتهاء";
+    } else if (!requiredTypeIds.length) {
+      key = "unconfigured";
+      label = "غير مُعد";
+    }
+    return {
+      key: key,
+      label: label,
+      total: linked.length,
+      requiredTypeIds: requiredTypeIds,
+      missingTypeIds: missingTypeIds,
+      expired: expired,
+      warning: warning,
+      warningDays: settings.warningDays,
+      typeNames: Object.fromEntries(
+        availableTypes.map(function (type) {
+          return [type.id, type.name];
+        }),
+      ),
+    };
+  }
+
   function managers() {
     const stored = readJson(MANAGERS_KEY, []);
     const people = employees();
@@ -75340,6 +75696,9 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       const cityMatches =
         state.city === "all" ||
         text(branch.city || branch.region) === state.city;
+      const compliance = complianceFor(branch);
+      const complianceMatches =
+        state.compliance === "all" || compliance.key === state.compliance;
       const haystack = [
         branch.name,
         branch.city,
@@ -75348,10 +75707,16 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
         managerName(branch),
         branch.commercialRegisterNumber,
         branch.unifiedNumber,
+        compliance.label,
       ]
         .join(" ")
         .toLocaleLowerCase("ar");
-      return statusMatches && cityMatches && (!query || haystack.includes(query));
+      return (
+        statusMatches &&
+        cityMatches &&
+        complianceMatches &&
+        (!query || haystack.includes(query))
+      );
     });
   }
 
@@ -75424,6 +75789,34 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     );
   }
 
+  function complianceChip(branch, mobile) {
+    const status = complianceFor(branch);
+    const detail =
+      status.key === "expired"
+        ? status.expired.length + " منتهية"
+        : status.key === "missing"
+          ? status.missingTypeIds.length + " ناقصة"
+          : status.key === "warning"
+            ? status.warning.length + " قريبة"
+            : status.key === "unconfigured"
+              ? "حدد المتطلبات"
+              : status.total + " وثائق";
+    return (
+      '<button type="button" class="v291-branch-compliance is-' +
+      escape(status.key) +
+      (mobile ? " is-mobile" : "") +
+      '" data-v291-open-compliance="' +
+      escape(branch.id) +
+      '" title="عرض جاهزية وثائق الفرع" aria-label="عرض جاهزية وثائق الفرع: ' +
+      escape(status.label) +
+      '"><i></i><span><strong>' +
+      escape(status.label) +
+      "</strong><small>" +
+      escape(detail) +
+      "</small></span></button>"
+    );
+  }
+
   function rowMarkup(branch) {
     const count = metricsFor(branch);
     return (
@@ -75443,9 +75836,9 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       escape(branch.id) +
       '" title="عرض موظفي الفرع" aria-label="عرض موظفي الفرع">' +
       count.employees +
-      '</button></td><td><span class="v288-branch-count">' +
-      count.documents +
-      '</span></td><td><span class="v288-branch-status ' +
+      "</button></td><td>" +
+      complianceChip(branch, false) +
+      '</td><td><span class="v288-branch-status ' +
       (branch.visible ? "is-active" : "is-inactive") +
       '"><i></i>' +
       (branch.visible ? "نشط" : "غير نشط") +
@@ -75478,9 +75871,9 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       escape(branch.id) +
       '" title="عرض موظفي الفرع">' +
       count.employees +
-      "</button></span><span><small>الوثائق</small><strong>" +
-      count.documents +
-      "</strong></span></div>" +
+      "</button></span><span><small>جاهزية الوثائق</small>" +
+      complianceChip(branch, true) +
+      "</span></div>" +
       actionButtons(branch) +
       "</article>"
     );
@@ -75565,8 +75958,22 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       (state.status === "active" ? " selected" : "") +
       '>نشط</option><option value="inactive"' +
       (state.status === "inactive" ? " selected" : "") +
-      ">غير نشط</option></select></label><small data-v288-branch-result>عرض جميع الفروع</small></section>" +
-      '<section class="v288-branch-table-card"><div class="v288-branch-table-title"><div><strong>دليل الفروع</strong><small>تظهر الفروع النشطة في بيانات الموظف ووثائق المنشأة.</small></div><span>حفظ سحابي مؤكد</span></div><div class="v288-branch-table-wrap"><table class="v288-branch-table"><thead><tr><th>الفرع والموقع</th><th>مدير الفرع</th><th>رقم التواصل</th><th>الموظفون</th><th>الوثائق</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody data-v288-branches-body></tbody></table></div><div class="v288-branch-mobile-list" data-v288-branches-mobile></div></section>' +
+      '>غير نشط</option></select></label><label><span>جاهزية الوثائق</span><select data-v291-branch-compliance><option value="all"' +
+      (state.compliance === "all" ? " selected" : "") +
+      '>كل الحالات</option><option value="complete"' +
+      (state.compliance === "complete" ? " selected" : "") +
+      '>مكتمل</option><option value="warning"' +
+      (state.compliance === "warning" ? " selected" : "") +
+      '>قرب الانتهاء</option><option value="expired"' +
+      (state.compliance === "expired" ? " selected" : "") +
+      '>منتهي</option><option value="missing"' +
+      (state.compliance === "missing" ? " selected" : "") +
+      '>ناقص</option><option value="unconfigured"' +
+      (state.compliance === "unconfigured" ? " selected" : "") +
+      '>غير مُعد</option></select></label><small data-v288-branch-result>عرض جميع الفروع</small></section>' +
+      '<section class="v288-branch-table-card"><div class="v288-branch-table-title"><div><strong>دليل الفروع</strong><small>تظهر الفروع النشطة في بيانات الموظف ووثائق المنشأة.</small></div><div class="v291-branch-table-tools"><button type="button" data-v291-configure-compliance>' +
+      icon("settings") +
+      '<span>إعداد الوثائق المطلوبة</span></button><span>حفظ سحابي مؤكد</span></div></div><div class="v288-branch-table-wrap"><table class="v288-branch-table"><thead><tr><th>الفرع والموقع</th><th>مدير الفرع</th><th>رقم التواصل</th><th>الموظفون</th><th>جاهزية الوثائق</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody data-v288-branches-body></tbody></table></div><div class="v288-branch-mobile-list" data-v288-branches-mobile></div></section>' +
       "</div>"
     );
   }
@@ -76102,6 +76509,170 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     );
   }
 
+  function complianceProfileMarkup(branch) {
+    const status = complianceFor(branch);
+    const missingNames = status.missingTypeIds.map(function (id) {
+      return status.typeNames[id] || "نوع وثيقة غير متاح";
+    });
+    const detail =
+      status.key === "expired"
+        ? "يوجد " + status.expired.length + " وثيقة منتهية تحتاج إجراء"
+        : status.key === "missing"
+          ? "يوجد " + missingNames.length + " نوع وثيقة مطلوب غير مرفوع"
+          : status.key === "warning"
+            ? "يوجد " + status.warning.length + " وثيقة قاربت الانتهاء"
+            : status.key === "complete"
+              ? "جميع الوثائق المطلوبة سارية ومكتملة"
+              : "لم تُحدد الوثائق الإلزامية للفروع بعد";
+    return (
+      '<div class="v291-profile-compliance is-' +
+      escape(status.key) +
+      '"><span class="v291-profile-compliance-mark">' +
+      icon(status.key === "complete" ? "check-circle" : "alert-circle") +
+      '</span><div><small>حالة جاهزية الفرع</small><strong>' +
+      escape(status.label) +
+      "</strong><p>" +
+      escape(detail) +
+      "</p>" +
+      (missingNames.length
+        ? '<div class="v291-missing-doc-types">' +
+          missingNames
+            .map(function (name) {
+              return "<span>" + escape(name) + "</span>";
+            })
+            .join("") +
+          "</div>"
+        : "") +
+      '</div><button type="button" data-v291-configure-compliance title="إعداد الوثائق المطلوبة">' +
+      icon("settings") +
+      "</button></div>"
+    );
+  }
+
+  function ensureComplianceDialog() {
+    let dialog = document.getElementById("branchComplianceModalV291");
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.id = "branchComplianceModalV291";
+    dialog.className = "modal v291-branch-compliance-modal";
+    dialog.innerHTML =
+      '<form data-v291-compliance-form><div class="modal-head"><div><span class="v288-modal-eyebrow">جاهزية الفروع</span><h2>الوثائق المطلوبة للفروع</h2><p>حدد الوثائق الإلزامية ومدة التنبيه قبل الانتهاء. يحفظ الإعداد سحابيًا ويطبق على جميع الفروع.</p></div><button type="button" class="icon-btn" data-v291-close-compliance aria-label="إغلاق"><span data-icon="x"></span></button></div><div class="modal-body v291-compliance-modal-body"><section class="v291-warning-window"><span>' +
+      icon("bell") +
+      '</span><div><strong>مدة التنبيه المبكر</strong><small>تظهر حالة «قرب الانتهاء» خلال هذه المدة.</small></div><label><input type="number" min="1" max="365" data-v291-compliance-days><span>يوم</span></label></section><section class="v291-required-types"><header><div><strong>الوثائق الإلزامية</strong><small>تُسحب الأنواع النشطة الخاصة بالمنشأة من إعداد أنواع الوثائق.</small></div><span data-v291-required-count>0 محدد</span></header><div data-v291-compliance-types></div></section></div><div class="modal-actions"><button type="button" class="secondary-btn" data-v291-close-compliance>إلغاء</button><button type="submit" class="primary-btn"><span data-icon="check"></span><span data-v291-compliance-save-label>حفظ الإعداد</span></button></div></form>';
+    document.body.appendChild(dialog);
+    dialog
+      .querySelector("[data-v291-compliance-form]")
+      .addEventListener("submit", saveComplianceSettings);
+    hydrate(dialog);
+    return dialog;
+  }
+
+  function refreshComplianceSelectionCount(dialog) {
+    const count = dialog?.querySelectorAll(
+      "[data-v291-required-type]:checked",
+    ).length;
+    const target = dialog?.querySelector("[data-v291-required-count]");
+    if (target) target.textContent = String(count || 0) + " محدد";
+  }
+
+  function openComplianceSettings() {
+    const dialog = ensureComplianceDialog();
+    const settings = complianceSettings();
+    const types = establishmentDocumentTypes();
+    const selected = new Set(settings.requiredTypeIds);
+    dialog.querySelector("[data-v291-compliance-days]").value =
+      String(settings.warningDays);
+    const root = dialog.querySelector("[data-v291-compliance-types]");
+    root.innerHTML = types.length
+      ? '<div class="v291-required-types-grid">' +
+        types
+          .map(function (type) {
+            return (
+              '<label><input type="checkbox" data-v291-required-type value="' +
+              escape(type.id) +
+              '"' +
+              (selected.has(type.id) ? " checked" : "") +
+              '><span><strong>' +
+              escape(type.name) +
+              "</strong><small>مطلوبة لكل فرع</small></span></label>"
+            );
+          })
+          .join("") +
+        "</div>"
+      : '<div class="v291-no-document-types"><span>' +
+        icon("file") +
+        "</span><strong>لا توجد أنواع وثائق منشأة نشطة</strong><small>أضف الأنواع أولًا من قائمة أنواع الوثائق في الإعدادات.</small></div>";
+    refreshComplianceSelectionCount(dialog);
+    hydrate(dialog);
+    showDialog(dialog);
+  }
+
+  async function saveComplianceSettings(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (form.dataset.saving === "1") return;
+    const dialog = ensureComplianceDialog();
+    const submit = form.querySelector('[type="submit"]');
+    const label = form.querySelector("[data-v291-compliance-save-label]");
+    form.dataset.saving = "1";
+    submit.disabled = true;
+    if (label) label.textContent = "جارٍ الحفظ...";
+    if (!(await prepareCloudMutation())) {
+      delete form.dataset.saving;
+      submit.disabled = false;
+      if (label) label.textContent = "حفظ الإعداد";
+      return;
+    }
+    const previous = complianceSettings();
+    const requiredTypeIds = Array.from(
+      dialog.querySelectorAll("[data-v291-required-type]:checked"),
+    )
+      .map(function (input) {
+        return text(input.value);
+      })
+      .filter(Boolean);
+    const warningDays = Math.min(
+      365,
+      Math.max(
+        1,
+        Number(dialog.querySelector("[data-v291-compliance-days]")?.value) ||
+          30,
+      ),
+    );
+    const next = {
+      requiredTypeIds: requiredTypeIds,
+      warningDays: warningDays,
+      updatedAt: new Date().toISOString(),
+      updatedBy: actorName(),
+    };
+    writeJson(COMPLIANCE_KEY, next);
+    sync()?.trackUpserts(
+      COMPLIANCE_KEY,
+      ["requiredTypeIds", "warningDays", "updatedAt", "updatedBy"],
+      "fields",
+    );
+    if (!(await confirmCloudMutation("branch-compliance-settings-v291"))) {
+      writeJson(COMPLIANCE_KEY, previous);
+      try {
+        await sync()?.rollback();
+      } catch (_) {}
+      delete form.dataset.saving;
+      submit.disabled = false;
+      if (label) label.textContent = "حفظ الإعداد";
+      refreshRows();
+      return;
+    }
+    delete form.dataset.saving;
+    submit.disabled = false;
+    if (label) label.textContent = "حفظ الإعداد";
+    closeDialog(dialog);
+    refreshRows();
+    try {
+      window.v141BellNotifications?.render?.();
+    } catch (_) {}
+    notify("تم حفظ متطلبات وثائق الفروع سحابيًا");
+  }
+
   function activityIcon(type) {
     if (type === "create") return "plus";
     if (type === "activate") return "check-circle";
@@ -76248,7 +76819,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     return dialog;
   }
 
-  function openView(id) {
+  function openView(id, options) {
     const branch = branches().find(function (item) {
       return item.id === text(id);
     });
@@ -76299,7 +76870,8 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       icon("users") +
       "إدارة الموظفين</button></header>" +
       employeeDirectoryMarkup(branch) +
-      '</section><section class="v290-branch-profile-section"><header><div><strong>الوثائق الرسمية</strong><small>الحالة الحالية وآخر تاريخ انتهاء معتمد.</small></div></header>' +
+      '</section><section class="v290-branch-profile-section" data-v291-branch-documents-section><header><div><strong>الوثائق الرسمية</strong><small>الحالة الحالية وآخر تاريخ انتهاء معتمد.</small></div></header>' +
+      complianceProfileMarkup(branch) +
       documentDirectoryMarkup(branch) +
       '</section><section class="v290-branch-profile-section"><header><div><strong>سجل عمليات الفرع</strong><small>الإنشاء والتعديلات وحالة الفرع وعمليات النقل.</small></div></header>' +
       activityMarkup(branch) +
@@ -76310,6 +76882,18 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
         hydrateAttachmentImages(dialog);
     } catch (_) {}
     showDialog(dialog);
+    if (options?.documents)
+      requestAnimationFrame(function () {
+        const body = dialog.querySelector("[data-v288-branch-view-body]");
+        const section = dialog.querySelector(
+          "[data-v291-branch-documents-section]",
+        );
+        if (body && section)
+          body.scrollTo({
+            top: Math.max(0, section.offsetTop - 12),
+            behavior: "smooth",
+          });
+      });
   }
 
   async function toggleBranch(id, button) {
@@ -76478,6 +77062,26 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       openEntry();
       return;
     }
+    const complianceSettingsButton = event.target?.closest?.(
+      "[data-v291-configure-compliance]",
+    );
+    if (complianceSettingsButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      openComplianceSettings();
+      return;
+    }
+    const compliance = event.target?.closest?.(
+      "[data-v291-open-compliance]",
+    );
+    if (compliance) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      openView(compliance.dataset.v291OpenCompliance, { documents: true });
+      return;
+    }
     const view = event.target?.closest?.("[data-v288-view-branch]");
     if (view) {
       event.preventDefault();
@@ -76594,6 +77198,11 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
       event.preventDefault();
       state.deletingId = "";
       closeDialog(document.getElementById("branchDeleteModalV288"));
+      return;
+    }
+    if (event.target?.closest?.("[data-v291-close-compliance]")) {
+      event.preventDefault();
+      closeDialog(document.getElementById("branchComplianceModalV291"));
     }
   }
 
@@ -76613,7 +77222,17 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     if (target?.matches?.("[data-v288-branch-city]")) {
       state.city = target.value || "all";
       refreshRows();
+      return;
     }
+    if (target?.matches?.("[data-v291-branch-compliance]")) {
+      state.compliance = target.value || "all";
+      refreshRows();
+      return;
+    }
+    if (target?.matches?.("[data-v291-required-type]"))
+      refreshComplianceSelectionCount(
+        document.getElementById("branchComplianceModalV291"),
+      );
   }
 
   document.addEventListener("click", handleClick, true);
@@ -76621,9 +77240,13 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
   document.addEventListener("change", handleFilter, true);
   window.addEventListener("storage", function (event) {
     if (
-      [BRANCH_KEY, DOCUMENTS_KEY, MANAGERS_KEY, EMPLOYEES_KEY].includes(
-        event.key,
-      ) &&
+      [
+        BRANCH_KEY,
+        DOCUMENTS_KEY,
+        COMPLIANCE_KEY,
+        MANAGERS_KEY,
+        EMPLOYEES_KEY,
+      ].includes(event.key) &&
       panelActive()
     )
       refreshRows();
@@ -76673,7 +77296,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
   } catch (_) {}
 
   window.nawahBranchDirectoryV288 = {
-    version: 288,
+    version: 291,
     render: function () {
       return render(true);
     },
@@ -76684,6 +77307,9 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
     cloudBacked: true,
     deletionGuard: true,
     profileVersion: 290,
+    complianceVersion: 291,
+    compliance: complianceFor,
+    configureCompliance: openComplianceSettings,
   };
 
   if (panelActive()) render(true);
