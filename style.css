@@ -37715,3 +37715,171 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     min-height: 170px;
   }
 }
+
+/* v304 - focused user and permission-group selectors */
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-permission-picker {
+  overflow: hidden;
+  border: 1px solid #d8e8ec;
+  border-radius: 21px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(27, 62, 76, .045);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-permission-picker > header {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 15px;
+  border-bottom: 1px solid #e3edf0;
+  background: linear-gradient(135deg, #f5fbfc, #f4fbf8);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-permission-picker > header > span {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c5e8ed;
+  border-radius: 14px;
+  color: #078ba2;
+  background: #fff;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-permission-picker > header svg {
+  width: 20px;
+  height: 20px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-permission-picker > header strong {
+  display: block;
+  color: #294a5e;
+  font-size: 12.5px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-permission-picker > header small {
+  display: block;
+  margin-top: 3px;
+  color: #7d919d;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) minmax(250px, 1fr) auto;
+  align-items: end;
+  gap: 11px;
+  padding: 14px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid label {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid label > span {
+  color: #526f80;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid select,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid > button {
+  width: 100%;
+  height: 48px;
+  min-width: 0;
+  border: 1px solid #d6e5ea;
+  border-radius: 14px;
+  outline: none;
+  color: #304d60;
+  background: #fbfdfe;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid select {
+  padding-inline: 12px 38px;
+  cursor: pointer;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid select:focus {
+  border-color: #68cad8;
+  box-shadow: 0 0 0 4px rgba(14, 165, 183, .08);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid select:disabled {
+  color: #9aaab3;
+  background: #f3f6f7;
+  cursor: not-allowed;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid label > small {
+  min-height: 17px;
+  color: #8698a2;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid > button {
+  width: auto;
+  min-width: 160px;
+  padding-inline: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-color: #bee4e9;
+  color: #087f95;
+  background: #effbfd;
+  cursor: pointer;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid > button:hover {
+  background: #e8f8fa;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid > button svg {
+  width: 16px;
+  height: 16px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-workspace,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-single-permission-group {
+  grid-template-columns: minmax(0, 1fr) !important;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-single-permission-group .v295-permission-group {
+  width: 100%;
+}
+
+@media (max-width: 1150px) {
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-permission-picker > header {
+    align-items: flex-start;
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v304-picker-grid > button {
+    grid-column: auto;
+  }
+}
