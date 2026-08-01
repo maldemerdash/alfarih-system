@@ -81478,7 +81478,15 @@ window.nawahNotificationRulesV294 = {
         return;
       }
       if (event.target?.matches?.("[data-v295-permission]")) {
-        state.draft[event.target.dataset.v295Permission] = Boolean(event.target.checked);
+        const key = event.target.dataset.v295Permission;
+        const enabled = Boolean(event.target.checked);
+        if (window.nawahPermissionDependenciesV297?.resolveToggle)
+          state.draft = window.nawahPermissionDependenciesV297.resolveToggle(
+            state.draft,
+            key,
+            enabled,
+          );
+        else state.draft[key] = enabled;
         state.draft = normalizePermissions(state.draft, selectedProfile()?.role || "employee");
         renderEditor();
       }
@@ -81519,7 +81527,13 @@ window.nawahNotificationRulesV294 = {
           return !state.draft[item[0]];
         });
         meta.items.forEach(function (item) {
-          state.draft[item[0]] = next;
+          if (window.nawahPermissionDependenciesV297?.resolveToggle)
+            state.draft = window.nawahPermissionDependenciesV297.resolveToggle(
+              state.draft,
+              item[0],
+              next,
+            );
+          else state.draft[item[0]] = next;
         });
         state.draft = normalizePermissions(state.draft, "employee");
         renderEditor();
@@ -81979,18 +81993,66 @@ window.nawahPermissionsV295 = {
     }
 
     const dependencies = {
-      employees: { nav: "nav.employees", view: "employees.viewAll", scopes: ["employees.viewSelf", "employees.viewAll"] },
-      attendance: { nav: "nav.attendance", view: "attendance.viewAll", scopes: ["attendance.viewSelf", "attendance.viewAll"] },
-      leaves: { nav: "nav.leaves", view: "leaves.viewAll", scopes: ["leaves.viewOwn", "leaves.viewAll"] },
-      finance: { nav: "nav.finance", view: "finance.view", scopes: ["finance.view"] },
-      advances: { nav: "nav.advances", view: "advances.viewAll", scopes: ["advances.viewSelf", "advances.viewAll"] },
-      payroll: { nav: "nav.payroll", view: "payroll.viewAll", scopes: ["payroll.viewSelf", "payroll.viewAll"] },
-      reports: { nav: "nav.reports", view: "reports.view", scopes: ["reports.view"] },
-      documents: { nav: "nav.establishmentDocuments", view: "documents.view", scopes: ["documents.view"] },
-      privateAlerts: { nav: "nav.privateAlerts", view: "privateAlerts.view", scopes: ["privateAlerts.view"] },
-      organization: { nav: "nav.departments", view: "organization.view", scopes: ["organization.view"] },
-      settings: { nav: "nav.settings", view: "settings.view", scopes: ["settings.view"] },
-      users: { nav: "nav.users", view: "users.view", scopes: ["users.view"] },
+      employees: {
+        nav: "nav.employees",
+        view: "employees.viewAll",
+        requiresView: ["employees.create", "employees.edit", "employees.delete", "employees.endService"],
+      },
+      attendance: {
+        nav: "nav.attendance",
+        view: "attendance.viewAll",
+        requiresView: ["attendance.markAbsent", "attendance.deleteAbsence"],
+      },
+      leaves: {
+        nav: "nav.leaves",
+        view: "leaves.viewAll",
+        requiresView: ["leaves.createForAll", "leaves.approve", "leaves.reject", "leaves.resume", "leaves.viewTravelers", "leaves.delete"],
+      },
+      finance: {
+        nav: "nav.finance",
+        view: "finance.view",
+        requiresView: ["finance.editTables", "finance.deleteRows", "finance.closeDay", "finance.settings", "finance.print"],
+      },
+      advances: {
+        nav: "nav.advances",
+        view: "advances.viewAll",
+        requiresView: ["advances.create", "advances.pay", "advances.delete"],
+      },
+      payroll: {
+        nav: "nav.payroll",
+        view: "payroll.viewAll",
+        requiresView: ["payroll.runs.process", "payroll.runs.print", "payroll.edit", "payroll.commissions", "payroll.printClearance"],
+      },
+      reports: {
+        nav: "nav.reports",
+        view: "reports.view",
+        requiresView: ["reports.leaveTravel", "reports.banking", "reports.absences", "reports.advances", "reports.payrollRun", "reports.contracts", "reports.attendance", "reports.leaveBalance", "reports.print", "reports.export"],
+      },
+      documents: {
+        nav: "nav.establishmentDocuments",
+        view: "documents.view",
+        requiresView: ["documents.create", "documents.edit", "documents.delete", "documents.upload", "documents.extend", "documents.preview", "documents.download"],
+      },
+      privateAlerts: {
+        nav: "nav.privateAlerts",
+        view: "privateAlerts.view",
+        requiresView: ["privateAlerts.create", "privateAlerts.complete", "privateAlerts.postpone", "privateAlerts.delete"],
+      },
+      organization: {
+        nav: "nav.departments",
+        view: "organization.view",
+        requiresView: ["organization.branches", "organization.departments", "organization.sections", "organization.jobs", "organization.manage"],
+      },
+      settings: {
+        nav: "nav.settings",
+        view: "settings.view",
+        requiresView: ["settings.company", "settings.branches", "settings.departments", "settings.documentTypes", "settings.account", "settings.notifications", "settings.permissions", "settings.work", "settings.salary", "settings.financialAmounts", "settings.managers", "settings.absence", "settings.minutes"],
+      },
+      users: {
+        nav: "nav.users",
+        view: "users.view",
+        requiresView: ["users.create", "users.edit", "users.link", "users.toggle", "users.delete", "users.sessions", "users.manage"],
+      },
     };
     Object.keys(dependencies).forEach(function (prefix) {
       const rule = dependencies[prefix];
@@ -81998,7 +82060,7 @@ window.nawahPermissionsV295 = {
         return key.startsWith(prefix + ".") && output[key];
       });
       if (enabled.length) output[rule.nav] = true;
-      if (enabled.some(function (key) { return !rule.scopes.includes(key); })) output[rule.view] = true;
+      if (rule.requiresView.some(function (key) { return output[key]; })) output[rule.view] = true;
     });
     if (output["security.manage"] || output["settings.permissions"]) {
       output["settings.permissions"] = true;
@@ -82014,6 +82076,58 @@ window.nawahPermissionsV295 = {
     );
     return output;
   }
+  const NAV_PREFIXES = {
+    "nav.dashboard": "dashboard",
+    "nav.employees": "employees",
+    "nav.attendance": "attendance",
+    "nav.leaves": "leaves",
+    "nav.finance": "finance",
+    "nav.advances": "advances",
+    "nav.payroll": "payroll",
+    "nav.reports": "reports",
+    "nav.establishmentDocuments": "documents",
+    "nav.privateAlerts": "privateAlerts",
+    "nav.departments": "organization",
+    "nav.settings": "settings",
+    "nav.users": "users",
+  };
+  const CASCADE_DEPENDENTS = {
+    "employees.viewAll": ["employees.create", "employees.edit", "employees.delete", "employees.endService"],
+    "attendance.viewAll": ["attendance.markAbsent", "attendance.deleteAbsence"],
+    "leaves.viewAll": ["leaves.createForAll", "leaves.approve", "leaves.reject", "leaves.resume", "leaves.viewTravelers", "leaves.delete"],
+    "finance.view": ["finance.editTables", "finance.deleteRows", "finance.closeDay", "finance.settings", "finance.print"],
+    "advances.viewAll": ["advances.create", "advances.pay", "advances.delete"],
+    "payroll.viewAll": ["payroll.runs.process", "payroll.runs.print", "payroll.edit", "payroll.commissions", "payroll.printClearance"],
+    "reports.view": ["reports.leaveTravel", "reports.banking", "reports.absences", "reports.advances", "reports.payrollRun", "reports.contracts", "reports.attendance", "reports.leaveBalance", "reports.print", "reports.export"],
+    "documents.view": ["documents.create", "documents.edit", "documents.delete", "documents.upload", "documents.extend", "documents.preview", "documents.download"],
+    "privateAlerts.view": ["privateAlerts.create", "privateAlerts.complete", "privateAlerts.postpone", "privateAlerts.delete"],
+    "organization.view": ["organization.branches", "organization.departments", "organization.sections", "organization.jobs", "organization.manage"],
+    "organization.manage": ["organization.branches", "organization.departments", "organization.sections", "organization.jobs"],
+    "settings.view": ["settings.company", "settings.branches", "settings.departments", "settings.documentTypes", "settings.account", "settings.notifications", "settings.permissions", "settings.work", "settings.salary", "settings.financialAmounts", "settings.managers", "settings.absence", "settings.minutes", "security.manage"],
+    "settings.permissions": ["security.manage"],
+    "security.manage": ["settings.permissions"],
+    "users.view": ["users.create", "users.edit", "users.link", "users.toggle", "users.delete", "users.sessions", "users.manage"],
+    "users.manage": ["users.create", "users.edit", "users.link", "users.toggle", "users.delete", "users.sessions"],
+  };
+  function resolvePermissionToggle(draft, key, enabled) {
+    const output = {
+      ...(draft && typeof draft === "object" && !Array.isArray(draft) ? draft : {}),
+      [key]: Boolean(enabled),
+    };
+    if (enabled) return output;
+
+    const prefix = NAV_PREFIXES[key];
+    if (prefix) {
+      ALL_KEYS.forEach(function (permissionKey) {
+        if (permissionKey.startsWith(prefix + ".")) output[permissionKey] = false;
+      });
+      if (key === "nav.settings") output["security.manage"] = false;
+    }
+    (CASCADE_DEPENDENTS[key] || []).forEach(function (permissionKey) {
+      output[permissionKey] = false;
+    });
+    return output;
+  }
   function can(key) {
     const current = profile();
     if (!current) return true;
@@ -82026,8 +82140,14 @@ window.nawahPermissionsV295 = {
     defaults: DEFAULTS,
     can: can,
     normalizePermissions: normalizePermissions,
-    version: 296,
+    version: 297,
     granular: true,
+  };
+  window.nawahPermissionDependenciesV297 = {
+    version: 297,
+    resolveToggle: resolvePermissionToggle,
+    cascades: CASCADE_DEPENDENTS,
+    navPrefixes: NAV_PREFIXES,
   };
 
   const VIEW_KEYS = {
