@@ -80761,7 +80761,9 @@ window.nawahNotificationRulesV294 = {
     );
   }
   function groups() {
-    const source = window.employeePermissionMatrix?.groups;
+    const source =
+      window.nawahPermissionAuditV296?.groups ||
+      window.employeePermissionMatrix?.groups;
     if (!Array.isArray(source)) return [];
     return source
       .filter(function (group) {
@@ -80794,7 +80796,9 @@ window.nawahNotificationRulesV294 = {
   }
   function normalizePermissions(permissions, role) {
     try {
-      const normalizer = window.employeePermissionMatrix?.normalizePermissions;
+      const normalizer =
+        window.nawahPermissionAuditV296?.normalize ||
+        window.employeePermissionMatrix?.normalizePermissions;
       if (typeof normalizer === "function")
         return normalizer(permissions || {}, role || "employee");
     } catch (_) {}
@@ -81453,6 +81457,7 @@ window.nawahNotificationRulesV294 = {
   async function savePermissions(button) {
     if (!isAdmin()) return notify("هذه الشاشة للمدير فقط");
     if (state.saving) return;
+    window.nawahPermissionAuditV296?.ensureMatrix?.();
     const profile = selectedProfile();
     const baseline = state.baseline ? { ...state.baseline, permissions: { ...(state.baseline.permissions || {}) } } : null;
     if (!profile || !baseline) return notify("اختر حسابًا أولًا");
@@ -81488,12 +81493,14 @@ window.nawahNotificationRulesV294 = {
       }
       if (!mutated)
         throw new Error("تم تعديل السجل في متصفح آخر؛ لم يتم استبدال بياناته");
-      const verified = await verifyCloudProfile(
-        remote.id,
-        desired,
-        remote.role,
-        remote.employee_id,
-      );
+      const verified = window.nawahPermissionAuditV296?.commit
+        ? mutated
+        : await verifyCloudProfile(
+            remote.id,
+            desired,
+            remote.role,
+            remote.employee_id,
+          );
       if (
         !verified ||
         !samePermissions(verified.permissions, desired, remote.role) ||
@@ -81774,7 +81781,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 302,
+    version: 303,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -82299,15 +82306,33 @@ window.nawahNotificationRulesV294 = {
     if (isAdmin(current.role)) return true;
     return Boolean(normalizePermissions(current.permissions || {}, current.role)[key]);
   }
-  window.employeePermissionMatrix = {
-    ...previousMatrix,
-    groups: GROUPS,
-    defaults: DEFAULTS,
-    can: can,
-    normalizePermissions: normalizePermissions,
-    version: 297,
-    granular: true,
-  };
+  function installStablePermissionMatrix() {
+    const current =
+      window.employeePermissionMatrix &&
+      typeof window.employeePermissionMatrix === "object"
+        ? window.employeePermissionMatrix
+        : previousMatrix;
+    if (
+      current.groups === GROUPS &&
+      current.defaults === DEFAULTS &&
+      current.can === can &&
+      current.normalizePermissions === normalizePermissions &&
+      current.canonicalPermissions === true
+    )
+      return current;
+    window.employeePermissionMatrix = {
+      ...current,
+      groups: GROUPS,
+      defaults: DEFAULTS,
+      can: can,
+      normalizePermissions: normalizePermissions,
+      version: 303,
+      granular: true,
+      canonicalPermissions: true,
+    };
+    return window.employeePermissionMatrix;
+  }
+  installStablePermissionMatrix();
   window.nawahPermissionDependenciesV297 = {
     version: 297,
     resolveToggle: resolvePermissionToggle,
@@ -82540,11 +82565,20 @@ window.nawahNotificationRulesV294 = {
   if (typeof MutationObserver === "function") {
     new MutationObserver(function () {
       clearTimeout(uiTimer);
-      uiTimer = setTimeout(applyDetailedUi, 16);
+      uiTimer = setTimeout(function () {
+        installStablePermissionMatrix();
+        applyDetailedUi();
+      }, 16);
     }).observe(document.documentElement, { childList: true, subtree: true });
   }
-  window.addEventListener("nawah:permissions-updated", applyDetailedUi);
-  setTimeout(applyDetailedUi, 0);
+  window.addEventListener("nawah:permissions-updated", function () {
+    installStablePermissionMatrix();
+    applyDetailedUi();
+  });
+  setTimeout(function () {
+    installStablePermissionMatrix();
+    applyDetailedUi();
+  }, 0);
 
   const auditState = {
     loaded: false,
@@ -82705,6 +82739,7 @@ window.nawahNotificationRulesV294 = {
     };
   }
   async function commit(options) {
+    installStablePermissionMatrix();
     const remote = options?.remote;
     const baseline = options?.baseline || remote;
     if (!remote?.id || !baseline?.id) throw new Error("تعذر تحديد حساب الصلاحيات");
@@ -82852,7 +82887,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 296,
+    version: 303,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
@@ -82863,5 +82898,6 @@ window.nawahNotificationRulesV294 = {
     normalize: normalizePermissions,
     groups: GROUPS,
     apply: applyDetailedUi,
+    ensureMatrix: installStablePermissionMatrix,
   };
 })();
