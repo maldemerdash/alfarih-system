@@ -38433,3 +38433,471 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* v307 - compact professional permissions flow */
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v295-permissions-page {
+  gap: 10px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v295-page-head {
+  min-height: 76px;
+  padding: 12px 14px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v295-title > span {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card {
+  overflow: hidden;
+  border: 1px solid #d6e7eb;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 27px rgba(25, 73, 89, .045);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card > header {
+  min-height: 61px;
+  padding: 10px 13px;
+  border-bottom: 1px solid #e1ecef;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(135deg, #f6fbfc, #f4fbf8);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card > header > div:first-child {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card > header > div:first-child > span {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c7e7ec;
+  border-radius: 12px;
+  color: #07889e;
+  background: #fff;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card > header svg {
+  width: 16px;
+  height: 16px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card > header strong,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card > header small {
+  display: block;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card > header strong {
+  color: #2d4e61;
+  font-size: 11.5px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card > header small {
+  margin-top: 2px;
+  color: #82949e;
+  font-size: 8.7px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-cloud {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #16865f;
+  font-size: 8.5px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-cloud > i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1ab778;
+  box-shadow: 0 0 0 4px rgba(26, 183, 120, .12);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-grid {
+  display: grid;
+  grid-template-columns: minmax(250px, 1.2fr) minmax(210px, .9fr) minmax(280px, 1.1fr) auto;
+  align-items: end;
+  gap: 9px;
+  padding: 11px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-user-field,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-template-field label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-user-field > span,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-template-field label > span {
+  color: #526f80;
+  font-size: 9.5px;
+  font-weight: 900;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-user-field select,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-template-field select {
+  width: 100%;
+  height: 43px;
+  min-width: 0;
+  padding-inline: 11px 34px;
+  border: 1px solid #d7e5ea;
+  border-radius: 12px;
+  outline: none;
+  color: #344f60;
+  background: #fbfdfe;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-user-field select:focus,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-template-field select:focus {
+  border-color: #64c7d4;
+  box-shadow: 0 0 0 3px rgba(14, 165, 183, .08);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-user-field > small {
+  min-height: 14px;
+  color: #8999a2;
+  font-size: 7.8px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-selected-user {
+  min-width: 0;
+  min-height: 65px;
+  padding: 8px 9px;
+  border: 1px solid #e0eaed;
+  border-radius: 13px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  background: #fbfdfd;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-selected-user > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #fff;
+  background: linear-gradient(135deg, #12a8c6, #1fbd7c);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-selected-user div {
+  min-width: 0;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-selected-user small,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-selected-user strong,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-selected-user em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-selected-user small {
+  color: #8798a1;
+  font-size: 7.5px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-selected-user strong {
+  margin-top: 2px;
+  color: #345263;
+  font-size: 9.7px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-selected-user em {
+  margin-top: 2px;
+  color: #17825f;
+  font-size: 7.5px;
+  font-style: normal;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-template-field {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-template-field > button,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-refresh {
+  min-height: 43px;
+  padding: 0 11px;
+  border: 1px solid #c6e3e8;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #087f94;
+  background: #effafd;
+  font-family: inherit;
+  font-size: 8.8px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-template-field > button:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-template-field svg,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-refresh svg {
+  width: 14px;
+  height: 14px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v295-editor {
+  gap: 10px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v306-group-cards {
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-detail {
+  border-color: #d4e5e9;
+  box-shadow: 0 10px 25px rgba(25, 74, 91, .045);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar {
+  min-height: 62px;
+  padding: 9px 10px;
+  border-bottom: 1px solid #e4edef;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  background: #f9fcfd;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar > label {
+  min-width: 0;
+  height: 40px;
+  padding-inline: 10px;
+  border: 1px solid #d8e6ea;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: #fff;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar > label:focus-within {
+  border-color: #66c7d3;
+  box-shadow: 0 0 0 3px rgba(14, 165, 183, .07);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar > label span {
+  color: #73909d;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar > label svg {
+  width: 14px;
+  height: 14px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #345263;
+  background: transparent;
+  font-family: inherit;
+  font-size: 9.5px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v307-permission-filter] {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid #dce8eb;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: #647d8b;
+  background: #fff;
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v307-permission-filter] b {
+  min-width: 18px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  color: #748995;
+  background: #edf3f5;
+  font-size: 7px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v307-permission-filter].is-active {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(105deg, #12a8c5, #20b97c);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v307-permission-filter].is-active b {
+  color: #087f94;
+  background: rgba(255, 255, 255, .88);
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v307-results-count] {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #087f94;
+  background: #eaf8fa;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-detail .v295-permission-items {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v307-permission-row][hidden] {
+  display: none !important;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-filter-empty {
+  grid-column: 1 / -1;
+  min-height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #7f929c;
+  text-align: center;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-filter-empty[hidden] {
+  display: none !important;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-filter-empty > span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: #0b879c;
+  background: #eaf8fa;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-filter-empty strong,
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-filter-empty small {
+  display: block;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-filter-empty strong {
+  color: #45616f;
+  font-size: 10px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-filter-empty small {
+  margin-top: 3px;
+  font-size: 8px;
+}
+
+#settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-sticky-actions {
+  position: sticky;
+  bottom: 10px;
+  z-index: 18;
+  border-color: #cfe2e7;
+  background: rgba(251, 253, 254, .96);
+  box-shadow: 0 12px 28px rgba(21, 71, 88, .14);
+  backdrop-filter: blur(9px);
+}
+
+@media (max-width: 1360px) {
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-refresh {
+    width: 100%;
+  }
+}
+
+@media (max-width: 940px) {
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar > div {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v307-permission-filter] {
+    width: 100%;
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel [data-v307-results-count] {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 720px) {
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-card > header {
+    align-items: flex-start;
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-grid,
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-detail .v295-permission-items {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-template-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-sticky-actions {
+    bottom: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-control-cloud {
+    display: none;
+  }
+
+  #settingsView [data-settings-panel="permissions"].v295-permissions-panel .v307-permission-toolbar > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
