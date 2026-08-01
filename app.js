@@ -80640,8 +80640,12 @@ window.nawahNotificationRulesV294 = {
     rendering: false,
     lastActor: "",
     lastSavedProfileId: "",
+    draftTouched: false,
   };
   let observer = null;
+  let realtimeChannel = null;
+  let realtimeTimer = 0;
+  let lastFocusRefresh = 0;
 
   function clean(value) {
     return String(value == null ? "" : value).trim();
@@ -81182,9 +81186,86 @@ window.nawahNotificationRulesV294 = {
     host.scrollTop = previousScroll;
     hydrate(host);
   }
+  function syncEditorDraftUi() {
+    const root = panel();
+    const host = root?.querySelector("[data-v295-editor-host]");
+    const profile = selectedProfile();
+    if (!host || !profile) return;
+    const base = templatePermissions(state.templateId);
+
+    host.querySelectorAll("[data-v295-permission]").forEach(function (input) {
+      const key = input.dataset.v295Permission;
+      const on = Boolean(state.draft[key]);
+      const inherited = on === Boolean(base[key]);
+      const row = input.closest(".v295-permission-row");
+      input.checked = on;
+      row?.classList.toggle("is-on", on);
+      row?.classList.toggle("is-inherited", inherited);
+      row?.classList.toggle("is-exception", !inherited);
+      const note = row?.querySelector(".v295-permission-copy small");
+      if (note)
+        note.textContent = inherited
+          ? "من القالب الأساسي"
+          : on
+            ? "استثناء مفعّل"
+            : "استثناء معطّل";
+    });
+
+    groups().forEach(function (group) {
+      const card = host.querySelector(
+        '[data-v295-group="' + String(group.id) + '"]',
+      );
+      if (!card) return;
+      const items = group.items || [];
+      const active = items.filter(function (item) {
+        return Boolean(state.draft[item[0]]);
+      }).length;
+      const counter = card.querySelector("[data-v295-group-count]");
+      if (counter) counter.textContent = String(active);
+      const toggle = card.querySelector("[data-v295-toggle-group]");
+      if (toggle)
+        toggle.textContent = active === items.length ? "إلغاء الكل" : "تحديد الكل";
+      const status = card.querySelector(".v296-group-state");
+      if (status) {
+        const stateClass =
+          active === 0 ? "none" : active === items.length ? "full" : "partial";
+        status.classList.remove("is-none", "is-full", "is-partial");
+        status.classList.add("is-" + stateClass);
+        status.textContent =
+          stateClass === "none"
+            ? "غير مسموح"
+            : stateClass === "full"
+              ? "كامل"
+              : "جزئي";
+      }
+    });
+
+    const stats = permissionStats();
+    const statValues = [stats.enabled, stats.exceptions, stats.total];
+    host
+      .querySelectorAll(".v295-editor-stats span b")
+      .forEach(function (element, index) {
+        if (statValues[index] != null)
+          element.textContent = String(statValues[index]);
+      });
+    const dirty = isDirty();
+    const reset = host.querySelector("[data-v295-reset-draft]");
+    const save = host.querySelector("[data-v295-save]");
+    if (reset) reset.disabled = !dirty;
+    if (save)
+      save.disabled =
+        !dirty || state.saving || profile.role === "admin";
+    host.dataset.v295DraftState = dirty ? "dirty" : "clean";
+    root.dataset.v295DraftState = dirty ? "dirty" : "clean";
+    root.dataset.v234PermissionsDirty = "1";
+  }
   function selectProfile(id) {
     if (state.saving) return;
-    if (isDirty() && !confirm("لديك تعديلات غير محفوظة. هل تريد تجاهلها؟")) return;
+    if (
+      (state.draftTouched || isDirty()) &&
+      !confirm("لديك تعديلات غير محفوظة. هل تريد تجاهلها؟")
+    )
+      return;
     const profile = state.profiles.find(function (item) {
       return clean(item.id) === clean(id);
     });
@@ -81194,6 +81275,7 @@ window.nawahNotificationRulesV294 = {
       ? normalizePermissions(profile.permissions || {}, profile.role)
       : {};
     state.baseline = profile ? { ...profile, permissions: { ...(profile.permissions || {}) } } : null;
+    state.draftTouched = false;
     renderDirectory();
     renderEditor();
     setTimeout(function () {
@@ -81218,6 +81300,7 @@ window.nawahNotificationRulesV294 = {
       ? normalizePermissions(profile.permissions || {}, profile.role)
       : {};
     state.baseline = profile ? { ...profile, permissions: { ...(profile.permissions || {}) } } : null;
+    state.draftTouched = false;
     setTimeout(function () {
       window.nawahPermissionAuditV296?.load?.(state.selectedId);
     }, 0);
@@ -81334,7 +81417,11 @@ window.nawahNotificationRulesV294 = {
     const baseline = state.baseline ? { ...state.baseline, permissions: { ...(state.baseline.permissions || {}) } } : null;
     if (!profile || !baseline) return notify("اختر حسابًا أولًا");
     if (profile.role === "admin") return notify("مدير النظام يملك الصلاحيات كاملة تلقائيًا");
-    if (!isDirty()) return notify("لا توجد تعديلات جديدة للحفظ");
+    if (!isDirty()) {
+      state.draftTouched = false;
+      syncEditorDraftUi();
+      return notify("لا توجد تعديلات جديدة للحفظ");
+    }
     state.saving = true;
     renderEditor();
     let mutated = null;
@@ -81379,6 +81466,7 @@ window.nawahNotificationRulesV294 = {
       cacheSavedProfile(verified);
       state.draft = normalizePermissions(verified.permissions || {}, verified.role);
       state.baseline = { ...verified, permissions: { ...(verified.permissions || {}) } };
+      state.draftTouched = false;
       state.lastActor = actorName();
       state.lastSavedProfileId = verified.id;
       syncCurrentProfile(verified);
@@ -81424,7 +81512,14 @@ window.nawahNotificationRulesV294 = {
     return renderPermissions(!state.profiles.length);
   }
   function refreshIfSafe() {
-    if (!isActive() || state.loading || state.saving || isDirty()) return;
+    if (
+      !isActive() ||
+      state.loading ||
+      state.saving ||
+      state.draftTouched ||
+      isDirty()
+    )
+      return;
     return renderPermissions(true);
   }
   function startRealtime() {
@@ -81488,7 +81583,8 @@ window.nawahNotificationRulesV294 = {
           );
         else state.draft[key] = enabled;
         state.draft = normalizePermissions(state.draft, selectedProfile()?.role || "employee");
-        renderEditor();
+        state.draftTouched = isDirty();
+        syncEditorDraftUi();
       }
     },
     true,
@@ -81505,7 +81601,12 @@ window.nawahNotificationRulesV294 = {
       const refresh = event.target?.closest?.("[data-v295-refresh]");
       if (refresh) {
         event.preventDefault();
-        if (isDirty() && !confirm("سيتم تجاهل التعديلات غير المحفوظة. هل تريد المتابعة؟")) return;
+        if (
+          (state.draftTouched || isDirty()) &&
+          !confirm("سيتم تجاهل التعديلات غير المحفوظة. هل تريد المتابعة؟")
+        )
+          return;
+        state.draftTouched = false;
         void renderPermissions(true);
         return;
       }
@@ -81513,6 +81614,7 @@ window.nawahNotificationRulesV294 = {
       if (apply) {
         event.preventDefault();
         state.draft = templatePermissions(state.templateId);
+        state.draftTouched = isDirty();
         renderEditor();
         return;
       }
@@ -81536,7 +81638,8 @@ window.nawahNotificationRulesV294 = {
           else state.draft[item[0]] = next;
         });
         state.draft = normalizePermissions(state.draft, "employee");
-        renderEditor();
+        state.draftTouched = isDirty();
+        syncEditorDraftUi();
         return;
       }
       const reset = event.target?.closest?.("[data-v295-reset-draft]");
@@ -81547,6 +81650,7 @@ window.nawahNotificationRulesV294 = {
         state.draft = profile
           ? normalizePermissions(state.baseline?.permissions || profile.permissions || {}, profile.role)
           : {};
+        state.draftTouched = false;
         renderEditor();
         return;
       }
@@ -81608,8 +81712,8 @@ window.nawahNotificationRulesV294 = {
   setTimeout(startRealtime, 0);
   if (isActive()) void renderPermissions(true);
 
-window.nawahPermissionsV295 = {
-    version: 295,
+  window.nawahPermissionsV295 = {
+    version: 298,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
