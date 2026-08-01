@@ -81164,6 +81164,9 @@ window.nawahNotificationRulesV294 = {
     root.classList.remove("v158-permissions-final");
     root.dataset.v295PermissionsState = "ready";
     root.dataset.v234PermissionsDirty = "1";
+    if (state.saving || state.draftTouched || isDirty())
+      root.dataset.v299PermissionsEditLock = "1";
+    else delete root.dataset.v299PermissionsEditLock;
     root.removeAttribute("aria-busy");
     root.innerHTML = shellMarkup();
     hydrate(root);
@@ -81258,6 +81261,9 @@ window.nawahNotificationRulesV294 = {
     host.dataset.v295DraftState = dirty ? "dirty" : "clean";
     root.dataset.v295DraftState = dirty ? "dirty" : "clean";
     root.dataset.v234PermissionsDirty = "1";
+    if (state.saving || state.draftTouched || dirty)
+      root.dataset.v299PermissionsEditLock = "1";
+    else delete root.dataset.v299PermissionsEditLock;
   }
   function selectProfile(id) {
     if (state.saving) return;
@@ -81313,6 +81319,15 @@ window.nawahNotificationRulesV294 = {
     if (!root || state.rendering) return;
     root.classList.add("v295-permissions-panel");
     root.dataset.v234PermissionsDirty = "1";
+    const preserveDraft =
+      state.saving || state.draftTouched || isDirty();
+    if (preserveDraft) {
+      root.dataset.v299PermissionsEditLock = "1";
+      if (!root.querySelector("[data-v295-permissions-page]")) renderShell();
+      else syncEditorDraftUi();
+      return;
+    }
+    delete root.dataset.v299PermissionsEditLock;
     if (!isAdmin()) {
       root.dataset.v295PermissionsState = "ready";
       root.removeAttribute("aria-busy");
@@ -81489,6 +81504,7 @@ window.nawahNotificationRulesV294 = {
       state.saving = false;
       button?.removeAttribute("aria-busy");
       renderEditor();
+      syncEditorDraftUi();
     }
   }
   function activatePermissions() {
@@ -81606,6 +81622,13 @@ window.nawahNotificationRulesV294 = {
           !confirm("سيتم تجاهل التعديلات غير المحفوظة. هل تريد المتابعة؟")
         )
           return;
+        const profile = selectedProfile();
+        state.draft = profile
+          ? normalizePermissions(
+              state.baseline?.permissions || profile.permissions || {},
+              profile.role,
+            )
+          : {};
         state.draftTouched = false;
         void renderPermissions(true);
         return;
@@ -81686,17 +81709,27 @@ window.nawahNotificationRulesV294 = {
     const root = panel();
     if (root && typeof MutationObserver === "function") {
       observer = new MutationObserver(function () {
-        if (
-          !state.rendering &&
-          isActive() &&
-          !root.querySelector("[data-v295-permissions-page]")
-        )
-          void renderPermissions(false);
+        if (state.rendering || !isActive()) return;
+        if (root.querySelector("[data-v295-permissions-page]")) return;
+        if (state.saving || state.draftTouched || isDirty()) renderShell();
+        else void renderPermissions(false);
       });
       observer.observe(root, { childList: true });
     }
   } catch (_) {}
 
+  window.addEventListener(
+    "nawah:employees-ready",
+    function (event) {
+      if (!isActive() || !(state.saving || state.draftTouched || isDirty()))
+        return;
+      event.stopImmediatePropagation();
+      const root = panel();
+      if (!root?.querySelector("[data-v295-permissions-page]")) renderShell();
+      else syncEditorDraftUi();
+    },
+    true,
+  );
   window.addEventListener("nawah:employees-ready", function () {
     if (isActive()) renderShell();
   });
@@ -81713,7 +81746,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 298,
+    version: 299,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
