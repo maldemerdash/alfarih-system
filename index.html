@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=312" />
+    <link rel="stylesheet" href="style.css?v=313" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -1027,45 +1027,58 @@
                   </div>
                 </section>
 
-                <section class="settings-section" data-settings-panel="absence">
-                  <div class="panel-head"><div><h3>قاعدة بيانات الغياب</h3><p>اختر القاعدة المفعلة التي سيطبقها النظام تلقائيًا عند تسجيل الغياب.</p></div></div>
-                  <form id="absencePolicyForm" class="settings-form work-settings-form">
-                    <div class="absence-policy-summary" id="absencePolicySummary"></div>
-                    <div class="absence-policy-grid absence-policy-choice-grid">
-                      <label class="absence-policy-column absence-policy-choice" id="laborPolicyCard">
-                        <input type="radio" name="absenceActivePolicy" value="labor" data-absence-policy="activePolicy" />
-                        <div>
-                          <h5>قاعدة مكتب العمل</h5>
-                          <p>إذا كانت مفعلة، لا تظهر الفترة الغائبة عند تسجيل الغياب، ويحسب النظام الجزاء تلقائيًا حسب تاريخ ومدة الغياب والسنة العقدية.</p>
-                        </div>
-                        <span class="status-badge status-pending">قاعدة نظامية</span>
-                      </label>
-                      <label class="absence-policy-column absence-policy-choice establishment-policy-card" id="establishmentPolicyCard">
-                        <input type="radio" name="absenceActivePolicy" value="establishment" data-absence-policy="activePolicy" />
-                        <div>
-                          <h5>سياسة المنشأة</h5>
-                          <p>إذا كانت مفعلة، تظهر الفترة الغائبة ويطبق النظام خصم الفترة الأولى أو الثانية حسب سياسة المنشأة.</p>
-                        </div>
-                        <span class="status-badge status-active">سياسة داخلية</span>
-                      </label>
-                    </div>
-                    <div class="absence-policy-stack">
-                      <div class="absence-policy-column absence-labor-wide">
-                        <h5>بنود قاعدة مكتب العمل</h5>
-                        <p>مرجع تشغيلي للجزاءات، ويراعى اعتماد الصياغة النهائية من لائحة المنشأة المعتمدة.</p>
-                        <div class="absence-rule-list" id="absenceLaborRulesList"></div>
+                <section class="settings-section v313-absence-panel" data-settings-panel="absence">
+                  <div class="panel-head v313-absence-head">
+                    <div class="v313-absence-title"><span data-icon="user-x"></span><div><h3>قاعدة بيانات الغياب</h3><p>حدد السياسة التشغيلية وأنواع الغياب والخصومات التي ستطبق على التسجيلات الجديدة فقط.</p></div></div>
+                    <div class="v313-absence-save-state" data-v313-absence-save-state><span></span><strong>الإعدادات الحالية</strong></div>
+                  </div>
+                  <form id="absencePolicyForm" class="settings-form work-settings-form v313-absence-form">
+                    <div class="absence-policy-summary v313-absence-summary" id="absencePolicySummary"></div>
+
+                    <section class="v313-absence-section" aria-labelledby="v313AbsencePolicyChoiceTitle">
+                      <header class="v313-absence-section-head"><div><span data-icon="shield"></span><div><h4 id="v313AbsencePolicyChoiceTitle">السياسة المفعلة</h4><p>يمكن تفعيل سياسة واحدة فقط لتسجيلات الغياب الجديدة.</p></div></div></header>
+                      <div class="absence-policy-grid absence-policy-choice-grid v313-policy-choice-grid">
+                        <label class="absence-policy-column absence-policy-choice v313-policy-choice" id="laborPolicyCard">
+                          <input type="radio" name="absenceActivePolicy" value="labor" data-absence-policy="activePolicy" />
+                          <span class="v313-policy-choice-icon" data-icon="scale"></span>
+                          <div><h5>قاعدة مكتب العمل</h5><p>احتساب الجزاء بحسب مدة الغياب والتكرار خلال السنة العقدية، دون اختيار نوع خصم داخلي.</p></div>
+                          <span class="v313-policy-choice-state" data-v313-policy-status="labor">غير مفعلة</span>
+                        </label>
+                        <label class="absence-policy-column absence-policy-choice establishment-policy-card v313-policy-choice" id="establishmentPolicyCard">
+                          <input type="radio" name="absenceActivePolicy" value="establishment" data-absence-policy="activePolicy" />
+                          <span class="v313-policy-choice-icon" data-icon="building"></span>
+                          <div><h5>سياسة المنشأة</h5><p>اختيار نوع الغياب الداخلي وتطبيق عدد أيام الخصم المحدد له عند تسجيل الغياب.</p></div>
+                          <span class="v313-policy-choice-state" data-v313-policy-status="establishment">غير مفعلة</span>
+                        </label>
                       </div>
-                      <div class="absence-policy-column establishment-policy-card absence-establishment-wide">
-                        <h5>سياسة المنشأة في الغياب</h5>
-                        <div class="establishment-absence-policy-toolbar">
-                          <p>أضف أنواع الغياب التي تظهر عند تسجيل الغياب وحدد عدد أيام الخصم من الراتب الأساسي.</p>
-                          <button type="button" class="secondary-btn small-btn" data-add-establishment-absence-rule><span data-icon="plus"></span>إضافة سياسة غياب</button>
-                        </div>
-                        <div class="establishment-absence-rule-list" id="establishmentAbsenceRuleList"></div>
-                        <div class="absence-policy-note"><span data-icon="info"></span><p>تظهر هذه السياسات في شاشة تسجيل الغياب، ويتم احتساب الحسم حسب عدد أيام الخصم المسجلة لكل سياسة.</p></div>
+                    </section>
+
+                    <section class="v313-absence-section v313-policy-details" id="v313LaborPolicyDetails" aria-labelledby="v313LaborRulesTitle">
+                      <header class="v313-absence-section-head"><div><span data-icon="lock"></span><div><h4 id="v313LaborRulesTitle">بنود قاعدة مكتب العمل</h4><p>مرجع تشغيلي محمي من التعديل غير المقصود، ويطبق على التسجيلات الجديدة عند تفعيل القاعدة.</p></div></div><span class="v313-protected-badge"><span data-icon="shield-check"></span>بنود محمية</span></header>
+                      <div class="absence-rule-list v313-labor-rule-list" id="absenceLaborRulesList"></div>
+                    </section>
+
+                    <section class="v313-absence-section v313-policy-details" id="v313EstablishmentPolicyDetails" aria-labelledby="v313EstablishmentRulesTitle">
+                      <header class="v313-absence-section-head v313-establishment-head"><div><span data-icon="list"></span><div><h4 id="v313EstablishmentRulesTitle">سياسات المنشأة</h4><p>أنواع الغياب المتاحة للمستخدم وعدد أيام الخصم من الراتب الأساسي.</p></div></div><button type="button" class="secondary-btn small-btn" data-add-establishment-absence-rule><span data-icon="plus"></span>إضافة نوع غياب</button></header>
+                      <div class="establishment-absence-rule-list v313-establishment-rule-list" id="establishmentAbsenceRuleList"></div>
+                      <div class="absence-policy-note v313-history-note"><span data-icon="archive"></span><p><strong>حماية السجلات السابقة:</strong> تعديل أو إخفاء أو حذف نوع غياب يؤثر على التسجيلات القادمة فقط؛ تبقى أيام الخصم والبيانات المحفوظة داخل السجلات السابقة كما هي.</p></div>
+                    </section>
+
+                    <section class="v313-absence-section v313-absence-preview" aria-labelledby="v313AbsencePreviewTitle">
+                      <header class="v313-absence-section-head"><div><span data-icon="eye"></span><div><h4 id="v313AbsencePreviewTitle">معاينة التطبيق قبل الحفظ</h4><p>المعاينة توضيحية ولا تغير الرواتب أو سجلات الغياب.</p></div></div><b>معاينة فقط</b></header>
+                      <div class="v313-preview-controls">
+                        <label><span>نوع الغياب</span><select id="v313AbsencePreviewRule"></select></label>
+                        <label><span>راتب أساسي افتراضي</span><span class="v313-preview-money"><input type="number" id="v313AbsencePreviewSalary" min="0" step="100" inputmode="decimal" value="3000" /><b>ر.س</b></span></label>
+                        <article><span>أيام الخصم</span><strong id="v313AbsencePreviewDays">—</strong></article>
+                        <article class="is-result"><span>قيمة الخصم التقديرية</span><strong id="v313AbsencePreviewAmount">—</strong></article>
                       </div>
+                      <div class="v313-preview-message" id="v313AbsencePreviewMessage" role="status" aria-live="polite"></div>
+                    </section>
+
+                    <div class="form-actions v313-absence-actions">
+                      <div class="v313-cloud-assurance"><span data-icon="cloud"></span><div><strong>حفظ سحابي مؤكد</strong><small>لا تطبق المسودة على الحضور أو الرواتب إلا بعد نجاح الحفظ؛ وعند التعذر تستعاد النسخة المؤكدة.</small></div></div>
+                      <div><button type="button" class="secondary-btn" id="v313ResetAbsenceDraft"><span data-icon="refresh"></span>إلغاء التعديلات</button><button type="submit" class="primary-btn"><span data-icon="check"></span>حفظ قاعدة الغياب</button></div>
                     </div>
-                    <div class="form-actions"><button type="submit" class="primary-btn">حفظ قاعدة بيانات الغياب</button></div>
                   </form>
                 </section>
                 <section class="settings-section" data-settings-panel="minuteSettings">
@@ -1701,6 +1714,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=312"></script>
+    <script src="app.js?v=313"></script>
   </body>
 </html>

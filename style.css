@@ -42248,3 +42248,881 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     margin-inline-start: 57px;
   }
 }
+
+/* v313 - professional absence policy database */
+#settingsView .v313-absence-panel {
+  --v313-absence-ink: #173449;
+  --v313-absence-muted: #708493;
+  --v313-absence-line: #d9e7ed;
+  --v313-absence-cyan: #12a6bd;
+  --v313-absence-green: #18ba75;
+  border: 1px solid var(--v313-absence-line);
+  border-radius: 22px;
+  box-shadow: 0 18px 42px rgba(39, 79, 104, 0.075);
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+#settingsView .v313-absence-panel::before {
+  background: linear-gradient(90deg, var(--v313-absence-cyan), var(--v313-absence-green));
+  content: "";
+  display: block;
+  height: 4px;
+  width: 100%;
+}
+
+#settingsView .v313-absence-head {
+  align-items: center;
+  background: linear-gradient(110deg, rgba(18, 166, 189, 0.06), rgba(24, 186, 117, 0.035) 70%, #fff);
+  border-bottom: 1px solid var(--v313-absence-line);
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  padding: 20px 22px;
+}
+
+#settingsView .v313-absence-title {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+#settingsView .v313-absence-title > svg {
+  background: #eaf9fb;
+  border: 1px solid #c2e9ef;
+  border-radius: 14px;
+  color: #078da4;
+  flex: 0 0 48px;
+  height: 48px;
+  padding: 12px;
+  width: 48px;
+}
+
+#settingsView .v313-absence-title h3 {
+  color: var(--v313-absence-ink);
+  font-size: 18px;
+  font-weight: 900;
+  margin: 0 0 5px;
+}
+
+#settingsView .v313-absence-title p {
+  color: var(--v313-absence-muted);
+  font-size: 11px;
+  line-height: 1.8;
+  margin: 0;
+}
+
+#settingsView .v313-absence-save-state {
+  align-items: center;
+  background: #f4f8fa;
+  border: 1px solid #dce8ed;
+  border-radius: 999px;
+  color: #6a8291;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 10px;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 11px;
+}
+
+#settingsView .v313-absence-save-state > span {
+  background: #8ba0ad;
+  border-radius: 999px;
+  height: 7px;
+  width: 7px;
+}
+
+#settingsView .v313-absence-save-state.is-saved {
+  background: #eefaf4;
+  border-color: #d0eddf;
+  color: #25805a;
+}
+
+#settingsView .v313-absence-save-state.is-saved > span {
+  background: #18aa68;
+}
+
+#settingsView .v313-absence-save-state.is-dirty {
+  background: #fff8e9;
+  border-color: #f0dfb7;
+  color: #9a721b;
+}
+
+#settingsView .v313-absence-save-state.is-dirty > span {
+  background: #e4a32f;
+}
+
+#settingsView .v313-absence-save-state.is-saving {
+  background: #edf9fb;
+  border-color: #cae9ee;
+  color: #0b8296;
+}
+
+#settingsView .v313-absence-save-state.is-saving > span {
+  animation: v313AbsenceSaving 0.9s ease-in-out infinite alternate;
+  background: #0da0b8;
+}
+
+#settingsView .v313-absence-save-state.is-error {
+  background: #fff2f2;
+  border-color: #f2d0d2;
+  color: #c4444a;
+}
+
+#settingsView .v313-absence-save-state.is-error > span {
+  background: #df4b51;
+}
+
+@keyframes v313AbsenceSaving {
+  to { opacity: 0.35; transform: scale(0.7); }
+}
+
+#settingsView .v313-absence-form {
+  display: grid;
+  gap: 16px;
+  padding: 18px 22px 0;
+}
+
+#settingsView .v313-absence-summary {
+  display: grid;
+  gap: 11px !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  margin: 0 !important;
+}
+
+#settingsView .v313-absence-summary > div {
+  background: #fbfdfe !important;
+  border: 1px solid var(--v313-absence-line) !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+  min-height: 82px !important;
+  overflow: hidden;
+  padding: 13px 14px !important;
+  position: relative;
+}
+
+#settingsView .v313-absence-summary > div::after {
+  background: var(--summary-color, var(--v313-absence-cyan));
+  border-radius: 8px;
+  content: "";
+  inset-block: 13px;
+  inset-inline-start: 0;
+  position: absolute;
+  width: 3px;
+}
+
+#settingsView .v313-absence-summary > div.is-active-rules {
+  --summary-color: #18aa68;
+}
+
+#settingsView .v313-absence-summary > div.is-labor {
+  --summary-color: #7188a0;
+}
+
+#settingsView .v313-absence-summary > div.is-history {
+  --summary-color: #d59a2e;
+}
+
+#settingsView .v313-absence-summary span {
+  align-items: center;
+  color: var(--v313-absence-muted) !important;
+  display: flex !important;
+  gap: 6px;
+}
+
+#settingsView .v313-absence-summary span svg {
+  color: var(--summary-color, var(--v313-absence-cyan));
+  height: 16px;
+  width: 16px;
+}
+
+#settingsView .v313-absence-summary small {
+  color: inherit;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#settingsView .v313-absence-summary strong {
+  color: var(--v313-absence-ink) !important;
+  font-size: 17px !important;
+  margin-top: 8px !important;
+}
+
+#settingsView .v313-absence-section {
+  background: #fff;
+  border: 1px solid var(--v313-absence-line);
+  border-radius: 18px;
+  box-shadow: 0 9px 24px rgba(31, 72, 98, 0.045);
+  overflow: hidden;
+  padding: 15px;
+}
+
+#settingsView .v313-absence-section[hidden] {
+  display: none !important;
+}
+
+#settingsView .v313-absence-section-head {
+  align-items: center;
+  border-bottom: 1px solid #e8f0f3;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 13px;
+}
+
+#settingsView .v313-absence-section-head > div {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+#settingsView .v313-absence-section-head > div > svg {
+  background: #edf9fb;
+  border: 1px solid #d1edf1;
+  border-radius: 11px;
+  color: #0b92a7;
+  flex: 0 0 38px;
+  height: 38px;
+  padding: 9px;
+  width: 38px;
+}
+
+#settingsView .v313-absence-section-head h4 {
+  color: var(--v313-absence-ink);
+  font-size: 14px;
+  font-weight: 900;
+  margin: 0 0 4px;
+}
+
+#settingsView .v313-absence-section-head p {
+  color: var(--v313-absence-muted);
+  font-size: 10px;
+  line-height: 1.75;
+  margin: 0;
+}
+
+#settingsView .v313-policy-choice-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#settingsView .v313-policy-choice {
+  align-items: center;
+  background: #fbfdfe !important;
+  border: 1px solid #dde9ee !important;
+  border-radius: 16px !important;
+  cursor: pointer;
+  display: grid;
+  gap: 11px;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  min-height: 108px;
+  padding: 14px !important;
+  position: relative;
+}
+
+#settingsView .v313-policy-choice:hover {
+  border-color: #9fd7df !important;
+}
+
+#settingsView .v313-policy-choice.is-active {
+  background: linear-gradient(135deg, #effafb, #f2fcf7) !important;
+  border-color: #77ccd7 !important;
+  box-shadow: 0 10px 22px rgba(15, 135, 152, 0.07) !important;
+}
+
+#settingsView .v313-policy-choice > input {
+  accent-color: #0c9bb1;
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+
+#settingsView .v313-policy-choice-icon {
+  align-items: center;
+  background: #edf8fa;
+  border: 1px solid #d4eaee;
+  border-radius: 12px;
+  color: #158b9c;
+  display: flex;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+#settingsView .v313-policy-choice-icon svg {
+  height: 19px;
+  width: 19px;
+}
+
+#settingsView .v313-policy-choice h5 {
+  color: var(--v313-absence-ink);
+  font-size: 13px;
+  font-weight: 900;
+  margin: 0 0 5px;
+}
+
+#settingsView .v313-policy-choice p {
+  color: var(--v313-absence-muted);
+  font-size: 10px;
+  line-height: 1.75;
+  margin: 0;
+}
+
+#settingsView .v313-policy-choice-state {
+  background: #f2f6f8;
+  border: 1px solid #dee8ed;
+  border-radius: 999px;
+  color: #7a8f9c;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+#settingsView .v313-policy-choice-state.is-active {
+  background: #e6f9f0;
+  border-color: #c6ead9;
+  color: #168555;
+}
+
+#settingsView .v313-protected-badge,
+#settingsView .v313-absence-preview .v313-absence-section-head > b {
+  align-items: center;
+  background: #f2f7f9;
+  border: 1px solid #dce8ed;
+  border-radius: 999px;
+  color: #6f8492;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 9px;
+  gap: 5px;
+  padding: 6px 9px;
+}
+
+#settingsView .v313-protected-badge svg {
+  height: 13px;
+  width: 13px;
+}
+
+#settingsView .v313-labor-rule-list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+
+#settingsView .v313-labor-rule-card {
+  align-items: center;
+  background: #fbfdfe !important;
+  border: 1px solid #e0eaee !important;
+  border-radius: 14px !important;
+  display: grid !important;
+  gap: 11px !important;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(190px, 0.55fr) 26px !important;
+  margin: 0;
+  min-height: 82px;
+  padding: 11px !important;
+}
+
+#settingsView .v313-labor-rule-number {
+  align-items: center;
+  background: #edf8fa;
+  border-radius: 10px;
+  color: #0d8ba0;
+  display: flex;
+  font-size: 11px;
+  font-weight: 900;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+#settingsView .v313-labor-rule-card .absence-rule-main strong {
+  color: var(--v313-absence-ink);
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 0 0 4px;
+}
+
+#settingsView .v313-labor-rule-card .absence-rule-main p {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--v313-absence-muted);
+  font-size: 9px;
+  font-weight: 500;
+  height: auto;
+  line-height: 1.75;
+  margin: 0;
+  padding: 0;
+}
+
+#settingsView .v313-labor-rule-card .absence-rule-penalty {
+  background: #f5f9fa;
+  border: 1px solid #e3ecef;
+  border-radius: 11px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+#settingsView .v313-labor-rule-card .absence-rule-penalty span,
+#settingsView .v313-labor-rule-card .absence-rule-penalty b {
+  display: block;
+}
+
+#settingsView .v313-labor-rule-card .absence-rule-penalty span {
+  color: #8a9ca7;
+  font-size: 8px;
+}
+
+#settingsView .v313-labor-rule-card .absence-rule-penalty b {
+  color: #435e6b;
+  font-size: 9px;
+  line-height: 1.6;
+  margin-top: 3px;
+}
+
+#settingsView .v313-rule-lock {
+  color: #9caeb8;
+}
+
+#settingsView .v313-rule-lock svg {
+  height: 16px;
+  width: 16px;
+}
+
+#settingsView .v313-establishment-head {
+  margin-bottom: 12px;
+}
+
+#settingsView .v313-establishment-rule-list {
+  display: grid;
+  gap: 10px;
+}
+
+#settingsView .v313-absence-rule-card {
+  align-items: center;
+  background: #fbfdfe !important;
+  border: 1px solid #dfeaed !important;
+  border-radius: 15px !important;
+  display: grid !important;
+  gap: 10px !important;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(160px, 0.45fr) minmax(180px, 0.5fr) 34px !important;
+  padding: 11px !important;
+  transition: opacity 0.18s ease, border-color 0.18s ease;
+}
+
+#settingsView .v313-absence-rule-card.is-inactive {
+  background: #f7f9fa !important;
+  opacity: 0.72;
+}
+
+#settingsView .v313-absence-rule-card.is-active {
+  border-inline-start: 3px solid #18aa68 !important;
+}
+
+#settingsView .v313-absence-rule-card label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+#settingsView .v313-absence-rule-card label > span:first-child,
+#settingsView .v313-rule-days > span:first-child {
+  color: var(--v313-absence-muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+#settingsView .v313-absence-rule-card input[type="text"],
+#settingsView .v313-absence-rule-card input:not([type]) {
+  min-width: 0;
+}
+
+#settingsView .v313-absence-rule-card input[data-establishment-absence-rule-name],
+#settingsView .v313-rule-days-input {
+  background: #fff;
+  border: 1px solid #d7e4e9;
+  border-radius: 11px;
+  min-height: 40px;
+}
+
+#settingsView .v313-absence-rule-card input[data-establishment-absence-rule-name] {
+  color: var(--v313-absence-ink);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 0 10px;
+  width: 100%;
+}
+
+#settingsView .v313-rule-days-input {
+  align-items: center;
+  display: flex;
+  overflow: hidden;
+}
+
+#settingsView .v313-rule-days-input input {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--v313-absence-ink);
+  font-size: 10px;
+  font-weight: 900;
+  min-height: 38px !important;
+  min-width: 0;
+  padding: 0 9px !important;
+  width: 100%;
+}
+
+#settingsView .v313-rule-days-input b {
+  border-inline-start: 1px solid #e0e9ed;
+  color: #66808e;
+  font-size: 9px;
+  padding: 5px 9px;
+}
+
+#settingsView .v313-rule-active {
+  align-items: center;
+  background: #f4f8fa;
+  border: 1px solid #e0e9ed;
+  border-radius: 11px;
+  display: flex !important;
+  gap: 8px !important;
+  min-height: 40px;
+  padding: 7px 9px;
+}
+
+#settingsView .v313-rule-active input {
+  accent-color: #16a765;
+  flex: 0 0 auto;
+  height: 17px;
+  width: 17px;
+}
+
+#settingsView .v313-rule-active span {
+  display: block;
+  min-width: 0;
+}
+
+#settingsView .v313-rule-active strong,
+#settingsView .v313-rule-active small {
+  display: block;
+}
+
+#settingsView .v313-rule-active strong {
+  color: #2c5967;
+  font-size: 9px;
+}
+
+#settingsView .v313-rule-active small {
+  color: #83959f;
+  font-size: 7.5px;
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+#settingsView .v313-absence-rule-card .establishment-absence-rule-delete {
+  align-items: center;
+  display: flex;
+  height: 32px !important;
+  justify-content: center;
+  width: 32px !important;
+}
+
+#settingsView .v313-history-note {
+  align-items: flex-start;
+  background: #f0f9fa !important;
+  border: 1px solid #d6ebee;
+  margin-top: 12px;
+}
+
+#settingsView .v313-history-note p {
+  color: #58737f;
+  font-size: 9px;
+}
+
+#settingsView .v313-history-note strong {
+  color: #1d6674;
+}
+
+#settingsView .v313-preview-controls {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(190px, 1fr) minmax(190px, 0.8fr) minmax(145px, 0.55fr) minmax(190px, 0.7fr);
+}
+
+#settingsView .v313-preview-controls > label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+#settingsView .v313-preview-controls > label > span:first-child,
+#settingsView .v313-preview-controls article > span {
+  color: var(--v313-absence-muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+#settingsView .v313-preview-controls select,
+#settingsView .v313-preview-money,
+#settingsView .v313-preview-controls article {
+  background: #fbfdfe;
+  border: 1px solid #dce8ed;
+  border-radius: 12px;
+  min-height: 47px;
+}
+
+#settingsView .v313-preview-controls select {
+  color: var(--v313-absence-ink);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+#settingsView .v313-preview-money {
+  align-items: center;
+  display: flex;
+  overflow: hidden;
+}
+
+#settingsView .v313-preview-money input {
+  background: transparent;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--v313-absence-ink);
+  font-size: 10px;
+  font-weight: 900;
+  min-height: 45px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
+}
+
+#settingsView .v313-preview-money b {
+  border-inline-start: 1px solid #e0e9ed;
+  color: #5f7a88;
+  font-size: 9px;
+  padding: 7px 10px;
+}
+
+#settingsView .v313-preview-controls article {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 11px;
+}
+
+#settingsView .v313-preview-controls article strong {
+  color: #217c8d;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+#settingsView .v313-preview-controls article.is-result {
+  background: #f0faf6;
+  border-color: #d3eadf;
+}
+
+#settingsView .v313-preview-controls article.is-result strong {
+  color: #168456;
+}
+
+#settingsView .v313-preview-message {
+  align-items: flex-start;
+  background: #eff9fa;
+  border: 1px solid #d1e9ed;
+  border-radius: 12px;
+  color: #3d7380;
+  display: flex;
+  gap: 8px;
+  margin-top: 11px;
+  padding: 9px 11px;
+}
+
+#settingsView .v313-preview-message.is-warning {
+  background: #fff9ec;
+  border-color: #efdfb7;
+  color: #906d20;
+}
+
+#settingsView .v313-preview-message svg {
+  flex: 0 0 16px;
+  height: 16px;
+  margin-top: 1px;
+  width: 16px;
+}
+
+#settingsView .v313-preview-message p {
+  color: inherit;
+  font-size: 9px;
+  line-height: 1.8;
+  margin: 0;
+}
+
+#settingsView .v313-absence-actions {
+  align-items: center;
+  background: #f7fbfc;
+  border-top: 1px solid #dfeaed;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 -22px;
+  padding: 14px 22px;
+}
+
+#settingsView .v313-cloud-assurance {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+}
+
+#settingsView .v313-cloud-assurance > svg {
+  color: #16a765;
+  flex: 0 0 21px;
+  height: 21px;
+  width: 21px;
+}
+
+#settingsView .v313-cloud-assurance strong,
+#settingsView .v313-cloud-assurance small {
+  display: block;
+}
+
+#settingsView .v313-cloud-assurance strong {
+  color: #297253;
+  font-size: 10px;
+}
+
+#settingsView .v313-cloud-assurance small {
+  color: #6b8a7d;
+  font-size: 8px;
+  line-height: 1.6;
+  margin-top: 2px;
+}
+
+#settingsView .v313-absence-actions > div:last-child {
+  display: flex;
+  gap: 8px;
+}
+
+#settingsView .v313-absence-actions button {
+  min-height: 40px;
+}
+
+#settingsView .v313-absence-form[aria-busy="true"] .v313-absence-section,
+#settingsView .v313-absence-form[aria-busy="true"] .v313-absence-summary {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+@media (max-width: 1180px) {
+  #settingsView .v313-absence-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #settingsView .v313-preview-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #settingsView .v313-absence-rule-card {
+    grid-template-columns: 34px minmax(0, 1fr) minmax(140px, 0.5fr) !important;
+  }
+
+  #settingsView .v313-absence-rule-card .v313-rule-active {
+    grid-column: 2 / 3;
+  }
+
+  #settingsView .v313-absence-rule-card .establishment-absence-rule-delete {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 880px) {
+  #settingsView .v313-policy-choice-grid,
+  #settingsView .v313-labor-rule-card,
+  #settingsView .v313-absence-rule-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  #settingsView .v313-policy-choice {
+    align-items: start;
+    grid-template-columns: auto auto minmax(0, 1fr) !important;
+  }
+
+  #settingsView .v313-policy-choice-state {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+
+  #settingsView .v313-labor-rule-number,
+  #settingsView .v313-rule-lock,
+  #settingsView .v313-absence-rule-card .establishment-absence-rule-number {
+    display: none;
+  }
+
+  #settingsView .v313-absence-rule-card .v313-rule-active,
+  #settingsView .v313-absence-rule-card .establishment-absence-rule-delete {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  #settingsView .v313-absence-rule-card .establishment-absence-rule-delete {
+    justify-self: start;
+  }
+
+  #settingsView .v313-absence-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 620px) {
+  #settingsView .v313-absence-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 13px;
+  }
+
+  #settingsView .v313-absence-form {
+    padding-inline: 13px;
+  }
+
+  #settingsView .v313-absence-summary,
+  #settingsView .v313-preview-controls {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  #settingsView .v313-absence-section-head,
+  #settingsView .v313-establishment-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #settingsView .v313-establishment-head button {
+    width: 100%;
+  }
+
+  #settingsView .v313-absence-actions {
+    margin-inline: -13px;
+    padding-inline: 13px;
+  }
+
+  #settingsView .v313-absence-actions > div:last-child {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  #settingsView .v313-absence-actions button {
+    width: 100%;
+  }
+}

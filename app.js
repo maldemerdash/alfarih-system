@@ -2064,10 +2064,14 @@ function normalizeEstablishmentAbsenceRule(e = {}, t = 0) {
     name: a,
     deductionDays: absencePolicyNumber(e.deductionDays, 0),
     legacySegment: o,
+    isActive: e.isActive !== false && e.isActive !== "false",
   };
 }
 function getEstablishmentAbsenceRules(e = absencePolicySettings) {
   return normalizeAbsencePolicySettings(e).establishmentRules;
+}
+function getActiveEstablishmentAbsenceRules(e = absencePolicySettings) {
+  return getEstablishmentAbsenceRules(e).filter((rule) => rule.isActive !== false);
 }
 function getEstablishmentAbsenceRule(e, t = absencePolicySettings) {
   const n = getEstablishmentAbsenceRules(t),
@@ -2226,15 +2230,18 @@ function absencePenaltyDetails(e) {
       getEstablishmentAbsenceRule(e.periodSegment || "fullDay", t),
     a = Number(n?.deductionDays ?? t.fullDayDeductionDays ?? 1) || 0,
     o = Number(e?.deductionDays),
-    r = Number.isFinite(o) && o > 0 ? o : a;
+    hasSavedDeduction = Object.prototype.hasOwnProperty.call(e || {}, "deductionDays") && Number.isFinite(o) && o >= 0,
+    r = hasSavedDeduction ? o : a,
+    savedRuleName = String(e?.establishmentRuleName || "").trim(),
+    ruleName = savedRuleName || n?.name || "غياب اليوم الكامل";
   return {
     policy: "سياسة المنشأة",
     deductionDays: r,
     label: formatDeductionDays(r),
-    text: `${n?.name || "غياب اليوم الكامل"}: ${formatDeductionDays(r)} حسب سياسة المنشأة.`,
+    text: `${ruleName}: ${formatDeductionDays(r)} حسب سياسة المنشأة.`,
     showPeriod: !0,
-    periodLabel: n?.name || absencePeriodMeta(e.periodSegment || "fullDay").label,
-    establishmentRuleName: n?.name || "",
+    periodLabel: ruleName || absencePeriodMeta(e.periodSegment || "fullDay").label,
+    establishmentRuleName: ruleName,
   };
 }
 function formatDeductionDays(e) {
@@ -2265,7 +2272,8 @@ function absenceDeductionAmount(e) {
   const n = absencePenaltyDetails(e),
     a = Number(e?.deductionDays),
     o = Number(n.deductionDays ?? n.days ?? 0) || 0,
-    r = Number.isFinite(a) && a > 0 ? a : o;
+    hasSavedDeduction = Object.prototype.hasOwnProperty.call(e || {}, "deductionDays") && Number.isFinite(a) && a >= 0,
+    r = hasSavedDeduction ? a : o;
   return employeeDailyWage(t) * r;
 }
 function absenceDeductionForEmployeeInMonth(e, t = new Date()) {
@@ -2414,13 +2422,69 @@ function renderWorkdayList() {
       return `\n      <div class="workday-row ${a.enabled ? "is-enabled" : "is-disabled"}" data-workday="${n}">\n        <div class="workday-row-head">\n          <label class="workday-enable"><input type="checkbox" data-workday-enabled="${n}" ${a.enabled ? "checked" : ""} /><span><strong>${e}</strong><small>${a.enabled ? "يوم عمل" : "إجازة أسبوعية"}</small></span></label>\n          <div class="workday-hours workday-total-hours"><span>إجمالي ساعات اليوم</span><strong>${a.enabled ? formatWorkMinutes(o) : "إجازة"}</strong></div>\n          <button type="button" class="secondary-btn small-btn" data-add-day-shift="${n}"><span data-icon="plus"></span>إضافة فترة لليوم</button>\n        </div>\n        <div class="workday-shifts">\n          ${a.shifts.map((e, t) => workdayShiftLineHtml(n, a, e, t)).join("")}\n        </div>\n      </div>\n    `;
     }).join("")));
 }
+let v313AbsenceDraft = null,
+  v313AbsenceCloudBaseline = null,
+  v313AbsenceDraftTouched = false,
+  v313AbsenceUiState = "saved";
+function cloneAbsencePolicyV313(value) {
+  try {
+    return structuredClone(value);
+  } catch (_) {
+    return JSON.parse(JSON.stringify(value || {}));
+  }
+}
+function sameAbsencePolicyV313(left, right) {
+  return JSON.stringify(normalizeAbsencePolicySettings(left)) === JSON.stringify(normalizeAbsencePolicySettings(right));
+}
+function captureAbsenceBaselineV313(force = false) {
+  if (!force && v313AbsenceDraft && (v313AbsenceDraftTouched || v313AbsenceUiState === "saving")) return;
+  const saved = normalizeAbsencePolicySettings(absencePolicySettings);
+  v313AbsenceCloudBaseline = cloneAbsencePolicyV313(saved);
+  v313AbsenceDraft = cloneAbsencePolicyV313(saved);
+  v313AbsenceDraftTouched = false;
+}
+function absenceDraftV313() {
+  if (!v313AbsenceDraft) captureAbsenceBaselineV313(true);
+  return normalizeAbsencePolicySettings(v313AbsenceDraft);
+}
+function updateAbsenceUiStateV313(state = v313AbsenceUiState) {
+  const next = ["saved", "dirty", "saving", "error"].includes(state) ? state : "saved",
+    root = document.querySelector('[data-settings-panel="absence"]'),
+    form = document.querySelector("#absencePolicyForm"),
+    indicator = document.querySelector("[data-v313-absence-save-state]"),
+    submit = form?.querySelector('button[type="submit"]'),
+    reset = document.querySelector("#v313ResetAbsenceDraft"),
+    labels = {
+      saved: "الإعدادات الحالية",
+      dirty: "تعديلات غير محفوظة",
+      saving: "جاري الحفظ السحابي",
+      error: "تعذر تأكيد الحفظ",
+    };
+  v313AbsenceUiState = next;
+  if (root) root.dataset.v313AbsenceState = next;
+  if (form) {
+    if (next === "saving") form.setAttribute("aria-busy", "true");
+    else form.removeAttribute("aria-busy");
+  }
+  if (indicator) {
+    indicator.className = "v313-absence-save-state is-" + next;
+    const label = indicator.querySelector("strong");
+    if (label) label.textContent = labels[next];
+  }
+  if (submit) submit.disabled = next === "saving" || next === "saved";
+  if (reset) reset.disabled = next === "saving" || next === "saved";
+}
+function markAbsenceDraftDirtyV313() {
+  v313AbsenceDraftTouched = true;
+  updateAbsenceUiStateV313("dirty");
+}
 function renderEstablishmentAbsenceRuleList() {
   const e = document.querySelector("#establishmentAbsenceRuleList");
   if (!e) return;
-  const t = getEstablishmentAbsenceRules(absencePolicySettings);
+  const t = getEstablishmentAbsenceRules(absenceDraftV313());
   e.innerHTML = t
     .map(
-      (n, a) => `\n      <div class="establishment-absence-rule-row" data-establishment-absence-rule="${escapeHtml(n.id)}">\n        <div class="establishment-absence-rule-number">${arabicNumber(a + 1)}</div>\n        <label><span>اسم الغياب</span><input data-establishment-absence-rule-name="${escapeHtml(n.id)}" value="${escapeHtml(n.name)}" /></label>\n        <label><span>أيام الخصم من الراتب الأساسي</span><input type="number" min="0" step="0.5" data-establishment-absence-rule-days="${escapeHtml(n.id)}" value="${escapeHtml(n.deductionDays)}" /></label>\n        <button type="button" class="quick-view-btn establishment-absence-rule-delete" data-remove-establishment-absence-rule="${escapeHtml(n.id)}" ${t.length <= 1 ? "disabled" : ""} title="حذف سياسة الغياب">${iconSvg("trash")}</button>\n      </div>\n    `,
+      (n, a) => `\n      <article class="establishment-absence-rule-row v313-absence-rule-card ${n.isActive === false ? "is-inactive" : "is-active"}" data-establishment-absence-rule="${escapeHtml(n.id)}">\n        <div class="establishment-absence-rule-number">${arabicNumber(a + 1)}</div>\n        <label class="v313-rule-name"><span>اسم الغياب</span><input data-establishment-absence-rule-name="${escapeHtml(n.id)}" value="${escapeHtml(n.name)}" maxlength="80" /></label>\n        <label class="v313-rule-days"><span>أيام الخصم من الراتب الأساسي</span><span class="v313-rule-days-input"><input type="number" min="0" max="30" step="0.5" data-establishment-absence-rule-days="${escapeHtml(n.id)}" value="${escapeHtml(n.deductionDays)}" /><b>يوم</b></span></label>\n        <label class="v313-rule-active"><input type="checkbox" data-establishment-absence-rule-active="${escapeHtml(n.id)}" ${n.isActive === false ? "" : "checked"} /><span><strong>${n.isActive === false ? "مخفي" : "مفعّل"}</strong><small>${n.isActive === false ? "لا يظهر في التسجيلات الجديدة" : "متاح عند تسجيل الغياب"}</small></span></label>\n        <button type="button" class="quick-view-btn establishment-absence-rule-delete" data-remove-establishment-absence-rule="${escapeHtml(n.id)}" ${t.length <= 1 ? "disabled" : ""} title="حذف نوع الغياب">${iconSvg("trash")}</button>\n      </article>\n    `,
     )
     .join("");
 }
@@ -2432,65 +2496,170 @@ function readEstablishmentAbsenceRulesFromForm() {
       const n = e.dataset.establishmentAbsenceRule || "",
         a = e.querySelector("[data-establishment-absence-rule-name]")?.value?.trim(),
         o = e.querySelector("[data-establishment-absence-rule-days]")?.value,
-        r = getEstablishmentAbsenceRule(n, absencePolicySettings);
+        i = e.querySelector("[data-establishment-absence-rule-active]")?.checked !== false,
+        r = getEstablishmentAbsenceRule(n, absenceDraftV313());
       return normalizeEstablishmentAbsenceRule(
         {
           id: n,
           name: a,
           deductionDays: o,
           legacySegment: r?.legacySegment || "",
+          isActive: i,
         },
         t,
       );
     })
     .filter((e) => e.name);
-  return e.length ? e : legacyAbsenceRulesFromSettings(absencePolicySettings);
+  return e.length ? e : legacyAbsenceRulesFromSettings(absenceDraftV313());
 }
-async function addEstablishmentAbsenceRule() {
-  const e = normalizeAbsencePolicySettings(absencePolicySettings);
+function addEstablishmentAbsenceRule() {
+  if (!validateAbsenceRuleInputsV313(true, false).valid) return;
+  const e = absenceDraftV313(),
+    number = e.establishmentRules.length + 1;
   e.establishmentRules = [
     ...readEstablishmentAbsenceRulesFromForm(),
     normalizeEstablishmentAbsenceRule(
       {
         id: `est-absence-custom-${Date.now()}`,
-        name: "سياسة غياب جديدة",
+        name: `نوع غياب جديد ${arabicNumber(number)}`,
         deductionDays: 1,
+        isActive: true,
       },
       e.establishmentRules.length,
     ),
   ];
-  ((absencePolicySettings = normalizeAbsencePolicySettings(e)),
-    renderAbsencePolicySettings());
-  const saved = await persistAttendanceSettingsV224([
-    "absencePolicySettings",
-  ]);
-  showToast(
-    saved
-      ? "تمت إضافة سياسة الغياب وحفظها سحابيًا"
-      : "أُضيفت السياسة مؤقتًا، وتعذر تأكيد حفظها سحابيًا",
-  );
+  v313AbsenceDraft = normalizeAbsencePolicySettings(e);
+  markAbsenceDraftDirtyV313();
+  renderAbsencePolicySettings();
+  setTimeout(function () {
+    const rows = document.querySelectorAll("[data-establishment-absence-rule]");
+    rows[rows.length - 1]?.querySelector("[data-establishment-absence-rule-name]")?.focus();
+  }, 0);
 }
-async function removeEstablishmentAbsenceRule(e) {
-  const t = normalizeAbsencePolicySettings(absencePolicySettings),
+function removeEstablishmentAbsenceRule(e) {
+  const t = absenceDraftV313(),
     n = String(e || "");
   if (t.establishmentRules.length <= 1) return;
-  ((t.establishmentRules = t.establishmentRules.filter(
-    (e) => String(e.id) !== n,
-  )),
-    (absencePolicySettings = normalizeAbsencePolicySettings(t)),
-    renderAbsencePolicySettings());
-  const saved = await persistAttendanceSettingsV224([
-    "absencePolicySettings",
-  ]);
-  showToast(
-    saved
-      ? "تم حذف سياسة الغياب وحفظ التغيير سحابيًا"
-      : "حُذفت السياسة مؤقتًا، وتعذر تأكيد الحفظ السحابي",
-  );
+  const target = t.establishmentRules.find((rule) => String(rule.id) === n);
+  if (!target) return;
+  const usedCount = attendanceExceptions.filter(
+    (record) =>
+      String(record.establishmentRuleId || "") === n ||
+      (!record.establishmentRuleId && String(record.establishmentRuleName || "") === String(target.name || "")),
+  ).length;
+  const warning = usedCount
+    ? `\n\nهذا النوع مستخدم في ${arabicNumber(usedCount)} سجل سابق. ستبقى بيانات تلك السجلات وقيم الخصم فيها كما هي.`
+    : "";
+  if (!confirm(`هل تريد حذف نوع الغياب «${target.name}» من التسجيلات القادمة؟${warning}`)) return;
+  t.establishmentRules = t.establishmentRules.filter((rule) => String(rule.id) !== n);
+  v313AbsenceDraft = normalizeAbsencePolicySettings(t);
+  markAbsenceDraftDirtyV313();
+  renderAbsencePolicySettings();
+}
+function normalizedAbsenceRuleNameV313(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase("ar");
+}
+function validateAbsenceRuleInputsV313(showMessage = false, requireActive = true) {
+  const rows = Array.from(
+      document.querySelectorAll("[data-establishment-absence-rule]"),
+    ),
+    names = rows.map((row) =>
+      normalizedAbsenceRuleNameV313(
+        row.querySelector("[data-establishment-absence-rule-name]")?.value,
+      ),
+    ),
+    duplicate = names.find(
+      (name, index) => name && names.indexOf(name) !== index,
+    ),
+    invalidDays = rows.find((row) => {
+      const value = row.querySelector(
+          "[data-establishment-absence-rule-days]",
+        )?.value,
+        number = Number(value);
+      return (
+        value === "" ||
+        !Number.isFinite(number) ||
+        number < 0 ||
+        number > 30
+      );
+    }),
+    hasActive = rows.some(
+      (row) =>
+        row.querySelector("[data-establishment-absence-rule-active]")
+          ?.checked !== false,
+    );
+  let message = "";
+  if (!rows.length) message = "يجب إبقاء نوع غياب واحد على الأقل.";
+  else if (names.some((name) => !name))
+    message = "أدخل اسمًا واضحًا لكل نوع غياب.";
+  else if (duplicate) message = "لا يمكن تكرار اسم نوع الغياب.";
+  else if (invalidDays)
+    message = "أيام الخصم يجب أن تكون بين 0 و30 يومًا.";
+  else if (requireActive && !hasActive)
+    message = "فعّل نوع غياب واحدًا على الأقل قبل اعتماد سياسة المنشأة.";
+  if (message && showMessage) showToast(message);
+  return { valid: !message, message };
+}
+function syncAbsenceRuleInputsV313() {
+  const validation = validateAbsenceRuleInputsV313(false, false);
+  markAbsenceDraftDirtyV313();
+  if (!validation.valid) return false;
+  const draft = absenceDraftV313();
+  draft.establishmentRules = readEstablishmentAbsenceRulesFromForm();
+  v313AbsenceDraft = normalizeAbsencePolicySettings(draft);
+  renderEstablishmentAbsenceRuleList();
+  renderAbsencePreviewV313(v313AbsenceDraft);
+  return true;
+}
+function validateAbsenceDraftV313(showMessage = false) {
+  const draft = absenceDraftV313(),
+    rules = draft.establishmentRules,
+    names = rules.map((rule) => normalizedAbsenceRuleNameV313(rule.name)),
+    duplicate = names.find((name, index) => name && names.indexOf(name) !== index),
+    invalidDays = rules.find((rule) => !Number.isFinite(Number(rule.deductionDays)) || Number(rule.deductionDays) < 0 || Number(rule.deductionDays) > 30),
+    activeRules = rules.filter((rule) => rule.isActive !== false);
+  let message = "";
+  if (!rules.length) message = "يجب إبقاء نوع غياب واحد على الأقل.";
+  else if (names.some((name) => !name)) message = "أدخل اسمًا واضحًا لكل نوع غياب.";
+  else if (duplicate) message = "لا يمكن تكرار اسم نوع الغياب.";
+  else if (invalidDays) message = "أيام الخصم يجب أن تكون بين 0 و30 يومًا.";
+  else if (draft.activePolicy === "establishment" && !activeRules.length) message = "فعّل نوع غياب واحدًا على الأقل قبل اعتماد سياسة المنشأة.";
+  if (message && showMessage) showToast(message);
+  return { valid: !message, message: message };
+}
+function renderAbsencePreviewV313(settings = absenceDraftV313()) {
+  const select = document.querySelector("#v313AbsencePreviewRule"),
+    salaryInput = document.querySelector("#v313AbsencePreviewSalary"),
+    daysOutput = document.querySelector("#v313AbsencePreviewDays"),
+    amountOutput = document.querySelector("#v313AbsencePreviewAmount"),
+    message = document.querySelector("#v313AbsencePreviewMessage");
+  if (!select || !salaryInput || !daysOutput || !amountOutput || !message) return;
+  const previousValue = select.value,
+    activeRules = getActiveEstablishmentAbsenceRules(settings),
+    isLabor = settings.activePolicy === "labor";
+  select.disabled = isLabor || !activeRules.length;
+  select.innerHTML = isLabor
+    ? '<option value="labor">يحدد حسب مدة الغياب والتكرار</option>'
+    : activeRules.length
+      ? activeRules.map((rule) => `<option value="${escapeHtml(rule.id)}">${escapeHtml(rule.name)}</option>`).join("")
+      : '<option value="">لا توجد أنواع غياب مفعلة</option>';
+  if (!isLabor && activeRules.some((rule) => String(rule.id) === previousValue)) select.value = previousValue;
+  const rule = !isLabor ? activeRules.find((item) => String(item.id) === String(select.value)) || activeRules[0] : null,
+    salary = Math.max(0, Number(salaryInput.value || 0) || 0),
+    days = Number(rule?.deductionDays || 0),
+    amount = salary > 0 ? (salary / 30) * days : 0;
+  daysOutput.textContent = isLabor ? "حسب السجل" : rule ? formatDeductionDays(days) : "—";
+  amountOutput.textContent = isLabor ? "تحدد عند التسجيل" : rule ? amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ر.س" : "—";
+  message.className = "v313-preview-message" + (!isLabor && !rule ? " is-warning" : "");
+  message.innerHTML = isLabor
+    ? `${iconSvg("info")}<p>في قاعدة مكتب العمل تعتمد النتيجة على مدة الغياب والتكرار والسنة العقدية للموظف، لذلك تحسب القيمة الحقيقية عند تسجيل الواقعة.</p>`
+    : rule
+      ? `${iconSvg("check-circle")}<p>مثال توضيحي: عند اختيار «${escapeHtml(rule.name)}» وراتب أساسي ${salary.toLocaleString("en-US")} ر.س، تكون قيمة الخصم التقديرية ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س.</p>`
+      : `${iconSvg("alert-circle")}<p>فعّل نوع غياب واحدًا على الأقل حتى تظهر المعاينة.</p>`;
 }
 function renderAbsencePolicySettings() {
-  absencePolicySettings = normalizeAbsencePolicySettings(absencePolicySettings);
-  const e = absencePolicySettings;
+  if (!v313AbsenceDraft || (!v313AbsenceDraftTouched && v313AbsenceUiState !== "saving")) captureAbsenceBaselineV313(true);
+  const e = absenceDraftV313();
   document
     .querySelectorAll('[data-absence-policy="activePolicy"]')
     .forEach((t) => {
@@ -2498,30 +2667,124 @@ function renderAbsencePolicySettings() {
     });
   const o = document.querySelector("#absencePolicySummary");
   o &&
-    (o.innerHTML = `\n      <div><span>القاعدة المفعلة</span><strong>${"establishment" === e.activePolicy ? "سياسة المنشأة" : "قاعدة مكتب العمل"}</strong></div>\n      <div><span>غياب الفترة الأولى</span><strong>${formatDeductionDays(e.firstPeriodDeductionDays)}</strong></div>\n      <div><span>غياب الفترة الثانية</span><strong>${formatDeductionDays(e.secondPeriodDeductionDays)}</strong></div>\n      <div><span>غياب كامل اليوم</span><strong>${formatDeductionDays(e.fullDayDeductionDays)}</strong></div>\n    `);
+    (o.innerHTML = `\n      <div class="is-policy"><span>${iconSvg("shield")}<small>السياسة المفعلة</small></span><strong>${"establishment" === e.activePolicy ? "سياسة المنشأة" : "قاعدة مكتب العمل"}</strong></div>\n      <div class="is-active-rules"><span>${iconSvg("check-circle")}<small>أنواع الغياب المفعلة</small></span><strong>${arabicNumber(getActiveEstablishmentAbsenceRules(e).length)} نوع</strong></div>\n      <div class="is-labor"><span>${iconSvg("lock")}<small>بنود مكتب العمل</small></span><strong>${arabicNumber(e.laborRules.length)} بنود</strong></div>\n      <div class="is-history"><span>${iconSvg("archive")}<small>سجلات الغياب المحفوظة</small></span><strong>${arabicNumber(attendanceExceptions.length)} سجل</strong></div>\n    `);
   const r = document.querySelector("#absenceLaborRulesList");
   r &&
     (r.innerHTML = e.laborRules
       .map(
-        (e) =>
-          `\n      <div class="absence-rule-row">\n        <div class="absence-rule-main"><strong>${escapeHtml(e.title)}</strong><p>${escapeHtml(e.detail)}</p></div>\n        <div class="absence-rule-penalty"><span>الجزاء</span><b>${escapeHtml(e.penalty || e.detail || "—")}</b></div>\n      </div>\n    `,
+        (e, index) =>
+          `\n      <article class="absence-rule-row v313-labor-rule-card">\n        <span class="v313-labor-rule-number">${arabicNumber(index + 1)}</span><div class="absence-rule-main"><strong>${escapeHtml(e.title)}</strong><p>${escapeHtml(e.detail)}</p></div>\n        <div class="absence-rule-penalty"><span>الجزاء التشغيلي</span><b>${escapeHtml(e.penalty || e.detail || "—")}</b></div><span class="v313-rule-lock" title="بند محمي">${iconSvg("lock")}</span>\n      </article>\n    `,
       )
       .join(""));
   const i = document.querySelector("#establishmentPolicyCard"),
-    s = document.querySelector("#laborPolicyCard");
+    s = document.querySelector("#laborPolicyCard"),
+    laborDetails = document.querySelector("#v313LaborPolicyDetails"),
+    establishmentDetails = document.querySelector("#v313EstablishmentPolicyDetails");
   (i && i.classList.toggle("is-active", "establishment" === e.activePolicy),
     s && s.classList.toggle("is-active", "labor" === e.activePolicy),
+    document.querySelectorAll("[data-v313-policy-status]").forEach((status) => {
+      const active = status.dataset.v313PolicyStatus === e.activePolicy;
+      status.textContent = active ? "مفعلة الآن" : "غير مفعلة";
+      status.classList.toggle("is-active", active);
+    }),
+    laborDetails && (laborDetails.hidden = e.activePolicy !== "labor"),
+    establishmentDetails && (establishmentDetails.hidden = e.activePolicy !== "establishment"),
     renderEstablishmentAbsenceRuleList(),
-    updateAbsencePeriodVisibility());
+    renderAbsencePreviewV313(e),
+    updateAbsenceUiStateV313(),
+    hydrateIcons(document.querySelector('[data-settings-panel="absence"]') || document));
 }
 function updateAbsencePolicyFromForm() {
-  const e = normalizeAbsencePolicySettings(absencePolicySettings),
+  const e = absenceDraftV313(),
     t = document.querySelector('[data-absence-policy="activePolicy"]:checked');
   ((e.activePolicy = "labor" === t?.value ? "labor" : "establishment"),
     (e.establishmentPolicyEnabled = "establishment" === e.activePolicy),
-    (e.establishmentRules = readEstablishmentAbsenceRulesFromForm()),
-    (absencePolicySettings = normalizeAbsencePolicySettings(e)),
+    (v313AbsenceDraft = normalizeAbsencePolicySettings(e)),
+    markAbsenceDraftDirtyV313(),
     renderAbsencePolicySettings());
+}
+function absencePolicyCloudSyncV313() {
+  const transaction = window.nawahCompanyIdentitySyncV228,
+    tracker = window.nawahCloudSyncV221;
+  return transaction && tracker
+    ? { transaction: transaction, tracker: tracker }
+    : null;
+}
+async function saveAbsencePolicyDraftV313() {
+  if (v313AbsenceUiState === "saving") return false;
+  const selectedPolicy = document.querySelector(
+      '[data-absence-policy="activePolicy"]:checked',
+    )?.value,
+    inputValidation = validateAbsenceRuleInputsV313(
+      true,
+      selectedPolicy !== "labor",
+    );
+  if (!inputValidation.valid) return false;
+  syncAbsenceRuleInputsV313();
+  updateAbsencePolicyFromForm();
+  const validation = validateAbsenceDraftV313(true);
+  if (!validation.valid) return false;
+  const desired = cloneAbsencePolicyV313(absenceDraftV313()),
+    baseline = cloneAbsencePolicyV313(v313AbsenceCloudBaseline || absencePolicySettings),
+    sync = absencePolicyCloudSyncV313();
+  if (!sync) {
+    updateAbsenceUiStateV313("error");
+    showToast("تعذر الاتصال بالحفظ السحابي؛ لم تُطبق التعديلات.");
+    return false;
+  }
+  updateAbsenceUiStateV313("saving");
+  try {
+    const prepared = await sync.transaction.prepare();
+    if (!prepared) throw new Error("absence-cloud-preflight-failed");
+    const remote = normalizeAbsencePolicySettings(absencePolicySettings);
+    if (!sameAbsencePolicyV313(remote, baseline)) {
+      v313AbsenceCloudBaseline = cloneAbsencePolicyV313(remote);
+      v313AbsenceDraft = cloneAbsencePolicyV313(remote);
+      v313AbsenceDraftTouched = false;
+      updateAbsenceUiStateV313("saved");
+      renderAbsencePolicySettings();
+      showToast("تم تعديل قاعدة الغياب في متصفح آخر؛ تم تحميل النسخة السحابية الأحدث دون تطبيق مسودتك.");
+      return false;
+    }
+    absencePolicySettings = normalizeAbsencePolicySettings(desired);
+    saveLocalMeta();
+    sync.tracker.trackFields(["absencePolicySettings"]);
+    const saved = await sync.transaction.save("absence-policy-v313");
+    if (!saved) throw new Error("absence-cloud-save-failed");
+    v313AbsenceCloudBaseline = cloneAbsencePolicyV313(absencePolicySettings);
+    v313AbsenceDraft = cloneAbsencePolicyV313(absencePolicySettings);
+    v313AbsenceDraftTouched = false;
+    updateAbsenceUiStateV313("saved");
+    renderAbsencePolicySettings();
+    renderAttendance();
+    renderDashboard();
+    showToast("تم حفظ قاعدة بيانات الغياب وتفعيلها سحابيًا.");
+    return true;
+  } catch (error) {
+    console.warn("v313: تعذر حفظ قاعدة الغياب سحابيًا.", error);
+    absencePolicySettings = normalizeAbsencePolicySettings(baseline);
+    saveLocalMeta();
+    try {
+      await sync.transaction.rollback(["absencePolicySettings"]);
+    } catch (_) {}
+    absencePolicySettings = normalizeAbsencePolicySettings(
+      absencePolicySettings || baseline,
+    );
+    v313AbsenceCloudBaseline = cloneAbsencePolicyV313(absencePolicySettings);
+    v313AbsenceDraft = cloneAbsencePolicyV313(absencePolicySettings);
+    v313AbsenceDraftTouched = false;
+    updateAbsenceUiStateV313("error");
+    renderAbsencePolicySettings();
+    showToast("تعذر تأكيد الحفظ السحابي؛ تمت استعادة قاعدة الغياب السابقة ولم تُطبق المسودة.");
+    return false;
+  }
+}
+function resetAbsenceDraftV313() {
+  v313AbsenceDraft = cloneAbsencePolicyV313(v313AbsenceCloudBaseline || absencePolicySettings);
+  v313AbsenceDraftTouched = false;
+  updateAbsenceUiStateV313("saved");
+  renderAbsencePolicySettings();
+  showToast("تم إلغاء التعديلات غير المحفوظة.");
 }
 function updateAbsencePeriodVisibility() {
   const e = document.querySelector("#absencePeriodSegmentField"),
@@ -2529,7 +2792,7 @@ function updateAbsencePeriodVisibility() {
     n = isEstablishmentAbsencePolicyActive();
   if (t && n) {
     const e = t.value,
-      a = getEstablishmentAbsenceRules(absencePolicySettings);
+      a = getActiveEstablishmentAbsenceRules(absencePolicySettings);
     t.innerHTML = a
       .map(
         (t) =>
@@ -2703,6 +2966,7 @@ async function resetWorkSettings() {
     (absencePolicySettings = normalizeAbsencePolicySettings(
       DEFAULT_ABSENCE_POLICY_SETTINGS,
     )),
+    captureAbsenceBaselineV313(true),
     renderWorkSettings(),
     renderAttendance(),
     renderDashboard());
@@ -2718,6 +2982,7 @@ async function resetWorkSettings() {
     absencePolicySettings = normalizeAbsencePolicySettings(
       previousAbsenceSettings,
     );
+    captureAbsenceBaselineV313(true);
     saveLocalMeta();
     updateWorkSettingsUiState("error");
     renderWorkSettings();
@@ -7327,47 +7592,62 @@ function setupEvents() {
       ?.addEventListener("click", resetWorkSettings),
     document
       .querySelector("#absencePolicyForm")
+      ?.addEventListener("input", (e) => {
+        if (e.target.matches("#v313AbsencePreviewSalary")) {
+          renderAbsencePreviewV313();
+          return;
+        }
+        if (
+          e.target.closest(
+            "[data-establishment-absence-rule-name], [data-establishment-absence-rule-days]",
+          )
+        )
+          markAbsenceDraftDirtyV313();
+      }),
+    document
+      .querySelector("#absencePolicyForm")
       ?.addEventListener("change", (e) => {
-        e.target.closest(
-          "[data-absence-policy], [data-establishment-absence-rule-name], [data-establishment-absence-rule-days]",
-        ) &&
+        if (e.target.matches("#v313AbsencePreviewRule, #v313AbsencePreviewSalary")) {
+          renderAbsencePreviewV313();
+          return;
+        }
+        if (
+          e.target.closest(
+            "[data-establishment-absence-rule-name], [data-establishment-absence-rule-days], [data-establishment-absence-rule-active]",
+          )
+        ) {
+          syncAbsenceRuleInputsV313();
+          return;
+        }
+        e.target.closest("[data-absence-policy]") &&
           updateAbsencePolicyFromForm();
       }),
     document
       .querySelector("#absencePolicyForm")
-      ?.addEventListener("click", async (e) => {
+      ?.addEventListener("click", (e) => {
         const t = e.target.closest("[data-add-establishment-absence-rule]"),
-          n = e.target.closest("[data-remove-establishment-absence-rule]");
+          n = e.target.closest("[data-remove-establishment-absence-rule]"),
+          reset = e.target.closest("#v313ResetAbsenceDraft");
         if (t) {
           e.preventDefault();
           e.stopPropagation();
-          await addEstablishmentAbsenceRule();
+          addEstablishmentAbsenceRule();
         }
         if (n) {
           e.preventDefault();
           e.stopPropagation();
-          await removeEstablishmentAbsenceRule(
-            n.dataset.removeEstablishmentAbsenceRule,
-          );
+          removeEstablishmentAbsenceRule(n.dataset.removeEstablishmentAbsenceRule);
+        }
+        if (reset) {
+          e.preventDefault();
+          resetAbsenceDraftV313();
         }
       }),
     document
       .querySelector("#absencePolicyForm")
       ?.addEventListener("submit", async (e) => {
         e.preventDefault();
-        updateAbsencePolicyFromForm();
-        absencePolicySettings = normalizeAbsencePolicySettings(
-          absencePolicySettings,
-        );
-        const saved = await persistAttendanceSettingsV224([
-          "absencePolicySettings",
-        ]);
-        renderAttendance();
-        showToast(
-          saved
-            ? "تم حفظ قاعدة بيانات الغياب سحابيًا"
-            : "تم الحفظ مؤقتًا، وتعذر تأكيد قاعدة الغياب سحابيًا",
-        );
+        await saveAbsencePolicyDraftV313();
       }),
     document
       .querySelector("#minuteSettingsForm")
@@ -82930,7 +83210,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 312,
+    version: 313,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -83475,7 +83755,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 312,
+      version: 313,
       granular: true,
       canonicalPermissions: true,
     };
@@ -84036,7 +84316,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 312,
+    version: 313,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
