@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=311" />
+    <link rel="stylesheet" href="style.css?v=312" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -994,9 +994,32 @@
                   </form>
                 </section>
 
-                <section class="settings-section" data-settings-panel="managers">
-                  <div class="panel-head"><div><h3>المدراء</h3><p>تعيين المدراء المختارين من مدراء الإدارات والأقسام وربط توقيع كل مدير.</p></div><button type="button" class="primary-btn" id="addManagerBtn"><span data-icon="plus"></span>إضافة مدير</button></div>
-                  <div class="table-wrap managers-settings-wrap">
+                <section class="settings-section v312-managers-panel" data-settings-panel="managers">
+                  <div class="panel-head v312-managers-head">
+                    <div class="v312-managers-title"><span class="v312-managers-title-icon" data-icon="users"></span><div><h3>المدراء والتوقيعات</h3><p>تعيين مدراء الإدارات والأقسام وربط توقيعاتهم المعتمدة بالمستندات والمخالصات.</p></div></div>
+                    <button type="button" class="primary-btn" id="addManagerBtn"><span data-icon="plus"></span>إضافة مدير</button>
+                  </div>
+
+                  <div class="v312-managers-summary" aria-label="ملخص المدراء">
+                    <article class="is-total"><span data-icon="users"></span><div><small>إجمالي المدراء</small><strong id="v312ManagersTotal">0</strong></div></article>
+                    <article class="is-complete"><span data-icon="check-circle"></span><div><small>توقيع مكتمل</small><strong id="v312ManagersSigned">0</strong></div></article>
+                    <article class="is-missing"><span data-icon="alert-circle"></span><div><small>بحاجة إلى توقيع</small><strong id="v312ManagersMissing">0</strong></div></article>
+                  </div>
+
+                  <div class="v312-managers-toolbar">
+                    <label class="v312-manager-search"><span data-icon="search"></span><input type="search" id="v312ManagerSearch" placeholder="ابحث باسم المدير أو الرقم الوظيفي أو جهة التعيين" autocomplete="off" /></label>
+                    <div class="v312-manager-filters" role="group" aria-label="تصفية المدراء">
+                      <button type="button" class="is-active" data-v312-manager-filter="all">الكل</button>
+                      <button type="button" data-v312-manager-filter="complete">مكتمل التوقيع</button>
+                      <button type="button" data-v312-manager-filter="missing">ينقصه توقيع</button>
+                    </div>
+                  </div>
+
+                  <div class="v312-managers-grid" id="managersSettingsCards" aria-live="polite"></div>
+
+                  <div class="v312-managers-assurance"><span data-icon="cloud"></span><div><strong>حفظ سحابي مؤكد</strong><small>لا يعتمد المدير أو توقيعه في المستندات إلا بعد نجاح الحفظ السحابي، ويُستعاد الوضع السابق تلقائيًا عند تعذر التأكيد.</small></div></div>
+
+                  <div class="table-wrap managers-settings-wrap v312-managers-legacy" hidden>
                     <table class="managers-settings-table">
                       <thead><tr><th>التسلسل</th><th>اسم المدير</th><th>مصدر التعيين</th><th>مرفق التوقيع</th><th>الإجراء</th></tr></thead>
                       <tbody id="managersSettingsBody"><tr><td colspan="5">لا يوجد مدراء محددون</td></tr></tbody>
@@ -1678,6 +1701,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=311"></script>
+    <script src="app.js?v=312"></script>
   </body>
 </html>

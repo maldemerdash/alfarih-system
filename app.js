@@ -5487,6 +5487,7 @@ async function buildClearanceMarkup(e) {
           String(item.employeeId || "").trim() === directManager ||
           String(item.id || "").trim() === directManager,
       ) ||
+      managers.find((item) => item && item.isDefault === true) ||
       managers[0] ||
       {},
     authType = "fingerprint" === e.authType ? "fingerprint" : "signature",
@@ -67289,6 +67290,16 @@ window.nawahLeaveBalanceReportV185 = {
       if (employeeId) employeeIds.add(employeeId);
       normalized.push(Object.assign({}, manager, { id: id }));
     });
+    let defaultAssigned = false;
+    normalized.forEach(function (manager, index) {
+      const requestedDefault = manager.isDefault === true || manager.isDefault === "true",
+        isDefault = !defaultAssigned && requestedDefault;
+      if (isDefault) defaultAssigned = true;
+      normalized[index] = Object.assign({}, manager, { isDefault: isDefault });
+    });
+    if (normalized.length && !defaultAssigned) {
+      normalized[0] = Object.assign({}, normalized[0], { isDefault: true });
+    }
     return normalized;
   }
   function readManagers() {
@@ -67304,71 +67315,164 @@ window.nawahLeaveBalanceReportV185 = {
   async function persistManagersV228(previous, next, options) {
     const sync = identitySyncV228(),
       config = options || {},
-      savedList = saveManagers(next);
+      previousList = normalizeManagersV228(previous);
     if (!sync) throw new Error("manager-cloud-sync-unavailable");
-    if (config.upserts?.length) sync.trackManagerUpserts(config.upserts);
-    if (config.deletes?.length) sync.trackManagerDeletes(config.deletes);
-    const saved = await sync.save(config.reason || "manager-save");
-    if (!saved) {
+    const savedList = saveManagers(next),
+      previousById = new Map(previousList.map(function (manager) {
+        return [String(manager.id), manager];
+      })),
+      savedById = new Map(savedList.map(function (manager) {
+        return [String(manager.id), manager];
+      })),
+      changedIds = savedList
+        .filter(function (manager) {
+          const before = previousById.get(String(manager.id));
+          return !before || JSON.stringify(before) !== JSON.stringify(manager);
+        })
+        .map(function (manager) { return String(manager.id); }),
+      deletedIds = previousList
+        .filter(function (manager) { return !savedById.has(String(manager.id)); })
+        .map(function (manager) { return String(manager.id); }),
+      upserts = Array.from(new Set(changedIds.concat(config.upserts || []).map(String))),
+      deletes = Array.from(new Set(deletedIds.concat(config.deletes || []).map(String)));
+    try {
+      if (upserts.length) sync.trackManagerUpserts(upserts);
+      if (deletes.length) sync.trackManagerDeletes(deletes);
+      const saved = await sync.save(config.reason || "manager-save");
+      if (!saved) throw new Error("manager-cloud-save-failed");
+      return savedList;
+    } catch (error) {
       localStorage.setItem(
         MANAGERS_KEY,
-        JSON.stringify(normalizeManagersV228(previous)),
+        JSON.stringify(previousList),
       );
-      await sync.rollback(["managers"]);
-      throw new Error("manager-cloud-save-failed");
+      try {
+        await sync.rollback(["managers"]);
+      } catch (_) {}
+      throw error;
     }
-    return savedList;
+  }
+  let managerViewFilterV312 = "all";
+  function managerEmployeeV312(manager) {
+    return employeeById(manager && manager.employeeId) || {};
+  }
+  function managerInitialsV312(name) {
+    const parts = text(name).split(/\s+/).filter(Boolean);
+    return (parts[0]?.charAt(0) || "م") + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : "");
+  }
+  function managerSourcesV312(manager) {
+    const sources = Array.isArray(manager?.sources)
+      ? manager.sources
+      : manager?.source
+        ? [manager.source]
+        : [];
+    return Array.from(new Set(sources.map(text).filter(Boolean)));
+  }
+  function managerKeyV312(manager) {
+    return String(manager?.employeeId || manager?.id || "");
+  }
+  function managerDirectUsageV312(manager) {
+    const keys = [manager?.name, manager?.employeeId, manager?.id].map(text).filter(Boolean);
+    return allEmployees().filter(function (employee) {
+      return keys.includes(text(employee.directManager));
+    }).length;
+  }
+  function managerCardV312(manager) {
+    const employee = managerEmployeeV312(manager),
+      attachmentId = text(manager.signatureAttachmentId),
+      key = managerKeyV312(manager),
+      sources = managerSourcesV312(manager),
+      employeeNumber = text(employee.employeeNumber || employee.number || manager.employeeNumber),
+      usage = managerDirectUsageV312(manager),
+      sourceBadges = sources.length
+        ? sources.map(function (source) { return '<span>' + esc(source) + "</span>"; }).join("")
+        : '<span>تعيين إداري</span>';
+    return (
+      '<article class="v312-manager-card' +
+      (manager.isDefault ? " is-default" : "") +
+      (attachmentId ? " has-signature" : " is-missing-signature") +
+      '" data-v312-manager-card data-signature-state="' +
+      (attachmentId ? "complete" : "missing") +
+      '" data-search="' +
+      esc([manager.name, employeeNumber, sources.join(" ")].join(" ").toLowerCase()) +
+      '"><header><div class="v312-manager-identity"><span class="v312-manager-avatar">' +
+      esc(managerInitialsV312(manager.name)) +
+      '</span><div><h4>' +
+      esc(manager.name || "مدير غير مسمى") +
+      '</h4><p>' +
+      (employeeNumber ? "الرقم الوظيفي: " + esc(employeeNumber) : "مرتبط بالتنظيم الإداري") +
+      '</p></div></div><div class="v312-manager-header-state">' +
+      (manager.isDefault
+        ? '<span class="v312-manager-default-badge">' + icon("star") + "المدير الافتراضي</span>"
+        : '<button type="button" data-set-default-manager="' + esc(key) + '" title="تعيينه مديرًا افتراضيًا">' + icon("star") + "تعيين افتراضي</button>") +
+      '</div></header><div class="v312-manager-sources"><small>مصدر التعيين</small><div>' +
+      sourceBadges +
+      '</div></div><div class="v312-manager-signature-state"><span class="v312-signature-status">' +
+      icon(attachmentId ? "check-circle" : "alert-circle") +
+      '<span><small>حالة التوقيع</small><strong>' +
+      (attachmentId ? "التوقيع معتمد" : "لم يرفع التوقيع") +
+      '</strong></span></span><span class="v312-manager-usage">' +
+      icon("file-text") +
+      '<span><small>الارتباط الحالي</small><strong>' +
+      (usage ? usage + " موظف" : manager.isDefault ? "اعتماد افتراضي" : "غير مستخدم مباشرًا") +
+      '</strong></span></span></div><footer><label class="v312-manager-upload">' +
+      icon("upload") +
+      (attachmentId ? "استبدال التوقيع" : "رفع التوقيع") +
+      '<input type="file" data-manager-signature="' +
+      esc(key) +
+      '" accept="image/*" hidden></label>' +
+      (attachmentId
+        ? '<button type="button" class="v312-manager-icon-action" data-view-attachment="' + esc(attachmentId) + '" data-attachment-id="' + esc(attachmentId) + '" title="معاينة التوقيع">' + icon("eye") + '<span>معاينة</span></button><button type="button" class="v312-manager-icon-action is-danger" data-remove-manager-signature="' + esc(key) + '" title="إزالة التوقيع">' + icon("trash") + '<span>إزالة التوقيع</span></button>'
+        : "") +
+      '<button type="button" class="v312-manager-icon-action is-danger is-manager-delete" data-delete-manager="' +
+      esc(key) +
+      '" title="حذف المدير">' +
+      icon("trash") +
+      '<span>حذف المدير</span></button></footer></article>'
+    );
   }
   function renderManagers() {
-    const body = q("#managersSettingsBody");
-    if (!body) return;
-    const list = readManagers();
-    body.innerHTML = list.length
-      ? list
-          .map(function (manager, index) {
-            const attachmentId = manager.signatureAttachmentId || "";
-            return (
-              "<tr><td>" +
-              (index + 1) +
-              "</td><td><strong>" +
-              esc(manager.name) +
-              "</strong></td><td>" +
-              esc((manager.sources || []).join("، ") || manager.source || "—") +
-              '</td><td><div class="attachment-line v191-manager-signature"><strong>' +
-              esc(manager.signatureFileName || (attachmentId ? "تم إرفاق التوقيع" : "لم يتم إرفاق توقيع")) +
-              '</strong><label class="secondary-btn">رفع توقيع<input type="file" data-manager-signature="' +
-              esc(manager.employeeId || manager.id) +
-              '" accept="image/*,.pdf" hidden></label>' +
-              (attachmentId
-                ? '<button type="button" class="attachment-view-btn" data-view-attachment="' +
-                  esc(attachmentId) +
-                  '" data-attachment-id="' +
-                  esc(attachmentId) +
-                  '" title="عرض توقيع المدير">' +
-                  icon("eye") +
-                  "</button>"
-                : "") +
-              '</div></td><td><button type="button" class="quick-view-btn danger-inline-btn" data-delete-manager="' +
-              esc(manager.employeeId || manager.id) +
-              '" title="حذف">' +
-              icon("trash") +
-              "</button></td></tr>"
-            );
-          })
-          .join("")
-      : '<tr><td colspan="5"><div class="empty-state"><strong>لا يوجد مدراء محددون</strong><p>اضغط إضافة مدير لاختيار مدير من مدراء الإدارات أو الأقسام.</p></div></td></tr>';
+    const cards = q("#managersSettingsCards"),
+      body = q("#managersSettingsBody");
+    if (!cards && !body) return;
+    const list = readManagers(),
+      search = text(q("#v312ManagerSearch")?.value).toLowerCase(),
+      visible = list.filter(function (manager) {
+        const signed = Boolean(manager.signatureAttachmentId),
+          filterMatch = managerViewFilterV312 === "all" ||
+            (managerViewFilterV312 === "complete" && signed) ||
+            (managerViewFilterV312 === "missing" && !signed),
+          haystack = [manager.name, managerEmployeeV312(manager).employeeNumber, managerSourcesV312(manager).join(" ")].join(" ").toLowerCase();
+        return filterMatch && (!search || haystack.includes(search));
+      });
+    const total = q("#v312ManagersTotal"),
+      signed = q("#v312ManagersSigned"),
+      missing = q("#v312ManagersMissing");
+    if (total) total.textContent = String(list.length);
+    if (signed) signed.textContent = String(list.filter(function (manager) { return Boolean(manager.signatureAttachmentId); }).length);
+    if (missing) missing.textContent = String(list.filter(function (manager) { return !manager.signatureAttachmentId; }).length);
+    if (cards) {
+      cards.innerHTML = visible.length
+        ? visible.map(managerCardV312).join("")
+        : '<div class="v312-managers-empty">' + icon(list.length ? "search" : "users") + '<strong>' + (list.length ? "لا توجد نتائج مطابقة" : "لم تتم إضافة أي مدير بعد") + '</strong><p>' + (list.length ? "غيّر عبارة البحث أو مرشح حالة التوقيع." : "اختر مديرًا من مدراء الإدارات أو الأقسام ثم ارفع توقيعه المعتمد.") + '</p></div>';
+    }
+    if (body) {
+      body.innerHTML = list.length
+        ? list.map(function (manager, index) { return "<tr><td>" + (index + 1) + "</td><td>" + esc(manager.name) + "</td><td colspan=\"3\">" + (manager.signatureAttachmentId ? "مكتمل" : "ناقص") + "</td></tr>"; }).join("")
+        : '<tr><td colspan="5">لا يوجد مدراء محددون</td></tr>';
+    }
     try {
-      if (typeof hydrateIcons === "function") hydrateIcons(body);
+      if (typeof hydrateIcons === "function") hydrateIcons(q('[data-settings-panel="managers"]') || document);
     } catch (_) {}
   }
   function managerModal() {
     let dlg = q("#managerPickerModal");
     if (dlg) return dlg;
     dlg = document.createElement("dialog");
-    dlg.className = "modal v191-manager-modal";
+    dlg.className = "modal v191-manager-modal v312-manager-modal";
     dlg.id = "managerPickerModal";
     dlg.innerHTML =
-      '<div class="modal-card"><div class="modal-head"><div><h2>إضافة مدير</h2><p>يتم عرض الموظفين المعينين كمدراء في الإدارات أو الأقسام.</p></div><button type="button" class="icon-btn" data-v191-close-manager><span data-icon="x"></span></button></div><div class="modal-body"><div id="managerPickerList" class="v191-manager-picker"></div></div><div class="modal-actions"><button type="button" class="primary-btn" data-v191-close-manager>إغلاق</button></div></div>';
+      '<div class="modal-card"><div class="modal-head"><div class="v312-manager-modal-heading"><span data-icon="user-plus"></span><div><h2>إضافة مدير</h2><p>اختر اسمًا معينًا فعليًا لإدارة أو قسم. الأسماء المضافة مسبقًا لا تتكرر.</p></div></div><button type="button" class="icon-btn" data-v191-close-manager aria-label="إغلاق"><span data-icon="x"></span></button></div><div class="modal-body"><div class="v312-manager-picker-field"><label for="v312ManagerCandidateSelect">المدير المراد إضافته</label><div><span data-icon="users"></span><select id="v312ManagerCandidateSelect"><option value="">اختر المدير</option></select></div></div><div id="v312ManagerCandidatePreview" class="v312-manager-candidate-preview"></div></div><div class="modal-actions"><button type="button" class="secondary-btn" data-v191-close-manager>إلغاء</button><button type="button" class="primary-btn" id="v312ConfirmManagerAdd"><span data-icon="plus"></span>إضافة المدير</button></div></div>';
     document.body.appendChild(dlg);
     try {
       if (typeof hydrateIcons === "function") hydrateIcons(dlg);
@@ -67378,29 +67482,30 @@ window.nawahLeaveBalanceReportV185 = {
   function openManagerModal() {
     const dlg = managerModal();
     const selected = new Set(readManagers().map(function (m) { return String(m.employeeId || m.id); }));
-    const list = managerCandidates();
-    q("#managerPickerList", dlg).innerHTML = list.length
-      ? list
-          .map(function (candidate) {
-            const key = String(candidate.employeeId || candidate.name);
-            return (
-              '<div class="v191-manager-choice"><div><strong>' +
-              esc(candidate.name) +
-              "</strong><span>" +
-              esc(candidate.sources.join("، ")) +
-              '</span></div><button type="button" class="' +
-              (selected.has(key) ? "secondary-btn" : "primary-btn") +
-              '" data-add-manager="' +
-              esc(key) +
-              '"' +
-              (selected.has(key) ? " disabled" : "") +
-              ">" +
-              (selected.has(key) ? "مضاف" : "تعيين") +
-              "</button></div>"
-            );
-          })
-          .join("")
-      : '<div class="empty-state"><strong>لا توجد أسماء مدراء</strong><p>عيّن مديراً لإدارة أو قسم من قائمة الأقسام أولاً.</p></div>';
+    const list = managerCandidates().filter(function (candidate) {
+        return !selected.has(String(candidate.employeeId || candidate.name));
+      }),
+      select = q("#v312ManagerCandidateSelect", dlg),
+      confirmButton = q("#v312ConfirmManagerAdd", dlg),
+      preview = q("#v312ManagerCandidatePreview", dlg);
+    select.innerHTML = '<option value="">اختر المدير</option>' + list.map(function (candidate) {
+      return '<option value="' + esc(candidate.employeeId || candidate.name) + '">' + esc(candidate.name) + "</option>";
+    }).join("");
+    select.disabled = !list.length;
+    confirmButton.disabled = !list.length;
+    preview.innerHTML = list.length
+      ? '<div class="v312-manager-candidate-empty">' + icon("info") + '<p>بعد اختيار الاسم ستظهر جهة التعيين هنا قبل الإضافة.</p></div>'
+      : '<div class="v312-manager-candidate-empty is-warning">' + icon("alert-circle") + '<p>لا توجد أسماء متاحة. عيّن مديرًا لإدارة أو قسم أولًا، أو أن جميع المدراء مضافون بالفعل.</p></div>';
+    select.onchange = function () {
+      const candidate = list.find(function (item) {
+        return String(item.employeeId || item.name) === String(select.value);
+      });
+      confirmButton.disabled = !candidate;
+      preview.innerHTML = candidate
+        ? '<div class="v312-manager-candidate-ready"><span class="v312-manager-avatar">' + esc(managerInitialsV312(candidate.name)) + '</span><div><strong>' + esc(candidate.name) + '</strong><p>' + esc(candidate.sources.join("، ")) + '</p></div><span>' + icon("check-circle") + "جاهز للإضافة</span></div>"
+        : '<div class="v312-manager-candidate-empty">' + icon("info") + '<p>بعد اختيار الاسم ستظهر جهة التعيين هنا قبل الإضافة.</p></div>';
+      try { if (typeof hydrateIcons === "function") hydrateIcons(preview); } catch (_) {}
+    };
     try {
       dlg.showModal();
     } catch (_) {
@@ -67440,7 +67545,11 @@ window.nawahLeaveBalanceReportV185 = {
         reason: "manager-add",
       });
       renderManagers();
-      openManagerModal();
+      try {
+        q("#managerPickerModal")?.close();
+      } catch (_) {
+        q("#managerPickerModal")?.removeAttribute("open");
+      }
       notify("تمت إضافة المدير وحفظه سحابيًا.");
     } catch (error) {
       console.warn(error);
@@ -67457,6 +67566,10 @@ window.nawahLeaveBalanceReportV185 = {
     if (managerMutationPendingV228) return;
     if (typeof saveAttachment !== "function")
       return notify("تعذر حفظ توقيع المدير حالياً.");
+    if (!String(file.type || "").startsWith("image/")) {
+      input.value = "";
+      return notify("توقيع المدير يجب أن يكون ملف صورة.");
+    }
     managerMutationPendingV228 = true;
     input.disabled = true;
     try {
@@ -67466,7 +67579,7 @@ window.nawahLeaveBalanceReportV185 = {
           return String(manager.employeeId || manager.id) === String(id);
         });
       if (!target) throw new Error("manager-record-not-found");
-      const attachmentId = await saveAttachment(file, "manager-signature"),
+      const attachmentId = await saveAttachment(file, "manager-signature", { cloudOnly: true }),
         next = previous.map(function (manager) {
           return String(manager.id) === String(target.id)
             ? Object.assign({}, manager, {
@@ -67488,6 +67601,109 @@ window.nawahLeaveBalanceReportV185 = {
       notify("تعذر تأكيد حفظ توقيع المدير سحابيًا.");
     } finally {
       input.disabled = false;
+      managerMutationPendingV228 = false;
+    }
+  }
+  async function setDefaultManagerV312(id) {
+    if (!id || managerMutationPendingV228) return;
+    managerMutationPendingV228 = true;
+    try {
+      await prepareIdentityMutationV228();
+      const previous = readManagers(),
+        target = previous.find(function (manager) {
+          return managerKeyV312(manager) === String(id);
+        });
+      if (!target) throw new Error("manager-record-not-found");
+      if (target.isDefault) return;
+      const now = new Date().toISOString(),
+        next = previous.map(function (manager) {
+          return Object.assign({}, manager, {
+            isDefault: String(manager.id) === String(target.id),
+            updatedAt: String(manager.id) === String(target.id) ? now : manager.updatedAt,
+          });
+        });
+      await persistManagersV228(previous, next, { reason: "manager-default" });
+      renderManagers();
+      notify("تم اعتماد المدير الافتراضي وحفظه سحابيًا.");
+    } catch (error) {
+      console.warn(error);
+      renderManagers();
+      notify("تعذر تأكيد المدير الافتراضي سحابيًا.");
+    } finally {
+      managerMutationPendingV228 = false;
+    }
+  }
+  async function removeManagerSignatureV312(id) {
+    if (!id || managerMutationPendingV228) return;
+    const previous = readManagers(),
+      target = previous.find(function (manager) {
+        return managerKeyV312(manager) === String(id);
+      });
+    if (!target || !target.signatureAttachmentId) return;
+    if (!confirm("هل تريد إزالة توقيع " + text(target.name) + " من الاعتمادات القادمة؟ لن يظهر التوقيع في المستندات الجديدة بعد التأكيد.")) return;
+    managerMutationPendingV228 = true;
+    try {
+      await prepareIdentityMutationV228();
+      const refreshed = readManagers(),
+        current = refreshed.find(function (manager) {
+          return String(manager.id) === String(target.id);
+        });
+      if (!current) throw new Error("manager-record-not-found");
+      const next = refreshed.map(function (manager) {
+        return String(manager.id) === String(current.id)
+          ? Object.assign({}, manager, {
+              signatureAttachmentId: "",
+              signatureFileName: "",
+              updatedAt: new Date().toISOString(),
+            })
+          : manager;
+      });
+      await persistManagersV228(refreshed, next, { reason: "manager-signature-remove" });
+      renderManagers();
+      notify("تمت إزالة توقيع المدير سحابيًا.");
+    } catch (error) {
+      console.warn(error);
+      renderManagers();
+      notify("تعذر تأكيد إزالة توقيع المدير سحابيًا.");
+    } finally {
+      managerMutationPendingV228 = false;
+    }
+  }
+  async function deleteManagerV312(id) {
+    if (!id || managerMutationPendingV228) return;
+    const snapshot = readManagers(),
+      selected = snapshot.find(function (manager) {
+        return managerKeyV312(manager) === String(id);
+      });
+    if (!selected) return renderManagers();
+    const usage = managerDirectUsageV312(selected),
+      notes = [];
+    if (usage) notes.push("مرتبط حاليًا بصفته المدير المباشر لـ " + usage + " موظف");
+    if (selected.isDefault) notes.push("هو المدير الافتراضي الحالي وسيُعيّن مدير آخر تلقائيًا عند الحذف");
+    const warning = notes.length ? "\n\nتنبيه: " + notes.join("، ") + "." : "";
+    if (!confirm("هل تريد حذف المدير " + text(selected.name) + " من قائمة الاعتمادات؟" + warning + "\nلن يتغير سجل المستندات الصادرة سابقًا.")) return;
+    managerMutationPendingV228 = true;
+    try {
+      await prepareIdentityMutationV228();
+      const previous = readManagers(),
+        target = previous.find(function (manager) {
+          return String(manager.id) === String(selected.id);
+        });
+      if (!target) throw new Error("manager-record-not-found");
+      const next = previous.filter(function (manager) {
+        return String(manager.id) !== String(target.id);
+      });
+      await persistManagersV228(previous, next, {
+        deletes: [target.id],
+        reason: "manager-delete",
+      });
+      renderManagers();
+      notify("تم حذف المدير سحابيًا.");
+    } catch (error) {
+      console.warn(error);
+      renderManagers();
+      notify("تعذر تأكيد حذف المدير سحابيًا.");
+    } finally {
       managerMutationPendingV228 = false;
     }
   }
@@ -67547,6 +67763,7 @@ window.nawahLeaveBalanceReportV185 = {
     const managers = readManagers();
     const manager =
       managers.find(function (item) { return text(item.name) === text(emp.directManager); }) ||
+      managers.find(function (item) { return item && item.isDefault === true; }) ||
       managers[0] ||
       {};
     const approved = req.status === "approved" || req.status === "returned" || req.workResumeDate || req.returnDate;
@@ -67710,37 +67927,40 @@ window.nawahLeaveBalanceReportV185 = {
       void addManager(addManagerBtn.getAttribute("data-add-manager"));
       return;
     }
+    const confirmManagerBtn = event.target?.closest?.("#v312ConfirmManagerAdd");
+    if (confirmManagerBtn) {
+      event.preventDefault();
+      const select = q("#v312ManagerCandidateSelect");
+      if (!select?.value) return notify("اختر المدير المراد إضافته.");
+      void addManager(select.value);
+      return;
+    }
+    const filterManagerBtn = event.target?.closest?.("[data-v312-manager-filter]");
+    if (filterManagerBtn) {
+      event.preventDefault();
+      managerViewFilterV312 = filterManagerBtn.getAttribute("data-v312-manager-filter") || "all";
+      qa("[data-v312-manager-filter]").forEach(function (button) {
+        button.classList.toggle("is-active", button === filterManagerBtn);
+      });
+      renderManagers();
+      return;
+    }
+    const defaultManagerBtn = event.target?.closest?.("[data-set-default-manager]");
+    if (defaultManagerBtn) {
+      event.preventDefault();
+      void setDefaultManagerV312(defaultManagerBtn.getAttribute("data-set-default-manager"));
+      return;
+    }
+    const removeManagerSignatureBtn = event.target?.closest?.("[data-remove-manager-signature]");
+    if (removeManagerSignatureBtn) {
+      event.preventDefault();
+      void removeManagerSignatureV312(removeManagerSignatureBtn.getAttribute("data-remove-manager-signature"));
+      return;
+    }
     const deleteManagerBtn = event.target?.closest?.("[data-delete-manager]");
     if (deleteManagerBtn) {
       event.preventDefault();
-      const id = deleteManagerBtn.getAttribute("data-delete-manager");
-      if (managerMutationPendingV228) return;
-      managerMutationPendingV228 = true;
-      void (async function () {
-        try {
-          await prepareIdentityMutationV228();
-          const previous = readManagers(),
-            target = previous.find(function (manager) {
-              return String(manager.employeeId || manager.id) === String(id);
-            });
-          if (!target) return renderManagers();
-          const next = previous.filter(function (manager) {
-            return String(manager.id) !== String(target.id);
-          });
-          await persistManagersV228(previous, next, {
-            deletes: [target.id],
-            reason: "manager-delete",
-          });
-          renderManagers();
-          notify("تم حذف المدير سحابيًا.");
-        } catch (error) {
-          console.warn(error);
-          renderManagers();
-          notify("تعذر تأكيد حذف المدير سحابيًا.");
-        } finally {
-          managerMutationPendingV228 = false;
-        }
-      })();
+      void deleteManagerV312(deleteManagerBtn.getAttribute("data-delete-manager"));
       return;
     }
     if (event.target?.closest?.("[data-v191-close-manager]")) {
@@ -67878,6 +68098,10 @@ window.nawahLeaveBalanceReportV185 = {
         notify("هذا الموظف ليس على رأس العمل ولا يمكن اختياره لهذا الإجراء.");
       }
     }
+  }, true);
+
+  document.addEventListener("input", function (event) {
+    if (event.target?.matches?.("#v312ManagerSearch")) renderManagers();
   }, true);
 
   document.addEventListener("submit", blockInactiveSubmit, true);
@@ -68301,6 +68525,7 @@ window.nawahLeaveBalanceReportV185 = {
       managers.find(function (item) {
         return text(item.name) === text(emp.directManager) || text(item.employeeId) === text(emp.directManager);
       }) ||
+      managers.find(function (item) { return item && item.isDefault === true; }) ||
       managers[0] ||
       {};
     const approved = approvedRequest(req);
@@ -82705,7 +82930,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 311,
+    version: 312,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -83250,7 +83475,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 311,
+      version: 312,
       granular: true,
       canonicalPermissions: true,
     };
@@ -83811,7 +84036,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 311,
+    version: 312,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,

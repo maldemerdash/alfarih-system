@@ -41488,3 +41488,763 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     flex-direction: column-reverse;
   }
 }
+
+/* v312 - managers and signatures */
+#settingsView .v312-managers-panel {
+  --v312-manager-ink: #173449;
+  --v312-manager-muted: #718799;
+  --v312-manager-line: #d9e7ee;
+  --v312-manager-cyan: #12a7bd;
+  --v312-manager-green: #18bf79;
+  border: 1px solid var(--v312-manager-line);
+  border-radius: 22px;
+  box-shadow: 0 18px 42px rgba(39, 79, 104, 0.08);
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+#settingsView .v312-managers-panel::before {
+  background: linear-gradient(90deg, var(--v312-manager-cyan), var(--v312-manager-green));
+  content: "";
+  display: block;
+  height: 4px;
+  width: 100%;
+}
+
+#settingsView .v312-managers-head {
+  align-items: center;
+  background: linear-gradient(110deg, rgba(18, 167, 189, 0.055), rgba(24, 191, 121, 0.035) 70%, #fff);
+  border-bottom: 1px solid var(--v312-manager-line);
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  padding: 20px 22px;
+}
+
+#settingsView .v312-managers-title {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+#settingsView .v312-managers-title-icon,
+.v312-manager-modal-heading > span {
+  align-items: center;
+  background: #eaf9fb;
+  border: 1px solid #c4ebf0;
+  border-radius: 14px;
+  color: #078da4;
+  display: inline-flex;
+  flex: 0 0 48px;
+  height: 48px;
+  justify-content: center;
+  width: 48px;
+}
+
+#settingsView .v312-managers-title-icon svg,
+.v312-manager-modal-heading > span svg {
+  height: 23px;
+  width: 23px;
+}
+
+#settingsView .v312-managers-head h3 {
+  color: var(--v312-manager-ink);
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0 0 5px;
+}
+
+#settingsView .v312-managers-head p {
+  color: var(--v312-manager-muted);
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 0;
+}
+
+#settingsView .v312-managers-head #addManagerBtn {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding-inline: 18px;
+}
+
+#settingsView .v312-managers-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 18px 22px 0;
+}
+
+#settingsView .v312-managers-summary article {
+  align-items: center;
+  background: #fbfdfe;
+  border: 1px solid var(--v312-manager-line);
+  border-radius: 16px;
+  display: flex;
+  gap: 11px;
+  min-height: 78px;
+  overflow: hidden;
+  padding: 13px 15px;
+  position: relative;
+}
+
+#settingsView .v312-managers-summary article::after {
+  background: var(--summary-color, var(--v312-manager-cyan));
+  border-radius: 10px;
+  content: "";
+  inset-block: 13px;
+  inset-inline-start: 0;
+  position: absolute;
+  width: 3px;
+}
+
+#settingsView .v312-managers-summary article > svg {
+  background: var(--summary-bg, #eaf9fb);
+  border-radius: 11px;
+  color: var(--summary-color, var(--v312-manager-cyan));
+  flex: 0 0 auto;
+  height: 40px;
+  padding: 9px;
+  width: 40px;
+}
+
+#settingsView .v312-managers-summary article.is-complete {
+  --summary-bg: #eafbf3;
+  --summary-color: #14a866;
+}
+
+#settingsView .v312-managers-summary article.is-missing {
+  --summary-bg: #fff7e8;
+  --summary-color: #e39a22;
+}
+
+#settingsView .v312-managers-summary small {
+  color: var(--v312-manager-muted);
+  display: block;
+  font-size: 11px;
+}
+
+#settingsView .v312-managers-summary strong {
+  color: var(--v312-manager-ink);
+  display: block;
+  font-size: 23px;
+  line-height: 1.2;
+  margin-top: 4px;
+}
+
+#settingsView .v312-managers-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px 22px;
+}
+
+#settingsView .v312-manager-search {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--v312-manager-line);
+  border-radius: 13px;
+  display: flex;
+  flex: 1 1 340px;
+  gap: 9px;
+  max-width: 520px;
+  min-height: 44px;
+  padding: 0 13px;
+}
+
+#settingsView .v312-manager-search:focus-within {
+  border-color: #70cfdd;
+  box-shadow: 0 0 0 3px rgba(18, 167, 189, 0.09);
+}
+
+#settingsView .v312-manager-search svg {
+  color: #7a919f;
+  flex: 0 0 18px;
+  height: 18px;
+  width: 18px;
+}
+
+#settingsView .v312-manager-search input {
+  background: transparent;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--v312-manager-ink);
+  font-size: 12px;
+  min-height: 42px;
+  outline: 0;
+  padding: 0;
+  width: 100%;
+}
+
+#settingsView .v312-manager-filters {
+  align-items: center;
+  background: #f3f8fa;
+  border: 1px solid #e0ecf1;
+  border-radius: 13px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+}
+
+#settingsView .v312-manager-filters button {
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  color: #6f8594;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+#settingsView .v312-manager-filters button.is-active {
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(34, 76, 103, 0.09);
+  color: #078ca3;
+}
+
+#settingsView .v312-managers-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 2px 22px 18px;
+}
+
+#settingsView .v312-manager-card {
+  background: #fff;
+  border: 1px solid var(--v312-manager-line);
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(31, 72, 98, 0.055);
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+#settingsView .v312-manager-card::before {
+  background: #d4e2e9;
+  content: "";
+  height: 3px;
+  inset-inline: 0;
+  position: absolute;
+  top: 0;
+}
+
+#settingsView .v312-manager-card.has-signature::before {
+  background: linear-gradient(90deg, #12a7bd, #19bd78);
+}
+
+#settingsView .v312-manager-card.is-missing-signature::before {
+  background: #e7a83a;
+}
+
+#settingsView .v312-manager-card:hover {
+  border-color: #badbe4;
+  box-shadow: 0 14px 30px rgba(31, 72, 98, 0.09);
+  transform: translateY(-1px);
+}
+
+#settingsView .v312-manager-card > header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 17px 17px 13px;
+}
+
+#settingsView .v312-manager-identity {
+  align-items: center;
+  display: flex;
+  gap: 11px;
+  min-width: 0;
+}
+
+#settingsView .v312-manager-avatar,
+.v312-manager-modal .v312-manager-avatar {
+  align-items: center;
+  background: linear-gradient(145deg, #e8f9fb, #e8fbf2);
+  border: 1px solid #bfe8e6;
+  border-radius: 14px;
+  color: #087f92;
+  display: inline-flex;
+  flex: 0 0 46px;
+  font-size: 15px;
+  font-weight: 800;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+}
+
+#settingsView .v312-manager-identity > div {
+  min-width: 0;
+}
+
+#settingsView .v312-manager-identity h4 {
+  color: var(--v312-manager-ink);
+  font-size: 14px;
+  font-weight: 800;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#settingsView .v312-manager-identity p {
+  color: var(--v312-manager-muted);
+  font-size: 10px;
+  margin: 5px 0 0;
+}
+
+#settingsView .v312-manager-header-state > span,
+#settingsView .v312-manager-header-state > button {
+  align-items: center;
+  background: #f5f9fb;
+  border: 1px solid #dde9ee;
+  border-radius: 999px;
+  color: #728796;
+  display: inline-flex;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 5px;
+  min-height: 29px;
+  padding: 0 9px;
+}
+
+#settingsView .v312-manager-header-state > button {
+  cursor: pointer;
+}
+
+#settingsView .v312-manager-header-state > button:hover {
+  border-color: #79cfd9;
+  color: #078ba1;
+}
+
+#settingsView .v312-manager-header-state .v312-manager-default-badge {
+  background: #fff8e6;
+  border-color: #f1d58f;
+  color: #a6750d;
+}
+
+#settingsView .v312-manager-header-state svg {
+  height: 14px;
+  width: 14px;
+}
+
+#settingsView .v312-manager-sources {
+  border-block: 1px solid #edf3f6;
+  margin: 0 17px;
+  padding: 11px 0;
+}
+
+#settingsView .v312-manager-sources > small {
+  color: var(--v312-manager-muted);
+  display: block;
+  font-size: 10px;
+  margin-bottom: 7px;
+}
+
+#settingsView .v312-manager-sources > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#settingsView .v312-manager-sources span {
+  background: #eef9fb;
+  border: 1px solid #d0edf1;
+  border-radius: 999px;
+  color: #2c7180;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 5px 8px;
+}
+
+#settingsView .v312-manager-signature-state {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 12px 17px;
+}
+
+#settingsView .v312-manager-signature-state > span {
+  align-items: center;
+  background: #f8fbfc;
+  border: 1px solid #e5eef2;
+  border-radius: 12px;
+  display: flex;
+  gap: 8px;
+  min-height: 53px;
+  padding: 8px 10px;
+}
+
+#settingsView .v312-manager-signature-state > span > svg {
+  color: #6f8796;
+  flex: 0 0 18px;
+  height: 18px;
+  width: 18px;
+}
+
+#settingsView .has-signature .v312-signature-status > svg {
+  color: #12a866;
+}
+
+#settingsView .is-missing-signature .v312-signature-status > svg {
+  color: #dc9222;
+}
+
+#settingsView .v312-manager-signature-state small,
+#settingsView .v312-manager-signature-state strong {
+  display: block;
+}
+
+#settingsView .v312-manager-signature-state small {
+  color: var(--v312-manager-muted);
+  font-size: 9px;
+}
+
+#settingsView .v312-manager-signature-state strong {
+  color: var(--v312-manager-ink);
+  font-size: 10px;
+  margin-top: 3px;
+}
+
+#settingsView .v312-manager-card > footer {
+  align-items: center;
+  background: #fbfdfe;
+  border-top: 1px solid #e8f0f4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 11px 17px;
+}
+
+#settingsView .v312-manager-upload,
+#settingsView .v312-manager-icon-action {
+  align-items: center;
+  background: #eef9fb;
+  border: 1px solid #caeaf0;
+  border-radius: 10px;
+  color: #087f94;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+#settingsView .v312-manager-upload:hover,
+#settingsView .v312-manager-icon-action:hover {
+  background: #e3f7fa;
+  border-color: #8dd4df;
+}
+
+#settingsView .v312-manager-upload svg,
+#settingsView .v312-manager-icon-action svg {
+  height: 15px;
+  width: 15px;
+}
+
+#settingsView .v312-manager-icon-action.is-danger {
+  background: #fff;
+  border-color: #f0d5d7;
+  color: #d74a51;
+}
+
+#settingsView .v312-manager-icon-action.is-manager-delete {
+  margin-inline-start: auto;
+}
+
+#settingsView .v312-managers-empty {
+  align-items: center;
+  background: #f9fcfd;
+  border: 1px dashed #cbdfe7;
+  border-radius: 17px;
+  display: flex;
+  flex-direction: column;
+  grid-column: 1 / -1;
+  justify-content: center;
+  min-height: 190px;
+  padding: 24px;
+  text-align: center;
+}
+
+#settingsView .v312-managers-empty > svg {
+  color: #0d99ae;
+  height: 32px;
+  margin-bottom: 10px;
+  width: 32px;
+}
+
+#settingsView .v312-managers-empty strong {
+  color: var(--v312-manager-ink);
+  font-size: 14px;
+}
+
+#settingsView .v312-managers-empty p {
+  color: var(--v312-manager-muted);
+  font-size: 11px;
+  line-height: 1.8;
+  margin: 6px 0 0;
+}
+
+#settingsView .v312-managers-assurance {
+  align-items: center;
+  background: #f1fbf7;
+  border-top: 1px solid #d5eee2;
+  display: flex;
+  gap: 10px;
+  padding: 13px 22px;
+}
+
+#settingsView .v312-managers-assurance > svg {
+  color: #13a866;
+  flex: 0 0 21px;
+  height: 21px;
+  width: 21px;
+}
+
+#settingsView .v312-managers-assurance strong,
+#settingsView .v312-managers-assurance small {
+  display: block;
+}
+
+#settingsView .v312-managers-assurance strong {
+  color: #23714f;
+  font-size: 11px;
+}
+
+#settingsView .v312-managers-assurance small {
+  color: #668c7a;
+  font-size: 9px;
+  line-height: 1.7;
+  margin-top: 2px;
+}
+
+.v312-manager-modal .modal-card {
+  max-width: 620px;
+  overflow: hidden;
+}
+
+.v312-manager-modal .modal-head {
+  background: linear-gradient(110deg, #f0fbfc, #f4fcf8 70%, #fff);
+}
+
+.v312-manager-modal-heading {
+  align-items: center;
+  display: flex;
+  gap: 11px;
+}
+
+.v312-manager-modal-heading h2 {
+  color: #173449;
+  font-size: 17px;
+  margin: 0 0 4px;
+}
+
+.v312-manager-modal-heading p {
+  color: #718799;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.v312-manager-modal .modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.v312-manager-picker-field > label {
+  color: #304d61;
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 7px;
+}
+
+.v312-manager-picker-field > div {
+  align-items: center;
+  border: 1px solid #d5e5ec;
+  border-radius: 13px;
+  display: flex;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 12px;
+}
+
+.v312-manager-picker-field > div:focus-within {
+  border-color: #70cfdd;
+  box-shadow: 0 0 0 3px rgba(18, 167, 189, 0.09);
+}
+
+.v312-manager-picker-field svg {
+  color: #0e98ad;
+  height: 18px;
+  width: 18px;
+}
+
+.v312-manager-picker-field select {
+  background: transparent;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #173449;
+  font: inherit;
+  font-size: 12px;
+  min-height: 44px;
+  outline: 0;
+  width: 100%;
+}
+
+.v312-manager-candidate-preview {
+  min-height: 85px;
+}
+
+.v312-manager-candidate-empty,
+.v312-manager-candidate-ready {
+  align-items: center;
+  background: #f8fbfc;
+  border: 1px dashed #cbdfe7;
+  border-radius: 14px;
+  display: flex;
+  gap: 10px;
+  min-height: 85px;
+  padding: 13px;
+}
+
+.v312-manager-candidate-empty {
+  color: #718799;
+  justify-content: center;
+  text-align: center;
+}
+
+.v312-manager-candidate-empty.is-warning {
+  background: #fffaf1;
+  border-color: #eed9aa;
+  color: #9a721f;
+}
+
+.v312-manager-candidate-empty svg {
+  height: 19px;
+  width: 19px;
+}
+
+.v312-manager-candidate-empty p {
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.v312-manager-candidate-ready > div {
+  min-width: 0;
+}
+
+.v312-manager-candidate-ready strong {
+  color: #173449;
+  display: block;
+  font-size: 13px;
+}
+
+.v312-manager-candidate-ready p {
+  color: #718799;
+  font-size: 10px;
+  margin: 4px 0 0;
+}
+
+.v312-manager-candidate-ready > span:last-child {
+  align-items: center;
+  background: #eafbf3;
+  border-radius: 999px;
+  color: #128a55;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 800;
+  gap: 5px;
+  margin-inline-start: auto;
+  padding: 6px 9px;
+}
+
+.v312-manager-candidate-ready > span:last-child svg {
+  height: 14px;
+  width: 14px;
+}
+
+@media (max-width: 1100px) {
+  #settingsView .v312-managers-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  #settingsView .v312-managers-head,
+  #settingsView .v312-managers-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #settingsView .v312-managers-head #addManagerBtn,
+  #settingsView .v312-manager-search {
+    max-width: none;
+    width: 100%;
+  }
+
+  #settingsView .v312-managers-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #settingsView .v312-manager-filters {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  #settingsView .v312-manager-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  #settingsView .v312-manager-filters button {
+    flex: 1 0 auto;
+  }
+}
+
+@media (max-width: 560px) {
+  #settingsView .v312-managers-head,
+  #settingsView .v312-managers-summary,
+  #settingsView .v312-managers-toolbar,
+  #settingsView .v312-managers-grid,
+  #settingsView .v312-managers-assurance {
+    padding-inline: 13px;
+  }
+
+  #settingsView .v312-manager-card > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #settingsView .v312-manager-signature-state {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #settingsView .v312-manager-card > footer > * {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+  }
+
+  #settingsView .v312-manager-icon-action.is-manager-delete {
+    margin-inline-start: 0;
+  }
+
+  .v312-manager-candidate-ready {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .v312-manager-candidate-ready > span:last-child {
+    margin-inline-start: 57px;
+  }
+}
