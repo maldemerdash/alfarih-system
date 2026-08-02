@@ -71635,10 +71635,89 @@ window.nawahLeaveBalanceReportV185 = {
 (function v237SalarySettings() {
   if (window.__v237SalarySettings) return;
   window.__v237SalarySettings = true;
-  let saveInFlight = false;
+  let saveInFlight = false,
+    salaryUiStateV310 = "saved",
+    salaryBaselineV310 = null;
 
   function form() {
     return document.querySelector("#salarySettingsForm");
+  }
+
+  function cloneSettingsV310(settings) {
+    return normalizeSalarySettingsV237({ ...(settings || {}) });
+  }
+
+  function sameSettingsV310(first, second) {
+    const a = first || {},
+      b = second || {},
+      aType = a.insuranceDeductionType === "fixed" ? "fixed" : "percentage",
+      bType = b.insuranceDeductionType === "fixed" ? "fixed" : "percentage";
+    return (
+      aType === bType &&
+      Number(a.insuranceDeductionValue) === Number(b.insuranceDeductionValue)
+    );
+  }
+
+  function captureBaselineV310(settings = getSalarySettingsV237()) {
+    salaryBaselineV310 = cloneSettingsV310(settings);
+  }
+
+  function validationV310(showBrowserMessage = false) {
+    const salaryForm = form(),
+      input = salaryForm?.elements?.insuranceDeductionValue,
+      type = salaryForm?.elements?.insuranceDeductionType?.value,
+      validation = document.querySelector("#v310SalaryValidation");
+    if (!input) return true;
+    const raw = String(input.value ?? "").trim(),
+      value = Number(raw);
+    let message = "";
+    if (!raw || !Number.isFinite(value)) message = "أدخل قيمة صحيحة للخصم.";
+    else if (value < 0) message = "قيمة الخصم لا يمكن أن تكون سالبة.";
+    else if (type === "percentage" && value > 100)
+      message = "نسبة الخصم لا يمكن أن تتجاوز 100%.";
+    input.setCustomValidity(message);
+    if (validation) {
+      validation.classList.toggle("is-error", Boolean(message));
+      const icon = validation.querySelector("span"),
+        text = validation.querySelector("p");
+      if (icon) icon.innerHTML = iconSvg(message ? "info" : "check-circle");
+      if (text)
+        text.textContent = message || "القيمة صالحة للحفظ السحابي.";
+    }
+    if (message && showBrowserMessage) input.reportValidity();
+    return !message;
+  }
+
+  function updateUiStateV310(state = salaryUiStateV310) {
+    const next = ["saved", "dirty", "saving", "error"].includes(state)
+        ? state
+        : "saved",
+      salaryForm = form(),
+      panel = document.querySelector('[data-settings-panel="salarySettings"]'),
+      status = document.querySelector("[data-v310-salary-save-state]"),
+      submit = salaryForm?.querySelector('button[type="submit"]'),
+      reset = document.querySelector("#v310ResetSalaryDraft"),
+      labels = {
+        saved: "الإعداد الحالي محفوظ",
+        dirty: "تعديلات غير محفوظة",
+        saving: "جاري الحفظ السحابي",
+        error: "تعذر تأكيد الحفظ",
+      };
+    salaryUiStateV310 = next;
+    if (panel) panel.dataset.v310SalaryState = next;
+    if (salaryForm) {
+      if (next === "saving") salaryForm.setAttribute("aria-busy", "true");
+      else salaryForm.removeAttribute("aria-busy");
+    }
+    if (status) {
+      status.className = `is-${next}`;
+      const text = status.querySelector("span");
+      if (text) text.textContent = labels[next];
+    }
+    const valid = validationV310(false);
+    if (submit)
+      submit.disabled = next === "saving" || next === "saved" || !valid;
+    if (reset) reset.disabled = next === "saving" || next === "saved";
   }
 
   function typePresentation(type) {
@@ -71656,33 +71735,69 @@ window.nawahLeaveBalanceReportV185 = {
       if (fixed) input.removeAttribute("max");
       else input.max = "100";
     }
+    salaryForm
+      .querySelectorAll("[data-v310-salary-type]")
+      .forEach((button) => {
+        const active = button.dataset.v310SalaryType === type;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
   }
 
   function formSettings() {
     const salaryForm = form();
     if (!salaryForm) return getSalarySettingsV237();
-    return normalizeSalarySettingsV237({
+    const rawValue = Number(
+      salaryForm.elements.insuranceDeductionValue?.value,
+    );
+    return {
       insuranceDeductionType:
-        salaryForm.elements.insuranceDeductionType?.value,
-      insuranceDeductionValue:
-        salaryForm.elements.insuranceDeductionValue?.value,
-      updatedAt: getSalarySettingsV237().updatedAt,
-    });
+        salaryForm.elements.insuranceDeductionType?.value === "fixed"
+          ? "fixed"
+          : "percentage",
+      insuranceDeductionValue: Number.isFinite(rawValue) ? rawValue : 0,
+      updatedAt:
+        salaryBaselineV310?.updatedAt || getSalarySettingsV237().updatedAt,
+    };
   }
 
   function renderPreview(settings = formSettings()) {
-    const preview = document.querySelector("#salarySettingsPreview");
-    if (!preview) return;
-    const exampleGross = 5000;
+    const preview = document.querySelector("#salarySettingsPreview"),
+      grossInput = document.querySelector("#v310SalaryExampleGross"),
+      current = document.querySelector("#v310SalaryCurrentSetting"),
+      grossOutput = document.querySelector("#v310SalaryGrossPreview"),
+      deductionOutput = document.querySelector(
+        "#v310SalaryDeductionPreview",
+      ),
+      netOutput = document.querySelector("#v310SalaryNetPreview"),
+      exampleGross = Math.max(0, Number(grossInput?.value) || 0);
     const exampleDeduction = calculateInsuranceDeductionV237(
       exampleGross,
       true,
       settings,
-    );
-    preview.innerHTML =
-      settings.insuranceDeductionType === "fixed"
-        ? `عند تفعيل الخصم في ملف الموظف سيُخصم <strong>${salarySettingsNumberV237(settings.insuranceDeductionValue)} ر.س</strong>، وبحد أقصى إجمالي راتبه.`
-        : `عند تفعيل الخصم في ملف الموظف سيُخصم <strong>${salarySettingsNumberV237(settings.insuranceDeductionValue)}%</strong> من إجمالي الاستحقاقات. مثال: الخصم من 5,000 ر.س يساوي ${salarySettingsNumberV237(exampleDeduction)} ر.س.`;
+    ),
+      exampleNet = Math.max(0, exampleGross - exampleDeduction),
+      money = (value) => `${salarySettingsNumberV237(value)} ر.س`;
+    if (current)
+      current.textContent = salaryInsuranceDescriptionV237(settings);
+    if (grossOutput) grossOutput.textContent = money(exampleGross);
+    if (deductionOutput)
+      deductionOutput.textContent = money(exampleDeduction);
+    if (netOutput) netOutput.textContent = money(exampleNet);
+    if (preview)
+      preview.innerHTML =
+        settings.insuranceDeductionType === "fixed"
+          ? `<span>${iconSvg("info")}</span><p>سيُخصم مبلغ ثابت قدره <strong>${money(settings.insuranceDeductionValue)}</strong> عند تفعيل التأمينات، وبحد أقصى إجمالي راتب الموظف.</p>`
+          : `<span>${iconSvg("info")}</span><p>سيُخصم <strong>${salarySettingsNumberV237(settings.insuranceDeductionValue)}%</strong> من إجمالي الاستحقاقات. في هذه المعاينة يساوي الخصم <strong>${money(exampleDeduction)}</strong>.</p>`;
+  }
+
+  function markDirtyV310() {
+    if (saveInFlight) return;
+    const same =
+      validationV310(false) &&
+      salaryBaselineV310 &&
+      sameSettingsV310(formSettings(), salaryBaselineV310);
+    updateUiStateV310(same ? "saved" : "dirty");
   }
 
   function syncSalaryEmployeeUiV237() {
@@ -71705,18 +71820,26 @@ window.nawahLeaveBalanceReportV185 = {
   function renderSalarySettingsV237() {
     const salaryForm = form();
     if (!salaryForm) return;
-    const settings = getSalarySettingsV237();
-    const typeInput = salaryForm.elements.insuranceDeductionType;
-    const valueInput = salaryForm.elements.insuranceDeductionValue;
-    if (document.activeElement !== typeInput)
+    const settings = getSalarySettingsV237(),
+      typeInput = salaryForm.elements.insuranceDeductionType,
+      valueInput = salaryForm.elements.insuranceDeductionValue,
+      preserveDraft =
+        salaryBaselineV310 &&
+        (salaryUiStateV310 === "dirty" || salaryUiStateV310 === "saving");
+    if (!preserveDraft) {
       typeInput.value = settings.insuranceDeductionType;
-    if (document.activeElement !== valueInput)
       valueInput.value = String(settings.insuranceDeductionValue);
+      captureBaselineV310(settings);
+    }
     typePresentation(typeInput.value);
-    renderPreview(
-      document.activeElement === typeInput || document.activeElement === valueInput
-        ? formSettings()
-        : settings,
+    validationV310(false);
+    renderPreview(preserveDraft ? formSettings() : settings);
+    updateUiStateV310(
+      preserveDraft
+        ? salaryUiStateV310
+        : salaryUiStateV310 === "error"
+          ? "error"
+          : "saved",
     );
     syncSalaryEmployeeUiV237();
     try {
@@ -71729,6 +71852,7 @@ window.nawahLeaveBalanceReportV185 = {
     event.preventDefault();
     if (saveInFlight) return;
     const salaryForm = event.target;
+    if (!validationV310(true)) return;
     if (!salaryForm.reportValidity()) return;
     const requested = {
       insuranceDeductionType:
@@ -71736,10 +71860,9 @@ window.nawahLeaveBalanceReportV185 = {
       insuranceDeductionValue:
         salaryForm.elements.insuranceDeductionValue.value,
     };
-    const submitButton = salaryForm.querySelector('button[type="submit"]');
     const sync = window.nawahSalarySettingsSyncV237;
     saveInFlight = true;
-    if (submitButton) submitButton.disabled = true;
+    updateUiStateV310("saving");
     let previous = getSalarySettingsV237();
     try {
       if (!sync?.prepare || !(await sync.prepare()))
@@ -71756,6 +71879,8 @@ window.nawahLeaveBalanceReportV185 = {
       ]);
       const saved = await sync.save("confirmed-salary-settings-save");
       if (saved === false) throw new Error("salary-cloud-save-failed");
+      captureBaselineV310(next);
+      salaryUiStateV310 = "saved";
       renderSalarySettingsV237();
       try {
         if (typeof renderPayroll === "function") renderPayroll();
@@ -71767,13 +71892,16 @@ window.nawahLeaveBalanceReportV185 = {
         if (sync?.rollback) await sync.rollback(previous);
         else setSalarySettingsV237(previous);
       } catch (_) {}
+      captureBaselineV310(getSalarySettingsV237());
+      salaryUiStateV310 = "error";
       renderSalarySettingsV237();
+      updateUiStateV310("error");
       showToast("تعذر تأكيد الحفظ السحابي؛ لم يتم تغيير إعداد الراتب");
       console.warn("v237: تعذر حفظ إعداد الراتب سحابيًا.", error);
       return false;
     } finally {
       saveInFlight = false;
-      if (submitButton) submitButton.disabled = false;
+      updateUiStateV310(salaryUiStateV310);
     }
   }
 
@@ -71785,6 +71913,8 @@ window.nawahLeaveBalanceReportV185 = {
     get: () => ({ ...getSalarySettingsV237() }),
     calculate: calculateInsuranceDeductionV237,
     render: renderSalarySettingsV237,
+    uiVersion: 310,
+    uiState: () => salaryUiStateV310,
   };
 
   document.addEventListener("submit", saveSettings, true);
@@ -71792,8 +71922,14 @@ window.nawahLeaveBalanceReportV185 = {
     "input",
     function (event) {
       if (!event.target?.closest?.("#salarySettingsForm")) return;
+      if (event.target?.id === "v310SalaryExampleGross") {
+        renderPreview();
+        return;
+      }
       typePresentation(form()?.elements?.insuranceDeductionType?.value);
+      validationV310(false);
       renderPreview();
+      markDirtyV310();
     },
     true,
   );
@@ -71802,7 +71938,9 @@ window.nawahLeaveBalanceReportV185 = {
     function (event) {
       if (event.target?.name === "insuranceDeductionType") {
         typePresentation(event.target.value);
+        validationV310(false);
         renderPreview();
+        markDirtyV310();
       }
     },
     true,
@@ -71810,6 +71948,32 @@ window.nawahLeaveBalanceReportV185 = {
   document.addEventListener(
     "click",
     function (event) {
+      const method = event.target?.closest?.("[data-v310-salary-type]");
+      if (method) {
+        event.preventDefault();
+        const salaryForm = form(),
+          typeInput = salaryForm?.elements?.insuranceDeductionType;
+        if (typeInput && typeInput.value !== method.dataset.v310SalaryType) {
+          typeInput.value = method.dataset.v310SalaryType;
+          typeInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        return;
+      }
+      if (event.target?.closest?.("#v310ResetSalaryDraft")) {
+        event.preventDefault();
+        const salaryForm = form(),
+          baseline = salaryBaselineV310 || getSalarySettingsV237();
+        salaryForm.elements.insuranceDeductionType.value =
+          baseline.insuranceDeductionType;
+        salaryForm.elements.insuranceDeductionValue.value = String(
+          baseline.insuranceDeductionValue,
+        );
+        typePresentation(baseline.insuranceDeductionType);
+        validationV310(false);
+        renderPreview(baseline);
+        updateUiStateV310("saved");
+        return;
+      }
       if (event.target?.closest?.('[data-settings-section="salarySettings"]'))
         setTimeout(renderSalarySettingsV237, 0);
     },
@@ -82339,7 +82503,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 309,
+    version: 310,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -82884,7 +83048,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 309,
+      version: 310,
       granular: true,
       canonicalPermissions: true,
     };
@@ -83445,7 +83609,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 309,
+    version: 310,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,

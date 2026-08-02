@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=309" />
+    <link rel="stylesheet" href="style.css?v=310" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -886,20 +886,61 @@
                     <div class="form-actions v308-work-actions"><div class="v308-save-assurance"><span data-icon="shield"></span><div><strong>حفظ سحابي مؤكد</strong><small>يتم اعتماد التغيير بعد نجاح الحفظ، وإلا تُستعاد القيم السابقة.</small></div></div><div><button type="button" class="secondary-btn" id="resetWorkSettingsBtn"><span data-icon="refresh"></span>استعادة الافتراضي</button><button type="submit" class="primary-btn"><span data-icon="check"></span>حفظ إعداد العمل</button></div></div>
                   </form>
                 </section>
-                <section class="settings-section" data-settings-panel="salarySettings">
-                  <div class="panel-head"><div><h3>إعداد الراتب</h3><p>تحديد طريقة احتساب خصم التأمينات عند تفعيله في ملف الموظف.</p></div></div>
-                  <form id="salarySettingsForm" class="settings-form work-settings-form salary-settings-form">
-                    <div class="work-settings-block salary-settings-card">
-                      <div class="section-title-with-action">
-                        <div><h4>خصم التأمينات</h4><p>اختر نسبة مئوية من إجمالي الاستحقاقات أو مبلغًا ثابتًا.</p></div>
+                <section class="settings-section v310-salary-panel" data-settings-panel="salarySettings">
+                  <div class="panel-head v310-salary-head">
+                    <div class="v310-salary-head-main"><span data-icon="wallet"></span><div><h3>إعداد الراتب</h3><p>تحديد طريقة خصم التأمينات ومعاينة أثرها قبل الحفظ.</p></div></div>
+                    <b class="is-saved" data-v310-salary-save-state><i></i><span>الإعداد الحالي محفوظ</span></b>
+                  </div>
+                  <form id="salarySettingsForm" class="settings-form work-settings-form salary-settings-form v310-salary-form">
+                    <section class="v310-salary-overview" aria-label="ملخص إعداد الراتب">
+                      <div class="v310-current-setting">
+                        <span data-icon="shield"></span>
+                        <div><small>الإعداد المعتمد حالياً</small><strong id="v310SalaryCurrentSetting">—</strong></div>
                       </div>
-                      <div class="form-grid salary-settings-grid">
-                        <label><span>طريقة الخصم</span><select name="insuranceDeductionType"><option value="percentage">نسبة مئوية</option><option value="fixed">قيمة ثابتة</option></select></label>
-                        <label><span id="salaryInsuranceValueLabel">نسبة الخصم</span><span class="salary-setting-value-control"><input type="number" min="0" max="100" step="0.01" name="insuranceDeductionValue" required /><b id="salaryInsuranceValueSuffix">%</b></span></label>
+                      <div class="v310-salary-impact">
+                        <small>يظهر أثر هذا الإعداد في</small>
+                        <div><span>ملف الموظف</span><span>مسير الرواتب</span><span>تقارير الرواتب</span></div>
+                      </div>
+                    </section>
+
+                    <div class="v310-salary-config-grid">
+                      <section class="work-settings-block v310-salary-card v310-method-card" aria-labelledby="v310SalaryMethodTitle">
+                        <div class="section-title-with-action">
+                          <div><span class="v310-salary-step">١</span><span class="v310-salary-section-icon" data-icon="pie"></span><h4 id="v310SalaryMethodTitle">طريقة الخصم</h4><p>اختر طريقة واحدة لتطبيقها عند تفعيل التأمينات للموظف.</p></div>
+                        </div>
+                        <div class="v310-method-options" role="group" aria-label="طريقة خصم التأمينات">
+                          <button type="button" data-v310-salary-type="percentage" aria-pressed="false"><span data-icon="pie"></span><div><strong>نسبة مئوية</strong><small>تُحتسب من إجمالي استحقاقات الموظف.</small></div><i data-icon="check"></i></button>
+                          <button type="button" data-v310-salary-type="fixed" aria-pressed="false"><span data-icon="wallet"></span><div><strong>قيمة ثابتة</strong><small>مبلغ موحد وبحد أقصى إجمالي الراتب.</small></div><i data-icon="check"></i></button>
+                        </div>
+                        <label class="v310-native-type-select"><span>طريقة الخصم</span><select name="insuranceDeductionType" tabindex="-1" aria-hidden="true"><option value="percentage">نسبة مئوية</option><option value="fixed">قيمة ثابتة</option></select></label>
+                      </section>
+
+                      <section class="work-settings-block v310-salary-card v310-value-card" aria-labelledby="v310SalaryValueTitle">
+                        <div class="section-title-with-action">
+                          <div><span class="v310-salary-step">٢</span><span class="v310-salary-section-icon" data-icon="wallet"></span><h4 id="v310SalaryValueTitle">قيمة الخصم</h4><p>أدخل القيمة المعتمدة، وسيتم التحقق منها مباشرة.</p></div>
+                        </div>
+                        <label class="v310-value-field"><span id="salaryInsuranceValueLabel">نسبة الخصم</span><span class="salary-setting-value-control"><input type="number" min="0" max="100" step="0.01" inputmode="decimal" name="insuranceDeductionValue" required /><b id="salaryInsuranceValueSuffix">%</b></span></label>
+                        <div class="v310-salary-validation" id="v310SalaryValidation" role="status" aria-live="polite"><span data-icon="check-circle"></span><p>القيمة صالحة للحفظ.</p></div>
+                      </section>
+                    </div>
+
+                    <section class="work-settings-block v310-salary-card v310-simulator-card" aria-labelledby="v310SalarySimulatorTitle">
+                      <div class="section-title-with-action">
+                        <div><span class="v310-salary-step">٣</span><span class="v310-salary-section-icon" data-icon="trend-up"></span><h4 id="v310SalarySimulatorTitle">معاينة أثر الخصم</h4><p>معاينة توضيحية فقط؛ الراتب التجريبي لا يتم حفظه.</p></div>
+                        <label class="v310-example-gross"><span>إجمالي راتب تجريبي</span><span><input type="number" id="v310SalaryExampleGross" min="0" step="100" inputmode="decimal" value="5000" /><b>ر.س</b></span></label>
+                      </div>
+                      <div class="v310-simulator-results">
+                        <article><span>إجمالي الراتب</span><strong id="v310SalaryGrossPreview">0 ر.س</strong></article>
+                        <article class="is-deduction"><span>قيمة الخصم</span><strong id="v310SalaryDeductionPreview">0 ر.س</strong></article>
+                        <article class="is-net"><span>الصافي بعد الخصم</span><strong id="v310SalaryNetPreview">0 ر.س</strong></article>
                       </div>
                       <div class="salary-settings-preview" id="salarySettingsPreview" aria-live="polite"></div>
+                    </section>
+
+                    <div class="form-actions v310-salary-actions">
+                      <div class="v310-salary-assurance"><span data-icon="shield"></span><div><strong>حفظ سحابي مؤكد</strong><small>لن يُعتمد التغيير إلا بعد نجاح الحفظ، وإلا تُستعاد القيمة السابقة.</small></div></div>
+                      <div><button type="button" class="secondary-btn" id="v310ResetSalaryDraft"><span data-icon="refresh"></span>إلغاء التعديلات</button><button type="submit" class="primary-btn"><span data-icon="check"></span>حفظ إعداد الراتب</button></div>
                     </div>
-                    <div class="form-actions"><button type="submit" class="primary-btn"><span data-icon="check"></span>حفظ إعداد الراتب</button></div>
                   </form>
                 </section>
                 <section class="settings-section" data-settings-panel="financialAmounts">
@@ -1601,6 +1642,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=309"></script>
+    <script src="app.js?v=310"></script>
   </body>
 </html>
