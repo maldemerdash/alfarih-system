@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=310" />
+    <link rel="stylesheet" href="style.css?v=311" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -943,18 +943,54 @@
                     </div>
                   </form>
                 </section>
-                <section class="settings-section" data-settings-panel="financialAmounts">
-                  <div class="panel-head"><div><h3>المبالغ المالية</h3><p>تحديد المبلغ الافتتاحي ومبلغ العهدة المستخدمين في شاشة المالية للأيام المفتوحة والقادمة فقط.</p></div></div>
-                  <form id="financeSettingsForm" class="settings-form work-settings-form">
-                    <div class="settings-placeholder-card finance-settings-note">
-                      <span data-icon="info"></span>
-                      <div><strong>تنبيه مهم</strong><p>تغيير هذه القيم لا يعبث بالأيام المالية المغلقة. يتم استخدام القيم في اليوم المفتوح والأيام القادمة فقط.</p></div>
+                <section class="settings-section v311-finance-amounts-panel" data-settings-panel="financialAmounts">
+                  <div class="panel-head v311-finance-amounts-head">
+                    <div class="v311-finance-amounts-head-main"><span data-icon="wallet"></span><div><h3>المبالغ المالية</h3><p>ضبط المبلغ الافتتاحي والعهدة مع مراجعة أثرهما قبل الاعتماد.</p></div></div>
+                    <b class="is-saved" data-v311-finance-save-state><i></i><span>القيم الحالية محفوظة</span></b>
+                  </div>
+                  <form id="financeSettingsForm" class="settings-form work-settings-form v311-finance-amounts-form">
+                    <section class="v311-finance-scope" aria-label="نطاق تطبيق المبالغ المالية">
+                      <span data-icon="shield"></span>
+                      <div><strong>تطبيق آمن على الأيام المفتوحة والقادمة</strong><p>الأيام المالية المغلقة تحتفظ بالقيم المجمدة وقت الإغلاق ولا تتأثر بهذا التعديل.</p></div>
+                      <b><i></i>لا تعديل بأثر رجعي</b>
+                    </section>
+
+                    <section class="v311-finance-current" aria-label="القيم المالية المعتمدة حالياً">
+                      <header><div><span data-icon="check-circle"></span><div><strong>القيم المعتمدة حالياً</strong><small>آخر قيم مؤكدة من الحفظ السحابي</small></div></div></header>
+                      <div>
+                        <article><span>المبلغ الافتتاحي</span><strong id="v311FinanceCurrentOpening">0 ر.س</strong></article>
+                        <article><span>مبلغ العهدة</span><strong id="v311FinanceCurrentCustody">0 ر.س</strong></article>
+                      </div>
+                    </section>
+
+                    <div class="v311-finance-input-grid">
+                      <section class="work-settings-block v311-finance-amount-card is-opening" aria-labelledby="v311OpeningAmountTitle">
+                        <div class="v311-finance-card-head"><span data-icon="trend-up"></span><div><h4 id="v311OpeningAmountTitle">المبلغ الافتتاحي</h4><p>القيمة التي يبدأ بها اليوم المالي المفتوح قبل العمليات اليومية.</p></div></div>
+                        <label><span>القيمة الجديدة</span><span class="v311-finance-money-input"><input type="number" min="0" step="0.01" inputmode="decimal" name="openingAmount" id="financeOpeningAmountInput" placeholder="0.00" required /><b>ر.س</b></span></label>
+                        <small>يظهر في بطاقة المبلغ المرحل داخل شاشة المالية.</small>
+                      </section>
+
+                      <section class="work-settings-block v311-finance-amount-card is-custody" aria-labelledby="v311CustodyAmountTitle">
+                        <div class="v311-finance-card-head"><span data-icon="wallet"></span><div><h4 id="v311CustodyAmountTitle">مبلغ العهدة</h4><p>قيمة العهدة المضافة إلى حساب اليوم المالي المفتوح.</p></div></div>
+                        <label><span>القيمة الجديدة</span><span class="v311-finance-money-input"><input type="number" min="0" step="0.01" inputmode="decimal" name="custodyAmount" id="financeCustodyAmountInput" placeholder="0.00" required /><b>ر.س</b></span></label>
+                        <small>يظهر في بطاقة العهدة ويُحتسب ضمن نتيجة الصندوق.</small>
+                      </section>
                     </div>
-                    <div class="form-grid">
-                      <label><span>المبلغ الافتتاحي</span><input type="number" min="0" step="0.01" name="openingAmount" id="financeOpeningAmountInput" placeholder="0" /></label>
-                      <label><span>مبلغ العهدة</span><input type="number" min="0" step="0.01" name="custodyAmount" id="financeCustodyAmountInput" placeholder="0" /></label>
+
+                    <section class="work-settings-block v311-finance-preview" aria-labelledby="v311FinancePreviewTitle">
+                      <header><div><span data-icon="eye"></span><div><h4 id="v311FinancePreviewTitle">معاينة قبل الحفظ</h4><p>هذه المعاينة لا تغيّر شاشة المالية حتى يتم تأكيد الحفظ السحابي.</p></div></div><b>معاينة فقط</b></header>
+                      <div class="v311-finance-preview-grid">
+                        <article><span>المبلغ الافتتاحي بعد التعديل</span><strong id="v311FinanceOpeningPreview">0 ر.س</strong></article>
+                        <article><span>مبلغ العهدة بعد التعديل</span><strong id="v311FinanceCustodyPreview">0 ر.س</strong></article>
+                        <article class="is-total"><span>مجموع القيمتين</span><strong id="v311FinanceTotalPreview">0 ر.س</strong><small>لا يمثل رصيد الصندوق النهائي؛ إذ يتأثر بالعمليات اليومية.</small></article>
+                      </div>
+                      <div class="v311-finance-validation" id="v311FinanceValidation" role="status" aria-live="polite"><span data-icon="check-circle"></span><p>القيم صالحة للحفظ السحابي.</p></div>
+                    </section>
+
+                    <div class="form-actions v311-finance-actions">
+                      <div class="v311-finance-assurance"><span data-icon="shield"></span><div><strong>حفظ سحابي مؤكد</strong><small>لا تُحدّث بطاقات المالية إلا بعد نجاح الحفظ، وإلا تُستعاد القيم السابقة.</small></div></div>
+                      <div><button type="button" class="secondary-btn" id="v311ResetFinanceDraft"><span data-icon="refresh"></span>إلغاء التعديلات</button><button type="submit" class="primary-btn"><span data-icon="check"></span>حفظ المبالغ المالية</button></div>
                     </div>
-                    <div class="form-actions"><button type="submit" class="primary-btn">حفظ المبالغ المالية</button></div>
                   </form>
                 </section>
 
@@ -1642,6 +1678,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=310"></script>
+    <script src="app.js?v=311"></script>
   </body>
 </html>

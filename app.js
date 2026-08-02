@@ -22471,7 +22471,9 @@ async function init() {
   (function () {
     const e = "nawah-finance-settings",
       t = { openingAmount: 0, custodyAmount: 0, updatedAt: "" };
-    let financeSettingsSaveInFlightV226 = false;
+    let financeSettingsSaveInFlightV226 = false,
+      financeSettingsUiStateV311 = "saved",
+      financeSettingsBaselineV311 = null;
     function n(e) {
       const t = Number(e);
       return Number.isFinite(t) && t >= 0 ? t : 0;
@@ -22492,6 +22494,141 @@ async function init() {
         return a(t);
       }
     })();
+    function financeSettingsFormV311() {
+      return document.querySelector("#financeSettingsForm");
+    }
+    function financeMoneyTextV311(e) {
+      const t = n(e);
+      try {
+        return `${arabicNumber(t)} ر.س`;
+      } catch (_) {
+        return `${t.toLocaleString("en-US", { maximumFractionDigits: 2 })} ر.س`;
+      }
+    }
+    function financeDraftV311() {
+      const e = financeSettingsFormV311();
+      if (!e) return a(o);
+      return {
+        openingAmount: Number(e.elements.openingAmount?.value),
+        custodyAmount: Number(e.elements.custodyAmount?.value),
+        updatedAt:
+          financeSettingsBaselineV311?.updatedAt || o.updatedAt || "",
+      };
+    }
+    function captureFinanceBaselineV311(e = o) {
+      financeSettingsBaselineV311 = a(e);
+    }
+    function sameFinanceSettingsV311(e, t) {
+      return (
+        Number(e?.openingAmount) === Number(t?.openingAmount) &&
+        Number(e?.custodyAmount) === Number(t?.custodyAmount)
+      );
+    }
+    function validateFinanceSettingsV311(showBrowserMessage = false) {
+      const e = financeSettingsFormV311(),
+        t = document.querySelector("#v311FinanceValidation");
+      if (!e) return true;
+      const fields = [
+        [e.elements.openingAmount, "المبلغ الافتتاحي"],
+        [e.elements.custodyAmount, "مبلغ العهدة"],
+      ];
+      let firstMessage = "";
+      fields.forEach(([field, label]) => {
+        if (!field) return;
+        const raw = String(field.value ?? "").trim(),
+          value = Number(raw);
+        let message = "";
+        if (!raw || !Number.isFinite(value))
+          message = `أدخل ${label} بقيمة صحيحة.`;
+        else if (value < 0) message = `${label} لا يمكن أن يكون سالبًا.`;
+        else if (Math.abs(value * 100 - Math.round(value * 100)) > 1e-7)
+          message = `${label} يقبل منزلتين عشريتين كحد أقصى.`;
+        field.setCustomValidity(message);
+        if (!firstMessage && message) firstMessage = message;
+      });
+      if (t) {
+        t.classList.toggle("is-error", Boolean(firstMessage));
+        const icon = t.querySelector("span"),
+          text = t.querySelector("p");
+        if (icon)
+          icon.innerHTML = iconSvg(firstMessage ? "info" : "check-circle");
+        if (text)
+          text.textContent =
+            firstMessage || "القيم صالحة للحفظ السحابي.";
+      }
+      if (firstMessage && showBrowserMessage)
+        fields.find(([field]) => field?.validationMessage)?.[0]?.reportValidity();
+      return !firstMessage;
+    }
+    function renderFinanceSettingsPreviewV311(e = financeDraftV311()) {
+      const currentOpening = document.querySelector(
+          "#v311FinanceCurrentOpening",
+        ),
+        currentCustody = document.querySelector(
+          "#v311FinanceCurrentCustody",
+        ),
+        openingPreview = document.querySelector(
+          "#v311FinanceOpeningPreview",
+        ),
+        custodyPreview = document.querySelector(
+          "#v311FinanceCustodyPreview",
+        ),
+        totalPreview = document.querySelector("#v311FinanceTotalPreview"),
+        opening = n(e?.openingAmount),
+        custody = n(e?.custodyAmount);
+      if (currentOpening)
+        currentOpening.textContent = financeMoneyTextV311(o.openingAmount);
+      if (currentCustody)
+        currentCustody.textContent = financeMoneyTextV311(o.custodyAmount);
+      if (openingPreview)
+        openingPreview.textContent = financeMoneyTextV311(opening);
+      if (custodyPreview)
+        custodyPreview.textContent = financeMoneyTextV311(custody);
+      if (totalPreview)
+        totalPreview.textContent = financeMoneyTextV311(opening + custody);
+    }
+    function updateFinanceSettingsUiV311(e = financeSettingsUiStateV311) {
+      const next = ["saved", "dirty", "saving", "error"].includes(e)
+          ? e
+          : "saved",
+        form = financeSettingsFormV311(),
+        panel = document.querySelector(
+          '[data-settings-panel="financialAmounts"]',
+        ),
+        status = document.querySelector("[data-v311-finance-save-state]"),
+        submit = form?.querySelector('button[type="submit"]'),
+        reset = document.querySelector("#v311ResetFinanceDraft"),
+        labels = {
+          saved: "القيم الحالية محفوظة",
+          dirty: "تعديلات غير محفوظة",
+          saving: "جاري الحفظ السحابي",
+          error: "تعذر تأكيد الحفظ",
+        };
+      financeSettingsUiStateV311 = next;
+      if (panel) panel.dataset.v311FinanceState = next;
+      if (form) {
+        if (next === "saving") form.setAttribute("aria-busy", "true");
+        else form.removeAttribute("aria-busy");
+      }
+      if (status) {
+        status.className = `is-${next}`;
+        const text = status.querySelector("span");
+        if (text) text.textContent = labels[next];
+      }
+      const valid = validateFinanceSettingsV311(false);
+      if (submit)
+        submit.disabled = next === "saving" || next === "saved" || !valid;
+      if (reset) reset.disabled = next === "saving" || next === "saved";
+    }
+    function markFinanceSettingsDirtyV311() {
+      if (financeSettingsSaveInFlightV226) return;
+      const draft = financeDraftV311(),
+        same =
+          validateFinanceSettingsV311(false) &&
+          financeSettingsBaselineV311 &&
+          sameFinanceSettingsV311(draft, financeSettingsBaselineV311);
+      updateFinanceSettingsUiV311(same ? "saved" : "dirty");
+    }
     function r(e, t) {
       const a = document.querySelector(`[data-finance-card="${e}"]`);
       if (!a) return;
@@ -22514,12 +22651,33 @@ async function init() {
         r("fundAmount", n(o.openingAmount) + n(o.custodyAmount)));
     }
     function s() {
-      const e = document.querySelector("#financeSettingsForm");
+      const e = financeSettingsFormV311();
       if (!e) return;
       const t = e.elements.openingAmount,
-        n = e.elements.custodyAmount;
-      (t && document.activeElement !== t && (t.value = o.openingAmount || ""),
-        n && document.activeElement !== n && (n.value = o.custodyAmount || ""));
+        n = e.elements.custodyAmount,
+        preserveDraft =
+          financeSettingsBaselineV311 &&
+          (financeSettingsUiStateV311 === "dirty" ||
+            financeSettingsUiStateV311 === "saving");
+      if (!preserveDraft) {
+        if (t && document.activeElement !== t) t.value = String(o.openingAmount);
+        if (n && document.activeElement !== n) n.value = String(o.custodyAmount);
+        captureFinanceBaselineV311(o);
+      }
+      validateFinanceSettingsV311(false);
+      renderFinanceSettingsPreviewV311(
+        preserveDraft ? financeDraftV311() : o,
+      );
+      updateFinanceSettingsUiV311(
+        preserveDraft
+          ? financeSettingsUiStateV311
+          : financeSettingsUiStateV311 === "error"
+            ? "error"
+            : "saved",
+      );
+      try {
+        hydrateIcons(e);
+      } catch (_) {}
     }
     function l() {
       (i(), s());
@@ -22575,32 +22733,32 @@ async function init() {
       if ("financeSettingsForm" !== t.target?.id) return;
       t.preventDefault();
       if (financeSettingsSaveInFlightV226) return;
+      if (!validateFinanceSettingsV311(true)) return;
+      if (!t.target.reportValidity()) return;
       financeSettingsSaveInFlightV226 = true;
       const n = t.target;
       const values = {
         openingAmount: n.elements.openingAmount?.value,
         custodyAmount: n.elements.custodyAmount?.value,
       };
+      let previous = null;
+      updateFinanceSettingsUiV311("saving");
       try {
         const sync = window.nawahFinanceSyncV226 || null;
         if (
           sync?.prepareMutation &&
           !(await sync.prepareMutation())
-        ) {
-          try {
-            showToast("تعذر الاتصال بالسحابة؛ لم تُحفظ الإعدادات المالية");
-          } catch (_) {}
-          return;
-        }
+        )
+          throw new Error("finance-cloud-prepare-failed");
+        previous = a(o);
         ((o = a({
           openingAmount: values.openingAmount,
           custodyAmount: values.custodyAmount,
           updatedAt: o.updatedAt,
-        })),
+          })),
           (o.updatedAt = new Date().toISOString()),
           localStorage.setItem(e, JSON.stringify(o)),
-          sync?.trackSettings?.(["openingAmount", "custodyAmount", "updatedAt"]),
-          l());
+          sync?.trackSettings?.(["openingAmount", "custodyAmount", "updatedAt"]));
         const saved = sync?.save
           ? await sync.save("confirmed-finance-settings-save")
           : typeof saveCloudStateNow === "function"
@@ -22609,27 +22767,71 @@ async function init() {
                 reason: "confirmed-finance-settings-save",
               })
             : !1;
+        if (saved === false) throw new Error("finance-cloud-save-failed");
+        captureFinanceBaselineV311(o);
+        financeSettingsUiStateV311 = "saved";
+        l();
         try {
-          showToast(
-            saved !== false
-              ? "تم حفظ المبالغ المالية سحابيًا وتحديث بطاقات المالية"
-              : "تم تطبيق الإعدادات مؤقتًا، وتعذر تأكيدها سحابيًا وسيُعاد تلقائيًا",
-          );
+          sync?.render?.();
         } catch (_) {}
+        try {
+          showToast("تم حفظ المبالغ المالية سحابيًا وتحديث بطاقات المالية");
+        } catch (_) {}
+      } catch (error) {
+        if (previous) {
+          o = a(previous);
+          localStorage.setItem(e, JSON.stringify(o));
+        }
+        financeSettingsUiStateV311 = "error";
+        l();
+        updateFinanceSettingsUiV311("error");
+        try {
+          window.nawahFinanceSyncV226?.render?.();
+        } catch (_) {}
+        try {
+          showToast("تعذر تأكيد الحفظ السحابي؛ تمت استعادة القيم السابقة");
+        } catch (_) {}
+        console.warn("v311: تعذر حفظ المبالغ المالية سحابيًا.", error);
       } finally {
         financeSettingsSaveInFlightV226 = false;
+        updateFinanceSettingsUiV311(financeSettingsUiStateV311);
       }
     }),
       document.addEventListener("input", function (e) {
         if (!e.target?.closest?.("#financeSettingsForm")) return;
-        const t = e.target.form;
-        t &&
-          ((o = a({
-            openingAmount: t.elements.openingAmount?.value,
-            custodyAmount: t.elements.custodyAmount?.value,
-            updatedAt: o.updatedAt,
-          })),
-          i());
+        validateFinanceSettingsV311(false);
+        renderFinanceSettingsPreviewV311();
+        markFinanceSettingsDirtyV311();
+      }),
+      document.addEventListener(
+        "click",
+        function (e) {
+          if (e.target?.closest?.("#v311ResetFinanceDraft")) {
+            e.preventDefault();
+            const t = financeSettingsFormV311(),
+              baseline = financeSettingsBaselineV311 || a(o);
+            if (!t) return;
+            t.elements.openingAmount.value = String(baseline.openingAmount);
+            t.elements.custodyAmount.value = String(baseline.custodyAmount);
+            validateFinanceSettingsV311(false);
+            renderFinanceSettingsPreviewV311(baseline);
+            updateFinanceSettingsUiV311("saved");
+            return;
+          }
+          if (
+            e.target?.closest?.(
+              '[data-settings-section="financialAmounts"]',
+            )
+          )
+            setTimeout(s, 0);
+        },
+        true,
+      ),
+      (window.nawahFinanceSettingsV311 = {
+        version: 311,
+        get: () => ({ ...a(o) }),
+        render: l,
+        uiState: () => financeSettingsUiStateV311,
       }),
       "loading" === document.readyState
         ? document.addEventListener("DOMContentLoaded", () =>
@@ -82503,7 +82705,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 310,
+    version: 311,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -83048,7 +83250,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 310,
+      version: 311,
       granular: true,
       canonicalPermissions: true,
     };
@@ -83609,7 +83811,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 310,
+    version: 311,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
