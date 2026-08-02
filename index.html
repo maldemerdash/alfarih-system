@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=308" />
+    <link rel="stylesheet" href="style.css?v=309" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -835,50 +835,54 @@
 
                 <section class="settings-section" data-settings-panel="permissions" data-v295-permissions-state="pending" aria-busy="true"></section>
 
-                <section class="settings-section v308-work-panel" data-settings-panel="work">
-                  <div class="panel-head v308-work-head">
-                    <div class="v308-work-head-main"><span data-icon="clock"></span><div><h3>إعداد العمل</h3><p>إدارة سياسة الدوام والفترات وأيام العمل من شاشة واحدة واضحة.</p></div></div>
-                    <div class="v308-work-head-state"><i></i><span>حفظ سحابي مفعّل</span></div>
+                <section class="settings-section v309-work-panel" data-settings-panel="work">
+                  <div class="panel-head v309-work-head">
+                    <div class="v309-work-head-main"><span data-icon="clock"></span><div><h3>إعداد العمل</h3><p>تنظيم أيام الدوام والفترات وسياسات الحضور بتسلسل واضح.</p></div></div>
+                    <b class="is-saved" data-v308-work-save-state><i></i><span>الإعدادات الحالية</span></b>
                   </div>
-                  <form id="workSettingsForm" class="settings-form work-settings-form v308-work-form">
-                    <section class="v308-work-overview" aria-labelledby="v308WorkOverviewTitle">
-                      <header><div><span data-icon="pie"></span><div><strong id="v308WorkOverviewTitle">ملخص سياسة العمل</strong><small>يتحدث مباشرة بحسب الأيام والفترات المحددة أدناه.</small></div></div><b class="is-saved" data-v308-work-save-state><i></i><span>الإعدادات الحالية</span></b></header>
+                  <form id="workSettingsForm" class="settings-form work-settings-form v309-work-form">
+                    <section class="v309-work-overview" aria-label="ملخص إعداد العمل">
                       <div class="work-settings-summary" id="workSettingsSummary"></div>
                       <div class="v308-work-policy-preview" id="v308WorkPolicyPreview" aria-live="polite"></div>
                     </section>
-                    <div class="v308-work-config-grid">
-                    <div class="work-settings-block v292-global-grace-block v308-grace-card">
+
+                    <section class="work-settings-block v309-section-card v309-days-card" aria-labelledby="v309ScheduleTitle">
                       <div class="section-title-with-action">
-                        <div><span class="v308-section-icon" data-icon="clock"></span><h4>فترة السماح العامة</h4><p>تُطبّق على الفروع التي تستخدم إعداد المنشأة العام.</p></div>
-                        <label><span>الدقائق</span><input type="number" name="globalGraceMinutes" min="0" max="240" step="1" value="0" /></label>
-                      </div>
-                      <div class="v308-grace-preview" id="v308GracePreview"></div>
-                    </div>
-                    <div class="work-settings-block v308-rules-card">
-                      <div class="section-title-with-action">
-                        <div><span class="v308-section-icon" data-icon="user-check"></span><h4>ارتباط الحضور والغياب</h4><p>ملخص للسياسات التي يعتمد عليها الاحتساب الآلي.</p></div>
-                      </div>
-                      <div class="v308-rules-grid"><article><small>احتساب التأخير</small><strong id="v308LateRulePreview">—</strong></article><article><small>سياسة الغياب</small><strong id="v308AbsenceRulePreview">—</strong></article></div>
-                      <button type="button" class="secondary-btn v308-rules-link" id="v308OpenAbsenceSettings"><span data-icon="arrow-left"></span>فتح قاعدة بيانات الغياب</button>
-                    </div>
-                    <div class="work-settings-block v308-shifts-card">
-                      <div class="section-title-with-action">
-                        <div><span class="v308-section-icon" data-icon="grid"></span><h4>فترات العمل</h4><p>عرّف الفترات المتاحة ثم اربطها بأيام العمل.</p></div>
-                        <button type="button" class="secondary-btn" id="addShiftBtn"><span data-icon="plus"></span>إضافة فترة</button>
-                      </div>
-                      <div class="shift-list" id="shiftList"></div>
-                    </div>
-                    </div>
-                    <div class="work-settings-block v308-days-card">
-                      <div class="section-title-with-action">
-                        <div><span class="v308-section-icon" data-icon="calendar"></span><h4>أيام وساعات العمل</h4><p>فعّل أيام الدوام وحدد فترة أو أكثر لكل يوم بشكل مستقل.</p></div>
+                        <div><span class="v309-step">١</span><span class="v309-section-icon" data-icon="calendar"></span><h4 id="v309ScheduleTitle">أيام وساعات العمل</h4><p>فعّل أيام الدوام وحدد الفترة المناسبة لكل يوم.</p></div>
                       </div>
                       <div class="period-add-card">
                         <label class="period-add-select"><span>الفترة المراد إضافتها</span><select id="bulkShiftSelect"></select></label>
                         <button type="button" class="primary-btn period-add-btn" id="applyShiftToWorkdaysBtn"><span data-icon="plus"></span>إضافة الفترة لأيام العمل</button>
                       </div>
                       <div class="workday-list" id="workdayList"></div>
+                    </section>
+
+                    <div class="v309-secondary-grid">
+                      <section class="work-settings-block v309-section-card v309-shifts-card" aria-labelledby="v309ShiftsTitle">
+                        <div class="section-title-with-action">
+                          <div><span class="v309-step">٢</span><span class="v309-section-icon" data-icon="grid"></span><h4 id="v309ShiftsTitle">الورديات وفترات العمل</h4><p>عرّف الفترات المتاحة، وستظهر مباشرة ضمن أيام العمل.</p></div>
+                          <button type="button" class="secondary-btn" id="addShiftBtn"><span data-icon="plus"></span>إضافة فترة</button>
+                        </div>
+                        <div class="shift-list" id="shiftList"></div>
+                      </section>
+
+                      <section class="work-settings-block v309-section-card v309-policy-card" aria-labelledby="v309PolicyTitle">
+                        <div class="section-title-with-action">
+                          <div><span class="v309-step">٣</span><span class="v309-section-icon" data-icon="user-check"></span><h4 id="v309PolicyTitle">سياسات الحضور</h4><p>ضبط السماح ومراجعة الربط مع سياسة الغياب.</p></div>
+                        </div>
+                        <div class="v309-policy-content">
+                          <div class="v292-global-grace-block v309-grace-control">
+                            <label><span>فترة السماح العامة</span><span class="v309-number-control"><input type="number" name="globalGraceMinutes" min="0" max="240" step="1" value="0" /><b>دقيقة</b></span></label>
+                            <div class="v308-grace-preview" id="v308GracePreview"></div>
+                          </div>
+                          <div class="v309-rules-block">
+                            <div class="v308-rules-grid"><article><small>احتساب التأخير</small><strong id="v308LateRulePreview">—</strong></article><article><small>سياسة الغياب</small><strong id="v308AbsenceRulePreview">—</strong></article></div>
+                            <button type="button" class="secondary-btn v308-rules-link" id="v308OpenAbsenceSettings"><span data-icon="arrow-left"></span>فتح قاعدة بيانات الغياب</button>
+                          </div>
+                        </div>
+                      </section>
                     </div>
+
                     <div class="form-actions v308-work-actions"><div class="v308-save-assurance"><span data-icon="shield"></span><div><strong>حفظ سحابي مؤكد</strong><small>يتم اعتماد التغيير بعد نجاح الحفظ، وإلا تُستعاد القيم السابقة.</small></div></div><div><button type="button" class="secondary-btn" id="resetWorkSettingsBtn"><span data-icon="refresh"></span>استعادة الافتراضي</button><button type="submit" class="primary-btn"><span data-icon="check"></span>حفظ إعداد العمل</button></div></div>
                   </form>
                 </section>
@@ -1597,6 +1601,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=308"></script>
+    <script src="app.js?v=309"></script>
   </body>
 </html>

@@ -2379,8 +2379,10 @@ function renderWorkSettingsSummary() {
   const t = normalizeWorkSettings(workSettings),
     n = Object.entries(t.days).filter((e) => e[1].enabled),
     a = n.reduce((e, t) => e + dayWorkMinutes(t[1]), 0),
-    o = n.reduce((e, t) => e + (t[1].shifts?.length || 0), 0);
-  e.innerHTML = `\n    <article><span>${iconSvg("calendar")}</span><div><small>أيام العمل</small><strong>${arabicNumber(n.length)}</strong></div></article>\n    <article><span>${iconSvg("clock")}</span><div><small>الفترات المعرفة</small><strong>${arabicNumber(t.shifts.length)}</strong></div></article>\n    <article><span>${iconSvg("grid")}</span><div><small>الفترات الأسبوعية</small><strong>${arabicNumber(o)}</strong></div></article>\n    <article><span>${iconSvg("pie")}</span><div><small>ساعات الأسبوع</small><strong>${formatWorkMinutes(a)}</strong></div></article>\n  `;
+    o = n.reduce((e, t) => e + (t[1].shifts?.length || 0), 0),
+    r = normalizeAbsencePolicySettings(absencePolicySettings),
+    i = "labor" === r.activePolicy ? "مكتب العمل" : "سياسة المنشأة";
+  e.innerHTML = `\n    <article><span>${iconSvg("calendar")}</span><div><small>أيام العمل</small><strong>${arabicNumber(n.length)} أيام</strong></div></article>\n    <article><span>${iconSvg("pie")}</span><div><small>ساعات الدوام الأسبوعية</small><strong>${formatWorkMinutes(a)}</strong></div></article>\n    <article><span>${iconSvg("clock")}</span><div><small>الورديات النشطة</small><strong>${arabicNumber(t.shifts.length)}</strong></div></article>\n    <article><span>${iconSvg("user-check")}</span><div><small>ربط الغياب</small><strong>${escapeHtml(i)}</strong></div></article>\n  `;
   renderWorkPolicyPreview(t, n, a, o);
   updateWorkSettingsUiState();
 }
@@ -2409,7 +2411,7 @@ function renderWorkdayList() {
     (e.innerHTML = DAY_NAMES.map((e, n) => {
       const a = t.days[n],
         o = dayWorkMinutes(a);
-      return `\n      <div class="workday-row ${a.enabled ? "is-enabled" : "is-disabled"}" data-workday="${n}">\n        <div class="workday-row-head">\n          <label class="workday-enable"><input type="checkbox" data-workday-enabled="${n}" ${a.enabled ? "checked" : ""} /><span>${e}</span></label>\n          <div class="workday-hours workday-total-hours"><span>إجمالي ساعات اليوم</span><strong>${a.enabled ? formatWorkMinutes(o) : "إجازة"}</strong></div>\n          <button type="button" class="secondary-btn small-btn" data-add-day-shift="${n}"><span data-icon="plus"></span>إضافة فترة لليوم</button>\n        </div>\n        <div class="workday-shifts">\n          ${a.shifts.map((e, t) => workdayShiftLineHtml(n, a, e, t)).join("")}\n        </div>\n      </div>\n    `;
+      return `\n      <div class="workday-row ${a.enabled ? "is-enabled" : "is-disabled"}" data-workday="${n}">\n        <div class="workday-row-head">\n          <label class="workday-enable"><input type="checkbox" data-workday-enabled="${n}" ${a.enabled ? "checked" : ""} /><span><strong>${e}</strong><small>${a.enabled ? "يوم عمل" : "إجازة أسبوعية"}</small></span></label>\n          <div class="workday-hours workday-total-hours"><span>إجمالي ساعات اليوم</span><strong>${a.enabled ? formatWorkMinutes(o) : "إجازة"}</strong></div>\n          <button type="button" class="secondary-btn small-btn" data-add-day-shift="${n}"><span data-icon="plus"></span>إضافة فترة لليوم</button>\n        </div>\n        <div class="workday-shifts">\n          ${a.shifts.map((e, t) => workdayShiftLineHtml(n, a, e, t)).join("")}\n        </div>\n      </div>\n    `;
     }).join("")));
 }
 function renderEstablishmentAbsenceRuleList() {
@@ -82337,7 +82339,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 308,
+    version: 309,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -82882,7 +82884,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 308,
+      version: 309,
       granular: true,
       canonicalPermissions: true,
     };
@@ -83443,7 +83445,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 308,
+    version: 309,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
