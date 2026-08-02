@@ -2297,14 +2297,92 @@ function dayWorkMinutes(e) {
     0,
   );
 }
+let v308WorkUiState = "saved",
+  v308WorkCloudBaseline = null;
+function cloneWorkSettingsV308(e) {
+  try {
+    return structuredClone(e);
+  } catch (_) {
+    return JSON.parse(JSON.stringify(e || {}));
+  }
+}
+function captureWorkSettingsBaselineV308() {
+  v308WorkCloudBaseline = cloneWorkSettingsV308(
+    normalizeWorkSettings(workSettings),
+  );
+}
+function restoreWorkSettingsBaselineV308() {
+  if (!v308WorkCloudBaseline) return false;
+  workSettings = normalizeWorkSettings(
+    cloneWorkSettingsV308(v308WorkCloudBaseline),
+  );
+  saveLocalMeta();
+  renderWorkSettings();
+  renderAttendance();
+  renderDashboard();
+  return true;
+}
+function updateWorkSettingsUiState(e = v308WorkUiState) {
+  const t = ["saved", "dirty", "saving", "error"].includes(e) ? e : "saved",
+    n = document.querySelector("[data-v308-work-save-state]"),
+    a = document.querySelector('[data-settings-panel="work"]'),
+    o = document.querySelector("#workSettingsForm"),
+    r = o?.querySelector('button[type="submit"]');
+  v308WorkUiState = t;
+  a && (a.dataset.v308WorkState = t);
+  o &&
+    ("saving" === t
+      ? o.setAttribute("aria-busy", "true")
+      : o.removeAttribute("aria-busy"));
+  r && (r.disabled = "saving" === t || "saved" === t);
+  if (!n) return;
+  const i = {
+    saved: "الإعدادات الحالية",
+    dirty: "تعديلات غير محفوظة",
+    saving: "جاري الحفظ السحابي",
+    error: "تعذر تأكيد الحفظ",
+  };
+  n.className = `is-${t}`;
+  const s = n.querySelector("span");
+  s && (s.textContent = i[t]);
+}
+function markWorkSettingsUiDirty() {
+  "saving" !== v308WorkUiState && updateWorkSettingsUiState("dirty");
+}
+function renderWorkPolicyPreview(e, t, n, a) {
+  const o = document.querySelector("#v308WorkPolicyPreview"),
+    r = document.querySelector("#v308GracePreview"),
+    i = document.querySelector("#v308LateRulePreview"),
+    s = document.querySelector("#v308AbsenceRulePreview"),
+    l = normalizeAbsencePolicySettings(absencePolicySettings),
+    c = DAY_NAMES.filter((e, n) => t.some((e) => Number(e[0]) === n)),
+    d = Number(e.graceMinutes || 0),
+    u = t.length
+      ? `الدوام مفعّل في ${arabicNumber(t.length)} أيام (${c.join("، ")}) بإجمالي ${formatWorkMinutes(n)} أسبوعيًا.`
+      : "لا توجد أيام عمل مفعلة حاليًا؛ لن يحتسب النظام حضورًا اعتياديًا حتى يتم تفعيل يوم واحد على الأقل.";
+  if (o) {
+    o.classList.toggle("is-warning", !t.length);
+    o.innerHTML = `<span>${iconSvg(t.length ? "check-circle" : "info")}</span><div><strong>${escapeHtml(u)}</strong><small>${arabicNumber(a)} فترة أسبوعية موزعة على ${arabicNumber(e.shifts.length)} فترة معرفة، وفترة السماح العامة ${arabicNumber(d)} دقيقة.</small></div>`;
+  }
+  r &&
+    (r.innerHTML = `<span>${iconSvg("info")}</span><p>${d > 0 ? `يبدأ احتساب التأخير بعد مرور ${arabicNumber(d)} دقيقة من بداية الفترة.` : "لا توجد فترة سماح؛ يبدأ احتساب التأخير من وقت بداية الفترة المحدد."}</p>`);
+  i &&
+    (i.textContent =
+      d > 0 ? `بعد ${arabicNumber(d)} دقيقة` : "من بداية الفترة");
+  s &&
+    (s.textContent =
+      "labor" === l.activePolicy ? "قاعدة مكتب العمل" : "سياسة المنشأة");
+}
 function renderWorkSettingsSummary() {
   const e = document.querySelector("#workSettingsSummary");
   if (!e) return;
   const t = normalizeWorkSettings(workSettings),
-    n = Object.values(t.days).filter((e) => e.enabled),
-    a = n.reduce((e, t) => e + dayWorkMinutes(t), 0),
-    o = n.reduce((e, t) => e + (t.shifts?.length || 0), 0);
-  e.innerHTML = `\n    <div><span>أيام العمل</span><strong>${arabicNumber(n.length)}</strong></div>\n    <div><span>الفترات المعرفة</span><strong>${arabicNumber(t.shifts.length)}</strong></div>\n    <div><span>الفترات الأسبوعية</span><strong>${arabicNumber(o)}</strong></div>\n    <div><span>إجمالي ساعات الأسبوع</span><strong>${formatWorkMinutes(a)}</strong></div>\n  `;
+    n = Object.entries(t.days).filter((e) => e[1].enabled),
+    a = n.reduce((e, t) => e + dayWorkMinutes(t[1]), 0),
+    o = n.reduce((e, t) => e + (t[1].shifts?.length || 0), 0);
+  e.innerHTML = `\n    <article><span>${iconSvg("calendar")}</span><div><small>أيام العمل</small><strong>${arabicNumber(n.length)}</strong></div></article>\n    <article><span>${iconSvg("clock")}</span><div><small>الفترات المعرفة</small><strong>${arabicNumber(t.shifts.length)}</strong></div></article>\n    <article><span>${iconSvg("grid")}</span><div><small>الفترات الأسبوعية</small><strong>${arabicNumber(o)}</strong></div></article>\n    <article><span>${iconSvg("pie")}</span><div><small>ساعات الأسبوع</small><strong>${formatWorkMinutes(a)}</strong></div></article>\n  `;
+  renderWorkPolicyPreview(t, n, a, o);
+  updateWorkSettingsUiState();
 }
 function renderShiftList() {
   const e = document.querySelector("#shiftList");
@@ -2472,6 +2550,8 @@ function renderWorkSettings() {
     renderWorkdayList(),
     renderAbsencePolicySettings(),
     hydrateIcons(document.querySelector("#settingsView")));
+  ("saved" === v308WorkUiState || !v308WorkCloudBaseline) &&
+    captureWorkSettingsBaselineV308();
 }
 function renderSettings() {
   (renderPermissionsPreview(),
@@ -2550,6 +2630,7 @@ function updateWorkdayFromForm(e) {
     renderWorkdayList());
 }
 function addWorkShift() {
+  markWorkSettingsUiDirty();
   const e = normalizeWorkSettings(workSettings),
     t = `shift-${Date.now()}`;
   (e.shifts.push({
@@ -2594,6 +2675,7 @@ function removeShiftFromDay(e, t) {
     renderWorkSettings());
 }
 function applySelectedShiftToWorkdays() {
+  markWorkSettingsUiDirty();
   const e = normalizeWorkSettings(workSettings),
     t = document.querySelector("#bulkShiftSelect")?.value || e.shifts[0]?.id,
     n = e.shifts.find((e) => e.id === t) || e.shifts[0];
@@ -2610,6 +2692,11 @@ function applySelectedShiftToWorkdays() {
     showToast("تمت إضافة الفترة المحددة إلى أيام العمل المفعلة"));
 }
 async function resetWorkSettings() {
+  const previousWorkSettings = cloneWorkSettingsV308(
+      v308WorkCloudBaseline || workSettings,
+    ),
+    previousAbsenceSettings = cloneWorkSettingsV308(absencePolicySettings);
+  updateWorkSettingsUiState("saving");
   ((workSettings = normalizeWorkSettings(DEFAULT_WORK_SETTINGS)),
     (absencePolicySettings = normalizeAbsencePolicySettings(
       DEFAULT_ABSENCE_POLICY_SETTINGS,
@@ -2621,10 +2708,24 @@ async function resetWorkSettings() {
     "workSettings",
     "absencePolicySettings",
   ]);
+  if (saved) {
+    updateWorkSettingsUiState("saved");
+    captureWorkSettingsBaselineV308();
+  } else {
+    workSettings = normalizeWorkSettings(previousWorkSettings);
+    absencePolicySettings = normalizeAbsencePolicySettings(
+      previousAbsenceSettings,
+    );
+    saveLocalMeta();
+    updateWorkSettingsUiState("error");
+    renderWorkSettings();
+    renderAttendance();
+    renderDashboard();
+  }
   showToast(
     saved
       ? "تمت استعادة إعداد العمل الافتراضي وحفظه سحابيًا"
-      : "تمت الاستعادة مؤقتًا، وتعذر تأكيد الحفظ السحابي",
+      : "تعذر الحفظ السحابي؛ تمت استعادة إعداد العمل السابق",
   );
 }
 function renderAll() {
@@ -7307,7 +7408,23 @@ function setupEvents() {
       }),
     document
       .querySelector("#workSettingsForm")
+      ?.addEventListener("input", (e) => {
+        markWorkSettingsUiDirty();
+        if (e.target.matches('[name="globalGraceMinutes"]')) {
+          const next = normalizeWorkSettings(workSettings);
+          next.graceMinutes = Math.min(
+            240,
+            Math.max(0, Number(e.target.value || 0) || 0),
+          );
+          workSettings = normalizeWorkSettings(next);
+          renderWorkSettingsSummary();
+          markWorkSettingsUiDirty();
+        }
+      }),
+    document
+      .querySelector("#workSettingsForm")
       ?.addEventListener("change", (e) => {
+        markWorkSettingsUiDirty();
         if (e.target.matches('[name="globalGraceMinutes"]')) {
           const next = normalizeWorkSettings(workSettings);
           next.graceMinutes = Math.min(
@@ -7353,6 +7470,17 @@ function setupEvents() {
     document
       .querySelector("#workSettingsForm")
       ?.addEventListener("click", (e) => {
+        const policyLink = e.target.closest("#v308OpenAbsenceSettings");
+        if (policyLink) {
+          e.preventDefault();
+          document
+            .querySelector('#settingsNav [data-settings-section="absence"]')
+            ?.click();
+          return;
+        }
+        e.target.closest(
+          "#addShiftBtn, #applyShiftToWorkdaysBtn, [data-add-day-shift], [data-remove-day-shift], [data-remove-shift]",
+        ) && markWorkSettingsUiDirty();
         const t = e.target.closest("[data-add-day-shift]");
         if (t) return void addShiftToDay(t.dataset.addDayShift);
         const n = e.target.closest("[data-remove-day-shift]");
@@ -7372,16 +7500,24 @@ function setupEvents() {
         absencePolicySettings = normalizeAbsencePolicySettings(
           absencePolicySettings,
         );
+        updateWorkSettingsUiState("saving");
         const saved = await persistAttendanceSettingsV224([
           "workSettings",
           "absencePolicySettings",
         ]);
-        renderAttendance();
-        renderDashboard();
+        if (saved) {
+          updateWorkSettingsUiState("saved");
+          captureWorkSettingsBaselineV308();
+          renderAttendance();
+          renderDashboard();
+        } else {
+          updateWorkSettingsUiState("error");
+          restoreWorkSettingsBaselineV308();
+        }
         showToast(
           saved
             ? "تم حفظ إعداد العمل وتحديث الحضور الآلي سحابيًا"
-            : "تم تحديث الحضور مؤقتًا، وتعذر تأكيد الإعدادات سحابيًا",
+            : "تعذر الحفظ السحابي؛ تمت استعادة إعداد العمل السابق",
         );
       }));
 }
@@ -82201,7 +82337,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 307,
+    version: 308,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -82746,7 +82882,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 307,
+      version: 308,
       granular: true,
       canonicalPermissions: true,
     };
@@ -83307,7 +83443,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 307,
+    version: 308,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
