@@ -23264,13 +23264,22 @@ async function init() {
       const e = new Date();
       return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
     }
-    function financeDateValueV314(value = l()) {
-      const today = l(),
-        candidate = String(value || today).slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return today;
+    function financeSelectableLimitV315() {
+      const rawToday = l(),
+        parts = rawToday.split("-").map(Number),
+        date = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+      if (date.getDay() === 5) date.setDate(date.getDate() - 1);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+    function financeDateValueV315(value = l()) {
+      const limit = financeSelectableLimitV315();
+      let candidate = String(value || limit).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return limit;
+      if (candidate > limit) candidate = limit;
       const parsed = new Date(`${candidate}T12:00:00`);
-      if (Number.isNaN(parsed.getTime())) return today;
-      return candidate > today ? today : candidate;
+      if (Number.isNaN(parsed.getTime())) return limit;
+      if (parsed.getDay() === 5) parsed.setDate(parsed.getDate() - 1);
+      return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
     }
     function c(e, t) {
       const n = e && "object" == typeof e ? e : {};
@@ -23313,7 +23322,7 @@ async function init() {
         updatedAt: n.updatedAt || "",
       };
     }
-    let d = financeDateValueV314(l()),
+    let d = financeDateValueV315(l()),
       u = !1,
       m = (function () {
         try {
@@ -23344,7 +23353,7 @@ async function init() {
     }
     let p = c(m[d], d);
     function y() {
-      const selected = financeDateValueV314(d);
+      const selected = financeDateValueV315(d);
       if (selected !== d) {
         m[d] = c(p, d);
         d = selected;
@@ -23372,6 +23381,16 @@ async function init() {
         })(n)
       );
     }
+    function financeAdjacentDateV315(value, direction) {
+      const step = direction < 0 ? -1 : 1;
+      let candidate = h(value, step),
+        guard = 0;
+      while (f(candidate).getDay() === 5 && guard < 7) {
+        candidate = h(candidate, step);
+        guard += 1;
+      }
+      return candidate;
+    }
     function v(e) {
       const t = f(e);
       try {
@@ -23391,8 +23410,15 @@ async function init() {
     }
     function g(e) {
       const requested = String(e || l()).slice(0, 10),
-        selected = financeDateValueV314(requested);
-      if (requested > l()) {
+        selected = financeDateValueV315(requested),
+        requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(requested)
+          ? f(requested)
+          : null;
+      if (requestedDate?.getDay() === 5) {
+        try {
+          showToast("يوم الجمعة غير متاح في شاشة المالية");
+        } catch (_) {}
+      } else if (requested > financeSelectableLimitV315()) {
         try {
           showToast("لا يمكن الانتقال إلى تاريخ بعد تاريخ اليوم");
         } catch (_) {}
@@ -24083,7 +24109,7 @@ async function init() {
               .forEach((t) => {
                 t.textContent = e.dateLabel;
               }));
-          const t = l();
+          const t = financeSelectableLimitV315();
           (document
             .querySelectorAll('[data-finance-day-nav="today"]')
             .forEach((e) => {
@@ -24145,15 +24171,7 @@ async function init() {
       }
       const totals = T(),
         currentInfo = v(d),
-        nextFinanceDate = (function (date) {
-          let next = h(date, 1),
-            guard = 0;
-          for (; f(next).getDay() === 5 && guard < 10; ) {
-            next = h(next, 1);
-            guard += 1;
-          }
-          return next;
-        })(d),
+        nextFinanceDate = financeAdjacentDateV315(d, 1),
         nextInfo = v(nextFinanceDate);
       let modal = document.getElementById("financeCloseConfirmModal");
       if (!modal) {
@@ -24294,7 +24312,7 @@ async function init() {
     const j = "function" == typeof applyCloudState ? applyCloudState : null;
     if (j && !j.__financeDailyTablesWrapped) {
       const e = function (e) {
-        const selectedDate = financeDateValueV314(d),
+        const selectedDate = financeDateValueV315(d),
           t = j.apply(this, arguments);
         if (e && e.financeDailyDays && "object" == typeof e.financeDailyDays) {
           const t = {};
@@ -24456,8 +24474,8 @@ async function init() {
           if (i) {
             const e = i.dataset.financeDayNav;
             return (
-              "prev" === e && g(h(d, -1)),
-              "next" === e && g(h(d, 1)),
+              "prev" === e && g(financeAdjacentDateV315(d, -1)),
+              "next" === e && g(financeAdjacentDateV315(d, 1)),
               void ("today" === e && g(l()))
             );
           }
@@ -75916,6 +75934,11 @@ window.nawahLeaveBalanceReportV185 = {
 
   function dateAllowed(date) {
     const { minimum, maximum } = bounds();
+    if (
+      calendar.classList.contains("is-finance-v276") &&
+      date.getDay() === 5
+    )
+      return false;
     return !(
       (minimum && date.getTime() < minimum.getTime()) ||
       (maximum && date.getTime() > maximum.getTime())
@@ -76031,6 +76054,14 @@ window.nawahLeaveBalanceReportV185 = {
       );
       button.setAttribute("aria-pressed", String(sameDate(date, selected)));
       button.disabled = !dateAllowed(date);
+      if (
+        calendar.classList.contains("is-finance-v276") &&
+        date.getDay() === 5
+      ) {
+        button.classList.add("is-friday-disabled-v315");
+        button.setAttribute("aria-disabled", "true");
+        button.title = "يوم الجمعة غير متاح في شاشة المالية";
+      }
       fragment.appendChild(button);
     }
     daysRoot.replaceChildren(fragment);
@@ -76338,7 +76369,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   syncAll();
   window.nawahDatePickerV276 = {
-    version: 278,
+    version: 315,
     open,
     close,
     sync: syncAll,
@@ -76361,6 +76392,7 @@ window.nawahLeaveBalanceReportV185 = {
   };
   window.nawahDatePickerV277 = window.nawahDatePickerV276;
 window.nawahDatePickerV278 = window.nawahDatePickerV276;
+window.nawahDatePickerV315 = window.nawahDatePickerV276;
 })();
 
 /* v288 - professional, cloud-confirmed branch directory. */
@@ -83245,7 +83277,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 314,
+    version: 315,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -83790,7 +83822,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 314,
+      version: 315,
       granular: true,
       canonicalPermissions: true,
     };
@@ -84351,7 +84383,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 314,
+    version: 315,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,

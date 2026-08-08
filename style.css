@@ -43127,7 +43127,7 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
   }
 }
 
-/* v314 - stable finance date, clearer entries, and financial color hierarchy */
+/* v314/v315 - stable finance date, clearer entries, and financial color hierarchy */
 #financeView .finance-entry-table input[data-finance-field="amount"],
 #financeView .finance-entry-table input[type="number"],
 #financeView .finance-entry-table textarea[data-finance-field="note"] {
@@ -43187,7 +43187,7 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
 #financeView .finance-summary-card[data-finance-card="fundAmount"] strong,
 #financeView .finance-summary-card[data-finance-card="fundAmount"] strong.money-with-symbol,
 #financeView .finance-summary-card[data-finance-card="fundAmount"] [data-finance-money] {
-  font-size: 23px !important;
+  font-size: 29px !important;
   line-height: 1.08 !important;
 }
 
@@ -43196,4 +43196,14 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
   cursor: not-allowed !important;
   opacity: 0.42 !important;
   box-shadow: none !important;
+}
+
+/* v315 - Fridays are deliberately unavailable in the finance calendar. */
+.nawah-date-calendar-v276.is-finance-v276
+  .nawah-date-day-v276.is-friday-disabled-v315 {
+  background: #f6f9fa !important;
+  color: #a9b7bc !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.58 !important;
 }
