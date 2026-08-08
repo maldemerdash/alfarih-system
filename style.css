@@ -43126,3 +43126,74 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     width: 100%;
   }
 }
+
+/* v314 - stable finance date, clearer entries, and financial color hierarchy */
+#financeView .finance-entry-table input[data-finance-field="amount"],
+#financeView .finance-entry-table input[type="number"],
+#financeView .finance-entry-table textarea[data-finance-field="note"] {
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  font-size: 12.5px !important;
+  line-height: 1.2 !important;
+}
+
+#financeView .finance-entry-table input[data-finance-field="amount"],
+#financeView .finance-entry-table input[type="number"] {
+  direction: ltr !important;
+  font-family: "Segoe UI", Arial, sans-serif !important;
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0 !important;
+  text-align: center !important;
+}
+
+#financeView .finance-entry-table textarea[data-finance-field="note"] {
+  font-family: "Almarai", "Segoe UI", Tahoma, Arial, sans-serif !important;
+  font-weight: 700 !important;
+}
+
+#financeView [data-finance-card="dailyDebit"] [data-finance-money],
+#financeView [data-finance-card="fundAmount"] [data-finance-money],
+#financeView [data-finance-card="salesTotal"] [data-finance-money] {
+  color: #168456 !important;
+}
+
+#financeView [data-finance-card="dailyCredit"] [data-finance-money],
+#financeView [data-finance-card="advancesTotal"] [data-finance-money] {
+  color: #c7444d !important;
+}
+
+#financeView .finance-summary-card[data-finance-card="fundAmount"] {
+  border: 1px solid rgba(22, 132, 86, 0.3) !important;
+  background:
+    radial-gradient(circle at 12% 15%, rgba(255, 255, 255, 0.92), transparent 34%),
+    linear-gradient(145deg, #eefaf4, #fbfefd 72%) !important;
+  box-shadow:
+    0 11px 24px rgba(22, 132, 86, 0.105),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7) !important;
+}
+
+#financeView .finance-summary-card[data-finance-card="fundAmount"]::before {
+  width: 4px !important;
+  background: linear-gradient(180deg, #168456, #22c77a) !important;
+}
+
+#financeView .finance-summary-card[data-finance-card="fundAmount"] > span,
+#financeView .finance-summary-card[data-finance-card="fundAmount"] small {
+  color: #397c63 !important;
+}
+
+#financeView .finance-summary-card[data-finance-card="fundAmount"] strong,
+#financeView .finance-summary-card[data-finance-card="fundAmount"] strong.money-with-symbol,
+#financeView .finance-summary-card[data-finance-card="fundAmount"] [data-finance-money] {
+  font-size: 23px !important;
+  line-height: 1.08 !important;
+}
+
+#financeView [data-finance-day-nav="next"]:disabled,
+#financeView [data-finance-day-nav="next"].is-disabled {
+  cursor: not-allowed !important;
+  opacity: 0.42 !important;
+  box-shadow: none !important;
+}

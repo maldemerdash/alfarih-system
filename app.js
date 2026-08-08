@@ -20123,6 +20123,14 @@ async function init() {
       try {
         "function" == typeof renderDashboard && renderDashboard();
       } catch (e) {}
+      try {
+        window.dispatchEvent(
+          new CustomEvent("nawah:advance-created", {
+            detail: { id: h.id, employeeId: h.employeeId, monthKey: h.monthKey },
+          }),
+        );
+        window.nawahFinanceSyncV226?.render?.();
+      } catch (e) {}
       return saved;
       } finally {
         advanceMutationInFlight = false;
@@ -23256,6 +23264,14 @@ async function init() {
       const e = new Date();
       return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
     }
+    function financeDateValueV314(value = l()) {
+      const today = l(),
+        candidate = String(value || today).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return today;
+      const parsed = new Date(`${candidate}T12:00:00`);
+      if (Number.isNaN(parsed.getTime())) return today;
+      return candidate > today ? today : candidate;
+    }
     function c(e, t) {
       const n = e && "object" == typeof e ? e : {};
       return {
@@ -23297,7 +23313,7 @@ async function init() {
         updatedAt: n.updatedAt || "",
       };
     }
-    let d = l(),
+    let d = financeDateValueV314(l()),
       u = !1,
       m = (function () {
         try {
@@ -23328,14 +23344,14 @@ async function init() {
     }
     let p = c(m[d], d);
     function y() {
-      const e = l();
-      e !== d
-        ? u ||
-          ((m[d] = c(p, d)),
-          (d = e),
-          m[d] || (m[d] = c({}, d)),
-          (p = c(m[d], d)))
-        : (u = !1);
+      const selected = financeDateValueV314(d);
+      if (selected !== d) {
+        m[d] = c(p, d);
+        d = selected;
+        m[d] || (m[d] = c({}, d));
+        p = c(m[d], d);
+      }
+      u = d !== l();
     }
     function f(e) {
       const t = String(e || "")
@@ -23374,13 +23390,21 @@ async function init() {
       }
     }
     function g(e) {
+      const requested = String(e || l()).slice(0, 10),
+        selected = financeDateValueV314(requested);
+      if (requested > l()) {
+        try {
+          showToast("لا يمكن الانتقال إلى تاريخ بعد تاريخ اليوم");
+        } catch (_) {}
+      }
       ((m[d] = c(p, d)),
-        (d = e || l()),
+        (d = selected),
         (u = d !== l()),
         m[d] || (m[d] = c({}, d)),
         (p = c(m[d], d)),
         b(),
         H(!0));
+      return d;
     }
     function financeOpenRecordV226() {
       const openDate = Object.keys(m)
@@ -24067,8 +24091,15 @@ async function init() {
                 e.classList.toggle("is-active", d === t));
             }),
             document
+              .querySelectorAll('[data-finance-day-nav="next"]')
+              .forEach((e) => {
+                ((e.disabled = d >= t),
+                  e.classList.toggle("is-disabled", d >= t));
+              }),
+            document
               .querySelectorAll("[data-finance-date-picker]")
               .forEach((e) => {
+                e.max = t;
                 document.activeElement !== e && (e.value = d);
               }));
         })(),
@@ -24263,7 +24294,8 @@ async function init() {
     const j = "function" == typeof applyCloudState ? applyCloudState : null;
     if (j && !j.__financeDailyTablesWrapped) {
       const e = function (e) {
-        const t = j.apply(this, arguments);
+        const selectedDate = financeDateValueV314(d),
+          t = j.apply(this, arguments);
         if (e && e.financeDailyDays && "object" == typeof e.financeDailyDays) {
           const t = {};
           (Object.keys(e.financeDailyDays).forEach((n) => {
@@ -24275,21 +24307,24 @@ async function init() {
                 e.financeDailyOpen.financeDate,
               )),
             (m = t),
-            (d =
-              String(e.financeDailyCurrentDate || "") ||
-              String(e.financeDailyOpen?.financeDate || "") ||
-              l()),
+            (d = selectedDate),
             (u = d !== l()),
             (p = c(m[d] || {}, d)),
             b());
-        } else
-          e &&
-            e.financeDailyOpen &&
-            ((d = String(e.financeDailyOpen.financeDate || "") || l()),
-            (u = d !== l()),
-            (p = c(e.financeDailyOpen, d)),
-            (m[d] = c(p, d)),
-            b());
+        } else if (e && e.financeDailyOpen) {
+          const remoteOpenDate = String(
+              e.financeDailyOpen.financeDate || selectedDate,
+            ).slice(0, 10),
+            openDate = /^\d{4}-\d{2}-\d{2}$/.test(remoteOpenDate)
+              ? remoteOpenDate
+              : selectedDate;
+          m[openDate] = c(e.financeDailyOpen, openDate);
+          d = selectedDate;
+          u = d !== l();
+          p = c(m[d] || {}, d);
+          m[d] = c(p, d);
+          b();
+        }
         return (H(!0), t);
       };
       ((e.__financeDailyTablesWrapped = !0), (applyCloudState = e));
@@ -83210,7 +83245,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 313,
+    version: 314,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -83755,7 +83790,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 313,
+      version: 314,
       granular: true,
       canonicalPermissions: true,
     };
@@ -84316,7 +84351,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 313,
+    version: 314,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
