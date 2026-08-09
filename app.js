@@ -23253,6 +23253,40 @@ async function init() {
       );
       return (t.push({ ...a }), t);
     }
+    function financeCloneV318(value) {
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch (_) {
+        return value;
+      }
+    }
+    function financeClosureHistoryV318(value) {
+      return (Array.isArray(value) ? value : [])
+        .filter(
+          (entry) =>
+            entry &&
+            typeof entry === "object" &&
+            String(entry.id || "").trim(),
+        )
+        .map((entry) => ({
+          ...financeCloneV318(entry),
+          id: String(entry.id || "").trim(),
+          status: entry.status === "reopened" ? "reopened" : "closed",
+          sourceDate: String(entry.sourceDate || "").slice(0, 10),
+          targetDate: String(entry.targetDate || "").slice(0, 10),
+          immediateNextDate: String(entry.immediateNextDate || "").slice(
+            0,
+            10,
+          ),
+          skippedClosedDates: Array.isArray(entry.skippedClosedDates)
+            ? entry.skippedClosedDates
+                .map((date) => String(date || "").slice(0, 10))
+                .filter(Boolean)
+            : [],
+          targetExisted: Boolean(entry.targetExisted),
+        }))
+        .slice(-20);
+    }
     function l() {
       try {
         if (
@@ -23316,6 +23350,7 @@ async function init() {
         isClosed: Boolean(n.isClosed),
         closedAt: n.closedAt || "",
         nextFinanceDate: n.nextFinanceDate || "",
+        closureHistory: financeClosureHistoryV318(n.closureHistory),
         deletedPending: Array.isArray(n.deletedPending)
           ? n.deletedPending
               .map((e) => ({
@@ -23332,6 +23367,121 @@ async function init() {
           : [],
         updatedAt: n.updatedAt || "",
       };
+    }
+    const financeSnapshotFieldsV318 = [
+      "pending",
+      "expenses",
+      "cashSales",
+      "cardSales",
+      "budgetAmount",
+      "manualCashAmount",
+      "carriedAmountOverride",
+      "carriedAmountSnapshot",
+      "custodyAmountSnapshot",
+      "fundAmountSnapshot",
+      "newCarriedAmountSnapshot",
+      "isClosed",
+      "closedAt",
+      "nextFinanceDate",
+      "deletedPending",
+      "updatedAt",
+    ];
+    const financeMetaFieldsV318 = [
+      "budgetAmount",
+      "manualCashAmount",
+      "carriedAmountOverride",
+      "carriedAmountSnapshot",
+      "custodyAmountSnapshot",
+      "fundAmountSnapshot",
+      "newCarriedAmountSnapshot",
+      "isClosed",
+      "closedAt",
+      "nextFinanceDate",
+      "closureHistory",
+      "deletedPending",
+      "updatedAt",
+    ];
+    function financeDaySnapshotV318(record, date) {
+      const normalized = c(record, date),
+        snapshot = { financeDate: date };
+      financeSnapshotFieldsV318.forEach((field) => {
+        snapshot[field] = financeCloneV318(normalized[field]);
+      });
+      return snapshot;
+    }
+    function financeContentRowsV318(rows) {
+      return s(rows)
+        .filter(x)
+        .map((record) => ({
+          id: String(record.id || ""),
+          amount: String(record.amount || ""),
+          note: String(record.note || ""),
+          source: String(record.source || ""),
+          travelId: String(record.travelId || ""),
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id));
+    }
+    function financeDayContentSignatureV318(record, date) {
+      if (!record || typeof record !== "object") return "__missing__";
+      const normalized = c(record, date);
+      return JSON.stringify({
+        financeDate: String(date || normalized.financeDate || ""),
+        pending: financeContentRowsV318(normalized.pending),
+        expenses: financeContentRowsV318(normalized.expenses),
+        cashSales: financeContentRowsV318(normalized.cashSales),
+        cardSales: financeContentRowsV318(normalized.cardSales),
+        budgetAmount: String(normalized.budgetAmount || ""),
+        manualCashAmount: String(normalized.manualCashAmount || ""),
+        carriedAmountOverride:
+          normalized.carriedAmountOverride == null
+            ? null
+            : o(normalized.carriedAmountOverride),
+        isClosed: Boolean(normalized.isClosed),
+        deletedPending: (Array.isArray(normalized.deletedPending)
+          ? normalized.deletedPending
+          : []
+        )
+          .map((entry) => ({
+            id: String(entry.id || ""),
+            amount: String(entry.amount || ""),
+            note: String(entry.note || ""),
+          }))
+          .sort((left, right) => left.id.localeCompare(right.id)),
+      });
+    }
+    function financeAdvanceSignatureV318(date) {
+      try {
+        const rows = JSON.parse(
+          localStorage.getItem("nawah-payroll-advances") || "[]",
+        );
+        return JSON.stringify(
+          (Array.isArray(rows) ? rows : [])
+            .filter(
+              (record) =>
+                String(record?.date || "").slice(0, 10) === String(date),
+            )
+            .map((record) => ({
+              id: String(record.id || ""),
+              employeeId: String(record.employeeId || ""),
+              amount: o(record.amount ?? record.value ?? record.total),
+              paidAmount: o(record.paidAmount ?? record.paid),
+              remainingAmount: o(record.remainingAmount),
+              status: String(record.status || ""),
+              payments: (Array.isArray(record.payments)
+                ? record.payments
+                : []
+              ).map((payment) => ({
+                id: String(payment?.id || ""),
+                amount: o(payment?.amount),
+                date: String(payment?.date || ""),
+                source: String(payment?.source || ""),
+              })),
+            }))
+            .sort((left, right) => left.id.localeCompare(right.id)),
+        );
+      } catch (_) {
+        return "[]";
+      }
     }
     let m = (function () {
         try {
@@ -23457,6 +23607,95 @@ async function init() {
         carrySourceDate:
           skippedClosedDates[skippedClosedDates.length - 1] || value,
       };
+    }
+    function financeCanReopenV318() {
+      try {
+        const role = String(
+          (typeof authProfile !== "undefined" && authProfile?.role) ||
+            window.authProfile?.role ||
+            "",
+        )
+          .trim()
+          .toLowerCase();
+        if (role === "admin") return true;
+      } catch (_) {}
+      try {
+        return Boolean(
+          window.employeePermissionMatrix?.can?.("finance.reopenDay"),
+        );
+      } catch (_) {
+        return false;
+      }
+    }
+    function financeLatestRollbackV318(currentDate = d) {
+      const candidates = [];
+      Object.keys(m || {}).forEach((date) => {
+        const day = c(m[date], date);
+        if (!day.isClosed) return;
+        const operation = financeClosureHistoryV318(day.closureHistory)
+          .slice()
+          .reverse()
+          .find((entry) => entry.status === "closed");
+        if (!operation) return;
+        candidates.push({
+          sourceDate: date,
+          day,
+          operation,
+          closedAt: String(operation.closedAt || day.closedAt || ""),
+        });
+      });
+      candidates.sort((left, right) =>
+        `${right.closedAt}|${right.operation.id}`.localeCompare(
+          `${left.closedAt}|${left.operation.id}`,
+        ),
+      );
+      const latest = candidates[0] || null;
+      if (!latest) return null;
+      return currentDate === latest.sourceDate ||
+        currentDate === latest.operation.targetDate
+        ? latest
+        : null;
+    }
+    function financeRollbackChangedV318(candidate) {
+      if (!candidate?.operation) return "تعذر العثور على سجل الإغلاق الآمن";
+      const operation = candidate.operation,
+        targetDate = operation.targetDate,
+        targetRecord = targetDate && m[targetDate] ? m[targetDate] : null,
+        currentSignature = financeDayContentSignatureV318(
+          targetRecord,
+          targetDate,
+        );
+      if (currentSignature !== String(operation.afterTargetSignature || ""))
+        return "لا يمكن التراجع لأن اليوم الذي فُتح بعد الإغلاق يحتوي على حركات أو تعديلات مالية جديدة";
+      if (
+        financeAdvanceSignatureV318(targetDate) !==
+        String(operation.afterAdvanceSignature || "[]")
+      )
+        return "لا يمكن التراجع لوجود سلفة أضيفت أو عُدلت في اليوم الذي فُتح بعد الإغلاق";
+      return "";
+    }
+    function financeTrackRestoreRowsV318(date, desiredRecord, currentRecord) {
+      n.forEach((section) => {
+        const desired = s(desiredRecord?.[section]).filter(x),
+          current = s(currentRecord?.[section]).filter(x),
+          desiredIds = new Set(
+            desired.map((record) => String(record.id || "")).filter(Boolean),
+          );
+        current.forEach((record) => {
+          const id = String(record.id || "");
+          if (id && !desiredIds.has(id))
+            trackFinanceDeletesV226(
+              financeMutationKeyV226(date, section, id),
+            );
+        });
+        desired.forEach((record) => {
+          const id = String(record.id || "");
+          if (id)
+            trackFinanceUpsertsV226(
+              financeMutationKeyV226(date, section, id),
+            );
+        });
+      });
     }
     function v(e) {
       const t = f(e);
@@ -24240,7 +24479,11 @@ async function init() {
               }));
         })(),
         (function () {
-          const e = Boolean(p.isClosed);
+          const e = Boolean(p.isClosed),
+            rollbackCandidate = financeLatestRollbackV318(d),
+            canRollback = Boolean(
+              rollbackCandidate && financeCanReopenV318(),
+            );
           (document
             .querySelectorAll(
               "[data-finance-table] input, [data-finance-special]",
@@ -24254,7 +24497,20 @@ async function init() {
                 (e) => e.nodeType === Node.TEXT_NODE,
               );
               n && (n.textContent = e ? "اليوم مغلق" : "إغلاق اليوم");
-            }));
+            }),
+            document
+              .querySelectorAll(".finance-reopen-day-btn")
+              .forEach((button) => {
+                button.hidden = !canRollback;
+                button.disabled = financeCloseInFlightV226;
+                button.classList.toggle(
+                  "has-blocked-rollback",
+                  Boolean(
+                    canRollback &&
+                      financeRollbackChangedV318(rollbackCandidate),
+                  ),
+                );
+              }));
         })(),
         I());
     }
@@ -24323,7 +24579,11 @@ async function init() {
             nextFinanceDate = closeChain.immediateDate,
             openFinanceDate = closeChain.targetDate,
             openFinanceInfo = v(openFinanceDate),
-            openRecord = m[openFinanceDate]
+            targetExisted = Object.prototype.hasOwnProperty.call(
+              m,
+              openFinanceDate,
+            ),
+            openRecord = targetExisted
               ? c(m[openFinanceDate], openFinanceDate)
               : null,
             carrySourceRecord = closeChain.skippedClosedDates.length
@@ -24331,8 +24591,13 @@ async function init() {
                   m[closeChain.carrySourceDate],
                   closeChain.carrySourceDate,
                 )
+              : null,
+            sourceBeforeClose = financeDaySnapshotV318(p, d),
+            targetBeforeClose = targetExisted
+              ? financeDaySnapshotV318(openRecord, openFinanceDate)
               : null;
-          const closedAt = new Date().toISOString();
+          const closedAt = new Date().toISOString(),
+            closureId = `finance-close-${d}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
           Object.assign(p, {
             isClosed: !0,
             closedAt,
@@ -24364,6 +24629,32 @@ async function init() {
           next.isClosed = !1;
           next.updatedAt = closedAt;
           m[openFinanceDate] = c(next, openFinanceDate);
+          p.closureHistory = financeClosureHistoryV318([
+            ...financeClosureHistoryV318(p.closureHistory),
+            {
+              id: closureId,
+              status: "closed",
+              sourceDate: d,
+              targetDate: openFinanceDate,
+              immediateNextDate: nextFinanceDate,
+              skippedClosedDates: closeChain.skippedClosedDates,
+              targetExisted,
+              beforeDay: sourceBeforeClose,
+              beforeTarget: targetBeforeClose,
+              afterTargetSignature: financeDayContentSignatureV318(
+                m[openFinanceDate],
+                openFinanceDate,
+              ),
+              afterAdvanceSignature:
+                financeAdvanceSignatureV318(openFinanceDate),
+              closedAt,
+              closedBy: k(),
+              reopenedAt: "",
+              reopenedBy: "",
+              reopenReason: "",
+            },
+          ]);
+          m[d] = c(p, d);
           [
             "isClosed",
             "closedAt",
@@ -24372,6 +24663,7 @@ async function init() {
             "custodyAmountSnapshot",
             "fundAmountSnapshot",
             "newCarriedAmountSnapshot",
+            "closureHistory",
             "updatedAt",
           ].forEach((field) =>
             trackFinanceUpsertsV226(
@@ -24408,6 +24700,231 @@ async function init() {
       };
       try {
         modal.open || modal.showModal();
+      } catch (_) {
+        modal.setAttribute("open", "open");
+      }
+      return !0;
+    }
+    async function financeReopenLastCloseV318(event) {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      event?.stopImmediatePropagation?.();
+      if (financeCloseInFlightV226) return !1;
+      if (!financeCanReopenV318()) {
+        try {
+          showToast("ليست لديك صلاحية التراجع عن إغلاق اليوم المالي");
+        } catch (_) {}
+        return !1;
+      }
+      if (!(await prepareFinanceMutationV226())) {
+        try {
+          showToast("تعذر الاتصال بالسحابة؛ لم يبدأ التراجع عن الإغلاق");
+        } catch (_) {}
+        return !1;
+      }
+      const candidate = financeLatestRollbackV318(d);
+      if (!candidate) {
+        try {
+          showToast("التراجع متاح لآخر عملية إغلاق محفوظة سحابيًا فقط");
+        } catch (_) {}
+        H(!0);
+        return !1;
+      }
+      const blockedReason = financeRollbackChangedV318(candidate);
+      if (blockedReason) {
+        try {
+          showToast(blockedReason);
+        } catch (_) {}
+        H(!0);
+        return !1;
+      }
+      const operation = candidate.operation,
+        sourceInfo = v(candidate.sourceDate),
+        targetInfo = v(operation.targetDate);
+      let modal = document.getElementById("financeReopenConfirmModal");
+      if (!modal) {
+        modal = document.createElement("dialog");
+        modal.id = "financeReopenConfirmModal";
+        modal.className =
+          "modal small-modal finance-close-confirm-modal finance-reopen-confirm-modal";
+        document.body.appendChild(modal);
+      }
+      modal.innerHTML = `\n      <div class="modal-head finance-close-confirm-head finance-reopen-confirm-head">\n        <div class="finance-close-confirm-icon finance-reopen-confirm-icon"><span data-icon="refresh"></span></div>\n        <div>\n          <h2>التراجع عن آخر إغلاق</h2>\n          <p>سيتم استعادة الحالة السابقة بعد التحقق السحابي.</p>\n        </div>\n      </div>\n      <div class="modal-body finance-close-confirm-body">\n        <div class="finance-close-confirm-summary">\n          <div><span>اليوم الذي سيُعاد فتحه</span><strong>${A(`${sourceInfo.dayName} ${sourceInfo.dateLabel}`)}</strong></div>\n          <div><span>اليوم اللاحق</span><strong>${A(`${targetInfo.dayName} ${targetInfo.dateLabel}`)}</strong></div>\n          <div><span>منفذ الإغلاق</span><strong>${A(operation.closedBy || "النظام")}</strong></div>\n          <div><span>وقت الإغلاق</span><strong>${A((() => { try { return new Date(operation.closedAt).toLocaleString("ar-SA"); } catch (_) { return operation.closedAt || "—"; } })())}</strong></div>\n        </div>\n        <label class="finance-reopen-reason-field"><span>سبب التراجع <b>*</b></span><textarea rows="3" maxlength="300" data-finance-reopen-reason placeholder="اكتب سبب التراجع عن الإغلاق" required></textarea></label>\n        <p class="finance-close-confirm-note finance-reopen-confirm-note">سيبقى أي يوم مغلق تم تجاوزه دون تعديل، وستُستعاد حالة اليوم اللاحق كما كانت قبل الإغلاق.</p>\n      </div>\n      <div class="modal-actions finance-close-confirm-actions">\n        <button type="button" class="secondary-btn" data-finance-reopen-cancel>إلغاء</button>\n        <button type="button" class="primary-btn finance-reopen-confirm-btn" data-finance-reopen-confirm><span data-icon="refresh"></span>اعتماد التراجع</button>\n      </div>`;
+      try {
+        hydrateIcons(modal);
+      } catch (_) {}
+      const reasonInput = modal.querySelector("[data-finance-reopen-reason]"),
+        confirmButton = modal.querySelector("[data-finance-reopen-confirm]");
+      modal.querySelector("[data-finance-reopen-cancel]").onclick = () =>
+        modal.close();
+      confirmButton.onclick = async () => {
+        const reason = String(reasonInput?.value || "").trim();
+        if (reason.length < 3) {
+          reasonInput?.focus?.();
+          try {
+            showToast("اكتب سبب التراجع قبل الاعتماد");
+          } catch (_) {}
+          return;
+        }
+        if (financeCloseInFlightV226) return;
+        financeCloseInFlightV226 = true;
+        confirmButton.disabled = true;
+        confirmButton.setAttribute("aria-busy", "true");
+        try {
+          if (!(await prepareFinanceMutationV226())) {
+            try {
+              showToast("تعذر الاتصال بالسحابة؛ لم يتم التراجع عن الإغلاق");
+            } catch (_) {}
+            return;
+          }
+          const refreshedCandidate = financeLatestRollbackV318(
+            candidate.sourceDate,
+          );
+          if (
+            !refreshedCandidate ||
+            refreshedCandidate.operation.id !== operation.id
+          ) {
+            try {
+              showToast("تغيرت سلسلة الأيام المالية؛ أعد المحاولة بعد التحديث");
+            } catch (_) {}
+            return;
+          }
+          const refreshedBlockedReason =
+            financeRollbackChangedV318(refreshedCandidate);
+          if (refreshedBlockedReason) {
+            try {
+              showToast(refreshedBlockedReason);
+            } catch (_) {}
+            return;
+          }
+          const refreshedOperation = refreshedCandidate.operation,
+            sourceDate = refreshedCandidate.sourceDate,
+            targetDate = refreshedOperation.targetDate,
+            sourceCurrent = c(m[sourceDate], sourceDate),
+            targetCurrent = m[targetDate]
+              ? c(m[targetDate], targetDate)
+              : null,
+            reopenedAt = new Date().toISOString(),
+            history = financeClosureHistoryV318(
+              sourceCurrent.closureHistory,
+            ),
+            historyIndex = history.findIndex(
+              (entry) => entry.id === refreshedOperation.id,
+            );
+          if (historyIndex < 0) {
+            try {
+              showToast("تعذر العثور على سجل الإغلاق المطلوب");
+            } catch (_) {}
+            return;
+          }
+          history[historyIndex] = {
+            ...history[historyIndex],
+            status: "reopened",
+            reopenedAt,
+            reopenedBy: k(),
+            reopenReason: reason,
+          };
+          const reopenedSource = c(
+            {
+              ...financeCloneV318(refreshedOperation.beforeDay || {}),
+              financeDate: sourceDate,
+              isClosed: false,
+              closedAt: "",
+              nextFinanceDate: "",
+              closureHistory: history,
+              updatedAt: reopenedAt,
+            },
+            sourceDate,
+          );
+          m[sourceDate] = reopenedSource;
+          financeMetaFieldsV318.forEach((field) =>
+            trackFinanceUpsertsV226(
+              financeMutationKeyV226(sourceDate, "meta", field),
+            ),
+          );
+          if (refreshedOperation.targetExisted) {
+            const targetHistory = financeClosureHistoryV318(
+                targetCurrent?.closureHistory,
+              ),
+              restoredTarget = c(
+                {
+                  ...financeCloneV318(
+                    refreshedOperation.beforeTarget || {},
+                  ),
+                  financeDate: targetDate,
+                  closureHistory: targetHistory,
+                  updatedAt: reopenedAt,
+                },
+                targetDate,
+              );
+            financeTrackRestoreRowsV318(
+              targetDate,
+              restoredTarget,
+              targetCurrent,
+            );
+            m[targetDate] = restoredTarget;
+            financeMetaFieldsV318.forEach((field) =>
+              trackFinanceUpsertsV226(
+                financeMutationKeyV226(targetDate, "meta", field),
+              ),
+            );
+          } else {
+            delete m[targetDate];
+            trackFinanceDeletesV226(
+              financeMutationKeyV226(targetDate, "day", "__delete__"),
+            );
+          }
+          d = sourceDate;
+          p = c(m[sourceDate], sourceDate);
+          u = false;
+          b();
+          localStorage.setItem(e, JSON.stringify(p));
+          const saved = await confirmFinanceCloudV226(
+            "confirmed-finance-day-reopen",
+          );
+          if (!saved) {
+            H(!0);
+            try {
+              showToast("تعذر تأكيد التراجع سحابيًا؛ لم يتم اعتماد العملية");
+            } catch (_) {}
+            return;
+          }
+          const sync = financeCloudSyncV226();
+          if (sync && typeof sync.refresh === "function")
+            await sync.refresh();
+          const verified = c(m[sourceDate], sourceDate),
+            verifiedOperation = financeClosureHistoryV318(
+              verified.closureHistory,
+            ).find((entry) => entry.id === refreshedOperation.id);
+          if (verified.isClosed || verifiedOperation?.status !== "reopened") {
+            financeFocusOpenDayV316();
+            try {
+              showToast("لم تتطابق نتيجة التراجع السحابية؛ لم تُفتح اليومية");
+            } catch (_) {}
+            return;
+          }
+          modal.close();
+          g(sourceDate);
+          try {
+            showToast(
+              `تم التراجع سحابيًا وإعادة فتح ${sourceInfo.dayName} ${sourceInfo.dateLabel}`,
+            );
+          } catch (_) {}
+        } catch (error) {
+          console.warn("v318: تعذر التراجع عن إغلاق اليوم المالي.", error);
+          try {
+            showToast("تعذر التراجع عن الإغلاق؛ لم يتم اعتماد العملية");
+          } catch (_) {}
+        } finally {
+          financeCloseInFlightV226 = false;
+          confirmButton.disabled = false;
+          confirmButton.removeAttribute("aria-busy");
+          H(!0);
+        }
+      };
+      try {
+        modal.open || modal.showModal();
+        setTimeout(() => reasonInput?.focus?.(), 30);
       } catch (_) {
         modal.setAttribute("open", "open");
       }
@@ -24588,6 +25105,8 @@ async function init() {
             } catch (e) {}
             return void setTimeout(() => H(!0), 300);
           }
+          const reopen = e.target?.closest?.(".finance-reopen-day-btn");
+          if (reopen) return void financeReopenLastCloseV318(e);
           const o = e.target?.closest?.(".finance-close-day-btn");
           if (o) return void O(e);
           const r = e.target?.closest?.("[data-finance-calendar-btn]");
@@ -24687,6 +25206,8 @@ async function init() {
         refreshOpenDate: financeOpenScreenV316,
         render: () => H(!0),
         closeDay: O,
+        reopenLastClose: financeReopenLastCloseV318,
+        rollbackCandidate: () => financeLatestRollbackV318(d),
         deletePending: F,
       }),
       "loading" === document.readyState
@@ -70058,7 +70579,28 @@ window.nawahLeaveBalanceReportV185 = {
       lockedRemoteDates = new Set(
         Object.keys(mergedDays).filter((date) => mergedDays[date]?.isClosed),
       ),
-      ignoredTransactionDates = new Set(lockedRemoteDates);
+      reopeningDates = new Set();
+    upsertIds?.forEach((_, mutationKey) => {
+      const parsed = parseFinanceMutationKeyV226(mutationKey),
+        localDay = parsed?.date ? local[parsed.date] : null,
+        history = Array.isArray(localDay?.closureHistory)
+          ? localDay.closureHistory
+          : [],
+        latestOperation = history[history.length - 1];
+      if (
+        parsed?.section === "meta" &&
+        parsed.id === "isClosed" &&
+        lockedRemoteDates.has(parsed.date) &&
+        localDay?.isClosed === false &&
+        latestOperation?.status === "reopened"
+      )
+        reopeningDates.add(parsed.date);
+    });
+    const ignoredTransactionDates = new Set(
+      Array.from(lockedRemoteDates).filter(
+        (date) => !reopeningDates.has(date),
+      ),
+    );
     const collect = (mutations, kind) => {
       mutations?.forEach((_, mutationKey) => {
         const parsed = parseFinanceMutationKeyV226(mutationKey);
@@ -70081,7 +70623,8 @@ window.nawahLeaveBalanceReportV185 = {
       if (
         parsed?.section === "meta" &&
         parsed.id === "isClosed" &&
-        lockedRemoteDates.has(parsed.date)
+        lockedRemoteDates.has(parsed.date) &&
+        local[parsed.date]?.isClosed !== false
       ) {
         const nextDate = String(local[parsed.date]?.nextFinanceDate || "");
         nextDate && ignoredTransactionDates.add(nextDate);
@@ -70089,6 +70632,13 @@ window.nawahLeaveBalanceReportV185 = {
     });
     groups.forEach((group) => {
       if (ignoredTransactionDates.has(group.date)) return;
+      if (
+        group.section === "day" &&
+        group.deletes.has("__delete__")
+      ) {
+        delete mergedDays[group.date];
+        return;
+      }
       const remoteDay =
           mergedDays[group.date] && typeof mergedDays[group.date] === "object"
             ? { ...mergedDays[group.date] }
@@ -76522,7 +77072,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   syncAll();
   window.nawahDatePickerV276 = {
-    version: 317,
+    version: 318,
     open,
     close,
     sync: syncAll,
@@ -76548,6 +77098,7 @@ window.nawahDatePickerV278 = window.nawahDatePickerV276;
 window.nawahDatePickerV315 = window.nawahDatePickerV276;
 window.nawahDatePickerV316 = window.nawahDatePickerV276;
 window.nawahDatePickerV317 = window.nawahDatePickerV276;
+window.nawahDatePickerV318 = window.nawahDatePickerV276;
 })();
 
 /* v288 - professional, cloud-confirmed branch directory. */
@@ -83432,7 +83983,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 317,
+    version: 318,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -83566,6 +84117,7 @@ window.nawahNotificationRulesV294 = {
         ["finance.editTables", "إضافة وتعديل جداول المالية"],
         ["finance.deleteRows", "حذف صفوف المالية"],
         ["finance.closeDay", "إقفال واعتماد اليوم المالي"],
+        ["finance.reopenDay", "التراجع عن آخر إغلاق مالي"],
         ["finance.settings", "تعديل إعدادات وأرصدة المالية"],
         ["finance.print", "طباعة وتصدير التقرير المالي"],
       ],
@@ -83834,7 +84386,7 @@ window.nawahNotificationRulesV294 = {
       finance: {
         nav: "nav.finance",
         view: "finance.view",
-        requiresView: ["finance.editTables", "finance.deleteRows", "finance.closeDay", "finance.settings", "finance.print"],
+        requiresView: ["finance.editTables", "finance.deleteRows", "finance.closeDay", "finance.reopenDay", "finance.settings", "finance.print"],
       },
       advances: {
         nav: "nav.advances",
@@ -83918,7 +84470,7 @@ window.nawahNotificationRulesV294 = {
     "employees.viewAll": ["employees.create", "employees.edit", "employees.delete", "employees.endService"],
     "attendance.viewAll": ["attendance.markAbsent", "attendance.deleteAbsence"],
     "leaves.viewAll": ["leaves.createForAll", "leaves.approve", "leaves.reject", "leaves.resume", "leaves.viewTravelers", "leaves.delete"],
-    "finance.view": ["finance.editTables", "finance.deleteRows", "finance.closeDay", "finance.settings", "finance.print"],
+    "finance.view": ["finance.editTables", "finance.deleteRows", "finance.closeDay", "finance.reopenDay", "finance.settings", "finance.print"],
     "advances.viewAll": ["advances.create", "advances.pay", "advances.delete"],
     "payroll.viewAll": ["payroll.runs.process", "payroll.runs.print", "payroll.edit", "payroll.commissions", "payroll.printClearance"],
     "reports.view": ["reports.leaveTravel", "reports.banking", "reports.absences", "reports.advances", "reports.payrollRun", "reports.contracts", "reports.attendance", "reports.leaveBalance", "reports.print", "reports.export"],
@@ -83977,7 +84529,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 317,
+      version: 318,
       granular: true,
       canonicalPermissions: true,
     };
@@ -84035,6 +84587,7 @@ window.nawahNotificationRulesV294 = {
     ["finance.editTables", "#financeAddAdvanceBtn"],
     ["finance.deleteRows", "[data-finance-delete-pending-index]"],
     ["finance.closeDay", "[data-finance-close-confirm], .finance-close-day-btn"],
+    ["finance.reopenDay", "[data-finance-reopen-confirm], .finance-reopen-day-btn"],
     ["finance.settings", "#financeSettingsForm"],
     ["advances.create", "#advancesAddBtn"],
     ["advances.print", "#advancesPrintBtn"],
@@ -84538,7 +85091,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 317,
+    version: 318,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,

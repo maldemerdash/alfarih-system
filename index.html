@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=317" />
+    <link rel="stylesheet" href="style.css?v=318" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -472,6 +472,7 @@
                   </div>
                   <button type="button" class="primary-btn finance-header-advance-btn" id="financeAddAdvanceBtn"><span data-icon="wallet"></span>إدخال سلفة</button>
                   <button type="button" class="danger-btn finance-close-day-btn finance-header-close-day-btn"><span data-icon="check-circle"></span>إغلاق اليوم</button>
+                  <button type="button" class="secondary-btn finance-reopen-day-btn finance-header-reopen-day-btn" hidden><span data-icon="refresh"></span>التراجع عن آخر إغلاق</button>
                 </div>
               </div>
 
@@ -1714,6 +1715,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=317"></script>
+    <script src="app.js?v=318"></script>
   </body>
 </html>
