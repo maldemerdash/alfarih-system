@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=315" />
+    <link rel="stylesheet" href="style.css?v=316" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -477,10 +477,10 @@
 
               <div class="finance-cards-stack" aria-label="بطاقات ملخص المالية">
                 <div class="finance-row finance-row-five finance-top-totals">
+                  <article class="panel finance-summary-card finance-positive" data-finance-card="custodyAmount"><span>مبلغ العهدة</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من إعدادات المالية للأيام القادمة</small></article>
                   <article class="panel finance-summary-card finance-positive" data-finance-card="dailyDebit"><span>مجموع المدين اليومي</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>إجمالي الإضافات اليومية</small></article>
                   <article class="panel finance-summary-card finance-negative" data-finance-card="dailyCredit"><span>مجموع الدائن اليومي</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>إجمالي الخصومات اليومية</small></article>
                   <article class="panel finance-summary-card finance-fund-highlight finance-carried-highlight" data-finance-card="carriedAmount"><span>المبلغ المرحل</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من المبلغ الافتتاحي في إعدادات المالية</small></article>
-                  <article class="panel finance-summary-card finance-positive" data-finance-card="custodyAmount"><span>مبلغ العهدة</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>من إعدادات المالية للأيام القادمة</small></article>
                   <article class="panel finance-summary-card finance-new-carried-highlight" data-finance-card="newCarriedAmount"><span>المبلغ المرحل الجديد</span><strong class="money-with-symbol"><span data-finance-money>٠</span><img class="sar-symbol" src="sar-symbol.png" alt="ريال سعودي" /></strong><small>يتجمد عند إغلاق اليوم لاحقًا</small></article>
                 </div>
 
@@ -1714,6 +1714,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=315"></script>
+    <script src="app.js?v=316"></script>
   </body>
 </html>

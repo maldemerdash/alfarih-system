@@ -23264,17 +23264,28 @@ async function init() {
       const e = new Date();
       return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
     }
-    function financeSelectableLimitV315() {
+    function financeActualLimitV316() {
       const rawToday = l(),
         parts = rawToday.split("-").map(Number),
         date = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
       if (date.getDay() === 5) date.setDate(date.getDate() - 1);
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     }
-    function financeDateValueV315(value = l()) {
-      const limit = financeSelectableLimitV315();
+    function financeDayKeyV316(value) {
+      const candidate = String(value || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return "";
+      const parts = candidate.split("-").map(Number),
+        date = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+      return date.getFullYear() === parts[0] &&
+        date.getMonth() === parts[1] - 1 &&
+        date.getDate() === parts[2]
+        ? candidate
+        : "";
+    }
+    function financeNormalizeDateV316(value, maximum) {
+      const limit = financeDayKeyV316(maximum) || financeActualLimitV316();
       let candidate = String(value || limit).slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return limit;
+      if (!financeDayKeyV316(candidate)) return limit;
       if (candidate > limit) candidate = limit;
       const parsed = new Date(`${candidate}T12:00:00`);
       if (Number.isNaN(parsed.getTime())) return limit;
@@ -23322,9 +23333,7 @@ async function init() {
         updatedAt: n.updatedAt || "",
       };
     }
-    let d = financeDateValueV315(l()),
-      u = !1,
-      m = (function () {
+    let m = (function () {
         try {
           const e = localStorage.getItem(t),
             n = e ? JSON.parse(e) : {},
@@ -23339,28 +23348,68 @@ async function init() {
         } catch (e) {
           return {};
         }
-      })();
-    if (!m[d]) {
-      const t = (function (t) {
-        try {
-          const n = localStorage.getItem(e);
-          return n ? c(JSON.parse(n), t) : null;
-        } catch (e) {
-          return null;
-        }
-      })(d);
-      m[d] = t || c({}, d);
+      })(),
+      financeDateInteractedV316 = !1,
+      financeCloudHydratedV316 = !1,
+      financeOpenScreenPromiseV316 = null;
+    try {
+      const storedOpen = JSON.parse(localStorage.getItem(e) || "null"),
+        storedOpenDate = financeDayKeyV316(storedOpen?.financeDate);
+      if (storedOpenDate) m[storedOpenDate] = c(storedOpen, storedOpenDate);
+    } catch (_) {}
+    function financeOpenDatesV316(days = m, visibleOnly = !1) {
+      const actualLimit = financeActualLimitV316();
+      return Object.keys(days || {})
+        .map(financeDayKeyV316)
+        .filter(
+          (date) =>
+            date &&
+            (!visibleOnly || date <= actualLimit) &&
+            new Date(`${date}T12:00:00`).getDay() !== 5 &&
+            days[date] &&
+            !days[date].isClosed,
+        )
+        .sort();
     }
+    function financeCloudOpenDateV316(days = m) {
+      return financeOpenDatesV316(days, !1)[0] || "";
+    }
+    function financeVisibleOpenDateV316(days = m) {
+      return financeOpenDatesV316(days, !0)[0] || "";
+    }
+    function financeDisplayLimitV316(days = m) {
+      const openDate = financeVisibleOpenDateV316(days);
+      if (openDate) return openDate;
+      const actualLimit = financeActualLimitV316(),
+        lastClosedDate = Object.keys(days || {})
+          .map(financeDayKeyV316)
+          .filter(
+            (date) =>
+              date &&
+              date <= actualLimit &&
+              new Date(`${date}T12:00:00`).getDay() !== 5 &&
+              days[date]?.isClosed,
+          )
+          .sort()
+          .pop();
+      return lastClosedDate || actualLimit;
+    }
+    function financeDateValueV316(value = financeDisplayLimitV316()) {
+      return financeNormalizeDateV316(value, financeDisplayLimitV316());
+    }
+    let d = financeDisplayLimitV316(),
+      u = !1;
+    if (!m[d]) m[d] = c({}, d);
     let p = c(m[d], d);
     function y() {
-      const selected = financeDateValueV315(d);
+      const selected = financeDateValueV316(d);
       if (selected !== d) {
         m[d] = c(p, d);
         d = selected;
         m[d] || (m[d] = c({}, d));
         p = c(m[d], d);
       }
-      u = d !== l();
+      u = d !== financeDisplayLimitV316();
     }
     function f(e) {
       const t = String(e || "")
@@ -23381,7 +23430,7 @@ async function init() {
         })(n)
       );
     }
-    function financeAdjacentDateV315(value, direction) {
+    function financeAdjacentDateV316(value, direction) {
       const step = direction < 0 ? -1 : 1;
       let candidate = h(value, step),
         guard = 0;
@@ -23410,7 +23459,9 @@ async function init() {
     }
     function g(e) {
       const requested = String(e || l()).slice(0, 10),
-        selected = financeDateValueV315(requested),
+        operationalLimit = financeDisplayLimitV316(),
+        actualLimit = financeActualLimitV316(),
+        selected = financeNormalizeDateV316(requested, operationalLimit),
         requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(requested)
           ? f(requested)
           : null;
@@ -23418,14 +23469,18 @@ async function init() {
         try {
           showToast("يوم الجمعة غير متاح في شاشة المالية");
         } catch (_) {}
-      } else if (requested > financeSelectableLimitV315()) {
+      } else if (requested > actualLimit) {
         try {
           showToast("لا يمكن الانتقال إلى تاريخ بعد تاريخ اليوم");
+        } catch (_) {}
+      } else if (requested > operationalLimit) {
+        try {
+          showToast("أغلق اليوم المالي المفتوح أولًا قبل الانتقال إلى يوم أحدث");
         } catch (_) {}
       }
       ((m[d] = c(p, d)),
         (d = selected),
-        (u = d !== l()),
+        (u = d !== operationalLimit),
         m[d] || (m[d] = c({}, d)),
         (p = c(m[d], d)),
         b(),
@@ -23433,13 +23488,50 @@ async function init() {
       return d;
     }
     function financeOpenRecordV226() {
-      const openDate = Object.keys(m)
-        .filter((date) => m[date] && !m[date].isClosed)
-        .sort()
-        .pop();
+      const openDate = financeCloudOpenDateV316();
       return openDate
         ? { date: openDate, record: c(m[openDate], openDate) }
         : { date: d, record: c(p, d) };
+    }
+    function financeFocusOpenDayV316() {
+      financeDateInteractedV316 = !1;
+      const operationalDate = financeDisplayLimitV316();
+      if (d !== operationalDate) {
+        m[d] = c(p, d);
+        d = operationalDate;
+        p = c(m[d] || {}, d);
+        m[d] = c(p, d);
+      }
+      u = !1;
+      b();
+      H(!0);
+      return d;
+    }
+    function financeOpenScreenV316() {
+      financeDateInteractedV316 = !1;
+      financeFocusOpenDayV316();
+      const sync = financeCloudSyncV226();
+      if (!sync || typeof sync.refresh !== "function")
+        return Promise.resolve(d);
+      if (financeOpenScreenPromiseV316) return financeOpenScreenPromiseV316;
+      financeOpenScreenPromiseV316 = Promise.resolve(sync.refresh())
+        .then(() => {
+          if (!financeDateInteractedV316) return financeFocusOpenDayV316();
+          H(!0);
+          return d;
+        })
+        .catch((error) => {
+          console.warn(
+            "v316: تعذر تحديث اليوم المالي المفتوح من السحابة؛ تم الإبقاء على آخر حالة مؤكدة.",
+            error,
+          );
+          H(!0);
+          return d;
+        })
+        .finally(() => {
+          financeOpenScreenPromiseV316 = null;
+        });
+      return financeOpenScreenPromiseV316;
     }
     function b(markUpdated = !1) {
       y();
@@ -24109,7 +24201,7 @@ async function init() {
               .forEach((t) => {
                 t.textContent = e.dateLabel;
               }));
-          const t = financeSelectableLimitV315();
+          const t = financeDisplayLimitV316();
           (document
             .querySelectorAll('[data-finance-day-nav="today"]')
             .forEach((e) => {
@@ -24171,7 +24263,7 @@ async function init() {
       }
       const totals = T(),
         currentInfo = v(d),
-        nextFinanceDate = financeAdjacentDateV315(d, 1),
+        nextFinanceDate = financeAdjacentDateV316(d, 1),
         nextInfo = v(nextFinanceDate);
       let modal = document.getElementById("financeCloseConfirmModal");
       if (!modal) {
@@ -24312,7 +24404,7 @@ async function init() {
     const j = "function" == typeof applyCloudState ? applyCloudState : null;
     if (j && !j.__financeDailyTablesWrapped) {
       const e = function (e) {
-        const selectedDate = financeDateValueV315(d),
+        const selectedDate = financeDayKeyV316(d) || financeDisplayLimitV316(),
           t = j.apply(this, arguments);
         if (e && e.financeDailyDays && "object" == typeof e.financeDailyDays) {
           const t = {};
@@ -24324,10 +24416,19 @@ async function init() {
                 e.financeDailyOpen,
                 e.financeDailyOpen.financeDate,
               )),
-            (m = t),
-            (d = selectedDate),
-            (u = d !== l()),
+            (m = t));
+          const operationalLimit = financeDisplayLimitV316(),
+            followOpenDay =
+              !financeCloudHydratedV316 ||
+              !financeDateInteractedV316 ||
+              selectedDate > operationalLimit;
+          ((d = followOpenDay
+            ? operationalLimit
+            : financeNormalizeDateV316(selectedDate, operationalLimit)),
+            (u = d !== operationalLimit),
             (p = c(m[d] || {}, d)),
+            (m[d] = c(p, d)),
+            (financeCloudHydratedV316 = !0),
             b());
         } else if (e && e.financeDailyOpen) {
           const remoteOpenDate = String(
@@ -24337,10 +24438,18 @@ async function init() {
               ? remoteOpenDate
               : selectedDate;
           m[openDate] = c(e.financeDailyOpen, openDate);
-          d = selectedDate;
-          u = d !== l();
+          const operationalLimit = financeDisplayLimitV316(),
+            followOpenDay =
+              !financeCloudHydratedV316 ||
+              !financeDateInteractedV316 ||
+              selectedDate > operationalLimit;
+          d = followOpenDay
+            ? operationalLimit
+            : financeNormalizeDateV316(selectedDate, operationalLimit);
+          u = d !== operationalLimit;
           p = c(m[d] || {}, d);
           m[d] = c(p, d);
+          financeCloudHydratedV316 = !0;
           b();
         }
         return (H(!0), t);
@@ -24359,7 +24468,10 @@ async function init() {
     if (U && !U.__financeDailyTablesWrapped) {
       const e = function (e) {
         const t = U.apply(this, arguments);
-        return ("finance" === e && setTimeout(() => H(!0), 0), t);
+        return (
+          "finance" === e && setTimeout(() => void financeOpenScreenV316(), 0),
+          t
+        );
       };
       ((e.__financeDailyTablesWrapped = !0), (switchView = e));
     }
@@ -24473,14 +24585,15 @@ async function init() {
           const i = e.target?.closest?.("[data-finance-day-nav]");
           if (i) {
             const e = i.dataset.financeDayNav;
+            financeDateInteractedV316 = !0;
             return (
-              "prev" === e && g(financeAdjacentDateV315(d, -1)),
-              "next" === e && g(financeAdjacentDateV315(d, 1)),
+              "prev" === e && g(financeAdjacentDateV316(d, -1)),
+              "next" === e && g(financeAdjacentDateV316(d, 1)),
               void ("today" === e && g(l()))
             );
           }
           e.target?.closest?.('[data-view="finance"]') &&
-            setTimeout(() => H(!0), 100);
+            setTimeout(() => void financeOpenScreenV316(), 100);
         },
         !0,
       ),
@@ -24489,7 +24602,10 @@ async function init() {
         function (e) {
           if (!e.target?.matches?.("[data-finance-date-picker]")) return;
           const t = e.target.value;
-          t && g(t);
+          if (t) {
+            financeDateInteractedV316 = !0;
+            g(t);
+          }
         },
         !0,
       ),
@@ -24531,7 +24647,14 @@ async function init() {
         readDays: () => JSON.parse(JSON.stringify(m || {})),
         readCurrent: () => JSON.parse(JSON.stringify(p || {})),
         currentDate: () => d,
-        selectDate: g,
+        operationalDate: () => financeDisplayLimitV316(),
+        openDate: () => financeVisibleOpenDateV316(),
+        selectDate: (date) => {
+          financeDateInteractedV316 = !0;
+          return g(date);
+        },
+        focusOpenDate: financeFocusOpenDayV316,
+        refreshOpenDate: financeOpenScreenV316,
         render: () => H(!0),
         closeDay: O,
         deletePending: F,
@@ -76369,7 +76492,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   syncAll();
   window.nawahDatePickerV276 = {
-    version: 315,
+    version: 316,
     open,
     close,
     sync: syncAll,
@@ -76393,6 +76516,7 @@ window.nawahLeaveBalanceReportV185 = {
   window.nawahDatePickerV277 = window.nawahDatePickerV276;
 window.nawahDatePickerV278 = window.nawahDatePickerV276;
 window.nawahDatePickerV315 = window.nawahDatePickerV276;
+window.nawahDatePickerV316 = window.nawahDatePickerV276;
 })();
 
 /* v288 - professional, cloud-confirmed branch directory. */
@@ -83277,7 +83401,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 315,
+    version: 316,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -83822,7 +83946,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 315,
+      version: 316,
       granular: true,
       canonicalPermissions: true,
     };
@@ -84383,7 +84507,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 315,
+    version: 316,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
