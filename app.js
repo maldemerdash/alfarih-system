@@ -23440,6 +23440,24 @@ async function init() {
       }
       return candidate;
     }
+    function financeNextOpenTargetV317(value, days = m) {
+      const immediateDate = financeAdjacentDateV316(value, 1),
+        skippedClosedDates = [];
+      let targetDate = immediateDate,
+        guard = 0;
+      while (days?.[targetDate]?.isClosed && guard < 3660) {
+        skippedClosedDates.push(targetDate);
+        targetDate = financeAdjacentDateV316(targetDate, 1);
+        guard += 1;
+      }
+      return {
+        immediateDate,
+        targetDate,
+        skippedClosedDates,
+        carrySourceDate:
+          skippedClosedDates[skippedClosedDates.length - 1] || value,
+      };
+    }
     function v(e) {
       const t = f(e);
       try {
@@ -24263,8 +24281,11 @@ async function init() {
       }
       const totals = T(),
         currentInfo = v(d),
-        nextFinanceDate = financeAdjacentDateV316(d, 1),
-        nextInfo = v(nextFinanceDate);
+        previewChain = financeNextOpenTargetV317(d),
+        previewTargetInfo = v(previewChain.targetDate),
+        previewSkipNote = previewChain.skippedClosedDates.length
+          ? `سيتم تجاوز ${previewChain.skippedClosedDates.length} ${previewChain.skippedClosedDates.length === 1 ? "يوم مغلق" : "أيام مغلقة"} مسبقًا دون تعديلها.`
+          : "";
       let modal = document.getElementById("financeCloseConfirmModal");
       if (!modal) {
         modal = document.createElement("dialog");
@@ -24272,7 +24293,7 @@ async function init() {
         modal.className = "modal small-modal finance-close-confirm-modal";
         document.body.appendChild(modal);
       }
-      modal.innerHTML = `\n      <div class="modal-head finance-close-confirm-head">\n        <div class="finance-close-confirm-icon"><span data-icon="check-circle"></span></div>\n        <div>\n          <h2>تأكيد إغلاق اليوم المالي</h2>\n          <p>راجع بيانات اليوم قبل اعتماد الإغلاق والترحيل.</p>\n        </div>\n      </div>\n      <div class="modal-body finance-close-confirm-body">\n        <div class="finance-close-confirm-summary">\n          <div><span>اليوم الحالي</span><strong>${A(`${currentInfo.dayName} ${currentInfo.dateLabel}`)}</strong></div>\n          <div><span>اليوم التالي</span><strong>${A(`${nextInfo.dayName} ${nextInfo.dateLabel}`)}</strong></div>\n          <div><span>المبلغ المرحل</span><strong>${A(S(totals.settings.openingAmount))}</strong></div>\n          <div><span>المبلغ المرحل الجديد</span><strong>${A(S(totals.newCarriedAmount))}</strong></div>\n        </div>\n        <p class="finance-close-confirm-note">بعد الاعتماد سيتم تجميد اليوم الحالي وفتح اليوم التالي تلقائيًا.</p>\n      </div>\n      <div class="modal-actions finance-close-confirm-actions">\n        <button type="button" class="secondary-btn" data-finance-close-cancel>إلغاء</button>\n        <button type="button" class="primary-btn" data-finance-close-confirm><span data-icon="check-circle"></span>اعتماد إغلاق اليوم</button>\n      </div>`;
+      modal.innerHTML = `\n      <div class="modal-head finance-close-confirm-head">\n        <div class="finance-close-confirm-icon"><span data-icon="check-circle"></span></div>\n        <div>\n          <h2>تأكيد إغلاق اليوم المالي</h2>\n          <p>راجع بيانات اليوم قبل اعتماد الإغلاق والترحيل.</p>\n        </div>\n      </div>\n      <div class="modal-body finance-close-confirm-body">\n        <div class="finance-close-confirm-summary">\n          <div><span>اليوم الحالي</span><strong>${A(`${currentInfo.dayName} ${currentInfo.dateLabel}`)}</strong></div>\n          <div><span>أول يوم سيفتح</span><strong>${A(`${previewTargetInfo.dayName} ${previewTargetInfo.dateLabel}`)}</strong></div>\n          <div><span>المبلغ المرحل</span><strong>${A(S(totals.settings.openingAmount))}</strong></div>\n          <div><span>المبلغ المرحل الجديد</span><strong>${A(S(totals.newCarriedAmount))}</strong></div>\n        </div>\n        <p class="finance-close-confirm-note">بعد الاعتماد سيتم تجميد اليوم الحالي وفتح أول يوم غير مغلق تلقائيًا.${previewSkipNote ? ` ${A(previewSkipNote)}` : ""}</p>\n      </div>\n      <div class="modal-actions finance-close-confirm-actions">\n        <button type="button" class="secondary-btn" data-finance-close-cancel>إلغاء</button>\n        <button type="button" class="primary-btn" data-finance-close-confirm><span data-icon="check-circle"></span>اعتماد إغلاق اليوم</button>\n      </div>`;
       try {
         hydrateIcons(modal);
       } catch (_) {}
@@ -24294,19 +24315,23 @@ async function init() {
             try {
               showToast("تم إغلاق هذا اليوم مسبقًا من مستخدم آخر");
             } catch (_) {}
-            H(!0);
+            financeFocusOpenDayV316();
             return;
           }
           const currentTotals = T(),
-            nextRecord = m[nextFinanceDate]
-              ? c(m[nextFinanceDate], nextFinanceDate)
+            closeChain = financeNextOpenTargetV317(d),
+            nextFinanceDate = closeChain.immediateDate,
+            openFinanceDate = closeChain.targetDate,
+            openFinanceInfo = v(openFinanceDate),
+            openRecord = m[openFinanceDate]
+              ? c(m[openFinanceDate], openFinanceDate)
+              : null,
+            carrySourceRecord = closeChain.skippedClosedDates.length
+              ? c(
+                  m[closeChain.carrySourceDate],
+                  closeChain.carrySourceDate,
+                )
               : null;
-          if (nextRecord?.isClosed) {
-            try {
-              showToast("لا يمكن فتح اليوم التالي لأنه مغلق مسبقًا");
-            } catch (_) {}
-            return;
-          }
           const closedAt = new Date().toISOString();
           Object.assign(p, {
             isClosed: !0,
@@ -24319,8 +24344,13 @@ async function init() {
             updatedAt: closedAt,
           });
           m[d] = c(p, d);
-          const carriedPending = s(p.pending).filter(x),
-            next = nextRecord || c({}, nextFinanceDate),
+          const carriedPending = s(
+              carrySourceRecord ? carrySourceRecord.pending : p.pending,
+            ).filter(x),
+            carriedAmount = carrySourceRecord
+              ? o(carrySourceRecord.newCarriedAmountSnapshot)
+              : currentTotals.newCarriedAmount,
+            next = openRecord || c({}, openFinanceDate),
             nextPendingById = new Map(
               s(next.pending)
                 .filter(x)
@@ -24330,10 +24360,10 @@ async function init() {
             nextPendingById.set(String(record.id), record),
           );
           next.pending = s(Array.from(nextPendingById.values()));
-          next.carriedAmountOverride = currentTotals.newCarriedAmount;
+          next.carriedAmountOverride = carriedAmount;
           next.isClosed = !1;
           next.updatedAt = closedAt;
-          m[nextFinanceDate] = c(next, nextFinanceDate);
+          m[openFinanceDate] = c(next, openFinanceDate);
           [
             "isClosed",
             "closedAt",
@@ -24350,25 +24380,25 @@ async function init() {
           );
           ["carriedAmountOverride", "isClosed", "updatedAt"].forEach((field) =>
             trackFinanceUpsertsV226(
-              financeMutationKeyV226(nextFinanceDate, "meta", field),
+              financeMutationKeyV226(openFinanceDate, "meta", field),
             ),
           );
           carriedPending.forEach((record) =>
             trackFinanceUpsertsV226(
-              financeMutationKeyV226(nextFinanceDate, "pending", record.id),
+              financeMutationKeyV226(openFinanceDate, "pending", record.id),
             ),
           );
           localStorage.setItem(t, JSON.stringify(m));
-          localStorage.setItem(e, JSON.stringify(m[nextFinanceDate]));
+          localStorage.setItem(e, JSON.stringify(m[openFinanceDate]));
           const saved = await confirmFinanceCloudV226(
             "confirmed-finance-day-close",
           );
-          if (saved) g(nextFinanceDate);
+          if (saved) g(openFinanceDate);
           else H(!0);
           try {
             showToast(
               saved
-                ? `تم إغلاق اليوم وحفظه سحابيًا وفتح ${nextInfo.dayName} ${nextInfo.dateLabel}`
+                ? `تم إغلاق اليوم وحفظه سحابيًا وفتح ${openFinanceInfo.dayName} ${openFinanceInfo.dateLabel}${closeChain.skippedClosedDates.length ? ` بعد تجاوز ${closeChain.skippedClosedDates.length} ${closeChain.skippedClosedDates.length === 1 ? "يوم مغلق" : "أيام مغلقة"}` : ""}`
                 : "تم تطبيق الإغلاق مؤقتًا، وتعذر تأكيده سحابيًا وسيُعاد تلقائيًا",
             );
           } catch (_) {}
@@ -76492,7 +76522,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   syncAll();
   window.nawahDatePickerV276 = {
-    version: 316,
+    version: 317,
     open,
     close,
     sync: syncAll,
@@ -76517,6 +76547,7 @@ window.nawahLeaveBalanceReportV185 = {
 window.nawahDatePickerV278 = window.nawahDatePickerV276;
 window.nawahDatePickerV315 = window.nawahDatePickerV276;
 window.nawahDatePickerV316 = window.nawahDatePickerV276;
+window.nawahDatePickerV317 = window.nawahDatePickerV276;
 })();
 
 /* v288 - professional, cloud-confirmed branch directory. */
@@ -83401,7 +83432,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 316,
+    version: 317,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -83946,7 +83977,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 316,
+      version: 317,
       granular: true,
       canonicalPermissions: true,
     };
@@ -84507,7 +84538,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 316,
+    version: 317,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
