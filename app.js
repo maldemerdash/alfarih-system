@@ -30194,6 +30194,7 @@ async function init() {
 	      try {
 	        d().forEach((e) => {
 	          e &&
+	            !e.excludeFromLeaveBalance &&
 	            String(e.employeeId || "") === s &&
 	            ("approved" === String(e.status || "") ||
 	              "returned" === String(e.status || "")) &&
@@ -30265,6 +30266,7 @@ async function init() {
 	      let total = (Array.isArray(t) ? t : d()).reduce(
 	        (e, t) => {
 	          if (!t || String(t.employeeId || "") !== a) return e;
+	          if (t.excludeFromLeaveBalance) return e;
 	          if (exclude && String(t.id || "") === exclude) return e;
 	          if ("approved" !== String(t.status || "")) return e;
 	          if (!y(t.type || t.leaveType)) return e;
@@ -76694,6 +76696,7 @@ window.nawahLeaveBalanceReportV185 = {
     '#privateAlertForm input[name="createdDate"]',
     '#privateAlertForm input[name="remindDate"]',
     '#privateAlertPostponeForm input[name="newRemindDate"]',
+    '#v320EmployeeResumeForm input[name="resumeDate"]',
   ];
   const targetSelector = targetSelectors.join(",");
   const months = [
@@ -77156,7 +77159,7 @@ window.nawahLeaveBalanceReportV185 = {
     function (event) {
       if (
         event.target?.closest?.(
-          "#newAbsenceBtn, #dashboardAbsenceBtn, #newTravelBtn, [data-travel-resume], [data-add-est-doc-extension], #addEstablishmentDocumentBtn, [data-add-establishment-document], [data-open-establishment-document], [data-leave-return], #addPrivateAlertBtn, [data-private-alert-postpone]",
+          "#newAbsenceBtn, #dashboardAbsenceBtn, #newTravelBtn, [data-travel-resume], [data-v320-resume], [data-add-est-doc-extension], #addEstablishmentDocumentBtn, [data-add-establishment-document], [data-open-establishment-document], [data-leave-return], #addPrivateAlertBtn, [data-private-alert-postpone]",
         )
       )
         syncDynamicWindows();
@@ -77168,7 +77171,7 @@ window.nawahLeaveBalanceReportV185 = {
     function (event) {
       if (
         event.target?.matches?.(
-          "#absenceModal, #travelRequestModal, #travelResumeModal, #leaveReturnModal, #branchEstDocModal, #establishmentDocumentModal, #establishmentDocumentModalV2, #privateAlertModal, #privateAlertPostponeModal",
+          "#absenceModal, #travelRequestModal, #travelResumeModal, #leaveReturnModal, #v320EmployeeResumeModal, #branchEstDocModal, #establishmentDocumentModal, #establishmentDocumentModalV2, #privateAlertModal, #privateAlertPostponeModal",
         ) &&
         event.target.open
       )
@@ -77261,7 +77264,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   syncAll();
   window.nawahDatePickerV276 = {
-    version: 319,
+    version: 320,
     open,
     close,
     sync: syncAll,
@@ -77289,6 +77292,7 @@ window.nawahDatePickerV316 = window.nawahDatePickerV276;
 window.nawahDatePickerV317 = window.nawahDatePickerV276;
 window.nawahDatePickerV318 = window.nawahDatePickerV276;
 window.nawahDatePickerV319 = window.nawahDatePickerV276;
+window.nawahDatePickerV320 = window.nawahDatePickerV276;
 })();
 
 /* v288 - professional, cloud-confirmed branch directory. */
@@ -84173,7 +84177,7 @@ window.nawahNotificationRulesV294 = {
   if (isActive()) void renderPermissions(true);
 
   window.nawahPermissionsV295 = {
-    version: 319,
+    version: 320,
     render: renderPermissions,
     activate: activatePermissions,
     refresh: function () {
@@ -84719,7 +84723,7 @@ window.nawahNotificationRulesV294 = {
       defaults: DEFAULTS,
       can: can,
       normalizePermissions: normalizePermissions,
-      version: 319,
+      version: 320,
       granular: true,
       canonicalPermissions: true,
     };
@@ -85281,7 +85285,7 @@ window.nawahNotificationRulesV294 = {
   }, true);
 
   window.nawahPermissionAuditV296 = {
-    version: 319,
+    version: 320,
     key: AUDIT_KEY,
     table: "app_settings",
     cloudBacked: true,
@@ -85293,5 +85297,868 @@ window.nawahNotificationRulesV294 = {
     groups: GROUPS,
     apply: applyDetailedUi,
     ensureMatrix: installStablePermissionMatrix,
+  };
+})();
+
+/* v320 - one operational source of truth for employee leave/travel status.
+   Employee status remains authoritative for legacy records, while an open
+   approved movement is authoritative for current workflow records. Missing
+   legacy movements are recovered once and saved with the employee state in
+   the same confirmed cloud transaction. */
+(function v320EmployeeOperationalStatusRecovery() {
+  if (window.__v320EmployeeOperationalStatusRecovery) return;
+  window.__v320EmployeeOperationalStatusRecovery = true;
+
+  const EMPLOYEE_KEY = "nawah-employees";
+  const LEAVE_KEY = "nawah-leaves";
+  const TRAVEL_KEY = "nawah-travel-requests";
+  const RECOVERY_PREFIX = "status-recovery-";
+  let migrationPromise = null;
+  let decorateTimer = 0;
+  let migrationFailureShown = false;
+
+  function text(value) {
+    return String(value == null ? "" : value).trim();
+  }
+  function esc(value) {
+    try {
+      return typeof escapeHtml === "function"
+        ? escapeHtml(text(value))
+        : text(value).replace(/[&<>"']/g, function (character) {
+            return ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[character];
+          });
+    } catch (_) {
+      return text(value);
+    }
+  }
+  function clone(value) {
+    try {
+      return structuredClone(value);
+    } catch (_) {
+      return JSON.parse(JSON.stringify(value));
+    }
+  }
+  function readJson(key) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  function employeeRows() {
+    try {
+      return Array.isArray(employees)
+        ? employees
+        : Array.isArray(window.employees)
+          ? window.employees
+          : [];
+    } catch (_) {
+      return Array.isArray(window.employees) ? window.employees : [];
+    }
+  }
+  function leaveRows() {
+    try {
+      if (Array.isArray(leaves)) return leaves;
+    } catch (_) {}
+    if (Array.isArray(window.leaves)) return window.leaves;
+    return readJson(LEAVE_KEY);
+  }
+  function travelRows() {
+    return readJson(TRAVEL_KEY);
+  }
+  function employeeById(id, rows) {
+    return (rows || employeeRows()).find(function (employee) {
+      return text(employee?.id) === text(id);
+    }) || null;
+  }
+  function dateOnly(value) {
+    const clean = text(value).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) return "";
+    const parsed = new Date(clean + "T12:00:00");
+    return Number.isNaN(parsed.getTime()) ? "" : clean;
+  }
+  function today() {
+    try {
+      if (typeof formatInputDate === "function")
+        return formatInputDate(
+          typeof todayAtNoon === "function" ? todayAtNoon() : new Date(),
+        );
+    } catch (_) {}
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 10);
+  }
+  function statusKey(value) {
+    const status = text(value).toLowerCase();
+    if (["leave", "vacation", "on_leave", "إجازة", "في إجازة"].includes(status))
+      return "leave";
+    if (["travel", "travelling", "traveling", "مسافر", "سفر"].includes(status))
+      return "travel";
+    if (["terminated", "ended", "منتهي", "تم إنهاء خدماته"].includes(status))
+      return "terminated";
+    if (["suspended", "stopped", "متوقف", "متوقف عن العمل"].includes(status))
+      return "suspended";
+    return "active";
+  }
+  function recordEmployeeId(record) {
+    return text(
+      record?.employeeId ||
+        record?.employee_id ||
+        record?.employee?.id ||
+        record?.employeeNumber,
+    );
+  }
+  function approvedStatus(value) {
+    return ["approved", "leave", "travel", "returned", "إجازة", "مسافر"].includes(
+      text(value).toLowerCase(),
+    );
+  }
+  function isOpenLeave(record) {
+    if (!record || !approvedStatus(record.status)) return false;
+    return !(
+      record.returnDate ||
+      record.returnConfirmedAt ||
+      record.returnedAt ||
+      record.closedAt ||
+      ["returned", "finished", "closed"].includes(text(record.status).toLowerCase())
+    );
+  }
+  function isOpenTravel(record) {
+    if (!record || !approvedStatus(record.status)) return false;
+    return !(
+      record.workResumeDate ||
+      record.returnedAt ||
+      record.returnConfirmedAt ||
+      record.closedAt ||
+      ["returned", "finished", "closed"].includes(text(record.status).toLowerCase())
+    );
+  }
+  function linkedRecord(kind, employee, rows) {
+    const metadata = kind === "leave" ? employee?.leaveStatus : employee?.travelStatus;
+    const linkedId = text(
+      kind === "leave"
+        ? metadata?.leaveId || employee?.activeLeaveId
+        : metadata?.travelId || employee?.activeTravelId,
+    );
+    if (!linkedId) return null;
+    return (rows || []).find(function (record) {
+      return text(record?.id) === linkedId;
+    }) || null;
+  }
+  function openRecordsFor(employee, leavesList, travelsList) {
+    const id = text(employee?.id);
+    const matchingLeaves = (leavesList || []).filter(function (record) {
+      return recordEmployeeId(record) === id && isOpenLeave(record);
+    });
+    const matchingTravels = (travelsList || []).filter(function (record) {
+      return recordEmployeeId(record) === id && isOpenTravel(record);
+    });
+    const linkedLeave = linkedRecord("leave", employee, leavesList);
+    const linkedTravel = linkedRecord("travel", employee, travelsList);
+    if (linkedLeave && isOpenLeave(linkedLeave) && !matchingLeaves.includes(linkedLeave))
+      matchingLeaves.unshift(linkedLeave);
+    if (linkedTravel && isOpenTravel(linkedTravel) && !matchingTravels.includes(linkedTravel))
+      matchingTravels.unshift(linkedTravel);
+    return { leaves: matchingLeaves, travels: matchingTravels };
+  }
+  function recordTime(kind, record) {
+    const value =
+      kind === "leave"
+        ? record?.from || record?.approvedAt || record?.createdAt
+        : record?.travelDate || record?.approvedAt || record?.createdAt;
+    const parsed = new Date(text(value));
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  }
+  function operationalStatus(employee, leavesList, travelsList) {
+    const stored = statusKey(employee?.status || employee?.workStatus);
+    if (stored === "terminated" || stored === "suspended") return stored;
+    const open = openRecordsFor(employee, leavesList || leaveRows(), travelsList || travelRows());
+    if (stored === "leave" && open.leaves.length) return "leave";
+    if (stored === "travel" && open.travels.length) return "travel";
+    const latestLeave = open.leaves.slice().sort(function (left, right) {
+      return recordTime("leave", right) - recordTime("leave", left);
+    })[0];
+    const latestTravel = open.travels.slice().sort(function (left, right) {
+      return recordTime("travel", right) - recordTime("travel", left);
+    })[0];
+    if (latestLeave || latestTravel)
+      return recordTime("travel", latestTravel) > recordTime("leave", latestLeave)
+        ? "travel"
+        : "leave";
+    return stored === "leave" || stored === "travel" ? stored : "active";
+  }
+  function recoveryStart(employee, kind) {
+    const metadata = kind === "leave" ? employee?.leaveStatus || {} : employee?.travelStatus || {};
+    const candidate = dateOnly(
+      kind === "leave"
+        ? metadata.from || employee?.leaveStartDate || employee?.statusChangedAt || employee?.updatedAt
+        : metadata.travelDate || employee?.travelDate || employee?.statusChangedAt || employee?.updatedAt,
+    );
+    return candidate && candidate <= today() ? candidate : today();
+  }
+  function recoveryRecord(employee, kind) {
+    const id = RECOVERY_PREFIX + kind + "-" + text(employee.id);
+    const start = recoveryStart(employee, kind);
+    const now = new Date().toISOString();
+    if (kind === "travel") {
+      const metadata = employee.travelStatus || {};
+      return {
+        id: id,
+        employeeId: text(employee.id),
+        travelMode: metadata.returnDate ? "roundtrip" : "oneway",
+        returnMode: metadata.returnDate ? "date" : "",
+        travelDate: start,
+        returnDate: dateOnly(metadata.returnDate),
+        workResumeDate: "",
+        status: "approved",
+        note: "سجل سفر مستعاد من حالة الموظف المحفوظة.",
+        legacyRecovered: true,
+        recoveredFromEmployeeStatus: true,
+        approvedAt: now,
+        approvalDate: today(),
+        createdAt: now,
+      };
+    }
+    const metadata = employee.leaveStatus || {};
+    const end = dateOnly(metadata.to || employee.leaveEndDate) || start;
+    return {
+      id: id,
+      employeeId: text(employee.id),
+      type: "إجازة قائمة مستعادة",
+      from: start,
+      to: end,
+      days: 0,
+      status: "approved",
+      note: "سجل إداري مستعاد من حالة الموظف المحفوظة ولا يغيّر رصيد الإجازات.",
+      legacyRecovered: true,
+      recoveredFromEmployeeStatus: true,
+      excludeFromLeaveBalance: true,
+      approvedAt: now,
+      approvalDate: today(),
+      createdAt: now,
+    };
+  }
+  function employeeWithStatus(employee, status, open) {
+    const next = { ...employee, status: status };
+    if (status === "leave") {
+      const record = open.leaves[0];
+      const previous = employee.leaveStatus || {};
+      next.attendance = null;
+      next.travelStatus = null;
+      next.leaveStatus = {
+        ...previous,
+        leaveId: record?.id || previous.leaveId || "",
+        from: record?.from || previous.from || "",
+        to: record?.to || previous.to || "",
+        updatedAt: previous.updatedAt || new Date().toISOString(),
+      };
+    } else if (status === "travel") {
+      const record = open.travels[0];
+      const previous = employee.travelStatus || {};
+      next.attendance = null;
+      next.leaveStatus = null;
+      next.travelStatus = {
+        ...previous,
+        travelId: record?.id || previous.travelId || "",
+        travelDate: record?.travelDate || previous.travelDate || "",
+        returnDate: record?.returnDate || previous.returnDate || "",
+        workResumeDate: "",
+        updatedAt: previous.updatedAt || new Date().toISOString(),
+      };
+    } else if (status === "active") {
+      if (employee.leaveStatus) next.leaveStatus = null;
+      if (employee.travelStatus) next.travelStatus = null;
+    }
+    return next;
+  }
+  function buildReconciledState() {
+    const currentEmployees = clone(employeeRows());
+    const currentLeaves = clone(leaveRows());
+    const currentTravels = clone(travelRows());
+    const nextEmployees = [];
+    const leaveUpserts = [];
+    const travelUpserts = [];
+    const employeeUpserts = [];
+
+    currentEmployees.forEach(function (employee) {
+      const id = text(employee?.id);
+      if (!id) {
+        nextEmployees.push(employee);
+        return;
+      }
+      currentLeaves.forEach(function (record, index) {
+        if (recordEmployeeId(record) !== id || text(record?.employeeId) === id) return;
+        currentLeaves[index] = { ...record, employeeId: id };
+        leaveUpserts.push(text(record?.id));
+      });
+      currentTravels.forEach(function (record, index) {
+        if (recordEmployeeId(record) !== id || text(record?.employeeId) === id) return;
+        currentTravels[index] = { ...record, employeeId: id };
+        travelUpserts.push(text(record?.id));
+      });
+      const linkedLeave = linkedRecord("leave", employee, currentLeaves);
+      if (linkedLeave && isOpenLeave(linkedLeave) && recordEmployeeId(linkedLeave) !== id) {
+        const index = currentLeaves.findIndex(function (item) {
+          return text(item?.id) === text(linkedLeave.id);
+        });
+        if (index >= 0) {
+          currentLeaves[index] = { ...linkedLeave, employeeId: id };
+          leaveUpserts.push(text(linkedLeave.id));
+        }
+      }
+      const linkedTravel = linkedRecord("travel", employee, currentTravels);
+      if (linkedTravel && isOpenTravel(linkedTravel) && recordEmployeeId(linkedTravel) !== id) {
+        const index = currentTravels.findIndex(function (item) {
+          return text(item?.id) === text(linkedTravel.id);
+        });
+        if (index >= 0) {
+          currentTravels[index] = { ...linkedTravel, employeeId: id };
+          travelUpserts.push(text(linkedTravel.id));
+        }
+      }
+      let open = openRecordsFor(employee, currentLeaves, currentTravels);
+      const stored = statusKey(employee.status || employee.workStatus);
+      if (stored === "leave" && !open.leaves.length) {
+        const record = recoveryRecord(employee, "leave");
+        if (!currentLeaves.some(function (item) { return text(item?.id) === record.id; })) {
+          currentLeaves.unshift(record);
+          leaveUpserts.push(record.id);
+        }
+      }
+      if (stored === "travel" && !open.travels.length) {
+        const record = recoveryRecord(employee, "travel");
+        if (!currentTravels.some(function (item) { return text(item?.id) === record.id; })) {
+          currentTravels.unshift(record);
+          travelUpserts.push(record.id);
+        }
+      }
+      open = openRecordsFor(employee, currentLeaves, currentTravels);
+      const actual = operationalStatus(employee, currentLeaves, currentTravels);
+      const next = employeeWithStatus(employee, actual, open);
+      if (JSON.stringify(next) !== JSON.stringify(employee)) employeeUpserts.push(id);
+      nextEmployees.push(next);
+    });
+    return {
+      employees: nextEmployees,
+      leaves: currentLeaves,
+      travels: currentTravels,
+      upserts: {
+        employees: employeeUpserts,
+        leaves: leaveUpserts,
+        travelRequests: travelUpserts,
+      },
+      changed: Boolean(employeeUpserts.length || leaveUpserts.length || travelUpserts.length),
+    };
+  }
+  async function applyLocalState(state) {
+    try {
+      employees = state.employees;
+    } catch (_) {}
+    window.employees = state.employees;
+    try {
+      leaves = state.leaves;
+    } catch (_) {}
+    window.leaves = state.leaves;
+    localStorage.setItem(EMPLOYEE_KEY, JSON.stringify(state.employees));
+    localStorage.setItem(LEAVE_KEY, JSON.stringify(state.leaves));
+    localStorage.setItem(TRAVEL_KEY, JSON.stringify(state.travels));
+    try {
+      if (typeof syncEmployeeLocalCache === "function")
+        await syncEmployeeLocalCache(state.employees);
+      else if (typeof dbSaveEmployee === "function")
+        await Promise.all(state.employees.map(function (employee) {
+          return dbSaveEmployee(employee);
+        }));
+    } catch (error) {
+      console.warn("v320: تعذر تحديث نسخة الموظفين المحلية.", error);
+    }
+  }
+  function trackUpserts(upserts) {
+    const sync = window.nawahCloudSyncV228 || window.nawahCloudSyncV221;
+    Object.keys(upserts).forEach(function (field) {
+      const ids = Array.from(new Set((upserts[field] || []).map(text).filter(Boolean)));
+      if (!ids.length) return;
+      if (typeof sync?.trackRecordUpserts === "function") sync.trackRecordUpserts(field, ids);
+      else if (typeof sync?.trackFields === "function") sync.trackFields([field]);
+    });
+  }
+  async function saveConfirmed(reason) {
+    const sync = window.nawahCloudSyncV228 || window.nawahCloudSyncV221;
+    if (typeof sync?.saveConfirmed === "function") return (await sync.saveConfirmed(reason)) === true;
+    if (typeof sync?.save === "function") return (await sync.save(reason)) === true;
+    if (typeof saveCloudStateNow === "function")
+      return (await saveCloudStateNow({ force: true, reason: reason })) !== false;
+    return false;
+  }
+  async function prepareCanonicalCloudState() {
+    const prepare = window.nawahSalarySettingsSyncV237?.prepare;
+    if (typeof prepare === "function") {
+      try {
+        return (await prepare()) === true;
+      } catch (error) {
+        console.warn("v320: تعذر تجهيز الحالة السحابية قبل المطابقة.", error);
+        return false;
+      }
+    }
+    const sync = window.nawahCloudSyncV228 || window.nawahCloudSyncV221;
+    if (!window.__nawahCloudSourceReady && !window.__nawahEmployeesReady) return false;
+    if (typeof sync?.refresh === "function") {
+      try {
+        await sync.refresh();
+      } catch (error) {
+        console.warn("v320: تعذر قراءة الحالة السحابية قبل المطابقة.", error);
+        return false;
+      }
+    }
+    return true;
+  }
+  async function commitState(next, previous, reason) {
+    await applyLocalState(next);
+    trackUpserts(next.upserts || {});
+    const saved = await saveConfirmed(reason).catch(function (error) {
+      console.warn("v320: تعذر تأكيد الحالة التشغيلية سحابيًا.", error);
+      return false;
+    });
+    if (saved) return true;
+    await applyLocalState(previous);
+    return false;
+  }
+  function renderAffectedScreens() {
+    try {
+      if (typeof renderEmployees === "function") renderEmployees();
+    } catch (_) {}
+    try {
+      if (typeof window.nawahRenderLeavesV78 === "function") window.nawahRenderLeavesV78();
+      else if (typeof renderLeaves === "function") renderLeaves();
+    } catch (_) {}
+    try {
+      window.nawahEmployeeHistoryV81?.renderFormHistory?.();
+    } catch (_) {}
+    try {
+      window.nawahV191?.refreshTransactionSelects?.();
+    } catch (_) {}
+    try {
+      if (typeof renderAdvancesPage === "function") renderAdvancesPage();
+    } catch (_) {}
+    try {
+      if (typeof renderAttendance === "function") renderAttendance();
+    } catch (_) {}
+    scheduleDecorate();
+  }
+  async function migrate() {
+    if (migrationPromise) return migrationPromise;
+    migrationPromise = (async function () {
+      if (!(await prepareCanonicalCloudState())) return false;
+      const previous = {
+        employees: clone(employeeRows()),
+        leaves: clone(leaveRows()),
+        travels: clone(travelRows()),
+        upserts: {},
+      };
+      const next = buildReconciledState();
+      if (!next.changed) {
+        scheduleDecorate();
+        return true;
+      }
+      const saved = await commitState(next, previous, "employee-operational-status-recovery-v320");
+      if (!saved) {
+        if (!migrationFailureShown) {
+          migrationFailureShown = true;
+          notify("تعذر تأكيد إصلاح حالة الإجازة سحابيًا؛ لم تُغيّر البيانات المحفوظة.");
+        }
+        return false;
+      }
+      renderAffectedScreens();
+      return true;
+    })().finally(function () {
+      migrationPromise = null;
+    });
+    return migrationPromise;
+  }
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") return showToast(message);
+    } catch (_) {}
+    try {
+      if (typeof showNotification === "function") return showNotification(message, "info");
+    } catch (_) {}
+  }
+  function icon(name) {
+    try {
+      return typeof iconSvg === "function" ? iconSvg(name) : "";
+    } catch (_) {
+      return "";
+    }
+  }
+  function statusLabel(kind) {
+    return kind === "travel" ? "سفر قائم" : "إجازة قائمة";
+  }
+  function openRecoveryRecords(employee) {
+    const open = openRecordsFor(employee, leaveRows(), travelRows());
+    return open.leaves
+      .filter(function (record) { return record.legacyRecovered; })
+      .map(function (record) { return { kind: "leave", record: record }; })
+      .concat(
+        open.travels
+          .filter(function (record) { return record.legacyRecovered; })
+          .map(function (record) { return { kind: "travel", record: record }; }),
+      );
+  }
+  function recoveryBanner(employee, compact) {
+    const rows = openRecoveryRecords(employee);
+    if (!rows.length) return "";
+    return rows.map(function (item) {
+      return (
+        '<section class="v320-operational-recovery' + (compact ? " is-compact" : "") + '" data-v320-recovery-banner="' +
+        esc(item.record.id) + '"><span class="v320-recovery-icon">' + icon("calendar") +
+        '</span><div><strong>' + statusLabel(item.kind) + ' تحتاج تسجيل مباشرة</strong><small>تمت استعادة الارتباط من حالة الموظف المحفوظة، ويمكن إعادته إلى رأس العمل من هنا.</small></div>' +
+        '<button type="button" class="primary-btn" data-v320-resume="' + esc(item.record.id) + '" data-v320-kind="' + item.kind + '">' +
+        icon("check-circle") + '<span>تسجيل مباشرة</span></button></section>'
+      );
+    }).join("");
+  }
+  function decorateRecoveryButtons() {
+    const cssEscape = function (value) {
+      try {
+        if (window.CSS?.escape) return window.CSS.escape(value);
+      } catch (_) {}
+      return String(value).replace(/["\\]/g, "\\$&");
+    };
+    leaveRows()
+      .filter(function (record) { return record.legacyRecovered && isOpenLeave(record); })
+      .forEach(function (record) {
+        document.querySelectorAll('[data-leave-return="' + cssEscape(text(record.id)) + '"]').forEach(function (button) {
+          button.removeAttribute("data-leave-return");
+          button.setAttribute("data-v320-resume", text(record.id));
+          button.setAttribute("data-v320-kind", "leave");
+        });
+      });
+    travelRows()
+      .filter(function (record) { return record.legacyRecovered && isOpenTravel(record); })
+      .forEach(function (record) {
+        document.querySelectorAll('[data-travel-resume="' + cssEscape(text(record.id)) + '"]').forEach(function (button) {
+          button.removeAttribute("data-travel-resume");
+          button.setAttribute("data-v320-resume", text(record.id));
+          button.setAttribute("data-v320-kind", "travel");
+        });
+      });
+  }
+  function syncEmployeeEditorStatus() {
+    const form = document.getElementById("employeeForm");
+    const id = text(form?.elements?.employeeId?.value);
+    const employee = employeeById(id);
+    const select = form?.elements?.status;
+    if (!employee || !select) return;
+    const actual = operationalStatus(employee, leaveRows(), travelRows());
+    select.value = actual;
+    select.dataset.v320OperationalStatus = actual;
+    select.dataset.v320Locked = actual === "leave" || actual === "travel" ? "1" : "0";
+    try {
+      if (employeeFormState) employeeFormState.status = actual;
+    } catch (_) {}
+    try {
+      window.nawahV191?.refreshEmployeeStatusCard?.();
+    } catch (_) {}
+    const card = document.getElementById("employeeSideStatusCard");
+    const label = document.getElementById("employeeSideStatusText");
+    if (card) card.dataset.status = actual;
+    if (label)
+      label.textContent = actual === "leave" ? "في إجازة" : actual === "travel" ? "مسافر" : actual === "active" ? "على رأس العمل" : select.options[select.selectedIndex]?.text || actual;
+  }
+  function decorate() {
+    decorateRecoveryButtons();
+    syncEmployeeEditorStatus();
+    document.querySelectorAll(".v81-employee-history-card").forEach(function (card) {
+      const employee = employeeById(card.getAttribute("data-v81-emp-id"));
+      const old = card.querySelector("[data-v320-profile-recovery]");
+      const records = employee ? openRecoveryRecords(employee) : [];
+      const markup = employee ? recoveryBanner(employee, true) : "";
+      const signature = records.map(function (item) { return item.record.id; }).join("|");
+      if (!markup) {
+        old?.remove();
+        return;
+      }
+      if (old?.dataset?.v320Signature === signature) return;
+      const holder = document.createElement("div");
+      holder.setAttribute("data-v320-profile-recovery", "true");
+      holder.dataset.v320Signature = signature;
+      holder.innerHTML = markup;
+      if (old) old.replaceWith(holder);
+      else (card.querySelector(".v81-history-head") || card).insertAdjacentElement("afterend", holder);
+      try {
+        if (typeof hydrateIcons === "function") hydrateIcons(holder);
+      } catch (_) {}
+    });
+    const page = document.querySelector("#leavesView .v281-leave-page, #leavesView .v78-leave-page");
+    if (page) {
+      const affected = employeeRows().filter(function (employee) {
+        return openRecoveryRecords(employee).length;
+      });
+      const old = page.querySelector("[data-v320-page-recovery]");
+      const signature = affected.map(function (employee) {
+        return text(employee.id) + ":" + openRecoveryRecords(employee).map(function (item) { return item.record.id; }).join(",");
+      }).join("|");
+      const markup = affected.map(function (employee) {
+        return recoveryBanner(employee, false);
+      }).join("");
+      if (!markup) old?.remove();
+      else if (old?.dataset?.v320Signature === signature) return;
+      else {
+        const holder = document.createElement("div");
+        holder.className = "v320-page-recovery-list";
+        holder.setAttribute("data-v320-page-recovery", "true");
+        holder.dataset.v320Signature = signature;
+        holder.innerHTML = markup;
+        if (old) old.replaceWith(holder);
+        else (page.querySelector(".v281-leave-header") || page.firstElementChild)?.insertAdjacentElement("afterend", holder);
+        try {
+          if (typeof hydrateIcons === "function") hydrateIcons(holder);
+        } catch (_) {}
+      }
+    }
+  }
+  function scheduleDecorate(delay) {
+    clearTimeout(decorateTimer);
+    decorateTimer = setTimeout(decorate, delay == null ? 0 : delay);
+  }
+  function ensureResumeDialog() {
+    let dialog = document.getElementById("v320EmployeeResumeModal");
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.id = "v320EmployeeResumeModal";
+    dialog.className = "modal v320-resume-modal";
+    dialog.innerHTML =
+      '<form class="v320-resume-card" id="v320EmployeeResumeForm"><input type="hidden" name="recordId"><input type="hidden" name="kind">' +
+      '<div class="modal-head v320-resume-head"><div><span>حالة الموظف</span><h2>تسجيل مباشرة العمل</h2><p>سيتم إغلاق حالة الإجازة أو السفر وإعادة الموظف إلى رأس العمل في حفظ سحابي واحد.</p></div><button type="button" class="icon-btn" data-v320-close-resume aria-label="إغلاق">' + icon("x") + '</button></div>' +
+      '<div class="modal-body v320-resume-body"><div class="v320-resume-summary" data-v320-resume-summary></div><label><span>تاريخ مباشرة العمل</span><input type="date" name="resumeDate" required></label><p class="v320-resume-note">بعد التأكيد سيظهر الموظف مباشرة في قوائم الغياب والسلفيات، وتُحدّث حالته في شاشة الموظفين وملفه.</p></div>' +
+      '<div class="modal-actions"><button type="button" class="secondary-btn" data-v320-close-resume>إلغاء</button><button type="submit" class="primary-btn"><span data-v320-resume-label>تأكيد المباشرة</span></button></div></form>';
+    document.body.appendChild(dialog);
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(dialog);
+    } catch (_) {}
+    return dialog;
+  }
+  function openResume(recordId, kind) {
+    const record = (kind === "travel" ? travelRows() : leaveRows()).find(function (item) {
+      return text(item?.id) === text(recordId);
+    });
+    const employee = employeeById(recordEmployeeId(record));
+    if (!record || !employee) return notify("تعذر العثور على حالة الموظف المطلوبة.");
+    const dialog = ensureResumeDialog();
+    const form = dialog.querySelector("#v320EmployeeResumeForm");
+    form.elements.recordId.value = record.id;
+    form.elements.kind.value = kind;
+    form.elements.resumeDate.value = today();
+    dialog.querySelector("[data-v320-resume-summary]").innerHTML =
+      '<div><span>الموظف</span><strong>' + esc(employee.name || "—") + '</strong></div><div><span>الحالة الحالية</span><strong>' + statusLabel(kind) + '</strong></div>';
+    try {
+      dialog.showModal();
+    } catch (_) {
+      dialog.setAttribute("open", "open");
+    }
+    try {
+      window.nawahDatePickerV277?.sync?.();
+    } catch (_) {}
+  }
+  function closeResume() {
+    const dialog = document.getElementById("v320EmployeeResumeModal");
+    try {
+      dialog?.close();
+    } catch (_) {
+      dialog?.removeAttribute("open");
+    }
+  }
+  async function confirmResume(form) {
+    const recordId = text(form?.elements?.recordId?.value);
+    const kind = text(form?.elements?.kind?.value) === "travel" ? "travel" : "leave";
+    const resumeDate = dateOnly(form?.elements?.resumeDate?.value);
+    const button = form.querySelector('button[type="submit"]');
+    const label = form.querySelector("[data-v320-resume-label]");
+    if (!resumeDate) return notify("حدد تاريخ مباشرة العمل.");
+    if (button.disabled) return;
+    button.disabled = true;
+    if (label) label.textContent = "جاري قراءة الحالة السحابية...";
+    if (!(await prepareCanonicalCloudState())) {
+      button.disabled = false;
+      if (label) label.textContent = "تأكيد المباشرة";
+      return notify("تعذر قراءة أحدث حالة سحابية؛ لم يتم تنفيذ المباشرة.");
+    }
+    const currentEmployees = clone(employeeRows());
+    const currentLeaves = clone(leaveRows());
+    const currentTravels = clone(travelRows());
+    const list = kind === "travel" ? currentTravels : currentLeaves;
+    const recordIndex = list.findIndex(function (item) { return text(item?.id) === recordId; });
+    const record = recordIndex >= 0 ? list[recordIndex] : null;
+    const employeeIndex = currentEmployees.findIndex(function (employee) {
+      return text(employee?.id) === recordEmployeeId(record);
+    });
+    if (!record || employeeIndex < 0) {
+      button.disabled = false;
+      if (label) label.textContent = "تأكيد المباشرة";
+      return notify("تعذر العثور على سجل الحالة أو الموظف.");
+    }
+    const start = dateOnly(kind === "travel" ? record.travelDate : record.from);
+    if (start && resumeDate < start) {
+      button.disabled = false;
+      if (label) label.textContent = "تأكيد المباشرة";
+      return notify("تاريخ المباشرة لا يمكن أن يسبق بداية الإجازة أو السفر.");
+    }
+    if (label) label.textContent = "جاري الحفظ السحابي...";
+    const now = new Date().toISOString();
+    list[recordIndex] =
+      kind === "travel"
+        ? { ...record, status: "returned", workResumeDate: resumeDate, returnedAt: now, resumeSource: "status-recovery-v320" }
+        : { ...record, status: "approved", returnDate: resumeDate, returnConfirmedAt: now, resumeSource: "status-recovery-v320" };
+    const employee = currentEmployees[employeeIndex];
+    const openAfter = openRecordsFor(employee, currentLeaves, currentTravels);
+    const remainingStatus = openAfter.travels.length ? "travel" : openAfter.leaves.length ? "leave" : "active";
+    currentEmployees[employeeIndex] = {
+      ...employeeWithStatus(employee, remainingStatus, openAfter),
+      attendance: remainingStatus === "active" ? employee.attendance || "08:00" : null,
+      leaveStatus: remainingStatus === "leave" ? employeeWithStatus(employee, "leave", openAfter).leaveStatus : null,
+      travelStatus: remainingStatus === "travel" ? employeeWithStatus(employee, "travel", openAfter).travelStatus : null,
+      commissionAccrualStartDate: remainingStatus === "active" ? resumeDate : employee.commissionAccrualStartDate,
+      commissionPaused: remainingStatus === "active" ? false : Boolean(employee.commissionPaused),
+      commissionPauseReason: remainingStatus === "active" ? "" : employee.commissionPauseReason || "",
+      commissionPausedByLeaveId: remainingStatus === "active" ? "" : employee.commissionPausedByLeaveId || "",
+      commissionPausedAt: remainingStatus === "active" ? "" : employee.commissionPausedAt || "",
+      updatedAt: now,
+    };
+    const previous = {
+      employees: clone(employeeRows()),
+      leaves: clone(leaveRows()),
+      travels: clone(travelRows()),
+      upserts: {},
+    };
+    const next = {
+      employees: currentEmployees,
+      leaves: currentLeaves,
+      travels: currentTravels,
+      upserts: {
+        employees: [employee.id],
+        leaves: kind === "leave" ? [record.id] : [],
+        travelRequests: kind === "travel" ? [record.id] : [],
+      },
+    };
+    const saved = await commitState(next, previous, "employee-resume-v320");
+    button.disabled = false;
+    if (label) label.textContent = "تأكيد المباشرة";
+    if (!saved) return notify("تعذر تأكيد المباشرة سحابيًا؛ أُعيدت الحالة السابقة دون فقدان.");
+    closeResume();
+    renderAffectedScreens();
+    syncEmployeeEditorStatus();
+    notify(
+      remainingStatus === "active"
+        ? "تم تسجيل المباشرة سحابيًا وإعادة الموظف إلى رأس العمل."
+        : "تم إغلاق السجل، لكن توجد حالة إجازة أو سفر أخرى ما زالت قائمة.",
+    );
+  }
+
+  const employeeForm = document.getElementById("employeeForm");
+  employeeForm?.addEventListener(
+    "submit",
+    function () {
+      syncEmployeeEditorStatus();
+    },
+    true,
+  );
+  employeeForm?.addEventListener(
+    "change",
+    function (event) {
+      if (!event.target?.matches?.('select[name="status"]')) return;
+      const locked = event.target.dataset.v320Locked === "1";
+      const actual = event.target.dataset.v320OperationalStatus || "";
+      if (locked && event.target.value !== actual) {
+        event.target.value = actual;
+        notify("غيّر حالة الموظف من زر تسجيل المباشرة المرتبط بالإجازة أو السفر.");
+      }
+      syncEmployeeEditorStatus();
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    function (event) {
+      const resume = event.target?.closest?.("[data-v320-resume]");
+      if (resume) {
+        event.preventDefault();
+        event.stopPropagation();
+        openResume(resume.dataset.v320Resume, resume.dataset.v320Kind);
+        return;
+      }
+      if (event.target?.closest?.("[data-v320-close-resume]")) {
+        event.preventDefault();
+        closeResume();
+      }
+      if (
+        event.target?.closest?.(
+          "[data-edit-employee],.edit-employee-btn,[data-open-employee-modal],[data-employee-section=\"leaveTravelHistory\"],[data-v81-history-tab]",
+        )
+      )
+        scheduleDecorate(30);
+    },
+    true,
+  );
+  document.addEventListener(
+    "submit",
+    function (event) {
+      if (event.target?.id !== "v320EmployeeResumeForm") return;
+      event.preventDefault();
+      event.stopPropagation();
+      void confirmResume(event.target);
+    },
+    true,
+  );
+  window.addEventListener("nawah:employees-ready", function () {
+    setTimeout(function () {
+      void migrate();
+    }, 80);
+  });
+  window.addEventListener("storage", function (event) {
+    if ([EMPLOYEE_KEY, LEAVE_KEY, TRAVEL_KEY].includes(event.key)) {
+      scheduleDecorate(80);
+      setTimeout(function () {
+        void migrate();
+      }, 140);
+    }
+  });
+  try {
+    const leavesView = document.getElementById("leavesView");
+    const employeeModal = document.getElementById("employeeModal");
+    const observer = new MutationObserver(function () {
+      scheduleDecorate(20);
+    });
+    if (leavesView) observer.observe(leavesView, { childList: true, subtree: true });
+    if (employeeModal) observer.observe(employeeModal, { childList: true, subtree: true, attributes: true, attributeFilter: ["open", "class"] });
+  } catch (_) {}
+  if (window.__nawahEmployeesReady || window.__nawahCloudSourceReady)
+    setTimeout(function () {
+      void migrate();
+    }, 120);
+  else
+    setTimeout(function () {
+      if (window.__nawahEmployeesReady || window.__nawahCloudSourceReady) void migrate();
+    }, 1200);
+
+  window.nawahEmployeeOperationalStatusV320 = {
+    version: 320,
+    cloudBacked: true,
+    operationalStatus: operationalStatus,
+    isOpenLeave: isOpenLeave,
+    isOpenTravel: isOpenTravel,
+    buildReconciledState: buildReconciledState,
+    migrate: migrate,
+    resume: confirmResume,
+    refresh: function () {
+      renderAffectedScreens();
+      return migrate();
+    },
   };
 })();

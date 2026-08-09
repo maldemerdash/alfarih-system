@@ -43310,3 +43310,194 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     width: 100% !important;
   }
 }
+
+/* v320 — Recovered operational leave/travel state and cloud-confirmed resume. */
+.v320-page-recovery-list,
+[data-v320-profile-recovery] {
+  display: grid;
+  gap: 10px;
+}
+
+.v320-page-recovery-list {
+  margin: 14px 0;
+}
+
+[data-v320-profile-recovery] {
+  margin: 0 18px 14px;
+}
+
+.v320-operational-recovery {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  min-height: 76px;
+  padding: 13px 15px;
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  border-radius: 17px;
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.98), rgba(239, 250, 252, 0.98));
+  box-shadow: 0 10px 28px rgba(15, 118, 110, 0.07);
+  color: #17333c;
+}
+
+.v320-operational-recovery.is-compact {
+  min-height: 68px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.v320-recovery-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: #078b98;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(8, 145, 178, 0.14);
+}
+
+.v320-recovery-icon svg,
+.v320-operational-recovery button svg {
+  width: 19px;
+  height: 19px;
+}
+
+.v320-operational-recovery > div {
+  min-width: 0;
+}
+
+.v320-operational-recovery strong,
+.v320-operational-recovery small {
+  display: block;
+}
+
+.v320-operational-recovery strong {
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: #075d69;
+}
+
+.v320-operational-recovery small {
+  font-size: 11px;
+  line-height: 1.65;
+  color: #637b84;
+}
+
+.v320-operational-recovery button {
+  min-width: 132px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.v320-resume-modal {
+  width: min(560px, calc(100vw - 28px));
+  max-width: 560px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+}
+
+.v320-resume-card {
+  overflow: visible;
+  border: 1px solid rgba(8, 145, 178, 0.16);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.22);
+}
+
+.v320-resume-head {
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.94), rgba(239, 250, 252, 0.94));
+}
+
+.v320-resume-head > div > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #0796a5;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.v320-resume-head h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  color: #123b46;
+}
+
+.v320-resume-head p,
+.v320-resume-note {
+  margin: 0;
+  color: #71848c;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.v320-resume-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  overflow: visible;
+}
+
+.v320-resume-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.v320-resume-summary > div {
+  padding: 11px 13px;
+  border: 1px solid #dce9ed;
+  border-radius: 13px;
+  background: #f9fcfd;
+}
+
+.v320-resume-summary span,
+.v320-resume-summary strong {
+  display: block;
+}
+
+.v320-resume-summary span {
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: #83939a;
+}
+
+.v320-resume-summary strong {
+  font-size: 12px;
+  color: #203440;
+}
+
+.v320-resume-body > label {
+  display: grid;
+  gap: 7px;
+  color: #344d58;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.v320-resume-body input[type="date"] {
+  min-height: 46px;
+}
+
+@media (max-width: 680px) {
+  .v320-operational-recovery {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .v320-operational-recovery button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .v320-resume-summary {
+    grid-template-columns: 1fr;
+  }
+}
