@@ -4643,10 +4643,24 @@ function employeeSnapshotForCommission(e) {
   const t = calculateEmployeeSalary(e);
   return { ...e, insuranceDeduction: t.insurance, totalSalary: t.total };
 }
-function calculateCommission(e, t, n = formatInputDate(todayAtNoon())) {
-  const a = financialDayDifference(t, n);
-  return { days: a, amount: (Number(e || 0) / 360) * a };
+function roundCommissionToWholeRiyalV322(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  const wholeRiyals = Math.floor(numeric),
+    fractionalRiyal = numeric - wholeRiyals;
+  return wholeRiyals + (fractionalRiyal >= 0.5 - 1e-9 ? 1 : 0);
 }
+function calculateCommission(e, t, n = formatInputDate(todayAtNoon())) {
+  const a = financialDayDifference(t, n),
+    rawAmount = (Number(e || 0) / 360) * a;
+  return { days: a, amount: roundCommissionToWholeRiyalV322(rawAmount) };
+}
+window.nawahCommissionRoundingV322 = {
+  version: 322,
+  round: roundCommissionToWholeRiyalV322,
+  halfRiyalRoundsUp: true,
+  cloudRecordUsesRoundedValue: true,
+};
 function buildCommissionRecord(e, t, n, a = "manual", o = null) {
   const { days: r, amount: i } = calculateCommission(e.baseSalary, t, n);
   return {
@@ -77264,7 +77278,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   syncAll();
   window.nawahDatePickerV276 = {
-    version: 321,
+    version: 322,
     open,
     close,
     sync: syncAll,
@@ -77294,6 +77308,7 @@ window.nawahDatePickerV318 = window.nawahDatePickerV276;
 window.nawahDatePickerV319 = window.nawahDatePickerV276;
 window.nawahDatePickerV320 = window.nawahDatePickerV276;
 window.nawahDatePickerV321 = window.nawahDatePickerV276;
+window.nawahDatePickerV322 = window.nawahDatePickerV276;
 })();
 
 /* v288 - professional, cloud-confirmed branch directory. */
