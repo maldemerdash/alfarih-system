@@ -77264,7 +77264,7 @@ window.nawahLeaveBalanceReportV185 = {
 
   syncAll();
   window.nawahDatePickerV276 = {
-    version: 320,
+    version: 321,
     open,
     close,
     sync: syncAll,
@@ -77293,6 +77293,7 @@ window.nawahDatePickerV317 = window.nawahDatePickerV276;
 window.nawahDatePickerV318 = window.nawahDatePickerV276;
 window.nawahDatePickerV319 = window.nawahDatePickerV276;
 window.nawahDatePickerV320 = window.nawahDatePickerV276;
+window.nawahDatePickerV321 = window.nawahDatePickerV276;
 })();
 
 /* v288 - professional, cloud-confirmed branch directory. */
@@ -86147,7 +86148,7 @@ window.nawahNotificationRulesV294 = {
       if (window.__nawahEmployeesReady || window.__nawahCloudSourceReady) void migrate();
     }, 1200);
 
-  window.nawahEmployeeOperationalStatusV320 = {
+window.nawahEmployeeOperationalStatusV320 = {
     version: 320,
     cloudBacked: true,
     operationalStatus: operationalStatus,
@@ -86159,6 +86160,902 @@ window.nawahNotificationRulesV294 = {
     refresh: function () {
       renderAffectedScreens();
       return migrate();
+    },
+  };
+})();
+
+/* v321 - controlled correction of the two immutable employment dates.
+   Unlocking is temporary and local to the open editor. Saving performs a
+   canonical-cloud preflight, rebuilds only calculated contract periods, keeps
+   manual history, writes an audit entry, and verifies the final cloud row. */
+(function v321ContractDateCorrection() {
+  if (window.__v321ContractDateCorrection) return;
+  window.__v321ContractDateCorrection = true;
+
+  const EMPLOYEE_KEY = "nawah-employees";
+  const GENERATED_SOURCES = new Set([
+    "auto-renewal-v238",
+    "auto-renewal-v243",
+    "contract-period-v243",
+  ]);
+  const state = {
+    employeeId: "",
+    unlocked: false,
+    prepared: false,
+    preflighting: false,
+    cloudConfirmed: false,
+    original: null,
+    baseline: null,
+    expected: null,
+    submitter: null,
+  };
+  let previewTimer = 0;
+
+  function text(value) {
+    return String(value == null ? "" : value).trim();
+  }
+  function clone(value) {
+    try {
+      return structuredClone(value);
+    } catch (_) {
+      return JSON.parse(JSON.stringify(value));
+    }
+  }
+  function dateOnly(value) {
+    const clean = text(value).slice(0, 10);
+    const match = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return "";
+    const date = new Date(
+      Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+    );
+    if (
+      date.getUTCFullYear() !== Number(match[1]) ||
+      date.getUTCMonth() !== Number(match[2]) - 1 ||
+      date.getUTCDate() !== Number(match[3])
+    )
+      return "";
+    return clean;
+  }
+  function employeeList() {
+    try {
+      return Array.isArray(employees)
+        ? employees
+        : Array.isArray(window.employees)
+          ? window.employees
+          : [];
+    } catch (_) {
+      return Array.isArray(window.employees) ? window.employees : [];
+    }
+  }
+  function employeeById(id) {
+    const value = text(id);
+    if (!value) return null;
+    try {
+      if (typeof getEmployee === "function") {
+        const employee = getEmployee(value);
+        if (employee) return employee;
+      }
+    } catch (_) {}
+    return (
+      employeeList().find(function (employee) {
+        return text(employee?.id) === value;
+      }) || null
+    );
+  }
+  function form() {
+    return document.getElementById("employeeForm");
+  }
+  function formEmployeeId(target = form()) {
+    return text(target?.elements?.employeeId?.value);
+  }
+  function actorName() {
+    const candidates = [];
+    try {
+      candidates.push(window.currentUser?.name, window.currentUser?.full_name);
+    } catch (_) {}
+    try {
+      const profile = window.nawahPermissionProfilesV294?.current?.();
+      candidates.push(profile?.full_name, profile?.name, profile?.email);
+    } catch (_) {}
+    try {
+      const session = JSON.parse(localStorage.getItem("nawah-auth-session") || "{}");
+      candidates.push(session?.name, session?.full_name, session?.email);
+    } catch (_) {}
+    return candidates.map(text).find(Boolean) || "مدير النظام";
+  }
+  function generatedExtension(row) {
+    return Boolean(
+      row &&
+        (GENERATED_SOURCES.has(text(row.source)) ||
+          row.kind === "initial" ||
+          (row.kind === "automatic" && row.automatic === true)),
+    );
+  }
+  function manualExtensions(employee) {
+    return (Array.isArray(employee?.contractExtensions)
+      ? employee.contractExtensions
+      : []
+    )
+      .filter(function (row) {
+        return row && !generatedExtension(row);
+      })
+      .map(function (row) {
+        return { ...row };
+      });
+  }
+  function commissionAnchor(previous, nextWorkStart, nextContractStart) {
+    const current = text(previous?.commissionAccrualStartDate);
+    const originalAnchors = new Set(
+      [
+        previous?.workStartDate,
+        previous?.contractStartDate,
+        previous?.joinDate,
+      ]
+        .map(text)
+        .filter(Boolean),
+    );
+    return !current || originalAnchors.has(current)
+      ? nextWorkStart || nextContractStart
+      : current;
+  }
+  function correctionAudit(previous, nextContractStart, nextWorkStart, at, actor) {
+    const history = Array.isArray(previous?.contractDateCorrections)
+      ? previous.contractDateCorrections
+          .filter(Boolean)
+          .map(function (row) {
+            return { ...row };
+          })
+      : [];
+    history.push({
+      id: `contract-date-correction-${text(previous?.id)}-${Date.parse(at) || Date.now()}`,
+      previousContractStartDate: text(previous?.contractStartDate),
+      previousWorkStartDate: text(previous?.workStartDate),
+      contractStartDate: nextContractStart,
+      workStartDate: nextWorkStart,
+      changedAt: at,
+      changedBy: actor,
+      source: "contract-date-correction-v321",
+    });
+    return history.slice(-50);
+  }
+  function correctedEmployee(draft, previous, options = {}) {
+    if (!draft || !previous) return draft;
+    const contractStartDate = dateOnly(
+        options.contractStartDate || draft.contractStartDate,
+      ),
+      workStartDate = dateOnly(options.workStartDate || draft.workStartDate),
+      changedAt = options.changedAt || new Date().toISOString(),
+      changedBy = options.changedBy || actorName(),
+      manual = manualExtensions(previous),
+      originalPrepare = options.originalPrepare;
+    let prepared = {
+      ...draft,
+      contractExtensions: manual,
+      contractStartDate,
+      workStartDate,
+      joinDate: workStartDate || contractStartDate,
+    };
+    if (typeof originalPrepare === "function") {
+      const syntheticPrevious = {
+        ...previous,
+        contractStartDate,
+        workStartDate,
+        joinDate: workStartDate || contractStartDate,
+        contractDatesLockedAt: "",
+      };
+      prepared =
+        originalPrepare(
+          {
+            ...prepared,
+            contractDatesLockedAt: "",
+          },
+          syntheticPrevious,
+        ) || prepared;
+    }
+    const fixed = text(prepared.contractType) === "fixed";
+    return {
+      ...prepared,
+      contractStartDate,
+      workStartDate,
+      joinDate: workStartDate || contractStartDate,
+      commissionAccrualStartDate: commissionAnchor(
+        previous,
+        workStartDate,
+        contractStartDate,
+      ),
+      contractDatesLockedAt: changedAt,
+      contractDatesLastCorrectedAt: changedAt,
+      contractDatesLastCorrectedBy: changedBy,
+      contractDatesRevision: Number(previous.contractDatesRevision || 0) + 1,
+      contractPeriodAnchor: workStartDate || contractStartDate,
+      contractTimelineVersion: 321,
+      contractDateCorrections: correctionAudit(
+        previous,
+        contractStartDate,
+        workStartDate,
+        changedAt,
+        changedBy,
+      ),
+      ...(!fixed
+        ? {
+            contractExtensions: manual,
+            renewedContractEndDate: "",
+            contractCurrentEndDate: "",
+            lastAutoRenewedAt: "",
+          }
+        : {}),
+    };
+  }
+  function resetState() {
+    state.employeeId = "";
+    state.unlocked = false;
+    state.prepared = false;
+    state.preflighting = false;
+    state.cloudConfirmed = false;
+    state.original = null;
+    state.baseline = null;
+    state.expected = null;
+    state.submitter = null;
+  }
+  function icon(name) {
+    try {
+      return typeof iconSvg === "function"
+        ? iconSvg(name)
+        : `<span data-icon="${name}"></span>`;
+    } catch (_) {
+      return `<span data-icon="${name}"></span>`;
+    }
+  }
+  function notify(message) {
+    try {
+      if (typeof showToast === "function") return showToast(message);
+    } catch (_) {}
+    return undefined;
+  }
+  function ensureDialog() {
+    let dialog = document.getElementById("v321ContractDateConfirm");
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.id = "v321ContractDateConfirm";
+    dialog.className = "v321-contract-confirm";
+    dialog.innerHTML = `
+      <form method="dialog" class="v321-contract-confirm-card">
+        <header><span class="v321-contract-confirm-icon">${icon("calendar")}</span><div><h3 data-v321-confirm-title>تعديل تواريخ العقد</h3><p>إجراء محكوم ويُسجل باسم المستخدم</p></div></header>
+        <div class="v321-contract-confirm-message" data-v321-confirm-message></div>
+        <div class="v321-contract-confirm-actions">
+          <button type="button" class="secondary-btn" data-v321-confirm-cancel>إلغاء</button>
+          <button type="button" class="primary-btn" data-v321-confirm-accept>متابعة</button>
+        </div>
+      </form>`;
+    document.body.appendChild(dialog);
+    dialog.querySelector("[data-v321-confirm-cancel]")?.addEventListener("click", function () {
+      const resolve = dialog._v321Resolve;
+      dialog._v321Resolve = null;
+      dialog.close();
+      if (resolve) resolve(false);
+    });
+    dialog.querySelector("[data-v321-confirm-accept]")?.addEventListener("click", function () {
+      const resolve = dialog._v321Resolve;
+      dialog._v321Resolve = null;
+      dialog.close();
+      if (resolve) resolve(true);
+    });
+    dialog.addEventListener("cancel", function (event) {
+      event.preventDefault();
+      const resolve = dialog._v321Resolve;
+      dialog._v321Resolve = null;
+      dialog.close();
+      if (resolve) resolve(false);
+    });
+    return dialog;
+  }
+  function confirmAction(title, message, acceptLabel = "متابعة") {
+    const dialog = ensureDialog();
+    dialog.querySelector("[data-v321-confirm-title]").textContent = title;
+    dialog.querySelector("[data-v321-confirm-message]").innerHTML = message;
+    dialog.querySelector("[data-v321-confirm-accept]").textContent = acceptLabel;
+    return new Promise(function (resolve) {
+      if (dialog._v321Resolve) dialog._v321Resolve(false);
+      dialog._v321Resolve = resolve;
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    });
+  }
+  function ensureControl(target = form()) {
+    const card = target?.querySelector('[data-employment-card="contract"]');
+    const head = card?.querySelector(".employment-card-head-v252");
+    if (!head) return null;
+    let actions = head.querySelector("[data-v321-contract-lock-actions]");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "v321-contract-lock-actions";
+      actions.dataset.v321ContractLockActions = "";
+      actions.innerHTML = `
+        <span class="v321-contract-lock-state" data-v321-contract-lock-state></span>
+        <button type="button" class="secondary-btn v321-contract-lock-button" data-v321-contract-lock-toggle></button>`;
+      head.appendChild(actions);
+      try {
+        if (typeof hydrateIcons === "function") hydrateIcons(actions);
+      } catch (_) {}
+    }
+    return actions;
+  }
+  function syncDatePicker() {
+    try {
+      (
+        window.nawahDatePickerV321 ||
+        window.nawahDatePickerV320 ||
+        window.nawahDatePickerV276
+      )?.sync?.();
+    } catch (_) {}
+  }
+  function setFieldLocked(target, fieldName, locked, savedValue) {
+    const input = target?.elements?.[fieldName];
+    if (!input) return;
+    if (locked && savedValue) input.value = savedValue;
+    input.readOnly = Boolean(locked);
+    input.setAttribute("aria-readonly", String(Boolean(locked)));
+    input.dataset.contractDateLockedV238 = locked ? "1" : "0";
+    input.dataset.contractDateLockedV243 = locked ? "1" : "0";
+    input.title = locked
+      ? "التاريخ مثبت؛ استخدم زر إزالة التثبيت لتصحيحه"
+      : "يمكن تعديل التاريخ ثم تثبيته وحفظه سحابيًا";
+    const label = target.querySelector(
+      `[data-contract-lock-field="${fieldName}"]`,
+    );
+    label?.classList.toggle("is-contract-date-locked", Boolean(locked));
+    label?.classList.toggle("is-contract-date-editing-v321", !locked);
+  }
+  function applyUi(target = form()) {
+    if (!target) return;
+    const employeeId = formEmployeeId(target),
+      employee = employeeById(employeeId),
+      actions = ensureControl(target),
+      button = actions?.querySelector("[data-v321-contract-lock-toggle]"),
+      label = actions?.querySelector("[data-v321-contract-lock-state]");
+    if (!employee?.id) {
+      if (actions) actions.hidden = true;
+      return;
+    }
+    if (actions) actions.hidden = false;
+    const unlocked = state.employeeId === employeeId && state.unlocked;
+    setFieldLocked(
+      target,
+      "contractStartDate",
+      !unlocked,
+      employee.contractStartDate,
+    );
+    setFieldLocked(
+      target,
+      "workStartDate",
+      !unlocked,
+      employee.workStartDate || employee.contractStartDate,
+    );
+    if (label) {
+      label.classList.toggle("is-editing", unlocked);
+      label.innerHTML = `${icon(unlocked ? "edit" : "check")}<span>${
+        unlocked ? "وضع التصحيح" : "التواريخ مثبتة"
+      }</span>`;
+    }
+    if (button) {
+      button.disabled = state.preflighting;
+      button.classList.toggle("is-save-mode", unlocked);
+      button.innerHTML = `${icon(unlocked ? "lock" : "edit")}<span>${
+        state.preflighting
+          ? "جارٍ التحقق السحابي..."
+          : unlocked
+            ? "تثبيت التواريخ"
+            : "إزالة التثبيت"
+      }</span>`;
+      button.title = unlocked
+        ? "تثبيت التواريخ وحفظ بيانات الموظف سحابيًا"
+        : "فتح تاريخ بداية العقد وتاريخ المباشرة للتصحيح";
+    }
+    target
+      .querySelector('[data-employment-card="contract"]')
+      ?.classList.toggle("is-contract-date-editing-v321", unlocked);
+    syncDatePicker();
+  }
+  function openEditorState(employeeId) {
+    const employee = employeeById(employeeId);
+    if (!employee) {
+      resetState();
+      applyUi();
+      return;
+    }
+    if (state.employeeId !== text(employee.id)) {
+      resetState();
+      state.employeeId = text(employee.id);
+      state.original = clone(employee);
+    }
+    applyUi();
+  }
+  function currentDates(target = form()) {
+    return {
+      contractStartDate: dateOnly(target?.elements?.contractStartDate?.value),
+      workStartDate: dateOnly(target?.elements?.workStartDate?.value),
+    };
+  }
+  function datesChanged(employee, dates) {
+    return Boolean(
+      employee &&
+        (text(employee.contractStartDate) !== dates.contractStartDate ||
+          text(employee.workStartDate || employee.contractStartDate) !==
+            dates.workStartDate),
+    );
+  }
+  function earliestHistoricalDate(employee) {
+    const id = text(employee?.id),
+      candidates = [];
+    function add(value, label) {
+      const date = dateOnly(value);
+      if (date) candidates.push({ date, label });
+    }
+    try {
+      (Array.isArray(employee?.commissions) ? employee.commissions : []).forEach(function (row) {
+        add(row?.startDate || row?.paymentDate, "سجل العمولات");
+      });
+    } catch (_) {}
+    try {
+      const rows = Array.isArray(leaves) ? leaves : window.leaves || [];
+      rows.forEach(function (row) {
+        if (text(row?.employeeId || row?.employee_id) === id)
+          add(row?.from || row?.createdAt, "سجل الإجازات");
+      });
+    } catch (_) {}
+    try {
+      const rows = JSON.parse(localStorage.getItem("nawah-travel-requests") || "[]");
+      (Array.isArray(rows) ? rows : []).forEach(function (row) {
+        if (text(row?.employeeId || row?.employee_id) === id)
+          add(row?.travelDate || row?.createdAt, "سجل السفر");
+      });
+    } catch (_) {}
+    try {
+      const rows = Array.isArray(attendanceExceptions)
+        ? attendanceExceptions
+        : [];
+      rows.forEach(function (row) {
+        if (text(row?.employeeId) === id)
+          add(row?.from || row?.date || row?.createdAt, "سجل الحضور والغياب");
+      });
+    } catch (_) {}
+    return candidates.sort(function (left, right) {
+      return left.date.localeCompare(right.date);
+    })[0] || null;
+  }
+  function previewTimeline() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(function () {
+      const target = form(),
+        employee = employeeById(formEmployeeId(target));
+      if (!target || !employee || !state.unlocked) return;
+      try {
+        if (typeof updateContractCalculations === "function")
+          updateContractCalculations();
+      } catch (_) {}
+      const dates = currentDates(target);
+      if (!dates.contractStartDate || !dates.workStartDate) return;
+      const originalPrepare = state.originalPrepare;
+      if (typeof originalPrepare !== "function") return;
+      const draft = {
+        ...employee,
+        contractType: target.elements?.contractType?.value || employee.contractType,
+        contractMonths: Number(target.elements?.contractMonths?.value || 0),
+        renewalOption: target.elements?.renewalOption?.value || "none",
+        autoRenewContract: Boolean(target.elements?.autoRenewContract?.checked),
+        contractStartDate: dates.contractStartDate,
+        workStartDate: dates.workStartDate,
+        contractEndDate: target.elements?.contractEndDate?.value || "",
+        renewedContractEndDate:
+          target.elements?.renewedContractEndDate?.value || "",
+      };
+      const preview = correctedEmployee(draft, employee, {
+        ...dates,
+        originalPrepare,
+        changedAt: employee.contractDatesLockedAt || new Date().toISOString(),
+        changedBy: actorName(),
+      });
+      try {
+        if (employeeFormState)
+          employeeFormState.contractExtensions = (
+            preview.contractExtensions || []
+          ).map(function (row) {
+            return { ...row };
+          });
+      } catch (_) {}
+      try {
+        window.nawahContractAutomationV243?.renderHistory?.();
+      } catch (_) {}
+    }, 70);
+  }
+  async function unlockDates() {
+    const target = form(),
+      employee = employeeById(formEmployeeId(target));
+    if (!target || !employee) return;
+    const accepted = await confirmAction(
+      "إزالة تثبيت تاريخي العقد والمباشرة",
+      `<p>سيتم فتح <strong>تاريخ بداية العقد</strong> و<strong>تاريخ المباشرة</strong> للتصحيح.</p><p>لن تتغير البيانات السحابية إلا عند تثبيت التواريخ وحفظ بيانات الموظف.</p>`,
+      "إزالة التثبيت",
+    );
+    if (!accepted) return;
+    resetState();
+    state.employeeId = text(employee.id);
+    state.unlocked = true;
+    state.original = clone(employee);
+    applyUi(target);
+    target.elements?.contractStartDate?.focus();
+  }
+  async function requestCorrectionSave() {
+    const target = form();
+    if (!target) return;
+    const saveButton = target.querySelector(
+      ".employee-save-btn, #saveEmployeeBtn, .save-employee-btn, [data-save-employee]",
+    );
+    if (typeof target.requestSubmit === "function")
+      target.requestSubmit(saveButton || undefined);
+    else saveButton?.click();
+  }
+  async function prepareSubmission(event) {
+    const target = event.target,
+      employeeId = formEmployeeId(target),
+      employee = employeeById(employeeId),
+      dates = currentDates(target);
+    if (!employee || !state.unlocked || state.employeeId !== employeeId) return;
+    if (!dates.contractStartDate || !dates.workStartDate) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      notify("أدخل تاريخ بداية عقد وتاريخ مباشرة صحيحين قبل التثبيت");
+      return;
+    }
+    if (!datesChanged(employee, dates)) {
+      state.unlocked = false;
+      state.prepared = false;
+      applyUi(target);
+      return;
+    }
+    if (
+      state.prepared &&
+      state.expected?.contractStartDate === dates.contractStartDate &&
+      state.expected?.workStartDate === dates.workStartDate
+    )
+      return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (state.preflighting) return;
+    const historical = earliestHistoricalDate(employee);
+    if (historical && dates.workStartDate > historical.date) {
+      const accepted = await confirmAction(
+        "مراجعة تاريخ المباشرة الجديد",
+        `<p>تاريخ المباشرة الجديد يأتي بعد أقدم تاريخ في <strong>${text(
+          historical.label,
+        )}</strong> بتاريخ <strong class="latin-number">${historical.date}</strong>.</p><p>ستبقى السجلات التاريخية كما هي، وسيعاد حساب النتائج المشتقة فقط.</p>`,
+        "متابعة التصحيح",
+      );
+      if (!accepted) return;
+    }
+    state.preflighting = true;
+    state.submitter = event.submitter || null;
+    applyUi(target);
+    const prepare = window.nawahSalarySettingsSyncV237?.prepare;
+    let prepared = false;
+    try {
+      prepared = typeof prepare === "function" ? (await prepare()) === true : false;
+    } catch (_) {
+      prepared = false;
+    }
+    state.preflighting = false;
+    const canonical = employeeById(employeeId);
+    if (!prepared || !canonical) {
+      applyUi(target);
+      notify("تعذر تجهيز النسخة السحابية قبل تعديل التواريخ؛ لم يتم الحفظ");
+      return;
+    }
+    if (
+      text(canonical.contractStartDate) !==
+        text(state.original?.contractStartDate) ||
+      text(canonical.workStartDate || canonical.contractStartDate) !==
+        text(state.original?.workStartDate || state.original?.contractStartDate)
+    ) {
+      state.original = clone(canonical);
+      state.prepared = false;
+      state.expected = null;
+      target.elements.contractStartDate.value = canonical.contractStartDate || "";
+      target.elements.workStartDate.value =
+        canonical.workStartDate || canonical.contractStartDate || "";
+      applyUi(target);
+      notify("تغيرت التواريخ من متصفح آخر؛ تم عرض القيم السحابية الأحدث للمراجعة");
+      return;
+    }
+    if (
+      dates.contractStartDate !== dateOnly(target.elements.contractStartDate.value) ||
+      dates.workStartDate !== dateOnly(target.elements.workStartDate.value)
+    ) {
+      applyUi(target);
+      notify("تغيرت التواريخ أثناء التحقق؛ راجعها ثم أعد التثبيت");
+      return;
+    }
+    state.baseline = clone(canonical);
+    state.expected = dates;
+    state.prepared = true;
+    state.cloudConfirmed = false;
+    applyUi(target);
+    if (typeof target.requestSubmit === "function")
+      target.requestSubmit(
+        state.submitter && state.submitter.form === target
+          ? state.submitter
+          : undefined,
+      );
+    else state.submitter?.click();
+  }
+  async function readCloudEmployee(employeeId) {
+    try {
+      const reader = window.nawahEmployeeEnglishNamesV268?.readCloudEmployee;
+      if (typeof reader === "function") return await reader(employeeId);
+    } catch (_) {}
+    try {
+      if (!supabaseClient && typeof initSupabaseClient === "function")
+        initSupabaseClient();
+      if (!supabaseClient?.from) return null;
+      const response = await supabaseClient
+        .from("app_settings")
+        .select("setting_value")
+        .eq(
+          "setting_key",
+          typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
+            ? CLOUD_STATE_KEY
+            : "app_state",
+        )
+        .maybeSingle();
+      if (response?.error) throw response.error;
+      const rows = response?.data?.setting_value?.employees;
+      return Array.isArray(rows)
+        ? rows.find(function (employee) {
+            return text(employee?.id) === text(employeeId);
+          }) || null
+        : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function cloudMatches(employee, expected) {
+    if (!employee || !expected) return false;
+    const audit = Array.isArray(employee.contractDateCorrections)
+      ? employee.contractDateCorrections.at(-1)
+      : null;
+    return Boolean(
+      text(employee.contractStartDate) === expected.contractStartDate &&
+        text(employee.workStartDate) === expected.workStartDate &&
+        text(employee.joinDate) === expected.workStartDate &&
+        text(employee.contractDatesLockedAt) &&
+        text(employee.contractPeriodAnchor) === expected.workStartDate &&
+        text(audit?.contractStartDate) === expected.contractStartDate &&
+        text(audit?.workStartDate) === expected.workStartDate
+    );
+  }
+  async function writeEmployeeList(list) {
+    try {
+      employees = list;
+    } catch (_) {}
+    window.employees = list;
+    try {
+      localStorage.setItem(EMPLOYEE_KEY, JSON.stringify(list));
+    } catch (_) {}
+    try {
+      if (typeof syncEmployeeLocalCache === "function")
+        await syncEmployeeLocalCache(list);
+    } catch (_) {}
+  }
+  async function rollbackCorrection() {
+    if (!state.baseline?.id) return;
+    const baseline = clone(state.baseline),
+      next = employeeList().map(function (employee) {
+        return text(employee?.id) === text(baseline.id) ? baseline : employee;
+      });
+    await writeEmployeeList(next);
+    const sync = window.nawahCloudSyncV228 || window.nawahCloudSyncV221;
+    sync?.trackRecordUpserts?.("employees", [baseline.id]);
+    window.nawahEmployeeContractSyncV238?.trackUpserts?.([baseline.id]);
+    try {
+      if (typeof sync?.saveConfirmed === "function")
+        await sync.saveConfirmed("employee-contract-date-correction-rollback-v321");
+      else if (typeof sync?.save === "function")
+        await sync.save("employee-contract-date-correction-rollback-v321");
+    } catch (_) {}
+  }
+  async function verifyCloudCorrection(employeeId) {
+    const sync = window.nawahCloudSyncV228 || window.nawahCloudSyncV221;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      sync?.trackRecordUpserts?.("employees", [employeeId]);
+      window.nawahEmployeeContractSyncV238?.trackUpserts?.([employeeId]);
+      let saved = false;
+      try {
+        saved =
+          typeof sync?.saveConfirmed === "function"
+            ? (await sync.saveConfirmed(
+                "employee-contract-date-correction-v321",
+              )) === true
+            : typeof sync?.save === "function"
+              ? (await sync.save("employee-contract-date-correction-v321")) === true
+              : false;
+      } catch (_) {
+        saved = false;
+      }
+      if (saved) {
+        const remote = await readCloudEmployee(employeeId);
+        if (cloudMatches(remote, state.expected)) return true;
+      }
+      await new Promise(function (resolve) {
+        setTimeout(resolve, 120);
+      });
+    }
+    return false;
+  }
+
+  const originalContractDatesForSave =
+    typeof contractDatesForSaveV238 === "function"
+      ? contractDatesForSaveV238
+      : null;
+  if (originalContractDatesForSave) {
+    const wrappedContractDatesForSave = function (
+      existingEmployee,
+      requestedContractStartDate,
+      requestedWorkStartDate,
+    ) {
+      if (
+        state.prepared &&
+        text(existingEmployee?.id) === state.employeeId
+      )
+        return {
+          contractStartDate: dateOnly(requestedContractStartDate),
+          workStartDate: dateOnly(requestedWorkStartDate),
+        };
+      return originalContractDatesForSave.apply(this, arguments);
+    };
+    wrappedContractDatesForSave.__v321ContractDateCorrection = true;
+    try {
+      contractDatesForSaveV238 = wrappedContractDatesForSave;
+    } catch (_) {}
+    window.contractDatesForSaveV238 = wrappedContractDatesForSave;
+  }
+
+  const automation = window.nawahContractAutomationV243;
+  if (automation && typeof automation.prepareForSave === "function") {
+    const originalPrepare = automation.prepareForSave.bind(automation);
+    state.originalPrepare = originalPrepare;
+    automation.prepareForSave = function (draft, previous) {
+      if (
+        !state.prepared ||
+        text(draft?.id) !== state.employeeId ||
+        text(previous?.id) !== state.employeeId
+      )
+        return originalPrepare(draft, previous);
+      return correctedEmployee(draft, previous, {
+        ...state.expected,
+        originalPrepare,
+        changedAt: new Date().toISOString(),
+        changedBy: actorName(),
+      });
+    };
+  }
+
+  const originalPersist = window.persistEmployeeStateV179;
+  if (typeof originalPersist === "function") {
+    window.persistEmployeeStateV179 = async function (reason) {
+      const result = await originalPersist.apply(this, arguments);
+      if (!state.prepared || !state.employeeId) return result;
+      const confirmed = await verifyCloudCorrection(state.employeeId);
+      if (confirmed) {
+        state.cloudConfirmed = true;
+        return result;
+      }
+      await rollbackCorrection();
+      state.prepared = false;
+      state.cloudConfirmed = false;
+      state.unlocked = true;
+      applyUi();
+      notify(
+        "تعذر تأكيد تعديل تاريخ العقد والمباشرة سحابيًا؛ أُعيدت البيانات السابقة وبقيت الشاشة مفتوحة",
+      );
+      throw new Error("contract-date-correction-cloud-verification-failed-v321");
+    };
+    window.persistEmployeeStateV179.__v321ContractDateCorrection = true;
+  }
+
+  window.addEventListener(
+    "submit",
+    function (event) {
+      if (event.target?.id === "employeeForm") void prepareSubmission(event);
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    function (event) {
+      const button = event.target?.closest?.(
+        "[data-v321-contract-lock-toggle]",
+      );
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (state.preflighting) return;
+      if (state.unlocked) void requestCorrectionSave();
+      else void unlockDates();
+    },
+    true,
+  );
+  document.addEventListener(
+    "input",
+    function (event) {
+      if (
+        state.unlocked &&
+        event.target?.matches?.(
+          '#employeeForm [name="contractStartDate"], #employeeForm [name="workStartDate"]',
+        )
+      ) {
+        state.prepared = false;
+        state.expected = null;
+        previewTimeline();
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "change",
+    function (event) {
+      if (
+        state.unlocked &&
+        event.target?.matches?.(
+          '#employeeForm [name="contractType"], #employeeForm [name="contractMonths"], #employeeForm [name="renewalOption"], #employeeForm [name="autoRenewContract"]',
+        )
+      )
+        previewTimeline();
+    },
+    true,
+  );
+
+  const employeeModal = document.getElementById("employeeModal");
+  if (employeeModal) {
+    employeeModal.addEventListener("close", function () {
+      resetState();
+    });
+    if (typeof MutationObserver === "function")
+      new MutationObserver(function () {
+        if (!employeeModal.open && !employeeModal.hasAttribute("open")) return;
+        const id = formEmployeeId();
+        setTimeout(function () {
+          openEditorState(id || formEmployeeId());
+        }, 60);
+        setTimeout(function () {
+          openEditorState(id || formEmployeeId());
+        }, 220);
+        setTimeout(function () {
+          openEditorState(id || formEmployeeId());
+        }, 560);
+      }).observe(employeeModal, {
+        attributes: true,
+        attributeFilter: ["open"],
+      });
+  }
+  ensureDialog();
+
+  window.nawahContractDateCorrectionV321 = {
+    version: 321,
+    cloudBacked: true,
+    strictCloudVerification: true,
+    correctedEmployee,
+    manualExtensions,
+    cloudMatches,
+    refresh: function () {
+      openEditorState(formEmployeeId());
+    },
+    state: function () {
+      return {
+        employeeId: state.employeeId,
+        unlocked: state.unlocked,
+        prepared: state.prepared,
+        cloudConfirmed: state.cloudConfirmed,
+      };
     },
   };
 })();
