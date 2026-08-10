@@ -44066,3 +44066,56 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     padding-block: 7px !important;
   }
 }
+
+/* v328 - extra-prominent totals while preserving the compact card height. */
+#financeView .finance-linked-block > .finance-summary-card {
+  grid-template-rows: auto minmax(45px, auto) auto !important;
+  gap: 1px !important;
+  padding-block: 6px !important;
+}
+
+#financeView .finance-linked-block > .finance-summary-card > span {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+}
+
+#financeView [data-finance-card="pendingTotal"] strong.money-with-symbol,
+#financeView [data-finance-card="expensesTotal"] strong.money-with-symbol,
+#financeView [data-finance-card="cashSalesTotal"] strong.money-with-symbol,
+#financeView [data-finance-card="cardSalesTotal"] strong.money-with-symbol {
+  min-height: 45px !important;
+  gap: 7px !important;
+}
+
+#financeView [data-finance-card="pendingTotal"] strong,
+#financeView [data-finance-card="pendingTotal"] .money-with-symbol,
+#financeView [data-finance-card="pendingTotal"] [data-finance-money],
+#financeView [data-finance-card="expensesTotal"] strong,
+#financeView [data-finance-card="expensesTotal"] .money-with-symbol,
+#financeView [data-finance-card="expensesTotal"] [data-finance-money],
+#financeView [data-finance-card="cashSalesTotal"] strong,
+#financeView [data-finance-card="cashSalesTotal"] .money-with-symbol,
+#financeView [data-finance-card="cashSalesTotal"] [data-finance-money],
+#financeView [data-finance-card="cardSalesTotal"] strong,
+#financeView [data-finance-card="cardSalesTotal"] .money-with-symbol,
+#financeView [data-finance-card="cardSalesTotal"] [data-finance-money] {
+  font-family: "Arial Narrow", "Segoe UI", Arial, sans-serif !important;
+  font-size: 48px !important;
+  font-weight: 900 !important;
+  line-height: 0.92 !important;
+  letter-spacing: -0.055em !important;
+}
+
+#financeView [data-finance-card="pendingTotal"] .sar-symbol,
+#financeView [data-finance-card="expensesTotal"] .sar-symbol,
+#financeView [data-finance-card="cashSalesTotal"] .sar-symbol,
+#financeView [data-finance-card="cardSalesTotal"] .sar-symbol {
+  width: 28px !important;
+  height: 28px !important;
+  flex-basis: 28px !important;
+}
+
+#financeView .finance-linked-block > .finance-summary-card > small {
+  font-size: 8.5px !important;
+  line-height: 1.2 !important;
+}
