@@ -4520,10 +4520,10 @@ function renderCommissionHistory() {
     ? employeeFormState.commissions
         .map(
           (e, t) =>
-            `<tr>\n      <td class="latin-number">${t + 1}</td><td class="latin-number">${formatDateEn(e.startDate)}</td><td class="latin-number">${e.days}</td>\n      <td class="latin-number">${formatCurrencyEn(e.amount)}</td><td class="latin-number">${formatDateTimeEn(e.paymentDate)}</td>\n      <td><button type="button" class="print-icon-btn" data-print-commission="${e.id}" title="طباعة المخالصة">${iconSvg("printer")}</button></td>\n    </tr>`,
+            `<tr>\n      <td class="latin-number">${t + 1}</td><td class="latin-number">${formatDateEn(e.startDate)}</td><td class="latin-number">${e.days}</td>\n      <td class="latin-number">${formatCurrencyEn(e.amount)}</td><td class="latin-number">${formatDateTimeEn(e.paymentDate)}</td>\n      <td><button type="button" class="print-icon-btn" data-print-commission="${e.id}" title="طباعة المخالصة" aria-label="طباعة مخالصة العمولة رقم ${t + 1}">${iconSvg("printer")}</button></td>\n      <td class="v102-row-delete-cell commission-row-delete-cell-v323"><button type="button" class="v102-icon-delete commission-row-delete-v323" data-v102-delete="commission" data-v102-id="${t}" title="حذف سجل العمولة" aria-label="حذف سجل العمولة رقم ${t + 1}">${iconSvg("trash")}</button></td>\n    </tr>`,
         )
         .join("")
-    : '<tr><td colspan="6"><div class="employee-note-empty">لم يتم صرف عمولات بعد.</div></td></tr>'),
+    : '<tr><td colspan="7"><div class="employee-note-empty">لم يتم صرف عمولات بعد.</div></td></tr>'),
     hydrateIcons(e));
 }
 function consentEmployeeName() {
@@ -45290,28 +45290,57 @@ async function init() {
 	    deleteLeave: deleteLeave,
 	  };
   async function deleteCommission(empId, idx, all) {
-    var emp = getEmp(empId);
-    if (!emp) return;
-    var arr = Array.isArray(emp.commissions) ? emp.commissions.slice() : [];
-    if (!arr.length) return;
-    emp = Object.assign({}, emp, {
-      commissions: all
-        ? []
-        : arr.filter(function (_, i) {
-            return i !== Number(idx);
-          }),
-    });
+    if (deleteInFlight) return false;
+    deleteInFlight = true;
     try {
-      if (
-        typeof employeeFormState !== "undefined" &&
-        employeeFormState &&
-        String(formEmpId()) === String(empId)
-      )
-        employeeFormState.commissions = emp.commissions;
-    } catch (_) {}
-    await saveEmp(emp);
-    refreshCommissionSections();
-    toast(all ? "تم حذف كامل سجل العمولات." : "تم حذف سجل العمولة.");
+      if (!(await prepareCloudDelete())) {
+        toast("تعذر الاتصال بالسحابة؛ لم يُنفذ الحذف لحماية سجل العمولات.");
+        return false;
+      }
+      var emp = getEmp(empId);
+      if (!emp) return false;
+      var arr = Array.isArray(emp.commissions) ? emp.commissions.slice() : [];
+      if (!arr.length) return false;
+      if (!all && (Number(idx) < 0 || Number(idx) >= arr.length)) {
+        toast("سجل العمولة المطلوب غير موجود أو تم حذفه مسبقًا.");
+        return false;
+      }
+      emp = Object.assign({}, emp, {
+        commissions: all
+          ? []
+          : arr.filter(function (_, i) {
+              return i !== Number(idx);
+            }),
+      });
+      try {
+        if (
+          typeof employeeFormState !== "undefined" &&
+          employeeFormState &&
+          String(formEmpId()) === String(empId)
+        )
+          employeeFormState.commissions = emp.commissions;
+      } catch (_) {}
+      trackChangedFields(["employees"]);
+      await saveEmp(emp);
+      var saved = await confirmCloudDelete(
+        all ? "commission-history-delete-all" : "commission-record-delete",
+      );
+      renderCommissionHistory();
+      refreshCommissionSections();
+      if (saved)
+        toast(
+          all
+            ? "تم حذف كامل سجل العمولات وحفظه سحابيًا."
+            : "تم حذف سجل العمولة وحفظه سحابيًا.",
+        );
+      else
+        toast(
+          "تم تطبيق الحذف مؤقتًا، لكن تعذر تأكيده سحابيًا وسيُعاد حفظه تلقائيًا.",
+        );
+      return saved;
+    } finally {
+      deleteInFlight = false;
+    }
   }
   function addDeleteCell(row, kind, id) {
     if (!row || row.querySelector(".v102-row-delete-cell")) return;

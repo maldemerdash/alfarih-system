@@ -1309,6 +1309,51 @@
   }
 }
 
+/* v323 - permanent per-record commission deletion control. */
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-table-v256
+  .commission-delete-th-v323,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-history-table-v256
+  .commission-row-delete-cell-v323 {
+  width: 46px !important;
+  min-width: 46px !important;
+  padding-inline: 6px !important;
+  text-align: center !important;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-row-delete-v323 {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #d44747;
+  box-shadow: none;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-row-delete-v323:hover,
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-row-delete-v323:focus-visible {
+  background: #fff0f0 !important;
+  color: #b42318 !important;
+  transform: none;
+}
+
+#employeeModal.employee-profile-modal
+  [data-section-panel="commissions"]
+  .commission-row-delete-v323 svg {
+  width: 15px;
+  height: 15px;
+}
+
 /* v321 — controlled contract-date correction */
 #employeeModal.employee-profile-modal
   [data-employment-card="contract"]
