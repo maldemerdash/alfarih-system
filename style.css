@@ -43842,3 +43842,147 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     grid-template-columns: 1fr;
   }
 }
+
+/* v326 - clearer finance amounts without native number steppers. */
+#financeView input[type="number"] {
+  appearance: textfield !important;
+  -moz-appearance: textfield !important;
+}
+
+#financeView input[type="number"]::-webkit-inner-spin-button,
+#financeView input[type="number"]::-webkit-outer-spin-button {
+  margin: 0 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+#financeView .finance-linked-block {
+  grid-template-rows: 108px minmax(0, 1fr) !important;
+}
+
+#financeView .finance-linked-block > .finance-summary-card {
+  height: 108px !important;
+  min-height: 108px !important;
+  max-height: 108px !important;
+  padding-block: 12px !important;
+}
+
+#financeView [data-finance-card="pendingTotal"] strong,
+#financeView [data-finance-card="pendingTotal"] .money-with-symbol,
+#financeView [data-finance-card="pendingTotal"] [data-finance-money],
+#financeView [data-finance-card="expensesTotal"] strong,
+#financeView [data-finance-card="expensesTotal"] .money-with-symbol,
+#financeView [data-finance-card="expensesTotal"] [data-finance-money],
+#financeView [data-finance-card="cashSalesTotal"] strong,
+#financeView [data-finance-card="cashSalesTotal"] .money-with-symbol,
+#financeView [data-finance-card="cashSalesTotal"] [data-finance-money],
+#financeView [data-finance-card="cardSalesTotal"] strong,
+#financeView [data-finance-card="cardSalesTotal"] .money-with-symbol,
+#financeView [data-finance-card="cardSalesTotal"] [data-finance-money] {
+  min-height: 34px !important;
+  color: inherit;
+  font-family: "Segoe UI", Arial, sans-serif !important;
+  font-size: 31px !important;
+  font-weight: 900 !important;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05 !important;
+}
+
+#financeView [data-finance-card="pendingTotal"] [data-finance-money],
+#financeView [data-finance-card="expensesTotal"] [data-finance-money] {
+  color: #c7444d !important;
+}
+
+#financeView [data-finance-card="cashSalesTotal"] [data-finance-money],
+#financeView [data-finance-card="cardSalesTotal"] [data-finance-money] {
+  color: #168456 !important;
+}
+
+#financeView [data-finance-card="pendingTotal"] .sar-symbol,
+#financeView [data-finance-card="expensesTotal"] .sar-symbol,
+#financeView [data-finance-card="cashSalesTotal"] .sar-symbol,
+#financeView [data-finance-card="cardSalesTotal"] .sar-symbol {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Amount cells gain three typographic steps; statement fields stay unchanged. */
+#financeView .finance-entry-table[data-finance-table="pending"]
+  input[data-finance-field="amount"],
+#financeView .finance-entry-table[data-finance-table="expenses"]
+  input[data-finance-field="amount"],
+#financeView .finance-entry-table[data-finance-table="cashSales"]
+  input[data-finance-field="amount"],
+#financeView .finance-entry-table[data-finance-table="cardSales"]
+  input[data-finance-field="amount"] {
+  font-family: "Segoe UI", Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  line-height: 1 !important;
+}
+
+#financeView .finance-entry-table[data-finance-table="pending"]
+  textarea[data-finance-field="note"],
+#financeView .finance-entry-table[data-finance-table="expenses"]
+  textarea[data-finance-field="note"] {
+  font-size: 13px !important;
+}
+
+#financeView [data-finance-card="budgetAmount"] .finance-balance-mini {
+  display: flex !important;
+  width: 100% !important;
+  min-height: 29px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  margin: 2px 0 0 !important;
+  padding: 6px 9px !important;
+  border: 1px solid transparent !important;
+  border-radius: 10px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.35 !important;
+  text-align: center !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+#financeView [data-finance-card="budgetAmount"]
+  .finance-balance-mini::before {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+}
+
+#financeView [data-finance-card="budgetAmount"]
+  .finance-balance-mini.is-match {
+  border-color: rgba(22, 132, 86, 0.2) !important;
+  background: #edf9f3 !important;
+  color: #16734d !important;
+}
+
+#financeView [data-finance-card="budgetAmount"]
+  .finance-balance-mini.is-unmatch {
+  border-color: rgba(199, 68, 77, 0.2) !important;
+  background: #fff1f2 !important;
+  color: #b83742 !important;
+}
+
+@media (max-width: 1500px) {
+  #financeView .finance-linked-block {
+    grid-template-rows: 104px minmax(0, 1fr) !important;
+  }
+
+  #financeView .finance-linked-block > .finance-summary-card {
+    height: 104px !important;
+    min-height: 104px !important;
+    max-height: 104px !important;
+  }
+}
