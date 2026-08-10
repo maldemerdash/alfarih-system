@@ -1309,6 +1309,116 @@
   }
 }
 
+/* v324 - top cloud-save confirmation for the finance screen. */
+.finance-cloud-save-notice-v324 {
+  position: fixed;
+  z-index: 100000;
+  top: 16px;
+  left: 50%;
+  display: grid;
+  width: min(440px, calc(100vw - 28px));
+  grid-template-columns: 42px minmax(0, 1fr) 8px;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border: 1px solid rgba(43, 178, 145, 0.28);
+  border-radius: 17px;
+  background: rgba(250, 255, 253, 0.96);
+  box-shadow: 0 16px 44px rgba(14, 83, 83, 0.18);
+  direction: rtl;
+  opacity: 0;
+  transform: translate(-50%, -14px);
+  transition: opacity 180ms ease, transform 180ms ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.finance-cloud-save-notice-v324[hidden] {
+  display: none !important;
+}
+
+.finance-cloud-save-notice-v324.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.finance-cloud-save-icon-v324 {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #dff8f4, #e9fbef);
+  color: #10966f;
+}
+
+.finance-cloud-save-icon-v324 svg {
+  width: 20px;
+  height: 20px;
+}
+
+.finance-cloud-save-copy-v324 {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.finance-cloud-save-copy-v324 strong {
+  overflow: hidden;
+  color: #184b4a;
+  font-size: 12px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-cloud-save-copy-v324 small {
+  overflow: hidden;
+  color: #6f8583;
+  font-size: 9px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-cloud-save-dot-v324 {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #21bf7b;
+  box-shadow: 0 0 0 5px rgba(33, 191, 123, 0.12);
+}
+
+.finance-cloud-save-notice-v324.is-error {
+  border-color: rgba(220, 71, 71, 0.25);
+  background: rgba(255, 251, 251, 0.97);
+}
+
+.finance-cloud-save-notice-v324.is-error .finance-cloud-save-icon-v324 {
+  background: #fff0f0;
+  color: #d44747;
+}
+
+.finance-cloud-save-notice-v324.is-error .finance-cloud-save-dot-v324 {
+  background: #d44747;
+  box-shadow: 0 0 0 5px rgba(212, 71, 71, 0.1);
+}
+
+@media (max-width: 620px) {
+  .finance-cloud-save-notice-v324 {
+    top: 10px;
+    grid-template-columns: 38px minmax(0, 1fr) 7px;
+    padding: 9px 11px;
+    border-radius: 15px;
+  }
+
+  .finance-cloud-save-icon-v324 {
+    width: 38px;
+    height: 38px;
+  }
+}
+
 /* v323 - permanent per-record commission deletion control. */
 #employeeModal.employee-profile-modal
   [data-section-panel="commissions"]

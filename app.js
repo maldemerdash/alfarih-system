@@ -19562,21 +19562,37 @@ async function init() {
       } catch (e) {}
       const sync = payrollCloudSyncV225();
       try {
+        let saved = false;
         if (sync && typeof sync.save === "function")
-          return (
+          saved =
             (await sync.save(reason || "confirmed-financial-record-save")) !==
-            false
-          );
-        if ("function" == typeof saveCloudStateNow)
-          return (
+            false;
+        else if ("function" == typeof saveCloudStateNow)
+          saved =
             (await saveCloudStateNow({
               force: !0,
               reason: reason || "confirmed-financial-record-save",
-            })) !== false
+            })) !== false;
+        else if ("function" == typeof queueCloudStateSave) {
+          queueCloudStateSave();
+          return false;
+        }
+        if (saved)
+          window.nawahFinanceCloudNoticeV324?.success(
+            reason || "confirmed-financial-record-save",
           );
-        if ("function" == typeof queueCloudStateSave) queueCloudStateSave();
+        else
+          window.nawahFinanceCloudNoticeV324?.error(
+            reason || "confirmed-financial-record-save",
+          );
+        return saved;
       } catch (error) {
         console.warn("v225: تعذر تأكيد الحفظ المالي سحابيًا.", error);
+        try {
+          window.nawahFinanceCloudNoticeV324?.error(
+            reason || "confirmed-financial-record-save",
+          );
+        } catch (_) {}
         try {
           "function" == typeof queueCloudStateSave && queueCloudStateSave();
         } catch (e) {}
@@ -23221,17 +23237,34 @@ async function init() {
     async function confirmFinanceCloudV226(reason) {
       const sync = financeCloudSyncV226();
       try {
+        let saved = false;
         if (sync && typeof sync.save === "function")
-          return (await sync.save(reason || "confirmed-finance-save")) !== false;
-        if (typeof saveCloudStateNow === "function")
-          return (
+          saved =
+            (await sync.save(reason || "confirmed-finance-save")) !== false;
+        else if (typeof saveCloudStateNow === "function")
+          saved =
             (await saveCloudStateNow({
               force: true,
               reason: reason || "confirmed-finance-save",
-            })) !== false
-          );
+            })) !== false;
+        if (window.nawahFinanceCloudNoticeV324) {
+          if (saved)
+            window.nawahFinanceCloudNoticeV324.success(
+              reason || "confirmed-finance-save",
+            );
+          else
+            window.nawahFinanceCloudNoticeV324.error(
+              reason || "confirmed-finance-save",
+            );
+        }
+        return saved;
       } catch (error) {
         console.warn("v226: تعذر تأكيد الحفظ المالي سحابيًا.", error);
+        try {
+          window.nawahFinanceCloudNoticeV324?.error(
+            reason || "confirmed-finance-save",
+          );
+        } catch (_) {}
       }
       return false;
     }
@@ -71399,6 +71432,11 @@ window.nawahLeaveBalanceReportV185 = {
     let upsertSnapshot = recordUpsertSnapshot(snapshot);
     let localState = buildCanonicalStateV221();
 
+    /* v324: a forced confirmation after an already completed debounced save
+       has no remaining mutation to write. It is a confirmed clean state,
+       not a cloud-save failure. */
+    if (!snapshot.size) return true;
+
     if (!baselineUpdatedAt) {
       const initial = await readCloudDirectV221();
       baselineState = clone(initial.state);
@@ -71498,7 +71536,7 @@ window.nawahLeaveBalanceReportV185 = {
     if (window.__nawahCloudApplyInProgressV221) return false;
     if (activeSave) {
       await activeSave;
-      if (!dirtyFields.size && !options.force) return true;
+      if (!dirtyFields.size) return true;
     }
     activeSave = performSaveV221(options)
       .catch((error) => {
@@ -87083,7 +87121,7 @@ window.nawahEmployeeOperationalStatusV320 = {
   }
   ensureDialog();
 
-  window.nawahContractDateCorrectionV321 = {
+window.nawahContractDateCorrectionV321 = {
     version: 321,
     cloudBacked: true,
     strictCloudVerification: true,
@@ -87100,6 +87138,99 @@ window.nawahEmployeeOperationalStatusV320 = {
         prepared: state.prepared,
         cloudConfirmed: state.cloudConfirmed,
       };
+    },
+  };
+})();
+
+/* v324 - truthful, two-second cloud-save notice for finance operations. */
+(function () {
+  if (window.nawahFinanceCloudNoticeV324) return;
+  let dismissTimer = 0;
+  let finishTimer = 0;
+
+  function financeViewIsVisible() {
+    const view = document.getElementById("financeView");
+    return Boolean(view && view.classList.contains("active"));
+  }
+
+  function ensureNotice() {
+    let notice = document.getElementById("financeCloudSaveNoticeV324");
+    if (notice) return notice;
+    notice = document.createElement("div");
+    notice.id = "financeCloudSaveNoticeV324";
+    notice.className = "finance-cloud-save-notice-v324";
+    notice.setAttribute("role", "status");
+    notice.setAttribute("aria-live", "polite");
+    notice.hidden = true;
+    notice.innerHTML =
+      '<span class="finance-cloud-save-icon-v324" data-icon="check-circle"></span>' +
+      '<span class="finance-cloud-save-copy-v324"><strong>تم حفظ تغييرات المالية سحابيًا</strong><small>تمت مزامنة التعديل مع جميع المتصفحات</small></span>' +
+      '<i class="finance-cloud-save-dot-v324" aria-hidden="true"></i>';
+    document.body.appendChild(notice);
+    try {
+      if (typeof hydrateIcons === "function") hydrateIcons(notice);
+    } catch (_) {}
+    return notice;
+  }
+
+  function messageFor(reason, failed) {
+    const value = String(reason || "");
+    if (failed) return "تعذر تأكيد حفظ التغيير سحابيًا";
+    if (value.includes("day-close")) return "تم إغلاق اليوم وحفظه سحابيًا";
+    if (value.includes("day-reopen")) return "تم حفظ التراجع سحابيًا";
+    if (value.includes("pending-delete"))
+      return "تم حذف المبلغ وحفظ التغيير سحابيًا";
+    if (value.includes("advance")) return "تم حفظ السلفة سحابيًا";
+    if (value.includes("settings"))
+      return "تم حفظ المبالغ المالية سحابيًا";
+    return "تم حفظ تغييرات المالية سحابيًا";
+  }
+
+  function show(state, reason) {
+    if (!financeViewIsVisible()) return false;
+    const notice = ensureNotice();
+    const failed = state === "error";
+    const title = notice.querySelector("strong");
+    const detail = notice.querySelector("small");
+    const icon = notice.querySelector(".finance-cloud-save-icon-v324");
+    if (title) title.textContent = messageFor(reason, failed);
+    if (detail)
+      detail.textContent = failed
+        ? "بقي التعديل قيد المحاولة ولم يُعرض كحفظ ناجح"
+        : "تمت مزامنة التعديل مع جميع المتصفحات";
+    if (icon) icon.innerHTML = iconSvg(failed ? "info" : "check-circle");
+    notice.classList.toggle("is-error", failed);
+    notice.hidden = false;
+    requestAnimationFrame(function () {
+      notice.classList.add("is-visible");
+    });
+    clearTimeout(dismissTimer);
+    clearTimeout(finishTimer);
+    dismissTimer = setTimeout(function () {
+      notice.classList.remove("is-visible");
+      finishTimer = setTimeout(function () {
+        if (!notice.classList.contains("is-visible")) notice.hidden = true;
+      }, 220);
+    }, 2000);
+    return true;
+  }
+
+  window.nawahFinanceCloudNoticeV324 = {
+    version: 324,
+    duration: 2000,
+    success: function (reason) {
+      return show("success", reason);
+    },
+    error: function (reason) {
+      return show("error", reason);
+    },
+    hide: function () {
+      const notice = document.getElementById("financeCloudSaveNoticeV324");
+      if (!notice) return;
+      clearTimeout(dismissTimer);
+      clearTimeout(finishTimer);
+      notice.classList.remove("is-visible");
+      notice.hidden = true;
     },
   };
 })();
