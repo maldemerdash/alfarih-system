@@ -6311,6 +6311,9 @@ function closeSidebar() {
     document.querySelector("#sidebarOverlay").classList.remove("show"));
 }
 function showToast(e, t = {}) {
+  try {
+    if (window.nawahFinanceCloudNoticeV324?.shouldSuppressLower?.(e)) return;
+  } catch (_) {}
   const n = document.querySelector("#toastContainer");
   if (!n) return;
   const a = document.createElement("div");
@@ -87186,6 +87189,22 @@ window.nawahContractDateCorrectionV321 = {
     return "تم حفظ تغييرات المالية سحابيًا";
   }
 
+  function shouldSuppressLower(message) {
+    const notice = document.getElementById("financeCloudSaveNoticeV324");
+    if (
+      !financeViewIsVisible() ||
+      !notice ||
+      notice.hidden
+    )
+      return false;
+    const text = String(message || "").trim();
+    if (!text || text.includes("لم تتطابق")) return false;
+    return (
+      /سحابي/.test(text) ||
+      text.startsWith("تعذر تأكيد الحذف؛ ربما أُغلق اليوم")
+    );
+  }
+
   function show(state, reason) {
     if (!financeViewIsVisible()) return false;
     const notice = ensureNotice();
@@ -87216,8 +87235,9 @@ window.nawahContractDateCorrectionV321 = {
   }
 
   window.nawahFinanceCloudNoticeV324 = {
-    version: 324,
+    version: 325,
     duration: 2000,
+    shouldSuppressLower,
     success: function (reason) {
       return show("success", reason);
     },
