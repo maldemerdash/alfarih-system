@@ -43986,3 +43986,83 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     max-height: 104px !important;
   }
 }
+
+/* v327 - compact linked finance summaries with upper-card amount scale. */
+#financeView .finance-linked-block {
+  grid-template-rows: 86px minmax(0, 1fr) !important;
+}
+
+#financeView .finance-linked-block > .finance-summary-card {
+  height: 86px !important;
+  min-height: 86px !important;
+  max-height: 86px !important;
+  grid-template-rows: auto minmax(29px, auto) auto !important;
+  align-content: space-between !important;
+  gap: 2px !important;
+  padding: 8px 13px !important;
+}
+
+#financeView .finance-linked-block > .finance-summary-card > span {
+  font-size: 10.5px !important;
+  line-height: 1.2 !important;
+}
+
+#financeView [data-finance-card="pendingTotal"] strong.money-with-symbol,
+#financeView [data-finance-card="expensesTotal"] strong.money-with-symbol,
+#financeView [data-finance-card="cashSalesTotal"] strong.money-with-symbol,
+#financeView [data-finance-card="cardSalesTotal"] strong.money-with-symbol {
+  display: inline-flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 29px !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-flow: row-reverse nowrap !important;
+  gap: 6px !important;
+  overflow: hidden !important;
+  direction: ltr !important;
+  white-space: nowrap !important;
+}
+
+#financeView [data-finance-card="pendingTotal"] strong,
+#financeView [data-finance-card="pendingTotal"] .money-with-symbol,
+#financeView [data-finance-card="pendingTotal"] [data-finance-money],
+#financeView [data-finance-card="expensesTotal"] strong,
+#financeView [data-finance-card="expensesTotal"] .money-with-symbol,
+#financeView [data-finance-card="expensesTotal"] [data-finance-money],
+#financeView [data-finance-card="cashSalesTotal"] strong,
+#financeView [data-finance-card="cashSalesTotal"] .money-with-symbol,
+#financeView [data-finance-card="cashSalesTotal"] [data-finance-money],
+#financeView [data-finance-card="cardSalesTotal"] strong,
+#financeView [data-finance-card="cardSalesTotal"] .money-with-symbol,
+#financeView [data-finance-card="cardSalesTotal"] [data-finance-money] {
+  font-size: 29px !important;
+  line-height: 1 !important;
+}
+
+#financeView [data-finance-card="pendingTotal"] .sar-symbol,
+#financeView [data-finance-card="expensesTotal"] .sar-symbol,
+#financeView [data-finance-card="cashSalesTotal"] .sar-symbol,
+#financeView [data-finance-card="cardSalesTotal"] .sar-symbol {
+  width: 20px !important;
+  height: 20px !important;
+  flex: 0 0 20px !important;
+}
+
+#financeView .finance-linked-block > .finance-summary-card > small {
+  font-size: 9px !important;
+  line-height: 1.2 !important;
+}
+
+@media (max-width: 1500px) {
+  #financeView .finance-linked-block {
+    grid-template-rows: 83px minmax(0, 1fr) !important;
+  }
+
+  #financeView .finance-linked-block > .finance-summary-card {
+    height: 83px !important;
+    min-height: 83px !important;
+    max-height: 83px !important;
+    padding-block: 7px !important;
+  }
+}
