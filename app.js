@@ -84869,6 +84869,7 @@ window.nawahNotificationRulesV294 = {
     ["finance.closeDay", "[data-finance-close-confirm], .finance-close-day-btn"],
     ["finance.reopenDay", "[data-finance-reopen-confirm], .finance-reopen-day-btn"],
     ["finance.settings", "#financeSettingsForm"],
+    ["finance.print", "#financePrintDayBtn"],
     ["advances.create", "#advancesAddBtn"],
     ["advances.print", "#advancesPrintBtn"],
     ["advances.pay", "[data-pay-payroll-advance]"],
@@ -87251,6 +87252,917 @@ window.nawahContractDateCorrectionV321 = {
       clearTimeout(finishTimer);
       notice.classList.remove("is-visible");
       notice.hidden = true;
+    },
+  };
+})();
+
+/* v332 - One-day, landscape A4 finance report with deterministic pagination. */
+(function () {
+  if (window.__nawahFinanceDailyPrintV332) return;
+  window.__nawahFinanceDailyPrintV332 = true;
+
+  function financePrintEscapeV332(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (char) {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[char];
+    });
+  }
+
+  function financePrintNumberV332(value) {
+    var number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : 0;
+  }
+
+  function financePrintMoneyV332(value) {
+    try {
+      return new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }).format(financePrintNumberV332(value));
+    } catch (_) {
+      return String(financePrintNumberV332(value));
+    }
+  }
+
+  function financePrintReadJsonV332(key, fallback) {
+    try {
+      var value = JSON.parse(localStorage.getItem(key) || "");
+      return value == null ? fallback : value;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function financePrintDateV332(value, includeWeekday) {
+    var raw = String(value || "").slice(0, 10);
+    var parts = raw.split("-").map(Number);
+    if (
+      parts.length !== 3 ||
+      parts.some(function (part) {
+        return !Number.isFinite(part);
+      })
+    )
+      return raw || "—";
+    var date = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+    try {
+      return new Intl.DateTimeFormat("ar-SA-u-nu-latn", {
+        weekday: includeWeekday ? "long" : undefined,
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }).format(date);
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  function financePrintDateTimeV332(value) {
+    var date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return String(value || "—");
+    try {
+      return new Intl.DateTimeFormat("ar-SA-u-nu-latn", {
+        timeZone: "Asia/Riyadh",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
+    } catch (_) {
+      return date.toISOString().slice(0, 16).replace("T", " ");
+    }
+  }
+
+  function financePrintRowsV332(rows) {
+    return (Array.isArray(rows) ? rows : []).filter(function (row) {
+      return (
+        row &&
+        (String(row.amount == null ? "" : row.amount).trim() !== "" ||
+          String(row.note || "").trim() !== "")
+      );
+    });
+  }
+
+  function financePrintEmployeeNameV332(record) {
+    try {
+      if (
+        record &&
+        record.employeeId &&
+        typeof getEmployeeById === "function"
+      ) {
+        var employee = getEmployeeById(record.employeeId);
+        if (employee && employee.name) return employee.name;
+      }
+    } catch (_) {}
+    return (
+      (record &&
+        (record.employeeName ||
+          (record.employee && record.employee.name) ||
+          record.employeeId)) ||
+      "موظف"
+    );
+  }
+
+  function financePrintAdvanceRemainingV332(record) {
+    try {
+      if (typeof payrollAdvanceRemainingAmount === "function")
+        return financePrintNumberV332(payrollAdvanceRemainingAmount(record));
+    } catch (_) {}
+    var total = financePrintNumberV332(
+      record && (record.amount != null ? record.amount : record.total),
+    );
+    var paid = financePrintNumberV332(
+      record && (record.paidAmount != null ? record.paidAmount : record.paid),
+    );
+    if (record && Array.isArray(record.payments)) {
+      paid = record.payments.reduce(function (sum, payment) {
+        return (
+          sum +
+          financePrintNumberV332(
+            payment && (payment.amount != null ? payment.amount : payment.value),
+          )
+        );
+      }, 0);
+    }
+    return Math.max(0, total - paid);
+  }
+
+  function financePrintAdvanceGroupsV332(date) {
+    var monthKey = String(date || "").slice(0, 7);
+    var advances = financePrintReadJsonV332("nawah-payroll-advances", []);
+    var groups = new Map();
+    (Array.isArray(advances) ? advances : []).forEach(function (record) {
+      if (!record || String(record.status || "approved") !== "approved") return;
+      var recordMonth =
+        record.monthKey || String(record.date || "").slice(0, 7);
+      if (recordMonth !== monthKey) return;
+      try {
+        if (
+          record.employeeId &&
+          typeof getEmployeeById === "function" &&
+          !getEmployeeById(record.employeeId)
+        )
+          return;
+      } catch (_) {}
+      var remaining = financePrintAdvanceRemainingV332(record);
+      if (!(remaining > 0)) return;
+      var key = String(
+        record.employeeId ||
+          record.employeeName ||
+          (record.employee && record.employee.name) ||
+          "employee",
+      );
+      var group = groups.get(key) || {
+        employee: financePrintEmployeeNameV332(record),
+        total: 0,
+      };
+      group.total += remaining;
+      groups.set(key, group);
+    });
+    return Array.from(groups.values()).sort(function (left, right) {
+      return String(left.employee || "").localeCompare(
+        String(right.employee || ""),
+        "ar",
+      );
+    });
+  }
+
+  function financePrintCompanyV332() {
+    var company = financePrintReadJsonV332(
+      "nawah-company-settings-v92",
+      {},
+    );
+    var address = [
+      company.shortAddress,
+      company.region,
+      company.city,
+      company.district,
+      company.street,
+      company.postalCode,
+    ]
+      .filter(Boolean)
+      .join(" - ");
+    var meta = [];
+    if (company.unifiedNumber)
+      meta.push("الرقم الموحد: " + company.unifiedNumber);
+    if (company.email) meta.push("البريد الإلكتروني: " + company.email);
+    if (company.phone) meta.push("رقم التواصل: " + company.phone);
+    if (address) meta.push("العنوان الوطني: " + address);
+    return {
+      name:
+        company.company ||
+        company.companyName ||
+        company.name ||
+        "اسم المنشأة",
+      meta: meta,
+      logo:
+        company.logoDataUrl ||
+        company.logo ||
+        "",
+      logoAttachmentId: company.logoAttachmentId || "",
+    };
+  }
+
+  async function financePrintLogoV332(company) {
+    var url = company.logo || "";
+    if (!url && company.logoAttachmentId) {
+      try {
+        if (typeof attachmentUrl === "function")
+          url = (await attachmentUrl(company.logoAttachmentId)) || "";
+      } catch (_) {
+        url = "";
+      }
+    }
+    try {
+      return url || new URL("sar-symbol.png", location.href).href;
+    } catch (_) {
+      return url || "sar-symbol.png";
+    }
+  }
+
+  function financePrintCurrentV332() {
+    var sync = window.nawahFinanceSyncV226 || null;
+    var date = "";
+    var day = {};
+    try {
+      date = sync && sync.currentDate ? sync.currentDate() : "";
+      day = sync && sync.readCurrent ? sync.readCurrent() : {};
+    } catch (_) {}
+    if (!date) {
+      date = String(
+        financePrintReadJsonV332("nawah-finance-daily-open", {}).financeDate ||
+          "",
+      ).slice(0, 10);
+    }
+    if (!day || typeof day !== "object" || !Object.keys(day).length) {
+      var days = financePrintReadJsonV332("nawah-finance-daily-days", {});
+      day = (days && days[date]) || {};
+    }
+    return { date: date, day: day || {} };
+  }
+
+  function financePrintTotalsV332(day, advanceGroups) {
+    var settings = financePrintReadJsonV332("nawah-finance-settings", {});
+    var pending = financePrintRowsV332(day.pending).reduce(function (sum, row) {
+      return sum + financePrintNumberV332(row.amount);
+    }, 0);
+    var deletedPending = (Array.isArray(day.deletedPending)
+      ? day.deletedPending
+      : []
+    ).reduce(function (sum, row) {
+      return sum + financePrintNumberV332(row && row.amount);
+    }, 0);
+    var expenses = financePrintRowsV332(day.expenses).reduce(function (
+      sum,
+      row,
+    ) {
+      return sum + financePrintNumberV332(row.amount);
+    }, 0);
+    var cashSales = financePrintRowsV332(day.cashSales).reduce(function (
+      sum,
+      row,
+    ) {
+      return sum + financePrintNumberV332(row.amount);
+    }, 0);
+    var cardSales = financePrintRowsV332(day.cardSales).reduce(function (
+      sum,
+      row,
+    ) {
+      return sum + financePrintNumberV332(row.amount);
+    }, 0);
+    var advances = (Array.isArray(advanceGroups) ? advanceGroups : []).reduce(
+      function (sum, group) {
+        return sum + financePrintNumberV332(group && group.total);
+      },
+      0,
+    );
+    var carried = day.isClosed
+      ? financePrintNumberV332(day.carriedAmountSnapshot)
+      : day.carriedAmountOverride == null ||
+          day.carriedAmountOverride === ""
+        ? financePrintNumberV332(settings.openingAmount)
+        : financePrintNumberV332(day.carriedAmountOverride);
+    var custody = day.isClosed
+      ? financePrintNumberV332(day.custodyAmountSnapshot)
+      : financePrintNumberV332(settings.custodyAmount);
+    var manualCash = financePrintNumberV332(day.manualCashAmount);
+    var budget = financePrintNumberV332(day.budgetAmount);
+    var sales = cashSales + cardSales;
+    var dailyDebit = carried + cashSales + cardSales;
+    var dailyCredit = cardSales + expenses;
+    var calculatedFund =
+      carried +
+      custody +
+      cashSales +
+      manualCash +
+      deletedPending -
+      pending -
+      expenses -
+      advances;
+    var calculatedNewCarried = carried + sales - expenses - cardSales;
+    return {
+      custodyAmount: custody,
+      dailyDebit: dailyDebit,
+      dailyCredit: dailyCredit,
+      carriedAmount: carried,
+      newCarriedAmount: day.isClosed
+        ? financePrintNumberV332(day.newCarriedAmountSnapshot)
+        : calculatedNewCarried,
+      advancesTotal: advances,
+      fundAmount: day.isClosed
+        ? financePrintNumberV332(day.fundAmountSnapshot)
+        : calculatedFund,
+      budgetAmount: budget,
+      manualCashAmount: manualCash,
+      salesTotal: sales,
+      pendingTotal: pending,
+      expensesTotal: expenses,
+      cashSalesTotal: cashSales,
+      cardSalesTotal: cardSales,
+      budgetDifference: budget - cardSales,
+    };
+  }
+
+  function financePrintSectionsV332(day, advanceGroups) {
+    var pending = financePrintRowsV332(day.pending).map(function (row) {
+      return [financePrintMoneyV332(row.amount), row.note || "—"];
+    });
+    var expenses = financePrintRowsV332(day.expenses).map(function (row) {
+      return [financePrintMoneyV332(row.amount), row.note || "—"];
+    });
+    var cash = financePrintRowsV332(day.cashSales).map(function (row) {
+      return [financePrintMoneyV332(row.amount)];
+    });
+    var card = financePrintRowsV332(day.cardSales).map(function (row) {
+      return [financePrintMoneyV332(row.amount)];
+    });
+    var advances = (Array.isArray(advanceGroups) ? advanceGroups : []).map(
+      function (group) {
+        return [
+          group.employee || "موظف",
+          financePrintMoneyV332(group.total),
+        ];
+      },
+    );
+    var deleted = (Array.isArray(day.deletedPending)
+      ? day.deletedPending
+      : []
+    )
+      .slice()
+      .reverse()
+      .map(function (row) {
+        return [
+          financePrintMoneyV332(row && row.amount),
+          (row && row.note) || "—",
+          (row && row.deletedBy) || "النظام",
+          financePrintDateTimeV332(row && row.deletedAt),
+        ];
+      });
+    return {
+      finance: [
+        {
+          key: "pending",
+          title: "المبالغ المعلقة",
+          tone: "negative",
+          columns: ["المبلغ", "البيان"],
+          rows: pending,
+          noteIndex: 1,
+        },
+        {
+          key: "expenses",
+          title: "المصروفات",
+          tone: "negative",
+          columns: ["المبلغ", "البيان"],
+          rows: expenses,
+          noteIndex: 1,
+        },
+        {
+          key: "cash",
+          title: "مبيعات النقد",
+          tone: "positive",
+          columns: ["المبلغ"],
+          rows: cash,
+          noteIndex: -1,
+        },
+        {
+          key: "card",
+          title: "مبيعات الشبكة",
+          tone: "positive",
+          columns: ["المبلغ"],
+          rows: card,
+          noteIndex: -1,
+        },
+      ],
+      bottom: [
+        {
+          key: "advances",
+          title: "السلفيات",
+          tone: "negative",
+          columns: ["اسم الموظف", "إجمالي السلفية"],
+          rows: advances,
+          noteIndex: 0,
+        },
+        {
+          key: "deleted",
+          title: "سجل المبالغ المعلقة المحذوفة",
+          tone: "audit",
+          columns: ["المبلغ", "البيان", "حذف بواسطة", "التاريخ"],
+          rows: deleted,
+          noteIndex: 1,
+          optional: true,
+        },
+      ],
+    };
+  }
+
+  function financePrintRowUnitsV332(row, noteIndex) {
+    if (noteIndex == null || noteIndex < 0) return 1;
+    var text = String((row && row[noteIndex]) || "");
+    return Math.max(1, Math.min(7, Math.ceil(text.length / 46)));
+  }
+
+  function financePrintTakeRowsV332(section, start, budget) {
+    var rows = section.rows || [];
+    var output = [];
+    var used = 0;
+    var cursor = start || 0;
+    while (cursor < rows.length) {
+      var units = financePrintRowUnitsV332(
+        rows[cursor],
+        section.noteIndex,
+      );
+      if (output.length && used + units > budget) break;
+      output.push(rows[cursor]);
+      used += units;
+      cursor += 1;
+      if (used >= budget) break;
+    }
+    return { rows: output, next: cursor };
+  }
+
+  function financePrintPagesV332(sections) {
+    var all = sections.finance.concat(sections.bottom);
+    var cursors = {};
+    all.forEach(function (section) {
+      cursors[section.key] = 0;
+    });
+    var pages = [];
+    var guard = 0;
+    function hasRemaining() {
+      return all.some(function (section) {
+        return cursors[section.key] < (section.rows || []).length;
+      });
+    }
+    do {
+      var first = pages.length === 0;
+      var financeBudget = first ? 10 : 18;
+      var bottomBudget = first ? 4 : 8;
+      var financeChunks = [];
+      var bottomChunks = [];
+      sections.finance.forEach(function (section) {
+        var taken = financePrintTakeRowsV332(
+          section,
+          cursors[section.key],
+          financeBudget,
+        );
+        cursors[section.key] = taken.next;
+        if (first || taken.rows.length)
+          financeChunks.push({ section: section, rows: taken.rows });
+      });
+      sections.bottom.forEach(function (section) {
+        var taken = financePrintTakeRowsV332(
+          section,
+          cursors[section.key],
+          bottomBudget,
+        );
+        cursors[section.key] = taken.next;
+        if (
+          taken.rows.length ||
+          (first && !section.optional)
+        )
+          bottomChunks.push({ section: section, rows: taken.rows });
+      });
+      pages.push({
+        first: first,
+        finance: financeChunks,
+        bottom: bottomChunks,
+      });
+      guard += 1;
+    } while (hasRemaining() && guard < 100);
+    return pages;
+  }
+
+  function financePrintMoneyHtmlV332(value, symbolUrl) {
+    return (
+      '<span class="report-money"><b>' +
+      financePrintEscapeV332(financePrintMoneyV332(value)) +
+      '</b><img src="' +
+      financePrintEscapeV332(symbolUrl) +
+      '" alt="ريال سعودي"></span>'
+    );
+  }
+
+  function financePrintSummaryV332(totals, symbolUrl) {
+    var difference = totals.budgetDifference;
+    var budgetNote =
+      Math.abs(difference) < 0.005
+        ? "الموازنة متطابقة"
+        : "غير متطابقة بفارق " +
+          (difference > 0 ? "+" : "-") +
+          financePrintMoneyV332(Math.abs(difference));
+    var metrics = [
+      ["مبلغ العهدة", totals.custodyAmount, "positive", ""],
+      ["مجموع المدين اليومي", totals.dailyDebit, "positive", ""],
+      ["مجموع الدائن اليومي", totals.dailyCredit, "negative", ""],
+      ["المبلغ المرحل", totals.carriedAmount, "carried", ""],
+      ["المبلغ المرحل الجديد", totals.newCarriedAmount, "carried-new", ""],
+      ["إجمالي السلفيات", totals.advancesTotal, "negative", ""],
+      ["مبلغ الصندوق", totals.fundAmount, "fund", ""],
+      ["مبلغ الموازنة المدخل", totals.budgetAmount, "neutral", budgetNote],
+      ["المبلغ النقدي", totals.manualCashAmount, "positive", ""],
+      ["إجمالي مبيعات اليوم", totals.salesTotal, "positive", ""],
+      ["إجمالي المبالغ المعلقة", totals.pendingTotal, "negative", ""],
+      ["إجمالي المصروفات", totals.expensesTotal, "negative", ""],
+      ["مجموع المبيعات النقدية", totals.cashSalesTotal, "positive", ""],
+      ["مجموع مبيعات الشبكة", totals.cardSalesTotal, "positive", ""],
+    ];
+    return (
+      '<section class="summary-grid">' +
+      metrics
+        .map(function (metric) {
+          return (
+            '<article class="summary-card ' +
+            metric[2] +
+            '"><span>' +
+            financePrintEscapeV332(metric[0]) +
+            "</span>" +
+            financePrintMoneyHtmlV332(metric[1], symbolUrl) +
+            (metric[3]
+              ? '<small class="' +
+                (Math.abs(difference) < 0.005 ? "match" : "unmatch") +
+                '">' +
+                financePrintEscapeV332(metric[3]) +
+                "</small>"
+              : "") +
+            "</article>"
+          );
+        })
+        .join("") +
+      "</section>"
+    );
+  }
+
+  function financePrintTableV332(chunk) {
+    var section = chunk.section;
+    var rows = chunk.rows || [];
+    var columnCount = Math.max(1, (section.columns || []).length);
+    var body = rows.length
+      ? rows
+          .map(function (row) {
+            return (
+              "<tr>" +
+              row
+                .map(function (cell, index) {
+                  return (
+                    '<td class="' +
+                    (index === 0 && section.key !== "advances"
+                      ? "numeric"
+                      : "") +
+                    '">' +
+                    financePrintEscapeV332(cell) +
+                    "</td>"
+                  );
+                })
+                .join("") +
+              "</tr>"
+            );
+          })
+          .join("")
+      : '<tr class="empty-row"><td colspan="' +
+        columnCount +
+        '">لا توجد سجلات لهذا اليوم</td></tr>';
+    return (
+      '<section class="report-table-card ' +
+      financePrintEscapeV332(section.tone || "") +
+      '"><h3>' +
+      financePrintEscapeV332(section.title) +
+      '</h3><table><thead><tr>' +
+      (section.columns || [])
+        .map(function (column) {
+          return "<th>" + financePrintEscapeV332(column) + "</th>";
+        })
+        .join("") +
+      "</tr></thead><tbody>" +
+      body +
+      "</tbody></table></section>"
+    );
+  }
+
+  function financePrintHeaderV332(
+    company,
+    logo,
+    printedAt,
+    pageNumber,
+    pageCount,
+  ) {
+    var meta = company.meta.length
+      ? company.meta
+          .map(function (item) {
+            return "<span>" + financePrintEscapeV332(item) + "</span>";
+          })
+          .join("")
+      : "<span>بيانات المنشأة غير مكتملة</span>";
+    return (
+      '<header class="report-header"><div class="company-brand"><img class="report-logo" src="' +
+      financePrintEscapeV332(logo) +
+      '" alt="شعار المنشأة"><div><h1>' +
+      financePrintEscapeV332(company.name) +
+      '</h1><div class="company-meta">' +
+      meta +
+      '</div></div></div><div class="print-meta"><span>توقيت الطباعة</span><strong>' +
+      financePrintEscapeV332(printedAt) +
+      '</strong><b>صفحة ' +
+      pageNumber +
+      " من " +
+      pageCount +
+      "</b></div></header>"
+    );
+  }
+
+  function financePrintPageV332(
+    page,
+    index,
+    pageCount,
+    context,
+  ) {
+    var dayStatus = context.day.isClosed ? "مغلق" : "مفتوح";
+    var closedText =
+      context.day.isClosed && context.day.closedAt
+        ? " • تم الإغلاق: " +
+          financePrintDateTimeV332(context.day.closedAt)
+        : "";
+    var financeGrid = page.finance.length
+      ? '<div class="finance-table-grid" style="--table-count:' +
+        Math.max(1, page.finance.length) +
+        '">' +
+        page.finance.map(financePrintTableV332).join("") +
+        "</div>"
+      : "";
+    var bottomGrid = page.bottom.length
+      ? '<div class="bottom-table-grid" style="--table-count:' +
+        Math.max(1, page.bottom.length) +
+        '">' +
+        page.bottom.map(financePrintTableV332).join("") +
+        "</div>"
+      : "";
+    return (
+      '<article class="finance-report-page">' +
+      financePrintHeaderV332(
+        context.company,
+        context.logo,
+        context.printedAt,
+        index + 1,
+        pageCount,
+      ) +
+      '<section class="report-title-band"><div><span>التقرير المالي اليومي</span><h2>' +
+      financePrintEscapeV332(financePrintDateV332(context.date, true)) +
+      '</h2></div><div class="day-state ' +
+      (context.day.isClosed ? "closed" : "open") +
+      '"><span>حالة اليوم</span><strong>' +
+      dayStatus +
+      '</strong></div></section>' +
+      (page.first
+        ? financePrintSummaryV332(context.totals, context.symbolUrl)
+        : '<div class="continuation-note">استكمال تفاصيل اليوم المالي نفسه' +
+          financePrintEscapeV332(closedText) +
+          "</div>") +
+      financeGrid +
+      bottomGrid +
+      '<footer class="report-footer"><span>تقرير يوم مالي واحد من نظام إدارة الموظفين</span><strong>صفحة ' +
+      (index + 1) +
+      " من " +
+      pageCount +
+      '</strong><span>' +
+      financePrintEscapeV332(context.printedAt) +
+      "</span></footer></article>"
+    );
+  }
+
+  function financePrintCssV332() {
+    return [
+      '@page{size:A4 landscape;margin:8mm}',
+      '*{box-sizing:border-box}',
+      'html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:"Almarai","Segoe UI",Tahoma,Arial,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+      '.finance-report-page{width:100%;height:193mm;display:flex;flex-direction:column;gap:3mm;overflow:hidden;break-after:page;page-break-after:always}',
+      '.finance-report-page:last-child{break-after:auto;page-break-after:auto}',
+      '.report-header{min-height:21mm;display:flex;align-items:center;justify-content:space-between;gap:8mm;padding:0 1.5mm 2.4mm;border-bottom:1.5px solid #13a3b7}',
+      '.company-brand{display:flex;align-items:center;gap:3mm;min-width:0}',
+      '.report-logo{width:18mm;height:18mm;object-fit:contain;border:1px solid #dbe8ed;border-radius:4mm;background:#fff;padding:1mm}',
+      '.company-brand h1{margin:0;color:#08758a;font-size:15px;line-height:1.2;font-weight:800}',
+      '.company-meta{display:flex;flex-wrap:wrap;gap:1mm 4mm;margin-top:1.4mm;color:#64748b;font-size:7.2px;line-height:1.45}',
+      '.print-meta{min-width:45mm;display:grid;grid-template-columns:auto 1fr;gap:.8mm 2mm;align-items:center;padding:2.2mm 3mm;border:1px solid #d8edf0;border-radius:3mm;background:#f4fbfc;color:#64748b;font-size:7.2px}',
+      '.print-meta strong{color:#172033;font-size:8px}.print-meta b{grid-column:1/-1;color:#08758a;font-size:9px}',
+      '.report-title-band{min-height:12mm;display:flex;align-items:center;justify-content:space-between;gap:5mm;padding:2mm 3mm;border:1px solid #d8edf0;border-right:4px solid #13a3b7;border-radius:3.2mm;background:linear-gradient(135deg,#f6fcfd,#f1fbf6)}',
+      '.report-title-band span{display:block;color:#0e879a;font-size:7px;font-weight:800}.report-title-band h2{margin:.7mm 0 0;color:#172033;font-size:12px;line-height:1.2}',
+      '.day-state{min-width:26mm;padding:1.5mm 3mm;border-radius:2.5mm;text-align:center}.day-state.open{background:#eafaf3;color:#0b8a5f}.day-state.closed{background:#f1f5f9;color:#475569}.day-state strong{display:block;margin-top:.6mm;font-size:9px}',
+      '.summary-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1.6mm}',
+      '.summary-card{position:relative;min-width:0;min-height:15mm;display:flex;flex-direction:column;justify-content:center;gap:.8mm;padding:1.7mm 2mm;border:1px solid #dfe9ee;border-radius:3mm;background:#fff;overflow:hidden}',
+      '.summary-card:before{content:"";position:absolute;inset-inline-start:0;top:2mm;bottom:2mm;width:1mm;border-radius:99px;background:#13a3b7}',
+      '.summary-card>span{color:#64748b;font-size:6.6px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.report-money{display:flex;align-items:center;gap:1mm;direction:ltr;justify-content:flex-end;color:#172033}.report-money b{font-family:"Segoe UI",Arial,sans-serif;font-size:11.5px;line-height:1;font-weight:900}.report-money img{width:4.2mm;height:4.2mm;object-fit:contain}',
+      '.summary-card.positive:before{background:#22b573}.summary-card.positive .report-money{color:#13885b}.summary-card.negative:before{background:#ef5b62}.summary-card.negative .report-money{color:#ca4049}.summary-card.fund{background:linear-gradient(135deg,#f0fbf5,#fff);border-color:#bee8d0}.summary-card.fund:before{background:#16a765}.summary-card.carried{background:#f6fbff}.summary-card.carried-new{background:#f4f6ff}.summary-card small{font-size:5.9px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.summary-card small.match{color:#07875b}.summary-card small.unmatch{color:#c2414a}',
+      '.finance-table-grid,.bottom-table-grid{display:grid;grid-template-columns:repeat(var(--table-count),minmax(0,1fr));gap:2mm;align-items:start}',
+      '.report-table-card{min-width:0;border:1px solid #dfe8ed;border-top:2px solid #13a3b7;border-radius:3mm;overflow:hidden;background:#fff;break-inside:avoid}',
+      '.report-table-card.positive{border-top-color:#20b56f}.report-table-card.negative{border-top-color:#ef5b62}.report-table-card.audit{border-top-color:#78909c}',
+      '.report-table-card h3{margin:0;padding:1.7mm 2mm;border-bottom:1px solid #e4edf1;background:#fbfdfe;color:#172033;font-size:8.2px;line-height:1.15}',
+      '.report-table-card table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7.2px}',
+      '.report-table-card th,.report-table-card td{height:4.25mm;padding:.8mm 1.2mm;border-bottom:1px solid #e5edf1;text-align:right;vertical-align:middle;line-height:1.2;overflow-wrap:anywhere}',
+      '.report-table-card th{height:4.7mm;background:#f0f7f9;color:#0f5968;font-weight:800;font-size:6.7px}',
+      '.report-table-card tbody tr:nth-child(even) td{background:#fbfdfe}.report-table-card tbody tr:last-child td{border-bottom:0}.report-table-card td.numeric{direction:ltr;text-align:center;font-family:"Segoe UI",Arial,sans-serif;font-weight:800;color:#172033}.report-table-card .empty-row td{text-align:center;color:#94a3b8}',
+      '.bottom-table-grid .report-table-card table{font-size:7px}.bottom-table-grid{margin-top:auto}',
+      '.continuation-note{padding:1.8mm 3mm;border:1px solid #dbe9ee;border-radius:2.5mm;background:#f8fbfc;color:#54717a;font-size:7.4px;font-weight:800}',
+      '.report-footer{margin-top:auto;min-height:7mm;display:flex;align-items:center;justify-content:space-between;gap:4mm;padding-top:1.6mm;border-top:1px solid #dbe3e8;color:#64748b;font-size:6.8px}.report-footer strong{color:#08758a;font-size:7.5px}',
+      '@media print{html,body{width:auto;height:auto}.finance-report-page{break-inside:avoid;page-break-inside:avoid}}',
+    ].join("");
+  }
+
+  function financePrintCanV332() {
+    try {
+      if (
+        typeof authProfile !== "undefined" &&
+        String(authProfile && authProfile.role).toLowerCase() === "admin"
+      )
+        return true;
+    } catch (_) {}
+    try {
+      if (
+        window.employeePermissionMatrix &&
+        typeof window.employeePermissionMatrix.can === "function"
+      )
+        return Boolean(window.employeePermissionMatrix.can("finance.print"));
+    } catch (_) {}
+    return true;
+  }
+
+  async function financePrintDayV332() {
+    if (!financePrintCanV332()) {
+      try {
+        showToast("ليست لديك صلاحية طباعة التقرير المالي");
+      } catch (_) {}
+      return false;
+    }
+    var current = financePrintCurrentV332();
+    if (!current.date) {
+      try {
+        showToast("تعذر تحديد اليوم المالي المعروض");
+      } catch (_) {}
+      return false;
+    }
+    var button = document.getElementById("financePrintDayBtn");
+    if (button) {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+    }
+    try {
+      var company = financePrintCompanyV332();
+      var logo = await financePrintLogoV332(company);
+      var symbolUrl = new URL("sar-symbol.png", location.href).href;
+      var advances = financePrintAdvanceGroupsV332(current.date);
+      var totals = financePrintTotalsV332(current.day, advances);
+      var sections = financePrintSectionsV332(current.day, advances);
+      var pages = financePrintPagesV332(sections);
+      var printedAt = financePrintDateTimeV332();
+      var context = {
+        company: company,
+        logo: logo,
+        symbolUrl: symbolUrl,
+        printedAt: printedAt,
+        date: current.date,
+        day: current.day,
+        totals: totals,
+      };
+      var pageHtml = pages
+        .map(function (page, index) {
+          return financePrintPageV332(
+            page,
+            index,
+            pages.length,
+            context,
+          );
+        })
+        .join("");
+      var html =
+        '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>التقرير المالي اليومي - ' +
+        financePrintEscapeV332(current.date) +
+        '</title><link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&display=swap" rel="stylesheet"><style>' +
+        financePrintCssV332() +
+        "</style></head><body>" +
+        pageHtml +
+        "</body></html>";
+      var frame = document.createElement("iframe");
+      frame.className = "report-print-frame finance-day-print-frame-v332";
+      frame.setAttribute("aria-hidden", "true");
+      frame.style.cssText =
+        "position:fixed;left:0;bottom:0;width:0;height:0;border:0;opacity:0";
+      document.body.appendChild(frame);
+      var doc = frame.contentWindow && frame.contentWindow.document;
+      if (!doc) throw new Error("finance-print-document-unavailable");
+      doc.open();
+      doc.write(html);
+      doc.close();
+      var printed = false;
+      function runPrint() {
+        if (printed) return;
+        printed = true;
+        var images = Array.from(doc.images || []);
+        Promise.all(
+          images.map(function (image) {
+            if (image.complete) return Promise.resolve();
+            return new Promise(function (resolve) {
+              image.addEventListener("load", resolve, { once: true });
+              image.addEventListener("error", resolve, { once: true });
+              setTimeout(resolve, 900);
+            });
+          }),
+        )
+          .then(function () {
+            return doc.fonts && doc.fonts.ready
+              ? Promise.race([
+                  doc.fonts.ready,
+                  new Promise(function (resolve) {
+                    setTimeout(resolve, 900);
+                  }),
+                ])
+              : null;
+          })
+          .finally(function () {
+            try {
+              frame.contentWindow.focus();
+              frame.contentWindow.print();
+            } catch (error) {
+              console.warn("v332: تعذر طباعة التقرير المالي اليومي.", error);
+              try {
+                showToast("تعذر فتح نافذة طباعة التقرير المالي");
+              } catch (_) {}
+            }
+            setTimeout(function () {
+              try {
+                frame.remove();
+              } catch (_) {}
+            }, 3000);
+          });
+      }
+      frame.onload = function () {
+        setTimeout(runPrint, 180);
+      };
+      setTimeout(runPrint, 700);
+      return true;
+    } catch (error) {
+      console.warn("v332: تعذر تجهيز التقرير المالي اليومي.", error);
+      try {
+        showToast("تعذر تجهيز التقرير المالي لهذا اليوم");
+      } catch (_) {}
+      return false;
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+      }
+    }
+  }
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      var button =
+        event.target &&
+        event.target.closest &&
+        event.target.closest("[data-finance-print-day]");
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      financePrintDayV332();
+    },
+    true,
+  );
+
+  window.nawahFinanceDailyPrintV332 = {
+    version: 332,
+    printCurrentDay: financePrintDayV332,
+    previewData: function () {
+      var current = financePrintCurrentV332();
+      var advances = financePrintAdvanceGroupsV332(current.date);
+      return {
+        date: current.date,
+        day: current.day,
+        totals: financePrintTotalsV332(current.day, advances),
+        advances: advances,
+      };
     },
   };
 })();

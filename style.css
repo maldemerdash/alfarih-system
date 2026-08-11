@@ -44119,3 +44119,34 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
   font-size: 8.5px !important;
   line-height: 1.2 !important;
 }
+
+/* v332 - Daily finance report action. The printable document owns its own
+   landscape A4 stylesheet so the finance screen remains visually unchanged. */
+#financeView .finance-print-day-btn-v332 {
+  min-height: 42px;
+  padding-inline: 15px;
+  border-color: rgba(18, 148, 184, 0.24);
+  background: #ffffff;
+  color: #08758a;
+  box-shadow: 0 8px 22px rgba(15, 89, 104, 0.06);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+#financeView .finance-print-day-btn-v332:hover {
+  border-color: rgba(18, 148, 184, 0.42);
+  background: #f2fbfc;
+  color: #05677a;
+}
+
+#financeView .finance-print-day-btn-v332 svg {
+  width: 17px;
+  height: 17px;
+}
+
+@media (max-width: 1120px) {
+  #financeView .finance-print-day-btn-v332 {
+    flex: 1 1 132px;
+    justify-content: center;
+  }
+}
