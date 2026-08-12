@@ -87609,22 +87609,8 @@ window.nawahContractDateCorrectionV321 = {
         ];
       },
     );
-    var deleted = (Array.isArray(day.deletedPending)
-      ? day.deletedPending
-      : []
-    )
-      .slice()
-      .reverse()
-      .map(function (row) {
-        return [
-          financePrintMoneyV332(row && row.amount),
-          (row && row.note) || "—",
-          (row && row.deletedBy) || "النظام",
-          financePrintDateTimeV332(row && row.deletedAt),
-        ];
-      });
     return {
-      finance: [
+      tables: [
         {
           key: "pending",
           title: "المبالغ المعلقة",
@@ -87632,6 +87618,14 @@ window.nawahContractDateCorrectionV321 = {
           columns: ["المبلغ", "البيان"],
           rows: pending,
           noteIndex: 1,
+        },
+        {
+          key: "advances",
+          title: "السلفيات",
+          tone: "negative",
+          columns: ["اسم الموظف", "إجمالي السلفية"],
+          rows: advances,
+          noteIndex: 0,
         },
         {
           key: "expenses",
@@ -87658,32 +87652,13 @@ window.nawahContractDateCorrectionV321 = {
           noteIndex: -1,
         },
       ],
-      bottom: [
-        {
-          key: "advances",
-          title: "السلفيات",
-          tone: "negative",
-          columns: ["اسم الموظف", "إجمالي السلفية"],
-          rows: advances,
-          noteIndex: 0,
-        },
-        {
-          key: "deleted",
-          title: "سجل المبالغ المعلقة المحذوفة",
-          tone: "audit",
-          columns: ["المبلغ", "البيان", "حذف بواسطة", "التاريخ"],
-          rows: deleted,
-          noteIndex: 1,
-          optional: true,
-        },
-      ],
     };
   }
 
   function financePrintRowUnitsV332(row, noteIndex) {
     if (noteIndex == null || noteIndex < 0) return 1;
     var text = String((row && row[noteIndex]) || "");
-    return Math.max(1, Math.min(7, Math.ceil(text.length / 46)));
+    return Math.max(1, Math.min(7, Math.ceil(text.length / 110)));
   }
 
   function financePrintTakeRowsV332(section, start, budget) {
@@ -87706,54 +87681,74 @@ window.nawahContractDateCorrectionV321 = {
   }
 
   function financePrintPagesV332(sections) {
-    var all = sections.finance.concat(sections.bottom);
-    var cursors = {};
-    all.forEach(function (section) {
-      cursors[section.key] = 0;
-    });
-    var pages = [];
+    var tables = Array.isArray(sections.tables) ? sections.tables : [];
+    var pages = [{ first: true, tables: [], used: 0, capacity: 24 }];
     var guard = 0;
-    function hasRemaining() {
-      return all.some(function (section) {
-        return cursors[section.key] < (section.rows || []).length;
-      });
+    function currentPage() {
+      return pages[pages.length - 1];
     }
-    do {
-      var first = pages.length === 0;
-      var financeBudget = first ? 10 : 18;
-      var bottomBudget = first ? 4 : 8;
-      var financeChunks = [];
-      var bottomChunks = [];
-      sections.finance.forEach(function (section) {
+    function newPage() {
+      pages.push({ first: false, tables: [], used: 0, capacity: 33 });
+      return currentPage();
+    }
+    tables.forEach(function (section) {
+      var rows = Array.isArray(section.rows) ? section.rows : [];
+      if (!rows.length) {
+        var emptyCost = 3;
+        var page = currentPage();
+        if (page.capacity - page.used < emptyCost && page.tables.length)
+          page = newPage();
+        page.tables.push({
+          section: section,
+          rows: [],
+          continuation: false,
+        });
+        page.used += emptyCost;
+        return;
+      }
+      var cursor = 0;
+      var continuation = false;
+      while (cursor < rows.length && guard < 500) {
+        guard += 1;
+        var page = currentPage();
+        var overhead = 2;
+        var available = page.capacity - page.used - overhead;
+        var nextUnits = financePrintRowUnitsV332(
+          rows[cursor],
+          section.noteIndex,
+        );
+        if (available < Math.max(1, nextUnits)) {
+          page = newPage();
+          available = page.capacity - overhead;
+        }
         var taken = financePrintTakeRowsV332(
           section,
-          cursors[section.key],
-          financeBudget,
+          cursor,
+          Math.max(1, available),
         );
-        cursors[section.key] = taken.next;
-        if (first || taken.rows.length)
-          financeChunks.push({ section: section, rows: taken.rows });
-      });
-      sections.bottom.forEach(function (section) {
-        var taken = financePrintTakeRowsV332(
-          section,
-          cursors[section.key],
-          bottomBudget,
-        );
-        cursors[section.key] = taken.next;
-        if (
-          taken.rows.length ||
-          (first && !section.optional)
-        )
-          bottomChunks.push({ section: section, rows: taken.rows });
-      });
-      pages.push({
-        first: first,
-        finance: financeChunks,
-        bottom: bottomChunks,
-      });
-      guard += 1;
-    } while (hasRemaining() && guard < 100);
+        var usedRows = taken.rows.reduce(function (sum, row) {
+          return (
+            sum +
+            financePrintRowUnitsV332(row, section.noteIndex)
+          );
+        }, 0);
+        page.tables.push({
+          section: section,
+          rows: taken.rows,
+          continuation: continuation,
+        });
+        page.used += overhead + usedRows;
+        cursor = taken.next;
+        if (cursor < rows.length) {
+          newPage();
+          continuation = true;
+        }
+      }
+    });
+    pages.forEach(function (page) {
+      delete page.used;
+      delete page.capacity;
+    });
     return pages;
   }
 
@@ -87830,7 +87825,8 @@ window.nawahContractDateCorrectionV321 = {
                 .map(function (cell, index) {
                   return (
                     '<td class="' +
-                    (index === 0 && section.key !== "advances"
+                    ((section.key === "advances" && index === 1) ||
+                    (section.key !== "advances" && index === 0)
                       ? "numeric"
                       : "") +
                     '">' +
@@ -87849,8 +87845,11 @@ window.nawahContractDateCorrectionV321 = {
     return (
       '<section class="report-table-card ' +
       financePrintEscapeV332(section.tone || "") +
+      '" data-finance-report-table="' +
+      financePrintEscapeV332(section.key) +
       '"><h3>' +
       financePrintEscapeV332(section.title) +
+      (chunk.continuation ? " — متابعة" : "") +
       '</h3><table><thead><tr>' +
       (section.columns || [])
         .map(function (column) {
@@ -87901,23 +87900,9 @@ window.nawahContractDateCorrectionV321 = {
     context,
   ) {
     var dayStatus = context.day.isClosed ? "مغلق" : "مفتوح";
-    var closedText =
-      context.day.isClosed && context.day.closedAt
-        ? " • تم الإغلاق: " +
-          financePrintDateTimeV332(context.day.closedAt)
-        : "";
-    var financeGrid = page.finance.length
-      ? '<div class="finance-table-grid" style="--table-count:' +
-        Math.max(1, page.finance.length) +
-        '">' +
-        page.finance.map(financePrintTableV332).join("") +
-        "</div>"
-      : "";
-    var bottomGrid = page.bottom.length
-      ? '<div class="bottom-table-grid" style="--table-count:' +
-        Math.max(1, page.bottom.length) +
-        '">' +
-        page.bottom.map(financePrintTableV332).join("") +
+    var tableSequence = page.tables.length
+      ? '<div class="finance-table-sequence">' +
+        page.tables.map(financePrintTableV332).join("") +
         "</div>"
       : "";
     return (
@@ -87938,11 +87923,8 @@ window.nawahContractDateCorrectionV321 = {
       '</strong></div></section>' +
       (page.first
         ? financePrintSummaryV332(context.totals, context.symbolUrl)
-        : '<div class="continuation-note">استكمال تفاصيل اليوم المالي نفسه' +
-          financePrintEscapeV332(closedText) +
-          "</div>") +
-      financeGrid +
-      bottomGrid +
+        : "") +
+      tableSequence +
       '<footer class="report-footer"><span>تقرير يوم مالي واحد من نظام إدارة الموظفين</span><strong>صفحة ' +
       (index + 1) +
       " من " +
@@ -87958,7 +87940,7 @@ window.nawahContractDateCorrectionV321 = {
       '@page{size:A4 landscape;margin:8mm}',
       '*{box-sizing:border-box}',
       'html,body{margin:0;padding:0;background:#fff;color:#172033;font-family:"Almarai","Segoe UI",Tahoma,Arial,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
-      '.finance-report-page{width:100%;height:193mm;display:flex;flex-direction:column;gap:3mm;overflow:hidden;break-after:page;page-break-after:always}',
+      '.finance-report-page{width:100%;height:193mm;display:flex;flex-direction:column;gap:2mm;overflow:hidden;break-after:page;page-break-after:always}',
       '.finance-report-page:last-child{break-after:auto;page-break-after:auto}',
       '.report-header{min-height:21mm;display:flex;align-items:center;justify-content:space-between;gap:8mm;padding:0 1.5mm 2.4mm;border-bottom:1.5px solid #13a3b7}',
       '.company-brand{display:flex;align-items:center;gap:3mm;min-width:0}',
@@ -87976,16 +87958,16 @@ window.nawahContractDateCorrectionV321 = {
       '.summary-card>span{color:#64748b;font-size:6.6px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.report-money{display:flex;align-items:center;gap:1mm;direction:ltr;justify-content:flex-end;color:#172033}.report-money b{font-family:"Segoe UI",Arial,sans-serif;font-size:11.5px;line-height:1;font-weight:900}.report-money img{width:4.2mm;height:4.2mm;object-fit:contain}',
       '.summary-card.positive:before{background:#22b573}.summary-card.positive .report-money{color:#13885b}.summary-card.negative:before{background:#ef5b62}.summary-card.negative .report-money{color:#ca4049}.summary-card.fund{background:linear-gradient(135deg,#f0fbf5,#fff);border-color:#bee8d0}.summary-card.fund:before{background:#16a765}.summary-card.carried{background:#f6fbff}.summary-card.carried-new{background:#f4f6ff}.summary-card small{font-size:5.9px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.summary-card small.match{color:#07875b}.summary-card small.unmatch{color:#c2414a}',
-      '.finance-table-grid,.bottom-table-grid{display:grid;grid-template-columns:repeat(var(--table-count),minmax(0,1fr));gap:2mm;align-items:start}',
+      '.finance-table-sequence{display:flex;min-height:0;flex-direction:column;gap:1.2mm;align-items:stretch}',
       '.report-table-card{min-width:0;border:1px solid #dfe8ed;border-top:2px solid #13a3b7;border-radius:3mm;overflow:hidden;background:#fff;break-inside:avoid}',
       '.report-table-card.positive{border-top-color:#20b56f}.report-table-card.negative{border-top-color:#ef5b62}.report-table-card.audit{border-top-color:#78909c}',
-      '.report-table-card h3{margin:0;padding:1.7mm 2mm;border-bottom:1px solid #e4edf1;background:#fbfdfe;color:#172033;font-size:8.2px;line-height:1.15}',
+      '.report-table-card h3{margin:0;padding:1.35mm 2mm;border-bottom:1px solid #e4edf1;background:#fbfdfe;color:#172033;font-size:8.2px;line-height:1.15}',
       '.report-table-card table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7.2px}',
-      '.report-table-card th,.report-table-card td{height:4.25mm;padding:.8mm 1.2mm;border-bottom:1px solid #e5edf1;text-align:right;vertical-align:middle;line-height:1.2;overflow-wrap:anywhere}',
-      '.report-table-card th{height:4.7mm;background:#f0f7f9;color:#0f5968;font-weight:800;font-size:6.7px}',
+      '.report-table-card th,.report-table-card td{height:4mm;padding:.65mm 1.4mm;border-bottom:1px solid #e5edf1;text-align:right;vertical-align:middle;line-height:1.2;overflow-wrap:anywhere}',
+      '.report-table-card th{height:4.35mm;background:#f0f7f9;color:#0f5968;font-weight:800;font-size:6.7px}',
       '.report-table-card tbody tr:nth-child(even) td{background:#fbfdfe}.report-table-card tbody tr:last-child td{border-bottom:0}.report-table-card td.numeric{direction:ltr;text-align:center;font-family:"Segoe UI",Arial,sans-serif;font-weight:800;color:#172033}.report-table-card .empty-row td{text-align:center;color:#94a3b8}',
-      '.bottom-table-grid .report-table-card table{font-size:7px}.bottom-table-grid{margin-top:auto}',
-      '.continuation-note{padding:1.8mm 3mm;border:1px solid #dbe9ee;border-radius:2.5mm;background:#f8fbfc;color:#54717a;font-size:7.4px;font-weight:800}',
+      '.report-table-card[data-finance-report-table="pending"] th:first-child,.report-table-card[data-finance-report-table="pending"] td:first-child,.report-table-card[data-finance-report-table="expenses"] th:first-child,.report-table-card[data-finance-report-table="expenses"] td:first-child{width:18%;text-align:center}',
+      '.report-table-card[data-finance-report-table="advances"] th:first-child,.report-table-card[data-finance-report-table="advances"] td:first-child{width:76%}.report-table-card[data-finance-report-table="advances"] th:last-child,.report-table-card[data-finance-report-table="advances"] td:last-child{width:24%;text-align:center}',
       '.report-footer{margin-top:auto;min-height:7mm;display:flex;align-items:center;justify-content:space-between;gap:4mm;padding-top:1.6mm;border-top:1px solid #dbe3e8;color:#64748b;font-size:6.8px}.report-footer strong{color:#08758a;font-size:7.5px}',
       '@media print{html,body{width:auto;height:auto}.finance-report-page{break-inside:avoid;page-break-inside:avoid}}',
     ].join("");
@@ -88152,7 +88134,7 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 332,
+    version: 333,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();
