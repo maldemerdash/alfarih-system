@@ -87256,7 +87256,7 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v332 - One-day, landscape A4 finance report with deterministic pagination. */
+/* v334 - One-day landscape report with five parallel vertical finance tables. */
 (function () {
   if (window.__nawahFinanceDailyPrintV332) return;
   window.__nawahFinanceDailyPrintV332 = true;
@@ -87682,73 +87682,49 @@ window.nawahContractDateCorrectionV321 = {
 
   function financePrintPagesV332(sections) {
     var tables = Array.isArray(sections.tables) ? sections.tables : [];
-    var pages = [{ first: true, tables: [], used: 0, capacity: 24 }];
-    var guard = 0;
-    function currentPage() {
-      return pages[pages.length - 1];
-    }
-    function newPage() {
-      pages.push({ first: false, tables: [], used: 0, capacity: 33 });
-      return currentPage();
-    }
+    var cursors = {};
     tables.forEach(function (section) {
-      var rows = Array.isArray(section.rows) ? section.rows : [];
-      if (!rows.length) {
-        var emptyCost = 3;
-        var page = currentPage();
-        if (page.capacity - page.used < emptyCost && page.tables.length)
-          page = newPage();
-        page.tables.push({
-          section: section,
-          rows: [],
-          continuation: false,
-        });
-        page.used += emptyCost;
-        return;
-      }
-      var cursor = 0;
-      var continuation = false;
-      while (cursor < rows.length && guard < 500) {
-        guard += 1;
-        var page = currentPage();
-        var overhead = 2;
-        var available = page.capacity - page.used - overhead;
-        var nextUnits = financePrintRowUnitsV332(
-          rows[cursor],
-          section.noteIndex,
-        );
-        if (available < Math.max(1, nextUnits)) {
-          page = newPage();
-          available = page.capacity - overhead;
+      cursors[section.key] = 0;
+    });
+    var pages = [];
+    var guard = 0;
+    function hasRemaining() {
+      return tables.some(function (section) {
+        return cursors[section.key] < (section.rows || []).length;
+      });
+    }
+    do {
+      var first = pages.length === 0;
+      var rowBudget = first ? 24 : 33;
+      var pageTables = tables.map(function (section) {
+        var rows = Array.isArray(section.rows) ? section.rows : [];
+        var start = cursors[section.key] || 0;
+        if (start >= rows.length) {
+          return {
+            section: section,
+            rows: [],
+            continuation: !first && rows.length > 0,
+            exhausted: rows.length > 0,
+            empty: rows.length === 0,
+          };
         }
         var taken = financePrintTakeRowsV332(
           section,
-          cursor,
-          Math.max(1, available),
+          start,
+          rowBudget,
         );
-        var usedRows = taken.rows.reduce(function (sum, row) {
-          return (
-            sum +
-            financePrintRowUnitsV332(row, section.noteIndex)
-          );
-        }, 0);
-        page.tables.push({
+        cursors[section.key] = taken.next;
+        return {
           section: section,
           rows: taken.rows,
-          continuation: continuation,
-        });
-        page.used += overhead + usedRows;
-        cursor = taken.next;
-        if (cursor < rows.length) {
-          newPage();
-          continuation = true;
-        }
-      }
-    });
-    pages.forEach(function (page) {
-      delete page.used;
-      delete page.capacity;
-    });
+          continuation: start > 0,
+          exhausted: false,
+          empty: false,
+        };
+      });
+      pages.push({ first: first, tables: pageTables });
+      guard += 1;
+    } while (hasRemaining() && guard < 100);
     return pages;
   }
 
@@ -87841,10 +87817,15 @@ window.nawahContractDateCorrectionV321 = {
           .join("")
       : '<tr class="empty-row"><td colspan="' +
         columnCount +
-        '">لا توجد سجلات لهذا اليوم</td></tr>';
+        '">' +
+        (chunk.exhausted
+          ? "اكتملت البيانات في الصفحة السابقة"
+          : "لا توجد سجلات لهذا اليوم") +
+        "</td></tr>";
     return (
       '<section class="report-table-card ' +
       financePrintEscapeV332(section.tone || "") +
+      (chunk.exhausted ? " is-exhausted" : "") +
       '" data-finance-report-table="' +
       financePrintEscapeV332(section.key) +
       '"><h3>' +
@@ -87958,16 +87939,17 @@ window.nawahContractDateCorrectionV321 = {
       '.summary-card>span{color:#64748b;font-size:6.6px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.report-money{display:flex;align-items:center;gap:1mm;direction:ltr;justify-content:flex-end;color:#172033}.report-money b{font-family:"Segoe UI",Arial,sans-serif;font-size:11.5px;line-height:1;font-weight:900}.report-money img{width:4.2mm;height:4.2mm;object-fit:contain}',
       '.summary-card.positive:before{background:#22b573}.summary-card.positive .report-money{color:#13885b}.summary-card.negative:before{background:#ef5b62}.summary-card.negative .report-money{color:#ca4049}.summary-card.fund{background:linear-gradient(135deg,#f0fbf5,#fff);border-color:#bee8d0}.summary-card.fund:before{background:#16a765}.summary-card.carried{background:#f6fbff}.summary-card.carried-new{background:#f4f6ff}.summary-card small{font-size:5.9px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.summary-card small.match{color:#07875b}.summary-card small.unmatch{color:#c2414a}',
-      '.finance-table-sequence{display:flex;min-height:0;flex-direction:column;gap:1.2mm;align-items:stretch}',
+      '.finance-table-sequence{display:grid;min-height:0;grid-template-columns:minmax(0,1.35fr) minmax(0,1.1fr) minmax(0,1.35fr) minmax(0,.8fr) minmax(0,.8fr);gap:1.2mm;align-items:start;direction:rtl}',
       '.report-table-card{min-width:0;border:1px solid #dfe8ed;border-top:2px solid #13a3b7;border-radius:3mm;overflow:hidden;background:#fff;break-inside:avoid}',
       '.report-table-card.positive{border-top-color:#20b56f}.report-table-card.negative{border-top-color:#ef5b62}.report-table-card.audit{border-top-color:#78909c}',
-      '.report-table-card h3{margin:0;padding:1.35mm 2mm;border-bottom:1px solid #e4edf1;background:#fbfdfe;color:#172033;font-size:8.2px;line-height:1.15}',
-      '.report-table-card table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7.2px}',
-      '.report-table-card th,.report-table-card td{height:4mm;padding:.65mm 1.4mm;border-bottom:1px solid #e5edf1;text-align:right;vertical-align:middle;line-height:1.2;overflow-wrap:anywhere}',
+      '.report-table-card h3{margin:0;padding:1.35mm 1.5mm;border-bottom:1px solid #e4edf1;background:#fbfdfe;color:#172033;font-size:8px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.report-table-card table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7px}',
+      '.report-table-card th,.report-table-card td{height:4mm;padding:.65mm 1mm;border-bottom:1px solid #e5edf1;text-align:right;vertical-align:middle;line-height:1.2;overflow-wrap:anywhere}',
       '.report-table-card th{height:4.35mm;background:#f0f7f9;color:#0f5968;font-weight:800;font-size:6.7px}',
       '.report-table-card tbody tr:nth-child(even) td{background:#fbfdfe}.report-table-card tbody tr:last-child td{border-bottom:0}.report-table-card td.numeric{direction:ltr;text-align:center;font-family:"Segoe UI",Arial,sans-serif;font-weight:800;color:#172033}.report-table-card .empty-row td{text-align:center;color:#94a3b8}',
-      '.report-table-card[data-finance-report-table="pending"] th:first-child,.report-table-card[data-finance-report-table="pending"] td:first-child,.report-table-card[data-finance-report-table="expenses"] th:first-child,.report-table-card[data-finance-report-table="expenses"] td:first-child{width:18%;text-align:center}',
-      '.report-table-card[data-finance-report-table="advances"] th:first-child,.report-table-card[data-finance-report-table="advances"] td:first-child{width:76%}.report-table-card[data-finance-report-table="advances"] th:last-child,.report-table-card[data-finance-report-table="advances"] td:last-child{width:24%;text-align:center}',
+      '.report-table-card[data-finance-report-table="pending"] th:first-child,.report-table-card[data-finance-report-table="pending"] td:first-child,.report-table-card[data-finance-report-table="expenses"] th:first-child,.report-table-card[data-finance-report-table="expenses"] td:first-child{width:34%;text-align:center}',
+      '.report-table-card[data-finance-report-table="advances"] th:first-child,.report-table-card[data-finance-report-table="advances"] td:first-child{width:62%}.report-table-card[data-finance-report-table="advances"] th:last-child,.report-table-card[data-finance-report-table="advances"] td:last-child{width:38%;text-align:center}',
+      '.report-table-card.is-exhausted{opacity:.5}.report-table-card.is-exhausted .empty-row td{color:#94a3b8;font-size:6.2px}',
       '.report-footer{margin-top:auto;min-height:7mm;display:flex;align-items:center;justify-content:space-between;gap:4mm;padding-top:1.6mm;border-top:1px solid #dbe3e8;color:#64748b;font-size:6.8px}.report-footer strong{color:#08758a;font-size:7.5px}',
       '@media print{html,body{width:auto;height:auto}.finance-report-page{break-inside:avoid;page-break-inside:avoid}}',
     ].join("");
@@ -88134,7 +88116,7 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 333,
+    version: 334,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();
