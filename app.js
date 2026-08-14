@@ -6148,6 +6148,18 @@ async function printAbsenceMinute(e) {
   );
 }
 function openAbsenceModal() {
+  const workdayRule = window.nawahWorkdayTransactionRulesV335?.status?.(
+    selectedAttendanceDate,
+  );
+  if (workdayRule && !workdayRule.allowed) {
+    showToast(
+      window.nawahWorkdayTransactionRulesV335.message(
+        "الغياب",
+        workdayRule,
+      ),
+    );
+    return false;
+  }
   populateFormOptions();
   const e = document.querySelector("#absenceForm");
   e.reset();
@@ -6160,6 +6172,7 @@ function openAbsenceModal() {
     window.nawahDatePickerV277 ||
     window.nawahDatePickerV276
   )?.sync?.();
+  return true;
 }
 async function handleAbsenceSubmit(e) {
   e.preventDefault();
@@ -6167,10 +6180,6 @@ async function handleAbsenceSubmit(e) {
   if (t.dataset.v224Saving === "true") return;
   t.dataset.v224Saving = "true";
   try {
-  if (!(await prepareAttendanceCloudMutationV224()))
-    return void showToast(
-      "تعذر الاتصال بالسحابة؛ لم يُسجل الغياب لحماية البيانات",
-    );
   const
     n = Object.fromEntries(new FormData(t).entries()),
     a = n.from,
@@ -6188,6 +6197,23 @@ async function handleAbsenceSubmit(e) {
     );
   if (parseDate(a) > parseDate(o))
     return void showToast("تاريخ نهاية الغياب يجب أن يكون بعد تاريخ البداية");
+  const blockedWorkday =
+    window.nawahWorkdayTransactionRulesV335?.firstBlocked?.(
+      a,
+      o,
+      absenceEmployee || null,
+    );
+  if (blockedWorkday)
+    return void showToast(
+      window.nawahWorkdayTransactionRulesV335.message(
+        "الغياب",
+        blockedWorkday,
+      ),
+    );
+  if (!(await prepareAttendanceCloudMutationV224()))
+    return void showToast(
+      "تعذر الاتصال بالسحابة؛ لم يُسجل الغياب لحماية البيانات",
+    );
   const r = attendanceExceptions.find(
     (e) =>
       e.employeeId === n.employeeId && dateRangesOverlap(e.from, e.to, a, o),
@@ -19991,7 +20017,7 @@ async function init() {
       } catch (e) {}
       return e;
     }
-    function V() {
+    function V(transactionDate = "") {
       if (!E()) {
         try {
           showToast("ليست لديك صلاحية إضافة السلفيات");
@@ -20004,9 +20030,23 @@ async function init() {
         } catch (e) {}
         return;
       }
+      const rules = window.nawahWorkdayTransactionRulesV335,
+        advanceDate = rules?.normalizeDate?.(transactionDate) ||
+          rules?.today?.() ||
+          ("function" == typeof formatInputDate
+            ? formatInputDate(todayAtNoon())
+            : new Date().toISOString().slice(0, 10)),
+        workdayRule = rules?.status?.(advanceDate);
+      if (workdayRule && !workdayRule.allowed) {
+        try {
+          showToast(rules.message("السلفة", workdayRule));
+        } catch (_) {}
+        return;
+      }
       const e = j(),
         t = e.querySelector("#advanceEmployeeSelect"),
         n = e.querySelector("#advanceAmountInput");
+      e.dataset.workdayTransactionDate = advanceDate;
       (t &&
         (t.innerHTML = `<option value="">اختر الموظف</option>${h()
           .filter(isOnDutyEmployee)
@@ -20035,29 +20075,43 @@ async function init() {
       if (advanceMutationInFlight) return !1;
       advanceMutationInFlight = true;
       try {
-      if (!(await preparePayrollMutationV225())) {
-        try {
-          showToast("تعذر الاتصال بالسحابة؛ لم تُعتمد السلفة لحماية البيانات");
-        } catch (_) {}
-        return !1;
-      }
       const t = j(),
         a = t.querySelector("#advanceEmployeeSelect")?.value || "",
-        r = (function (e) {
-          const t = String(e ?? "")
-              .replace(/[٠-٩]/g, (e) => String("٠١٢٣٤٥٦٧٨٩".indexOf(e)))
-              .replace(/,/g, "")
-              .replace(/[^0-9.\-]/g, ""),
-            n = Number(t);
-          return Number.isFinite(n) ? n : 0;
-        })(t.querySelector("#advanceAmountInput")?.value || ""),
-        i = M(a);
+        i = M(a),
+        rules = window.nawahWorkdayTransactionRulesV335,
+        transactionDate =
+          rules?.normalizeDate?.(t.dataset.workdayTransactionDate) ||
+          rules?.today?.() ||
+          ("function" == typeof formatInputDate
+            ? formatInputDate(todayAtNoon())
+            : new Date().toISOString().slice(0, 10));
       if (!i) {
         try {
           showToast("اختر الموظف");
         } catch (e) {}
         return !1;
       }
+      const workdayRule = rules?.status?.(transactionDate, i);
+      if (workdayRule && !workdayRule.allowed) {
+        try {
+          showToast(rules.message("السلفة", workdayRule));
+        } catch (_) {}
+        return !1;
+      }
+      if (!(await preparePayrollMutationV225())) {
+        try {
+          showToast("تعذر الاتصال بالسحابة؛ لم تُعتمد السلفة لحماية البيانات");
+        } catch (_) {}
+        return !1;
+      }
+      const r = (function (e) {
+          const t = String(e ?? "")
+              .replace(/[٠-٩]/g, (e) => String("٠١٢٣٤٥٦٧٨٩".indexOf(e)))
+              .replace(/,/g, "")
+              .replace(/[^0-9.\-]/g, ""),
+            n = Number(t);
+          return Number.isFinite(n) ? n : 0;
+        })(t.querySelector("#advanceAmountInput")?.value || "");
       if (!(r > 0)) {
         try {
           showToast("أدخل قيمة السلفة");
@@ -20107,15 +20161,7 @@ async function init() {
       }
       var u;
       const m = new Date(),
-        y = (function (e) {
-          try {
-            return "function" == typeof formatInputDate
-              ? formatInputDate(e)
-              : new Date(e).toISOString().slice(0, 10);
-          } catch (e) {
-            return new Date().toISOString().slice(0, 10);
-          }
-        })(m),
+        y = transactionDate,
         h = {
           id: `adv-${Date.now()}-${Math.random().toString(16).slice(2)}`,
           employeeId: a,
@@ -25288,7 +25334,7 @@ async function init() {
           if (a) {
             (e.preventDefault?.(), e.stopPropagation?.());
             try {
-              window.openAdvanceModal?.();
+              window.openAdvanceModal?.(d);
             } catch (e) {}
             return void setTimeout(() => H(!0), 300);
           }
@@ -88128,5 +88174,248 @@ window.nawahContractDateCorrectionV321 = {
         advances: advances,
       };
     },
+  };
+})();
+
+/* v335 - Workday transaction guard for absence and payroll advances. */
+(function () {
+  if (window.__nawahWorkdayTransactionRulesV335) return;
+  window.__nawahWorkdayTransactionRulesV335 = true;
+
+  var DAY_NAMES_V335 = [
+    "الأحد",
+    "الإثنين",
+    "الثلاثاء",
+    "الأربعاء",
+    "الخميس",
+    "الجمعة",
+    "السبت",
+  ];
+
+  function parseDateV335(value) {
+    var match = String(value || "")
+      .slice(0, 10)
+      .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    var year = Number(match[1]);
+    var month = Number(match[2]);
+    var day = Number(match[3]);
+    var date = new Date(year, month - 1, day, 12, 0, 0, 0);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    )
+      return null;
+    return date;
+  }
+
+  function dateValueV335(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+  }
+
+  function normalizeDateV335(value) {
+    var date = parseDateV335(value);
+    return date ? dateValueV335(date) : "";
+  }
+
+  function todayV335() {
+    try {
+      var parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Riyadh",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(new Date());
+      var map = {};
+      parts.forEach(function (part) {
+        if (part.type !== "literal") map[part.type] = part.value;
+      });
+      return map.year + "-" + map.month + "-" + map.day;
+    } catch (_) {
+      return dateValueV335(new Date());
+    }
+  }
+
+  function periodMinutesV335(start, end) {
+    var left = String(start || "").match(/^(\d{2}):(\d{2})$/);
+    var right = String(end || "").match(/^(\d{2}):(\d{2})$/);
+    if (!left || !right) return 0;
+    var from = Number(left[1]) * 60 + Number(left[2]);
+    var to = Number(right[1]) * 60 + Number(right[2]);
+    if (to < from) to += 1440;
+    return Math.max(0, to - from);
+  }
+
+  function fallbackScheduleV335(date) {
+    var stored = null;
+    try {
+      stored = JSON.parse(localStorage.getItem("nawah-work-settings") || "null");
+    } catch (_) {}
+    var index = date.getDay();
+    var day =
+      (stored && stored.days && (stored.days[index] || stored.days[String(index)])) ||
+      null;
+    var shifts = Array.isArray(day && day.shifts) ? day.shifts : [];
+    return {
+      enabled: Boolean(day && day.enabled),
+      shifts: shifts.map(function (shift) {
+        return {
+          start: shift && shift.start,
+          end: shift && shift.end,
+          minutes: periodMinutesV335(shift && shift.start, shift && shift.end),
+        };
+      }),
+    };
+  }
+
+  function statusV335(value, subject) {
+    var dateValue = normalizeDateV335(value);
+    var date = parseDateV335(dateValue);
+    if (!date)
+      return {
+        allowed: false,
+        date: "",
+        dayIndex: null,
+        dayName: "—",
+        reason: "invalid-date",
+        schedule: null,
+      };
+    var schedule = null;
+    try {
+      if (typeof workScheduleForDate === "function")
+        schedule = workScheduleForDate(dateValue, subject || null);
+    } catch (_) {
+      schedule = null;
+    }
+    if (!schedule) schedule = fallbackScheduleV335(date);
+    var activePeriods = (Array.isArray(schedule.shifts) ? schedule.shifts : [])
+      .map(function (shift) {
+        return Number(shift && shift.minutes) ||
+          periodMinutesV335(shift && shift.start, shift && shift.end);
+      })
+      .filter(function (minutes) {
+        return minutes > 0;
+      });
+    var enabled = Boolean(schedule.enabled);
+    var allowed = enabled && activePeriods.length > 0;
+    return {
+      allowed: allowed,
+      date: dateValue,
+      dayIndex: date.getDay(),
+      dayName: DAY_NAMES_V335[date.getDay()] || "—",
+      reason: enabled ? (allowed ? "workday" : "no-active-period") : "disabled-day",
+      schedule: schedule,
+      activePeriods: activePeriods.length,
+    };
+  }
+
+  function firstBlockedV335(from, to, subject) {
+    var start = parseDateV335(normalizeDateV335(from));
+    var end = parseDateV335(normalizeDateV335(to || from));
+    if (!start || !end || start.getTime() > end.getTime()) return null;
+    var cursor = new Date(start.getTime());
+    var guard = 0;
+    while (cursor.getTime() <= end.getTime() && guard < 3700) {
+      var status = statusV335(dateValueV335(cursor), subject || null);
+      if (!status.allowed) return status;
+      cursor.setDate(cursor.getDate() + 1);
+      guard += 1;
+    }
+    return null;
+  }
+
+  function dateLabelV335(status) {
+    var date = parseDateV335(status && status.date);
+    if (!date) return "التاريخ المحدد";
+    try {
+      return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }).format(date);
+    } catch (_) {
+      return (status.dayName || "") + " " + status.date;
+    }
+  }
+
+  function messageV335(transaction, status) {
+    var label = dateLabelV335(status || {});
+    if (status && status.reason === "no-active-period")
+      return (
+        "لا يمكن تسجيل " +
+        transaction +
+        " في " +
+        label +
+        "؛ لا توجد فترة عمل نشطة لهذا اليوم في إعداد العمل."
+      );
+    return (
+      "لا يمكن تسجيل " +
+      transaction +
+      " في " +
+      label +
+      "؛ اليوم معطّل ومصنف إجازة في إعداد العمل."
+    );
+  }
+
+  function stopSubmitV335(event, message) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    try {
+      if (typeof showToast === "function") showToast(message);
+    } catch (_) {}
+  }
+
+  document.addEventListener(
+    "submit",
+    function (event) {
+      var form = event.target;
+      if (!form) return;
+      if (form.id === "absenceForm") {
+        var employee = null;
+        try {
+          if (typeof getEmployee === "function")
+            employee = getEmployee(form.elements.employeeId && form.elements.employeeId.value);
+        } catch (_) {}
+        var blocked = firstBlockedV335(
+          form.elements.from && form.elements.from.value,
+          form.elements.to && form.elements.to.value,
+          employee,
+        );
+        if (blocked) stopSubmitV335(event, messageV335("الغياب", blocked));
+        return;
+      }
+      if (form.id === "advanceForm") {
+        var dialog = form.closest("dialog");
+        var employeeId = form.querySelector("#advanceEmployeeSelect")?.value || "";
+        var advanceEmployee = null;
+        try {
+          if (typeof getEmployee === "function") advanceEmployee = getEmployee(employeeId);
+        } catch (_) {}
+        var advanceDate =
+          normalizeDateV335(dialog && dialog.dataset.workdayTransactionDate) ||
+          todayV335();
+        var advanceStatus = statusV335(advanceDate, advanceEmployee);
+        if (!advanceStatus.allowed)
+          stopSubmitV335(event, messageV335("السلفة", advanceStatus));
+      }
+    },
+    true,
+  );
+
+  window.nawahWorkdayTransactionRulesV335 = {
+    version: 335,
+    today: todayV335,
+    normalizeDate: normalizeDateV335,
+    status: statusV335,
+    firstBlocked: firstBlockedV335,
+    message: messageV335,
   };
 })();
