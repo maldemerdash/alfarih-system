@@ -5122,9 +5122,11 @@ async function handleEmployeeSubmit(e) {
   if (l) {
     switchEmployeeSection("identity");
     const e = `رقم الهوية مستخدم مسبقًا للموظف: ${l.name || "موظف آخر"}`;
-    return void ("function" == typeof showModalMessage
-      ? showModalMessage(e, "تنبيه رقم الهوية")
-      : showToast(e));
+    return void showToast(e, {
+      type: "warning",
+      detail: "تنبيه رقم الهوية",
+      duration: 4800,
+    });
   }
   if (s.length < 2)
     return (
@@ -6336,48 +6338,154 @@ function closeSidebar() {
   (document.querySelector("#sidebar").classList.remove("open"),
     document.querySelector("#sidebarOverlay").classList.remove("show"));
 }
-function showToast(e, t = {}) {
-  try {
-    if (window.nawahFinanceCloudNoticeV324?.shouldSuppressLower?.(e)) return;
-  } catch (_) {}
-  const n = document.querySelector("#toastContainer");
-  if (!n) return;
-  const a = document.createElement("div");
-  ((a.className = "toast"),
-    (a.innerHTML = `<span>${iconSvg("check")}</span><p>${escapeHtml(e)}</p>`),
-    n.appendChild(a),
-    Array.from(n.querySelectorAll(".toast"))
-      .slice(0, -3)
-      .forEach((e) => e.remove()));
-  const o = Number(t.duration || 2600);
-  window.setTimeout(() => {
-    a.isConnected &&
-      (a.classList.add("is-hiding"), window.setTimeout(() => a.remove(), 220));
-  }, o);
+function normalizeFeedbackOptionsV336(options) {
+  if (typeof options === "string") return { type: options };
+  if (typeof options === "number") return { duration: options };
+  return options && typeof options === "object" ? { ...options } : {};
 }
-function showBlockingConflictMessage(e, t = "لا يمكن تنفيذ الطلب") {
-  try {
-    if (window.showModalMessage && "function" == typeof window.showModalMessage)
-      return void window.showModalMessage(e, t);
-  } catch (e) {}
-  let n = document.querySelector("#systemConflictModal");
-  n ||
-    ((n = document.createElement("dialog")),
-    (n.id = "systemConflictModal"),
-    (n.className = "app-dialog system-message-modal"),
-    (n.style.zIndex = "2147483647"),
-    (n.innerHTML =
-      '<form method="dialog" class="modal-card system-message-card"><div class="modal-head"><div><h3 id="systemConflictTitle"></h3><p id="systemConflictText"></p></div></div><div class="modal-actions"><button class="primary-btn" value="ok">حسناً</button></div></form>'),
-    document.body.appendChild(n));
-  const a = n.querySelector("#systemConflictTitle"),
-    o = n.querySelector("#systemConflictText");
-  (a && (a.textContent = t),
-    o && (o.textContent = e || "يوجد تعارض في الطلب."));
-  try {
-    n.showModal();
-  } catch (t) {
-    showToast(e || "يوجد تعارض في الطلب.");
+function feedbackTypeV336(message, options = {}) {
+  const explicit = String(options.type || options.status || options.tone || "")
+    .trim()
+    .toLowerCase();
+  if (["success", "error", "warning", "info"].includes(explicit))
+    return explicit;
+  const text = String(message || "").trim();
+  if (
+    /تعذر|فشل|خطأ|لا يمكن|غير موجود|مرفوض|لم (?:يتم|تتم|ينجح|تنجح|تكتمل|تعتمد|يتطابق)|لم تتطابق/.test(
+      text,
+    )
+  )
+    return "error";
+  if (
+    /اختر|حدد|أدخل|يجب|يرجى|تأكد|تنبيه|تحذير|لا يوجد|غير متاح|مستخدم مسبقًا/.test(
+      text,
+    )
+  )
+    return "warning";
+  if (
+    /^(?:تم|تمت|نجح|اكتمل)|بنجاح|حُفظ|حفظه سحابيًا|حفظها سحابيًا|حفظ التغيير سحابيًا/.test(
+      text,
+    )
+  )
+    return "success";
+  return "info";
+}
+function feedbackDetailV336(message, type, options = {}) {
+  if (options.detail != null) return String(options.detail);
+  const text = String(message || "");
+  if (/سحابي/.test(text))
+    return type === "success"
+      ? "تمت مزامنة التغيير مع جميع المتصفحات"
+      : "لم يتم اعتماد التغيير في السحابة";
+  if (type === "success") return "تم تنفيذ الإجراء وتحديث البيانات";
+  if (type === "error") return "لم تكتمل العملية المطلوبة";
+  if (type === "warning") return "يرجى مراجعة التنبيه قبل المتابعة";
+  return "معلومة من النظام";
+}
+function feedbackDurationV336(type, options = {}) {
+  const explicit = Number(options.duration);
+  if (Number.isFinite(explicit) && explicit >= 800) return explicit;
+  if (type === "success") return 2000;
+  if (type === "info") return 2600;
+  return 4000;
+}
+function ensureFeedbackContainerV336() {
+  let container = document.querySelector("#toastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toastContainer";
+    document.body.appendChild(container);
   }
+  container.className = "toast-container naw-feedback-layer-v336";
+  container.setAttribute("popover", "manual");
+  container.setAttribute("role", "region");
+  container.setAttribute("aria-live", "polite");
+  container.setAttribute("aria-atomic", "true");
+  return container;
+}
+function hideFeedbackV336(immediate = false) {
+  const container = document.querySelector("#toastContainer");
+  if (!container) return;
+  window.clearTimeout(container.__nawahFeedbackDismissTimer);
+  window.clearTimeout(container.__nawahFeedbackFinishTimer);
+  const toast = container.querySelector(".toast");
+  if (toast && !immediate) toast.classList.add("is-hiding");
+  const finish = () => {
+    container.replaceChildren();
+    try {
+      if (typeof container.hidePopover === "function") container.hidePopover();
+    } catch (_) {}
+  };
+  if (immediate) finish();
+  else container.__nawahFeedbackFinishTimer = window.setTimeout(finish, 180);
+}
+function showToast(message, options = {}) {
+  const text = String(message == null ? "" : message).trim();
+  if (!text) return false;
+  const config = normalizeFeedbackOptionsV336(options);
+  try {
+    if (
+      window.nawahFinanceCloudNoticeV324?.shouldSuppressLower?.(text, config)
+    )
+      return false;
+  } catch (_) {}
+  const type = feedbackTypeV336(text, config);
+  const container = ensureFeedbackContainerV336();
+  const icons = {
+    success: "check-circle",
+    error: "info",
+    warning: "bell",
+    info: "info",
+  };
+  const toast = document.createElement("div");
+  toast.className = `toast naw-feedback-v336 is-${type}`;
+  toast.setAttribute("role", type === "error" ? "alert" : "status");
+  const icon = document.createElement("span");
+  icon.className = "naw-feedback-icon-v336";
+  icon.innerHTML = iconSvg(icons[type]);
+  const copy = document.createElement("span");
+  copy.className = "naw-feedback-copy-v336";
+  const title = document.createElement("strong");
+  title.textContent = text;
+  const detail = document.createElement("small");
+  detail.textContent = feedbackDetailV336(text, type, config);
+  const dot = document.createElement("i");
+  dot.className = "naw-feedback-dot-v336";
+  dot.setAttribute("aria-hidden", "true");
+  copy.append(title, detail);
+  toast.append(icon, copy, dot);
+  window.clearTimeout(container.__nawahFeedbackDismissTimer);
+  window.clearTimeout(container.__nawahFeedbackFinishTimer);
+  container.replaceChildren(toast);
+  container.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
+  try {
+    if (
+      typeof container.hidePopover === "function" &&
+      container.matches(":popover-open")
+    )
+      container.hidePopover();
+  } catch (_) {}
+  try {
+    if (typeof container.showPopover === "function") container.showPopover();
+  } catch (_) {}
+  container.__nawahFeedbackDismissTimer = window.setTimeout(
+    () => hideFeedbackV336(false),
+    feedbackDurationV336(type, config),
+  );
+  return true;
+}
+window.nawahFeedbackV336 = {
+  version: 336,
+  show: showToast,
+  hide: hideFeedbackV336,
+  inferType: feedbackTypeV336,
+};
+function showBlockingConflictMessage(e, t = "لا يمكن تنفيذ الطلب") {
+  return showToast(e || "يوجد تعارض في الطلب.", {
+    type: "error",
+    detail: t,
+    duration: 4800,
+  });
 }
 function blockingDateValue(e, t = !1) {
   if (!e && t) return new Date("9999-12-31T12:00:00").getTime();
@@ -18018,42 +18126,7 @@ async function init() {
       } catch (e) {}
       u();
     }
-    function g(e) {
-      const t = (function () {
-          let e = document.querySelector("#identityAlertModal");
-          return (
-            e ||
-            ((e = document.createElement("dialog")),
-            (e.id = "identityAlertModal"),
-            (e.className = "app-dialog identity-alert-modal"),
-            (e.innerHTML =
-              '<form method="dialog" class="modal-card identity-alert-card"><div class="modal-head"><div><h3>تنبيه</h3><p id="identityAlertText"></p></div></div><div class="modal-actions"><button class="primary-btn" value="ok">حسناً</button></div></form>'),
-            document.body.appendChild(e),
-            e)
-          );
-        })(),
-        n = t.querySelector("#identityAlertText");
-      n && (n.textContent = e || "حدث تنبيه في النظام");
-      try {
-        t.open || t.showModal();
-      } catch (t) {
-        alert(e);
-      }
-    }
     window.refreshEmployeeSelectorsFinal = u;
-    const b = "function" == typeof showToast ? showToast : null;
-    if (b && !b.__identityAlertWrapped) {
-      const e = function (e) {
-        if (!String(e || "").includes("رقم الهوية مستخدم مسبقًا"))
-          return b.apply(this, arguments);
-        g(e);
-      };
-      e.__identityAlertWrapped = !0;
-      try {
-        showToast = e;
-      } catch (e) {}
-      window.showToast = e;
-    }
     const S = "function" == typeof renderLeaves ? renderLeaves : null;
     if (S && !S.__ultimateUnifiedWrapped) {
       const e = function () {
@@ -18388,23 +18461,11 @@ async function init() {
       ((renderLeaves = g), (window.renderLeaves = g));
     } catch (e) {}
     function b(e, t = "تنبيه") {
-      let n = document.querySelector("#systemMessageModal");
-      n ||
-        ((n = document.createElement("dialog")),
-        (n.id = "systemMessageModal"),
-        (n.className = "app-dialog system-message-modal"),
-        (n.innerHTML =
-          '<form method="dialog" class="modal-card system-message-card"><div class="modal-head"><div><h3 id="systemMessageTitle"></h3><p id="systemMessageText"></p></div></div><div class="modal-actions"><button class="primary-btn" value="ok">حسناً</button></div></form>'),
-        document.body.appendChild(n));
-      const a = n.querySelector("#systemMessageTitle"),
-        o = n.querySelector("#systemMessageText");
-      (a && (a.textContent = t),
-        o && (o.textContent = e || "حدث تنبيه في النظام"));
-      try {
-        n.showModal();
-      } catch (t) {
-        alert(e);
-      }
+      return showToast(e || "حدث تنبيه في النظام", {
+        type: "warning",
+        detail: t,
+        duration: 4800,
+      });
     }
     ((window.showModalMessage = b),
       window.addEventListener(
@@ -32565,7 +32626,7 @@ async function init() {
       try {
         showToast(e);
       } catch (t) {
-        alert(e);
+        console.warn(e);
       }
     }
     function i() {
@@ -36935,7 +36996,7 @@ async function init() {
         return;
       }
     } catch (_) {}
-    alert(message);
+    console.warn(message);
   }
   function findConflict(kind, employeeId, from, to, exclude) {
     employeeId = String(employeeId || "");
@@ -37349,7 +37410,7 @@ async function init() {
         return;
       }
     } catch (_) {}
-    alert(msg);
+    console.warn(msg);
   }
   function conflictMessage(kind, employeeId, conflict) {
     var newLabel = kind === "travel" ? "طلب سفر" : "طلب إجازة";
@@ -39090,11 +39151,7 @@ async function init() {
   }
   function showBlock(msg) {
     try {
-      if (typeof showNotification === "function")
-        return showNotification(msg, "error");
-    } catch (_) {}
-    try {
-      alert(msg);
+      return showToast(msg, { type: "error", duration: 4800 });
     } catch (_) {}
   }
   function conflictMessage(req, c) {
@@ -39880,10 +39937,10 @@ async function init() {
                 a.remove();
               } catch (_) {}
             }, 0);
-          } else alert("تعذر تحميل المرفق.");
+          } else showToast("تعذر تحميل المرفق.", { type: "error" });
         } catch (err) {
           console.warn(err);
-          alert("تعذر تحميل المرفق.");
+          showToast("تعذر تحميل المرفق.", { type: "error" });
         }
         return;
       }
@@ -39913,7 +39970,10 @@ async function init() {
   }
   function printRecord(kind, id) {
     var r = findRecord(kind, id);
-    if (!r) return alert("تعذر العثور على السجل المطلوب طباعته.");
+    if (!r)
+      return showToast("تعذر العثور على السجل المطلوب طباعته.", {
+        type: "error",
+      });
     var e = getEmp(r.employeeId) || {};
     var isTravel = kind === "travel";
     var title = isTravel ? "ورقة سفر موظف" : "ورقة إجازة موظف";
@@ -39983,7 +40043,7 @@ async function init() {
     frame.setAttribute("aria-hidden", "true");
     document.body.appendChild(frame);
     var doc = frame.contentWindow && frame.contentWindow.document;
-    if (!doc) return alert("تعذر تجهيز الطباعة.");
+    if (!doc) return showToast("تعذر تجهيز الطباعة.", { type: "error" });
     doc.open();
     doc.write(html);
     doc.close();
@@ -39993,7 +40053,7 @@ async function init() {
         frame.contentWindow.print();
       } catch (err) {
         console.warn(err);
-        alert("تعذر تنفيذ الطباعة.");
+        showToast("تعذر تنفيذ الطباعة.", { type: "error" });
       }
       setTimeout(function () {
         try {
@@ -40695,7 +40755,7 @@ async function init() {
     try {
       var url =
         typeof attachmentUrl === "function" ? await attachmentUrl(id) : "";
-      if (!url) return alert("تعذر تحميل المرفق.");
+      if (!url) return showToast("تعذر تحميل المرفق.", { type: "error" });
       var a = document.createElement("a");
       a.href = url;
       a.download = label || "attachment";
@@ -40709,7 +40769,7 @@ async function init() {
       }, 0);
     } catch (err) {
       console.warn(err);
-      alert("تعذر تحميل المرفق.");
+      showToast("تعذر تحميل المرفق.", { type: "error" });
     }
   }
   function findRecord(kind, id) {
@@ -40723,7 +40783,10 @@ async function init() {
   }
   function printRecordDirect(kind, id) {
     var r = findRecord(kind, id);
-    if (!r) return alert("تعذر العثور على السجل المطلوب طباعته.");
+    if (!r)
+      return showToast("تعذر العثور على السجل المطلوب طباعته.", {
+        type: "error",
+      });
     var e = getEmp(r.employeeId) || {},
       isTravel = kind === "travel",
       title = isTravel ? "ورقة سفر موظف" : "ورقة إجازة موظف";
@@ -40789,7 +40852,7 @@ async function init() {
     frame.setAttribute("aria-hidden", "true");
     document.body.appendChild(frame);
     var doc = frame.contentWindow && frame.contentWindow.document;
-    if (!doc) return alert("تعذر تجهيز الطباعة.");
+    if (!doc) return showToast("تعذر تجهيز الطباعة.", { type: "error" });
     doc.open();
     doc.write(html);
     doc.close();
@@ -40799,7 +40862,7 @@ async function init() {
         frame.contentWindow.print();
       } catch (err) {
         console.warn(err);
-        alert("تعذر تنفيذ الطباعة.");
+        showToast("تعذر تنفيذ الطباعة.", { type: "error" });
       }
       setTimeout(function () {
         try {
@@ -40936,13 +40999,14 @@ async function init() {
     return n;
   }
   async function forceBlobDownload(attachmentId, label) {
-    if (!attachmentId) return alert("لا يوجد مرفق للتحميل.");
+    if (!attachmentId)
+      return showToast("لا يوجد مرفق للتحميل.", { type: "warning" });
     try {
       var url =
         typeof attachmentUrl === "function"
           ? await attachmentUrl(attachmentId)
           : "";
-      if (!url) return alert("تعذر تحميل المرفق.");
+      if (!url) return showToast("تعذر تحميل المرفق.", { type: "error" });
       var filename = safeFileName(label || "المرفق", attachmentId);
       try {
         var res = await fetch(url, { credentials: "omit", cache: "no-store" });
@@ -40982,7 +41046,7 @@ async function init() {
       }
     } catch (err) {
       console.warn(err);
-      alert("تعذر تحميل المرفق.");
+      showToast("تعذر تحميل المرفق.", { type: "error" });
     }
   }
   document.addEventListener(
@@ -41402,7 +41466,7 @@ async function init() {
           renderPreviewLogo(getCompany());
         }
       } catch (err) {
-        alert(err.message || "تعذر رفع الشعار");
+        showToast(err.message || "تعذر رفع الشعار", { type: "error" });
       }
     });
     form.elements.nationalAddressFile?.addEventListener("change", async (e) => {
@@ -41421,7 +41485,9 @@ async function init() {
           if (el) el.textContent = file.name;
         }
       } catch (err) {
-        alert(err.message || "تعذر رفع ملف العنوان الوطني");
+        showToast(err.message || "تعذر رفع ملف العنوان الوطني", {
+          type: "error",
+        });
       }
     });
     document
@@ -41488,9 +41554,9 @@ async function init() {
       try {
         typeof showToast === "function"
           ? showToast("تم حفظ بيانات المنشأة وتحديث هوية تسجيل الدخول.")
-          : alert("تم حفظ بيانات المنشأة.");
+          : showToast("تم حفظ بيانات المنشأة.", { type: "success" });
       } catch (_) {
-        alert("تم حفظ بيانات المنشأة.");
+        showToast("تم حفظ بيانات المنشأة.", { type: "success" });
       }
     },
     true,
@@ -42623,9 +42689,9 @@ async function init() {
       try {
         typeof showToast === "function"
           ? showToast("تم حفظ بيانات المنشأة سحابيًا وتحديث العنوان الوطني.")
-          : alert("تم حفظ بيانات المنشأة.");
+          : showToast("تم حفظ بيانات المنشأة.", { type: "success" });
       } catch (_) {
-        alert("تم حفظ بيانات المنشأة.");
+        showToast("تم حفظ بيانات المنشأة.", { type: "success" });
       }
     },
     true,
@@ -42994,7 +43060,9 @@ async function init() {
           renderBackgroundControl();
         }
       } catch (err) {
-        alert(err.message || "تعذر رفع خلفية تسجيل الدخول");
+        showToast(err.message || "تعذر رفع خلفية تسجيل الدخول", {
+          type: "error",
+        });
       }
     });
     form
@@ -43825,9 +43893,9 @@ async function init() {
             ? showToast(
                 "تعذر رفع المرفق للسحابة. لم يتم حفظه محليًا حتى تبقى البيانات موحدة بين الأجهزة.",
               )
-            : alert("تعذر رفع المرفق للسحابة.");
+            : showToast("تعذر رفع المرفق للسحابة.", { type: "error" });
         } catch (_) {
-          alert("تعذر رفع المرفق للسحابة.");
+          showToast("تعذر رفع المرفق للسحابة.", { type: "error" });
         }
         throw err;
       }
@@ -44170,7 +44238,10 @@ async function init() {
         const name = t.getAttribute("name");
         uploadCompanyInput(t, name).catch(function (err) {
           console.warn(err);
-          alert(err && err.message ? err.message : "تعذر رفع الملف للسحابة.");
+          showToast(
+            err && err.message ? err.message : "تعذر رفع الملف للسحابة.",
+            { type: "error" },
+          );
         });
       }
     },
@@ -50524,9 +50595,9 @@ async function init() {
   }
   function toast(msg) {
     try {
-      typeof showToast === "function" ? showToast(msg) : alert(msg);
+      typeof showToast === "function" ? showToast(msg) : console.warn(msg);
     } catch (_) {
-      alert(msg);
+      console.warn(msg);
     }
   }
   function ensureStyle() {
@@ -67821,7 +67892,7 @@ window.nawahLeaveBalanceReportV185 = {
       if (typeof showNotification === "function") return showNotification(message, type || "info");
     } catch (_) {}
     try {
-      alert(message);
+      console.warn(message);
     } catch (_) {}
   }
 
@@ -69483,7 +69554,7 @@ window.nawahLeaveBalanceReportV185 = {
       if (typeof showToast === "function") return showToast(message, type);
     } catch (_) {}
     try {
-      alert(message);
+      console.warn(message);
     } catch (_) {}
   }
   function cloudSave() {
@@ -87192,35 +87263,13 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v324 - truthful, two-second cloud-save notice for finance operations. */
+/* v336 - compatibility adapter: finance uses the single system feedback layer. */
 (function () {
-  if (window.nawahFinanceCloudNoticeV324) return;
-  let dismissTimer = 0;
-  let finishTimer = 0;
+  let activeUntil = 0;
 
   function financeViewIsVisible() {
     const view = document.getElementById("financeView");
     return Boolean(view && view.classList.contains("active"));
-  }
-
-  function ensureNotice() {
-    let notice = document.getElementById("financeCloudSaveNoticeV324");
-    if (notice) return notice;
-    notice = document.createElement("div");
-    notice.id = "financeCloudSaveNoticeV324";
-    notice.className = "finance-cloud-save-notice-v324";
-    notice.setAttribute("role", "status");
-    notice.setAttribute("aria-live", "polite");
-    notice.hidden = true;
-    notice.innerHTML =
-      '<span class="finance-cloud-save-icon-v324" data-icon="check-circle"></span>' +
-      '<span class="finance-cloud-save-copy-v324"><strong>تم حفظ تغييرات المالية سحابيًا</strong><small>تمت مزامنة التعديل مع جميع المتصفحات</small></span>' +
-      '<i class="finance-cloud-save-dot-v324" aria-hidden="true"></i>';
-    document.body.appendChild(notice);
-    try {
-      if (typeof hydrateIcons === "function") hydrateIcons(notice);
-    } catch (_) {}
-    return notice;
   }
 
   function messageFor(reason, failed) {
@@ -87236,14 +87285,9 @@ window.nawahContractDateCorrectionV321 = {
     return "تم حفظ تغييرات المالية سحابيًا";
   }
 
-  function shouldSuppressLower(message) {
-    const notice = document.getElementById("financeCloudSaveNoticeV324");
-    if (
-      !financeViewIsVisible() ||
-      !notice ||
-      notice.hidden
-    )
-      return false;
+  function shouldSuppressLower(message, options) {
+    if (options?.source === "finance") return false;
+    if (!financeViewIsVisible() || Date.now() >= activeUntil) return false;
     const text = String(message || "").trim();
     if (!text || text.includes("لم تتطابق")) return false;
     return (
@@ -87254,35 +87298,20 @@ window.nawahContractDateCorrectionV321 = {
 
   function show(state, reason) {
     if (!financeViewIsVisible()) return false;
-    const notice = ensureNotice();
     const failed = state === "error";
-    const title = notice.querySelector("strong");
-    const detail = notice.querySelector("small");
-    const icon = notice.querySelector(".finance-cloud-save-icon-v324");
-    if (title) title.textContent = messageFor(reason, failed);
-    if (detail)
-      detail.textContent = failed
+    activeUntil = Date.now() + 2100;
+    return showToast(messageFor(reason, failed), {
+      type: failed ? "error" : "success",
+      source: "finance",
+      duration: 2000,
+      detail: failed
         ? "بقي التعديل قيد المحاولة ولم يُعرض كحفظ ناجح"
-        : "تمت مزامنة التعديل مع جميع المتصفحات";
-    if (icon) icon.innerHTML = iconSvg(failed ? "info" : "check-circle");
-    notice.classList.toggle("is-error", failed);
-    notice.hidden = false;
-    requestAnimationFrame(function () {
-      notice.classList.add("is-visible");
+        : "تمت مزامنة التعديل مع جميع المتصفحات",
     });
-    clearTimeout(dismissTimer);
-    clearTimeout(finishTimer);
-    dismissTimer = setTimeout(function () {
-      notice.classList.remove("is-visible");
-      finishTimer = setTimeout(function () {
-        if (!notice.classList.contains("is-visible")) notice.hidden = true;
-      }, 220);
-    }, 2000);
-    return true;
   }
 
   window.nawahFinanceCloudNoticeV324 = {
-    version: 325,
+    version: 336,
     duration: 2000,
     shouldSuppressLower,
     success: function (reason) {
@@ -87292,12 +87321,8 @@ window.nawahContractDateCorrectionV321 = {
       return show("error", reason);
     },
     hide: function () {
-      const notice = document.getElementById("financeCloudSaveNoticeV324");
-      if (!notice) return;
-      clearTimeout(dismissTimer);
-      clearTimeout(finishTimer);
-      notice.classList.remove("is-visible");
-      notice.hidden = true;
+      activeUntil = 0;
+      window.nawahFeedbackV336?.hide?.();
     },
   };
 })();
