@@ -20078,6 +20078,18 @@ async function init() {
       } catch (e) {}
       return e;
     }
+    function financeDateClosedV338(date) {
+      const target = String(date || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) return false;
+      try {
+        const days = JSON.parse(
+          localStorage.getItem("nawah-finance-daily-days") || "{}",
+        );
+        return Boolean(days?.[target]?.isClosed);
+      } catch (_) {
+        return false;
+      }
+    }
     function V(transactionDate = "") {
       if (!E()) {
         try {
@@ -20098,6 +20110,12 @@ async function init() {
             ? formatInputDate(todayAtNoon())
             : new Date().toISOString().slice(0, 10)),
         workdayRule = rules?.status?.(advanceDate);
+      if (financeDateClosedV338(advanceDate)) {
+        try {
+          showToast("لا يمكن إضافة سلفة في يوم مالي مغلق");
+        } catch (_) {}
+        return;
+      }
       if (workdayRule && !workdayRule.allowed) {
         try {
           showToast(rules.message("السلفة", workdayRule));
@@ -20165,6 +20183,12 @@ async function init() {
         } catch (_) {}
         return !1;
       }
+      if (financeDateClosedV338(transactionDate)) {
+        try {
+          showToast("لا يمكن إضافة سلفة في يوم مالي مغلق");
+        } catch (_) {}
+        return !1;
+      }
       const r = (function (e) {
           const t = String(e ?? "")
               .replace(/[٠-٩]/g, (e) => String("٠١٢٣٤٥٦٧٨٩".indexOf(e)))
@@ -20179,7 +20203,7 @@ async function init() {
         } catch (e) {}
         return !1;
       }
-      const s = p(),
+      const s = String(transactionDate).slice(0, 7),
         l = x(i),
         c = l / 2,
         d = R(a, s) + r;
@@ -20229,6 +20253,8 @@ async function init() {
           employeeName: i.name || "",
           amount: r,
           date: y,
+          financeDate: y,
+          transactionDate: y,
           dayName: f(y),
           monthKey: s,
           status: n,
@@ -23504,6 +23530,32 @@ async function init() {
         custodyAmountSnapshot: o(n.custodyAmountSnapshot),
         fundAmountSnapshot: o(n.fundAmountSnapshot),
         newCarriedAmountSnapshot: o(n.newCarriedAmountSnapshot),
+        advancesTotalSnapshot:
+          Object.prototype.hasOwnProperty.call(n, "advancesTotalSnapshot") &&
+          n.advancesTotalSnapshot !== "" &&
+          n.advancesTotalSnapshot != null
+            ? o(n.advancesTotalSnapshot)
+            : null,
+        advancesSnapshot: Array.isArray(n.advancesSnapshot)
+          ? n.advancesSnapshot
+              .filter((record) => record && typeof record === "object")
+              .map((record) => ({
+                ...financeCloneV318(record),
+                id: String(record.id || ""),
+                employeeId: String(record.employeeId || ""),
+                employeeName: String(record.employeeName || "موظف"),
+                amount: o(record.amount),
+                paidAmount: o(record.paidAmount),
+                remainingAmount: o(record.remainingAmount),
+                date: String(record.date || "").slice(0, 10),
+                dayName: String(record.dayName || ""),
+                paymentSourceLabel: String(record.paymentSourceLabel || "—"),
+              }))
+          : [],
+        advancesSnapshotVersion: Number(n.advancesSnapshotVersion || 0) || 0,
+        advancesSnapshotMigratedAt: String(
+          n.advancesSnapshotMigratedAt || "",
+        ),
         isClosed: Boolean(n.isClosed),
         closedAt: n.closedAt || "",
         nextFinanceDate: n.nextFinanceDate || "",
@@ -23537,6 +23589,10 @@ async function init() {
       "custodyAmountSnapshot",
       "fundAmountSnapshot",
       "newCarriedAmountSnapshot",
+      "advancesTotalSnapshot",
+      "advancesSnapshot",
+      "advancesSnapshotVersion",
+      "advancesSnapshotMigratedAt",
       "isClosed",
       "closedAt",
       "nextFinanceDate",
@@ -23551,6 +23607,10 @@ async function init() {
       "custodyAmountSnapshot",
       "fundAmountSnapshot",
       "newCarriedAmountSnapshot",
+      "advancesTotalSnapshot",
+      "advancesSnapshot",
+      "advancesSnapshotVersion",
+      "advancesSnapshotMigratedAt",
       "isClosed",
       "closedAt",
       "nextFinanceDate",
@@ -24097,87 +24157,214 @@ async function init() {
         return e.employeeName || e.employee?.name || e.employeeId || "موظف";
       }
     }
+    const FINANCE_ADVANCE_SNAPSHOT_VERSION_V338 = 338;
+    let financeAdvanceMigrationPromiseV338 = null;
+    const financeAdvanceMigrationPendingDatesV338 = new Set();
+    function financeAdvanceDateV338(record) {
+      const values = [
+        record?.financeDate,
+        record?.transactionDate,
+        record?.date,
+        record?.createdAt,
+      ];
+      for (const value of values) {
+        const date = financeDayKeyV316(String(value || "").slice(0, 10));
+        if (date) return date;
+      }
+      return "";
+    }
+    function financeAdvanceAmountV338(record) {
+      return o(
+        record?.amount ??
+          record?.value ??
+          record?.total ??
+          record?.advanceAmount ??
+          0,
+      );
+    }
+    function financeAdvancePaymentRowsThroughV338(record, date) {
+      const advanceDate = financeAdvanceDateV338(record),
+        payments = Array.isArray(record?.payments)
+          ? record.payments.filter(Boolean)
+          : [];
+      return payments
+        .map((payment) => ({
+          ...payment,
+          effectiveDate:
+            financeDayKeyV316(
+              String(
+                payment?.date ||
+                  payment?.paymentDate ||
+                  payment?.createdAt ||
+                  "",
+              ).slice(0, 10),
+            ) || advanceDate,
+        }))
+        .filter(
+          (payment) =>
+            payment.effectiveDate && payment.effectiveDate <= String(date),
+        )
+        .sort((left, right) =>
+          `${left.effectiveDate}|${left.createdAt || ""}|${left.id || ""}`.localeCompare(
+            `${right.effectiveDate}|${right.createdAt || ""}|${right.id || ""}`,
+          ),
+        );
+    }
+    function financeAdvancePaidThroughV338(record, date) {
+      const payments = financeAdvancePaymentRowsThroughV338(record, date);
+      if (payments.length)
+        return payments.reduce(
+          (total, payment) =>
+            total + o(payment?.amount ?? payment?.value ?? 0),
+          0,
+        );
+      const legacyPaid = o(
+        record?.paidAmount ??
+          record?.paid ??
+          record?.totalPaid ??
+          record?.settledAmount ??
+          record?.deductedAmount ??
+          0,
+      );
+      if (!(legacyPaid > 0)) return 0;
+      const paidDate =
+        financeDayKeyV316(
+          String(
+            record?.paidDate ||
+              record?.paymentDate ||
+              record?.settledAt ||
+              record?.updatedAt ||
+              "",
+          ).slice(0, 10),
+        ) || financeAdvanceDateV338(record);
+      return paidDate && paidDate <= String(date) ? legacyPaid : 0;
+    }
+    function financeAdvanceEntryV338(record, date) {
+      if (!record || String(record.status || "approved") !== "approved")
+        return null;
+      const effectiveDate = financeAdvanceDateV338(record),
+        selectedDate = financeDayKeyV316(date),
+        monthKey = String(selectedDate || "").slice(0, 7);
+      if (
+        !effectiveDate ||
+        !selectedDate ||
+        effectiveDate > selectedDate ||
+        effectiveDate.slice(0, 7) !== monthKey
+      )
+        return null;
+      const amount = financeAdvanceAmountV338(record),
+        paidAmount = Math.min(
+          amount,
+          financeAdvancePaidThroughV338(record, selectedDate),
+        ),
+        remainingAmount = Math.max(0, amount - paidAmount);
+      if (!(remainingAmount > 0)) return null;
+      const payments = financeAdvancePaymentRowsThroughV338(
+          record,
+          selectedDate,
+        ),
+        latestPayment = payments[payments.length - 1] || null,
+        employeeName = E(record);
+      return {
+        id: String(record.id || ""),
+        employeeId: String(record.employeeId || ""),
+        employeeName,
+        amount,
+        paidAmount,
+        remainingAmount,
+        date: effectiveDate,
+        dayName:
+          String(record.dayName || "") ||
+          (() => {
+            try {
+              return v(effectiveDate).dayName || "";
+            } catch (_) {
+              return "";
+            }
+          })(),
+        paymentSourceLabel: String(
+          latestPayment?.sourceLabel ||
+            latestPayment?.paymentSourceLabel ||
+            record.paymentSourceLabel ||
+            record.sourceLabel ||
+            "—",
+        ),
+      };
+    }
+    function financeAdvanceEntriesForDateV338(date) {
+      let rows = [];
+      try {
+        rows = JSON.parse(
+          localStorage.getItem("nawah-payroll-advances") || "[]",
+        );
+      } catch (_) {}
+      return (Array.isArray(rows) ? rows : [])
+        .map((record) => financeAdvanceEntryV338(record, date))
+        .filter(Boolean)
+        .sort((left, right) =>
+          `${left.date}|${left.id}`.localeCompare(`${right.date}|${right.id}`),
+        );
+    }
+    function financeAdvanceSnapshotReadyV338(day) {
+      return Boolean(
+        day?.isClosed &&
+          Number(day.advancesSnapshotVersion || 0) >=
+            FINANCE_ADVANCE_SNAPSHOT_VERSION_V338 &&
+          day.advancesTotalSnapshot != null &&
+          Array.isArray(day.advancesSnapshot),
+      );
+    }
+    function financeDayAdvanceEntriesV338(day = p, date = d) {
+      return financeAdvanceSnapshotReadyV338(day)
+        ? financeCloneV318(day.advancesSnapshot)
+        : financeAdvanceEntriesForDateV338(date);
+    }
+    function financeAdvanceTotalV338(entries) {
+      return (Array.isArray(entries) ? entries : []).reduce(
+        (total, record) => total + o(record?.remainingAmount),
+        0,
+      );
+    }
+    function financeAdvanceGroupsV338(entries) {
+      const groups = new Map();
+      (Array.isArray(entries) ? entries : []).forEach((record) => {
+        const key = String(
+            record.employeeId || record.employeeName || "employee",
+          ),
+          group = groups.get(key) || {
+            key,
+            employeeSample: record,
+            total: 0,
+            items: [],
+          };
+        group.total += o(record.remainingAmount);
+        group.items.push(record);
+        groups.set(key, group);
+      });
+      return Array.from(groups.values());
+    }
     function I() {
       const e = document.getElementById("financeAdvancesTableBody");
       if (!e) return;
-      const t = (function () {
-        const e = D();
-        try {
-          const t = JSON.parse(
-            localStorage.getItem("nawah-payroll-advances") || "[]",
-          );
-          return Array.isArray(t)
-            ? t
-                .filter((t) => {
-                  if (!t || "approved" !== String(t.status || "approved"))
-                    return !1;
-                  if ((t.monthKey || String(t.date || "").slice(0, 7)) !== e)
-                    return !1;
-                  if (
-                    "function" == typeof payrollAdvanceRemainingAmount &&
-                    !(payrollAdvanceRemainingAmount(t) > 0)
-                  )
-                    return !1;
-                  try {
-                    if (
-                      t.employeeId &&
-                      "function" == typeof getEmployeeById &&
-                      !getEmployeeById(t.employeeId)
-                    )
-                      return !1;
-                  } catch (e) {}
-                  return !0;
-                })
-                .sort((e, t) =>
-                  String(e.date || "").localeCompare(String(t.date || "")),
-                )
-            : [];
-        } catch (e) {
-          return [];
-        }
-      })();
+      const t = financeDayAdvanceEntriesV338(p, d);
       if (!t.length)
         return void (e.innerHTML =
           '<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات قائمة غير مسددة لهذا الشهر</strong></div></td></tr>');
-      const n = new Map();
-      (t.forEach((e) => {
-        const t = String(
-            e.employeeId || e.employeeName || e.employee?.name || "employee",
-          ),
-          a = n.get(t) || { key: t, employeeSample: e, total: 0, items: [] };
-        ((a.total +=
-          "function" == typeof payrollAdvanceRemainingAmount
-            ? payrollAdvanceRemainingAmount(e)
-            : o(e.amount)),
-          a.items.push(e),
-          n.set(t, a));
-      }),
-        (e.innerHTML = Array.from(n.values())
+      const n = financeAdvanceGroupsV338(t);
+      (e.innerHTML = n
           .map((e, t) => {
             const n = `finance-advance-${t}`,
               a = `finance-advance-detail-${n}`,
-              o = e.items
+              detailRows = e.items
                 .slice()
                 .sort((e, t) =>
                   String(e.date || "").localeCompare(String(t.date || "")),
                 )
                 .map((e) => {
-                  const t =
-                      "function" == typeof payrollAdvanceAmountValue
-                        ? payrollAdvanceAmountValue(e)
-                        : o(e.amount),
-                    n =
-                      "function" == typeof payrollAdvancePaidAmount
-                        ? payrollAdvancePaidAmount(e)
-                        : o(e.paidAmount || e.paid || 0),
-                    a =
-                      "function" == typeof payrollAdvanceRemainingAmount
-                        ? payrollAdvanceRemainingAmount(e)
-                        : Math.max(0, t - n),
-                    r =
-                      "function" == typeof payrollAdvancePaymentSourceLabel
-                        ? payrollAdvancePaymentSourceLabel(e)
-                        : e.paymentSourceLabel || e.sourceLabel || "—";
+                  const t = o(e.amount),
+                    n = o(e.paidAmount),
+                    a = o(e.remainingAmount),
+                    r = e.paymentSourceLabel || "—";
                   return `<tr><td>${A(
                     e.dayName ||
                       (function (e) {
@@ -24222,9 +24409,9 @@ async function init() {
               return A(E(e));
             })(
               e.employeeSample,
-            )}</div></td><td class="advance-total-cell"><strong>${S(e.total)}</strong></td></tr><tr class="advance-detail-row finance-advance-detail-row" id="${a}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>اليوم</th><th>التاريخ</th><th>قيمة السلفة</th><th>المسدد</th><th>المتبقي</th><th>مصدر السداد</th></tr></thead><tbody>${o}</tbody></table></div></td></tr>`;
+            )}</div></td><td class="advance-total-cell"><strong>${S(e.total)}</strong></td></tr><tr class="advance-detail-row finance-advance-detail-row" id="${a}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>اليوم</th><th>التاريخ</th><th>قيمة السلفة</th><th>المسدد</th><th>المتبقي</th><th>مصدر السداد</th></tr></thead><tbody>${detailRows}</tbody></table></div></td></tr>`;
           })
-          .join("")),
+          .join(""),
         e
           .querySelectorAll("[data-toggle-finance-advance-details]")
           .forEach((e) => {
@@ -24272,38 +24459,11 @@ async function init() {
         r = w(p.cashSales),
         i = w(p.cardSales),
         s = r + i,
-        l = (function () {
-          const e = D();
-          try {
-            const t = JSON.parse(
-              localStorage.getItem("nawah-payroll-advances") || "[]",
-            );
-            return Array.isArray(t)
-              ? t.reduce((t, n) => {
-                  if (!n || "approved" !== String(n.status || "approved"))
-                    return t;
-                  if ((n.monthKey || String(n.date || "").slice(0, 7)) !== e)
-                    return t;
-                  try {
-                    if (
-                      n.employeeId &&
-                      "function" == typeof getEmployeeById &&
-                      !getEmployeeById(n.employeeId)
-                    )
-                      return t;
-                  } catch (e) {}
-                  return (
-                    t +
-                    ("function" == typeof payrollAdvanceRemainingAmount
-                      ? payrollAdvanceRemainingAmount(n)
-                      : o(n.amount))
-                  );
-                }, 0)
-              : 0;
-          } catch (e) {
-            return 0;
-          }
-        })(),
+        advanceEntries = financeDayAdvanceEntriesV338(p, d),
+        liveAdvanceTotal = financeAdvanceTotalV338(advanceEntries),
+        l = financeAdvanceSnapshotReadyV338(p)
+          ? o(p.advancesTotalSnapshot)
+          : liveAdvanceTotal,
         c = o(p.manualCashAmount),
         d = o(p.budgetAmount),
         u = p.isClosed
@@ -24315,13 +24475,20 @@ async function init() {
         y = u + r + i,
         f = i + a,
         h = u + s - a - i,
-        v = u + m + r + c + n - t - a - l;
+        calculatedFund = u + m + r + c + n - t - a - l,
+        v = financeAdvanceSnapshotReadyV338(p)
+          ? o(p.fundAmountSnapshot)
+          : calculatedFund;
       return (
         p.isClosed ||
           ((p.carriedAmountSnapshot = u),
           (p.custodyAmountSnapshot = m),
           (p.fundAmountSnapshot = v),
-          (p.newCarriedAmountSnapshot = h)),
+          (p.newCarriedAmountSnapshot = h),
+          (p.advancesTotalSnapshot = l),
+          (p.advancesSnapshot = financeCloneV318(advanceEntries)),
+          (p.advancesSnapshotVersion =
+            FINANCE_ADVANCE_SNAPSHOT_VERSION_V338)),
         {
           settings: { openingAmount: u, custodyAmount: m },
           pendingTotal: t,
@@ -24331,6 +24498,7 @@ async function init() {
           cardSalesTotal: i,
           salesTotal: s,
           advancesTotal: l,
+          advancesSnapshot: financeCloneV318(advanceEntries),
           manualCashAmount: c,
           budgetAmount: d,
           dailyDebit: y,
@@ -24339,6 +24507,115 @@ async function init() {
           newCarriedAmount: h,
         }
       );
+    }
+    function financeClosedAdvanceSnapshotV338(record, date, migratedAt) {
+      const day = c(record, date),
+        entries = financeAdvanceEntriesForDateV338(date),
+        advancesTotal = financeAdvanceTotalV338(entries),
+        pendingTotal = w(day.pending),
+        deletedPendingTotal = Array.isArray(day.deletedPending)
+          ? day.deletedPending.reduce(
+              (total, row) => total + o(row?.amount),
+              0,
+            )
+          : 0,
+        expensesTotal = w(day.expenses),
+        cashSalesTotal = w(day.cashSales),
+        carriedAmount = o(day.carriedAmountSnapshot),
+        custodyAmount = o(day.custodyAmountSnapshot),
+        fundAmount =
+          carriedAmount +
+          custodyAmount +
+          cashSalesTotal +
+          o(day.manualCashAmount) +
+          deletedPendingTotal -
+          pendingTotal -
+          expensesTotal -
+          advancesTotal;
+      return c(
+        {
+          ...day,
+          advancesTotalSnapshot: advancesTotal,
+          advancesSnapshot: entries,
+          advancesSnapshotVersion: FINANCE_ADVANCE_SNAPSHOT_VERSION_V338,
+          advancesSnapshotMigratedAt: migratedAt,
+          fundAmountSnapshot: fundAmount,
+        },
+        date,
+      );
+    }
+    async function financeMigrateClosedAdvanceSnapshotsV338() {
+      if (financeAdvanceMigrationPromiseV338)
+        return financeAdvanceMigrationPromiseV338;
+      financeAdvanceMigrationPromiseV338 = (async () => {
+        const sync = financeCloudSyncV226();
+        if (sync && !financeCloudHydratedV316)
+          return { changed: 0, saved: false, deferred: true };
+        const dates = Object.keys(m || {})
+          .filter((date) => {
+            const day = c(m[date], date);
+            return (
+              day.isClosed &&
+              (!financeAdvanceSnapshotReadyV338(day) ||
+                financeAdvanceMigrationPendingDatesV338.has(date))
+            );
+          })
+          .sort();
+        if (!dates.length) return { changed: 0, saved: true };
+        const migratedAt = new Date().toISOString(),
+          fields = [
+            "advancesTotalSnapshot",
+            "advancesSnapshot",
+            "advancesSnapshotVersion",
+            "advancesSnapshotMigratedAt",
+            "fundAmountSnapshot",
+          ];
+        dates.forEach((date) => {
+          m[date] = financeClosedAdvanceSnapshotV338(
+            m[date],
+            date,
+            migratedAt,
+          );
+          financeAdvanceMigrationPendingDatesV338.add(date);
+          fields.forEach((field) =>
+            trackFinanceUpsertsV226(
+              financeMutationKeyV226(date, "meta", field),
+            ),
+          );
+        });
+        if (dates.includes(d)) p = c(m[d], d);
+        localStorage.setItem(t, JSON.stringify(m));
+        const open = financeOpenRecordV226();
+        localStorage.setItem(e, JSON.stringify(open.record));
+        H(!0);
+        let saved = false;
+        try {
+          if (sync && typeof sync.save === "function")
+            saved =
+              (await sync.save(
+                "finance-v338-closed-advance-snapshot-migration",
+              )) !== false;
+          else if (typeof saveCloudStateNow === "function")
+            saved =
+              (await saveCloudStateNow({
+                force: true,
+                reason: "finance-v338-closed-advance-snapshot-migration",
+              })) !== false;
+        } catch (error) {
+          console.warn(
+            "v338: تعذر تأكيد ترحيل لقطات السلفيات للأيام المغلقة.",
+            error,
+          );
+        }
+        if (saved)
+          dates.forEach((date) =>
+            financeAdvanceMigrationPendingDatesV338.delete(date),
+          );
+        return { changed: dates.length, saved };
+      })().finally(() => {
+        financeAdvanceMigrationPromiseV338 = null;
+      });
+      return financeAdvanceMigrationPromiseV338;
     }
     function M() {
       y();
@@ -24743,6 +25020,12 @@ async function init() {
             .forEach((t) => {
               t.disabled = e;
             }),
+            document
+              .querySelectorAll("#financeAddAdvanceBtn")
+              .forEach((button) => {
+                button.disabled = e;
+                button.classList.toggle("is-disabled", e);
+              }),
             document.querySelectorAll(".finance-close-day-btn").forEach((t) => {
               ((t.disabled = e), t.classList.toggle("is-disabled", e));
               const n = Array.from(t.childNodes).find(
@@ -24858,6 +25141,13 @@ async function init() {
             custodyAmountSnapshot: currentTotals.settings.custodyAmount,
             fundAmountSnapshot: currentTotals.fundAmount,
             newCarriedAmountSnapshot: currentTotals.newCarriedAmount,
+            advancesTotalSnapshot: currentTotals.advancesTotal,
+            advancesSnapshot: financeCloneV318(
+              currentTotals.advancesSnapshot,
+            ),
+            advancesSnapshotVersion:
+              FINANCE_ADVANCE_SNAPSHOT_VERSION_V338,
+            advancesSnapshotMigratedAt: closedAt,
             updatedAt: closedAt,
           });
           m[d] = c(p, d);
@@ -24915,6 +25205,10 @@ async function init() {
             "custodyAmountSnapshot",
             "fundAmountSnapshot",
             "newCarriedAmountSnapshot",
+            "advancesTotalSnapshot",
+            "advancesSnapshot",
+            "advancesSnapshotVersion",
+            "advancesSnapshotMigratedAt",
             "closureHistory",
             "updatedAt",
           ].forEach((field) =>
@@ -25089,6 +25383,10 @@ async function init() {
                 custodyAmountSnapshot: 0,
                 fundAmountSnapshot: 0,
                 newCarriedAmountSnapshot: 0,
+                advancesTotalSnapshot: null,
+                advancesSnapshot: [],
+                advancesSnapshotVersion: 0,
+                advancesSnapshotMigratedAt: "",
                 closureHistory: history,
                 updatedAt: reopenedAt,
               },
@@ -25293,7 +25591,12 @@ async function init() {
           financeCloudHydratedV316 = !0;
           b();
         }
-        return (H(!0), t);
+        H(!0);
+        setTimeout(
+          () => void financeMigrateClosedAdvanceSnapshotsV338(),
+          0,
+        );
+        return t;
       };
       ((e.__financeDailyTablesWrapped = !0), (applyCloudState = e));
     }
@@ -25394,6 +25697,12 @@ async function init() {
           const a = e.target?.closest?.("#financeAddAdvanceBtn");
           if (a) {
             (e.preventDefault?.(), e.stopPropagation?.());
+            if (p.isClosed) {
+              try {
+                showToast("لا يمكن إضافة سلفة في يوم مالي مغلق");
+              } catch (_) {}
+              return;
+            }
             try {
               window.openAdvanceModal?.(d);
             } catch (e) {}
@@ -25469,7 +25778,7 @@ async function init() {
         }
       }),
       (window.nawahFinanceSyncV226 = {
-        schemaVersion: 226,
+        schemaVersion: 338,
         prepareMutation: prepareFinanceMutationV226,
         save: (reason) => confirmFinanceCloudV226(reason),
         trackSettings: (ids) => {
@@ -25503,12 +25812,23 @@ async function init() {
         reopenLastClose: financeReopenLastCloseV318,
         rollbackCandidate: () => financeRollbackCandidateV319(d),
         deletePending: F,
+        advanceEntriesForDate: financeAdvanceEntriesForDateV338,
+        advanceTotalForDate: (date) =>
+          financeAdvanceTotalV338(financeAdvanceEntriesForDateV338(date)),
+        migrateClosedAdvanceSnapshots:
+          financeMigrateClosedAdvanceSnapshotsV338,
       }),
       "loading" === document.readyState
         ? document.addEventListener("DOMContentLoaded", () =>
-            setTimeout(() => H(!0), 150),
+            setTimeout(() => {
+              H(!0);
+              void financeMigrateClosedAdvanceSnapshotsV338();
+            }, 150),
           )
-        : setTimeout(() => H(!0), 150));
+        : setTimeout(() => {
+            H(!0);
+            void financeMigrateClosedAdvanceSnapshotsV338();
+          }, 150));
   })(),
   (function () {
     if (window.__finalFinanceAndEstablishmentDocumentsPermissionFix) return;
@@ -71017,8 +71337,24 @@ window.nawahLeaveBalanceReportV185 = {
         nextDate && ignoredTransactionDates.add(nextDate);
       }
     });
+    const closedSnapshotFieldsV338 = new Set([
+      "advancesTotalSnapshot",
+      "advancesSnapshot",
+      "advancesSnapshotVersion",
+      "advancesSnapshotMigratedAt",
+      "fundAmountSnapshot",
+    ]);
     groups.forEach((group) => {
-      if (ignoredTransactionDates.has(group.date)) return;
+      if (ignoredTransactionDates.has(group.date)) {
+        if (group.section !== "meta") return;
+        group.upserts = new Set(
+          Array.from(group.upserts).filter((field) =>
+            closedSnapshotFieldsV338.has(field),
+          ),
+        );
+        group.deletes = new Set();
+        if (!group.upserts.size) return;
+      }
       if (
         group.section === "day" &&
         group.deletes.has("__delete__")
@@ -71088,42 +71424,157 @@ window.nawahLeaveBalanceReportV185 = {
           ? state.financeSettings
           : {},
       carried =
-        day.carriedAmountOverride == null
-          ? number(settings.openingAmount)
-          : number(day.carriedAmountOverride),
-      custody = number(settings.custodyAmount),
+        Object.prototype.hasOwnProperty.call(day, "carriedAmountSnapshot")
+          ? number(day.carriedAmountSnapshot)
+          : day.carriedAmountOverride == null
+            ? number(settings.openingAmount)
+            : number(day.carriedAmountOverride),
+      custody = Object.prototype.hasOwnProperty.call(
+        day,
+        "custodyAmountSnapshot",
+      )
+        ? number(day.custodyAmountSnapshot)
+        : number(settings.custodyAmount),
       pending = sum(day.pending),
       deletedPending = sum(day.deletedPending),
       expenses = sum(day.expenses),
       cashSales = sum(day.cashSales),
       cardSales = sum(day.cardSales),
       manualCash = number(day.manualCashAmount),
-      monthKey = String(day.financeDate || "").slice(0, 7),
-      advances = (Array.isArray(state.payrollAdvances)
+      selectedDate = String(day.financeDate || "").slice(0, 10),
+      monthKey = selectedDate.slice(0, 7),
+      dateOnly = (value) => {
+        const candidate = String(value || "").slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : "";
+      },
+      employeeById = new Map(
+        (Array.isArray(state.employees) ? state.employees : []).map(
+          (employee) => [String(employee?.id || ""), employee],
+        ),
+      ),
+      advanceEntries = (Array.isArray(state.payrollAdvances)
         ? state.payrollAdvances
         : []
-      ).reduce((total, advance) => {
-        const advanceMonth = String(
-            advance?.monthKey || String(advance?.date || "").slice(0, 7),
-          ),
-          amount = number(
-            advance?.amount ?? advance?.value ?? advance?.total ?? 0,
-          ),
-          paid = Array.isArray(advance?.payments)
-            ? advance.payments.reduce(
-                (sum, payment) => sum + number(payment?.amount),
+      )
+        .map((advance) => {
+          if (
+            !advance ||
+            String(advance.status || "approved") !== "approved"
+          )
+            return null;
+          const effectiveDate =
+            dateOnly(
+              advance.financeDate ||
+                advance.transactionDate ||
+                advance.date ||
+                advance.createdAt,
+            ) || "";
+          if (
+            !effectiveDate ||
+            effectiveDate > selectedDate ||
+            effectiveDate.slice(0, 7) !== monthKey
+          )
+            return null;
+          const amount = number(
+              advance.amount ??
+                advance.value ??
+                advance.total ??
+                advance.advanceAmount ??
                 0,
+            ),
+            payments = (Array.isArray(advance.payments)
+              ? advance.payments
+              : []
+            )
+              .filter(Boolean)
+              .map((payment) => ({
+                ...payment,
+                effectiveDate:
+                  dateOnly(
+                    payment.date ||
+                      payment.paymentDate ||
+                      payment.createdAt,
+                  ) || effectiveDate,
+              }))
+              .filter(
+                (payment) => payment.effectiveDate <= selectedDate,
               )
-            : number(advance?.paidAmount || advance?.paid || 0);
-        return advanceMonth === monthKey &&
-          String(advance?.status || "approved") === "approved"
-          ? total + Math.max(0, amount - paid)
-          : total;
-      }, 0);
+              .sort((left, right) =>
+                `${left.effectiveDate}|${left.createdAt || ""}|${left.id || ""}`.localeCompare(
+                  `${right.effectiveDate}|${right.createdAt || ""}|${right.id || ""}`,
+                ),
+              );
+          let paidAmount = payments.reduce(
+            (total, payment) =>
+              total + number(payment.amount ?? payment.value ?? 0),
+            0,
+          );
+          if (!payments.length) {
+            const legacyPaid = number(
+                advance.paidAmount ??
+                  advance.paid ??
+                  advance.totalPaid ??
+                  advance.settledAmount ??
+                  advance.deductedAmount ??
+                  0,
+              ),
+              paidDate =
+                dateOnly(
+                  advance.paidDate ||
+                    advance.paymentDate ||
+                    advance.settledAt ||
+                    advance.updatedAt,
+                ) || effectiveDate;
+            paidAmount = paidDate <= selectedDate ? legacyPaid : 0;
+          }
+          paidAmount = Math.min(amount, paidAmount);
+          const remainingAmount = Math.max(0, amount - paidAmount);
+          if (!(remainingAmount > 0)) return null;
+          const employee = employeeById.get(
+              String(advance.employeeId || ""),
+            ),
+            latestPayment = payments[payments.length - 1] || null;
+          return {
+            id: String(advance.id || ""),
+            employeeId: String(advance.employeeId || ""),
+            employeeName: String(
+              employee?.name ||
+                advance.employeeName ||
+                advance.employee?.name ||
+                advance.employeeId ||
+                "موظف",
+            ),
+            amount,
+            paidAmount,
+            remainingAmount,
+            date: effectiveDate,
+            dayName: String(advance.dayName || ""),
+            paymentSourceLabel: String(
+              latestPayment?.sourceLabel ||
+                latestPayment?.paymentSourceLabel ||
+                advance.paymentSourceLabel ||
+                advance.sourceLabel ||
+                "—",
+            ),
+          };
+        })
+        .filter(Boolean)
+        .sort((left, right) =>
+          `${left.date}|${left.id}`.localeCompare(`${right.date}|${right.id}`),
+        ),
+      advances = advanceEntries.reduce(
+        (total, advance) => total + number(advance.remainingAmount),
+        0,
+      );
     return {
       ...day,
       carriedAmountSnapshot: carried,
       custodyAmountSnapshot: custody,
+      advancesTotalSnapshot: advances,
+      advancesSnapshot: advanceEntries,
+      advancesSnapshotVersion: 338,
+      advancesSnapshotMigratedAt:
+        day.advancesSnapshotMigratedAt || day.closedAt || new Date().toISOString(),
       fundAmountSnapshot:
         carried +
         custody +
@@ -87327,7 +87778,7 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v337 - Targeted finance-print typography refinement based on v336. */
+/* v338 - Finance-print typography plus date-locked advance snapshots. */
 (function () {
   if (window.__nawahFinanceDailyPrintV332) return;
   window.__nawahFinanceDailyPrintV332 = true;
@@ -87439,19 +87890,36 @@ window.nawahContractDateCorrectionV321 = {
     );
   }
 
-  function financePrintAdvanceRemainingV332(record) {
-    try {
-      if (typeof payrollAdvanceRemainingAmount === "function")
-        return financePrintNumberV332(payrollAdvanceRemainingAmount(record));
-    } catch (_) {}
+  function financePrintAdvanceDateV338(record) {
+    var values = [
+      record && record.financeDate,
+      record && record.transactionDate,
+      record && record.date,
+      record && record.createdAt,
+    ];
+    for (var index = 0; index < values.length; index += 1) {
+      var value = String(values[index] || "").slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    }
+    return "";
+  }
+
+  function financePrintAdvanceRemainingV332(record, date) {
     var total = financePrintNumberV332(
       record && (record.amount != null ? record.amount : record.total),
     );
-    var paid = financePrintNumberV332(
-      record && (record.paidAmount != null ? record.paidAmount : record.paid),
-    );
-    if (record && Array.isArray(record.payments)) {
-      paid = record.payments.reduce(function (sum, payment) {
+    var advanceDate = financePrintAdvanceDateV338(record);
+    var payments = record && Array.isArray(record.payments)
+      ? record.payments.filter(function (payment) {
+          var paymentDate = String(
+            (payment &&
+              (payment.date || payment.paymentDate || payment.createdAt)) ||
+              advanceDate,
+          ).slice(0, 10);
+          return paymentDate && paymentDate <= String(date || "");
+        })
+      : [];
+    var paid = payments.reduce(function (sum, payment) {
         return (
           sum +
           financePrintNumberV332(
@@ -87459,28 +87927,48 @@ window.nawahContractDateCorrectionV321 = {
           )
         );
       }, 0);
+    if (!payments.length) {
+      var legacyPaid = financePrintNumberV332(
+        record && (record.paidAmount != null ? record.paidAmount : record.paid),
+      );
+      var paidDate = String(
+        (record &&
+          (record.paidDate ||
+            record.paymentDate ||
+            record.settledAt ||
+            record.updatedAt)) ||
+          advanceDate,
+      ).slice(0, 10);
+      paid = paidDate && paidDate <= String(date || "") ? legacyPaid : 0;
     }
     return Math.max(0, total - paid);
   }
 
-  function financePrintAdvanceGroupsV332(date) {
+  function financePrintAdvanceGroupsV332(date, day) {
     var monthKey = String(date || "").slice(0, 7);
-    var advances = financePrintReadJsonV332("nawah-payroll-advances", []);
+    var lockedSnapshot = Boolean(
+      day &&
+        day.isClosed &&
+        Number(day.advancesSnapshotVersion || 0) >= 338 &&
+        Array.isArray(day.advancesSnapshot),
+    );
+    var advances = lockedSnapshot
+      ? day.advancesSnapshot
+      : financePrintReadJsonV332("nawah-payroll-advances", []);
     var groups = new Map();
     (Array.isArray(advances) ? advances : []).forEach(function (record) {
       if (!record || String(record.status || "approved") !== "approved") return;
-      var recordMonth =
-        record.monthKey || String(record.date || "").slice(0, 7);
-      if (recordMonth !== monthKey) return;
-      try {
-        if (
-          record.employeeId &&
-          typeof getEmployeeById === "function" &&
-          !getEmployeeById(record.employeeId)
-        )
-          return;
-      } catch (_) {}
-      var remaining = financePrintAdvanceRemainingV332(record);
+      var effectiveDate = financePrintAdvanceDateV338(record);
+      if (
+        !lockedSnapshot &&
+        (!effectiveDate ||
+          effectiveDate > String(date || "") ||
+          effectiveDate.slice(0, 7) !== monthKey)
+      )
+        return;
+      var remaining = lockedSnapshot
+        ? financePrintNumberV332(record.remainingAmount)
+        : financePrintAdvanceRemainingV332(record, date);
       if (!(remaining > 0)) return;
       var key = String(
         record.employeeId ||
@@ -87489,7 +87977,8 @@ window.nawahContractDateCorrectionV321 = {
           "employee",
       );
       var group = groups.get(key) || {
-        employee: financePrintEmployeeNameV332(record),
+        employee:
+          record.employeeName || financePrintEmployeeNameV332(record),
         total: 0,
       };
       group.total += remaining;
@@ -87606,12 +88095,17 @@ window.nawahContractDateCorrectionV321 = {
     ) {
       return sum + financePrintNumberV332(row.amount);
     }, 0);
-    var advances = (Array.isArray(advanceGroups) ? advanceGroups : []).reduce(
-      function (sum, group) {
-        return sum + financePrintNumberV332(group && group.total);
-      },
-      0,
-    );
+    var advances =
+      day.isClosed &&
+      Number(day.advancesSnapshotVersion || 0) >= 338 &&
+      day.advancesTotalSnapshot != null
+        ? financePrintNumberV332(day.advancesTotalSnapshot)
+        : (Array.isArray(advanceGroups) ? advanceGroups : []).reduce(
+            function (sum, group) {
+              return sum + financePrintNumberV332(group && group.total);
+            },
+            0,
+          );
     var carried = day.isClosed
       ? financePrintNumberV332(day.carriedAmountSnapshot)
       : day.carriedAmountOverride == null ||
@@ -88067,7 +88561,10 @@ window.nawahContractDateCorrectionV321 = {
       var company = financePrintCompanyV332();
       var logo = await financePrintLogoV332(company);
       var symbolUrl = new URL("sar-symbol.png", location.href).href;
-      var advances = financePrintAdvanceGroupsV332(current.date);
+      var advances = financePrintAdvanceGroupsV332(
+        current.date,
+        current.day,
+      );
       var totals = financePrintTotalsV332(current.day, advances);
       var sections = financePrintSectionsV332(current.day, advances);
       var pages = financePrintPagesV332(sections);
@@ -88187,11 +88684,14 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 337,
+    version: 338,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();
-      var advances = financePrintAdvanceGroupsV332(current.date);
+      var advances = financePrintAdvanceGroupsV332(
+        current.date,
+        current.day,
+      );
       return {
         date: current.date,
         day: current.day,
