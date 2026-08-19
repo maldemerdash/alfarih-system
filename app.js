@@ -3856,9 +3856,9 @@ function payrollAdvanceWithPayment(advance, payment) {
   };
 }
 
-/* v340 - Immutable, date-effective advance ledger and finance-day snapshots. */
+/* v341 - Immutable, date-effective advance ledger and finance-day snapshots. */
 (function () {
-  if (window.nawahAdvanceLedgerV340) return;
+  if (window.nawahAdvanceLedgerV341) return;
   const ADVANCES_KEY = "nawah-payroll-advances",
     FINANCE_DAYS_KEY = "nawah-finance-daily-days",
     FINANCE_OPEN_KEY = "nawah-finance-daily-open";
@@ -3934,19 +3934,6 @@ function payrollAdvanceWithPayment(advance, payment) {
       ? record.payments.filter(Boolean)
       : [];
   }
-  function paidThrough(record, date) {
-    const selectedDate = dateKey(date);
-    if (!selectedDate) return 0;
-    return Math.min(
-      amount(record),
-      payments(record).reduce((total, payment) => {
-        const eventDate = paymentDate(payment, record);
-        return eventDate && eventDate <= selectedDate
-          ? total + number(payment?.amount ?? payment?.value)
-          : total;
-      }, 0),
-    );
-  }
   function stateAt(record, date) {
     const selectedDate = dateKey(date),
       issuedAt = effectiveDate(record);
@@ -3959,8 +3946,6 @@ function payrollAdvanceWithPayment(advance, payment) {
     )
       return null;
     const totalAmount = amount(record),
-      paidAmount = paidThrough(record, selectedDate),
-      remainingAmount = Math.max(0, totalAmount - paidAmount),
       datedPayments = payments(record)
         .map((payment) => ({
           ...payment,
@@ -3975,6 +3960,14 @@ function payrollAdvanceWithPayment(advance, payment) {
             `${right.effectiveDate}|${right.createdAt || ""}|${right.id || ""}`,
           ),
         ),
+      paidAmount = Math.min(
+        totalAmount,
+        datedPayments.reduce(
+          (sum, payment) => sum + number(payment?.amount ?? payment?.value),
+          0,
+        ),
+      ),
+      remainingAmount = Math.max(0, totalAmount - paidAmount),
       latestPayment = datedPayments[datedPayments.length - 1] || null;
     return {
       id: String(record.id || ""),
@@ -4230,8 +4223,8 @@ function payrollAdvanceWithPayment(advance, payment) {
     return JSON.stringify(rows);
   }
 
-  window.nawahAdvanceLedgerV340 = Object.freeze({
-    version: 340,
+  const advanceLedgerV341 = Object.freeze({
+    version: 341,
     dateKey,
     effectiveDate,
     paymentDate,
@@ -4251,6 +4244,8 @@ function payrollAdvanceWithPayment(advance, payment) {
     hasClosedImpact,
     eventsOnDateSignature,
   });
+  window.nawahAdvanceLedgerV341 = advanceLedgerV341;
+  window.nawahAdvanceLedgerV340 = advanceLedgerV341;
 })();
 function absenceSegmentDisplayLabel(segment) {
   const value = String(segment || "fullDay");
@@ -24311,6 +24306,51 @@ async function init() {
       u = !1;
     if (!m[d]) m[d] = c({}, d);
     let p = c(m[d], d);
+    let financeAdvanceViewCacheV341 = null;
+    function financeAdvanceDayViewV341() {
+      const ledger =
+        window.nawahAdvanceLedgerV341 || window.nawahAdvanceLedgerV340;
+      if (!ledger?.dayView)
+        return { version: 0, date: d, total: 0, items: [], hash: "" };
+      const frozenSnapshot = Boolean(
+          p.isClosed &&
+            Number(p.advanceSnapshotVersion || 0) >= 2 &&
+            Array.isArray(p.advanceItemsSnapshot),
+        ),
+        dayRecord = p.isClosed ? p : null;
+      let advancesRaw = "__frozen__";
+      if (!frozenSnapshot)
+        try {
+          advancesRaw = localStorage.getItem("nawah-payroll-advances") || "[]";
+        } catch (_) {
+          advancesRaw = "[]";
+        }
+      if (
+        financeAdvanceViewCacheV341?.date === d &&
+        financeAdvanceViewCacheV341?.dayRecord === dayRecord &&
+        financeAdvanceViewCacheV341?.advancesRaw === advancesRaw
+      )
+        return financeAdvanceViewCacheV341.view;
+      let advances = [];
+      if (!frozenSnapshot)
+        try {
+          const parsed = JSON.parse(advancesRaw);
+          advances = Array.isArray(parsed) ? parsed : [];
+        } catch (_) {}
+      const view = ledger.dayView(p, d, advances);
+      financeAdvanceViewCacheV341 = {
+        date: d,
+        dayRecord,
+        advancesRaw,
+        view,
+      };
+      return view;
+    }
+    function financeViewIsActiveV341() {
+      return Boolean(
+        document.getElementById("financeView")?.classList.contains("active"),
+      );
+    }
     function y() {
       const selected = financeDateValueV316(d);
       if (selected !== d) {
@@ -24620,12 +24660,12 @@ async function init() {
       return d;
     }
     function financeOpenScreenV316() {
+      if (financeOpenScreenPromiseV316) return financeOpenScreenPromiseV316;
       financeDateInteractedV316 = !1;
       financeFocusOpenDayV316();
       const sync = financeCloudSyncV226();
       if (!sync || typeof sync.refresh !== "function")
         return Promise.resolve(d);
-      if (financeOpenScreenPromiseV316) return financeOpenScreenPromiseV316;
       financeOpenScreenPromiseV316 = Promise.resolve(sync.refresh())
         .then(() => {
           if (!financeDateInteractedV316) return financeFocusOpenDayV316();
@@ -24700,11 +24740,11 @@ async function init() {
         return e.employeeName || e.employee?.name || e.employeeId || "موظف";
       }
     }
-    function I() {
+    function I(dayAdvances = financeAdvanceDayViewV341()) {
       const e = document.getElementById("financeAdvancesTableBody");
       if (!e) return;
-      const ledger = window.nawahAdvanceLedgerV340,
-        dayAdvances = ledger?.dayView?.(p, d),
+      const ledger =
+          window.nawahAdvanceLedgerV341 || window.nawahAdvanceLedgerV340,
         t = Array.isArray(dayAdvances?.items) ? dayAdvances.items : [];
       if (!t.length)
         return void (e.innerHTML =
@@ -24797,7 +24837,7 @@ async function init() {
         n && (n.textContent = S(t));
       });
     }
-    function T() {
+    function T(advanceDayView = financeAdvanceDayViewV341()) {
       const e = (function () {
           try {
             const e = localStorage.getItem("nawah-finance-settings"),
@@ -24818,10 +24858,9 @@ async function init() {
         r = w(p.cashSales),
         i = w(p.cardSales),
         s = r + i,
-        advanceDayView = window.nawahAdvanceLedgerV340?.dayView?.(p, d),
         l = o(advanceDayView?.total),
         c = o(p.manualCashAmount),
-        d = o(p.budgetAmount),
+        budgetAmount = o(p.budgetAmount),
         u = p.isClosed
           ? o(p.carriedAmountSnapshot)
           : null === p.carriedAmountOverride
@@ -24852,7 +24891,7 @@ async function init() {
           salesTotal: s,
           advancesTotal: l,
           manualCashAmount: c,
-          budgetAmount: d,
+          budgetAmount,
           dailyDebit: y,
           dailyCredit: f,
           fundAmount: v,
@@ -24860,9 +24899,9 @@ async function init() {
         }
       );
     }
-    function M() {
+    function M(advanceDayView = financeAdvanceDayViewV341()) {
       y();
-      const e = T();
+      const e = T(advanceDayView);
       ($("carriedAmount", e.settings.openingAmount),
         $("custodyAmount", e.settings.custodyAmount),
         $("dailyDebit", e.dailyDebit),
@@ -25213,84 +25252,78 @@ async function init() {
       if (!s) return void q(n, e, a, 0);
       r[r.length - 1] && q(n, e, a, o.length);
     }
-    function H(e) {
-      (y(),
-        e &&
-          (n.forEach(L),
-          N(),
-          P(document.getElementById("financeView") || document)),
-        M(),
-        (function () {
-          const e = v(d);
-          (document.querySelectorAll("[data-finance-day-name]").forEach((t) => {
-            t.textContent = e.dayName;
-          }),
-            document
-              .querySelectorAll("[data-finance-date-label]")
-              .forEach((t) => {
-                t.textContent = e.dateLabel;
-              }));
-          const t = financeDisplayLimitV316();
-          (document
-            .querySelectorAll('[data-finance-day-nav="today"]')
-            .forEach((e) => {
-              ((e.disabled = d === t),
-                e.classList.toggle("is-active", d === t));
-            }),
-            document
-              .querySelectorAll('[data-finance-day-nav="next"]')
-              .forEach((e) => {
-                ((e.disabled = d >= t),
-                  e.classList.toggle("is-disabled", d >= t));
-              }),
-            document
-              .querySelectorAll("[data-finance-date-picker]")
-              .forEach((e) => {
-                e.max = t;
-                document.activeElement !== e && (e.value = d);
-              }));
-        })(),
-        (function () {
-          const e = Boolean(p.isClosed),
-            rollbackCandidate = financeRollbackCandidateV319(d),
-            canRollback = Boolean(
-              rollbackCandidate && financeCanReopenV318(),
-            );
-          (document
-            .querySelectorAll(
-              "[data-finance-table] input, [data-finance-special]",
-            )
-            .forEach((t) => {
-              t.disabled = e;
-            }),
-            document.querySelectorAll(".finance-close-day-btn").forEach((t) => {
-              ((t.disabled = e), t.classList.toggle("is-disabled", e));
-              const n = Array.from(t.childNodes).find(
-                (e) => e.nodeType === Node.TEXT_NODE,
-              );
-              n && (n.textContent = e ? "اليوم مغلق" : "إغلاق اليوم");
-            }),
-            document
-              .querySelectorAll("#financeAddAdvanceBtn")
-              .forEach((button) => {
-                button.disabled = e;
-                button.classList.toggle("is-disabled", e);
-              }),
-            document
-              .querySelectorAll(".finance-reopen-day-btn")
-              .forEach((button) => {
-                button.hidden = !canRollback;
-                button.disabled = financeCloseInFlightV226;
-                button.classList.toggle(
-                  "has-blocked-rollback",
-                  Boolean(
-                    canRollback &&
-                      financeRollbackChangedV319(rollbackCandidate),
-                  ),
-                );
-              }));
-        })(),
-        I());
+    function financeRenderDateV341() {
+      const info = v(d),
+        displayLimit = financeDisplayLimitV316();
+      document.querySelectorAll("[data-finance-day-name]").forEach((element) => {
+        element.textContent = info.dayName;
+      });
+      document.querySelectorAll("[data-finance-date-label]").forEach((element) => {
+        element.textContent = info.dateLabel;
+      });
+      document
+        .querySelectorAll('[data-finance-day-nav="today"]')
+        .forEach((element) => {
+          element.disabled = d === displayLimit;
+          element.classList.toggle("is-active", d === displayLimit);
+        });
+      document
+        .querySelectorAll('[data-finance-day-nav="next"]')
+        .forEach((element) => {
+          element.disabled = d >= displayLimit;
+          element.classList.toggle("is-disabled", d >= displayLimit);
+        });
+      document.querySelectorAll("[data-finance-date-picker]").forEach((element) => {
+        element.max = displayLimit;
+        if (document.activeElement !== element) element.value = d;
+      });
+    }
+    function financeRenderClosedStateV341() {
+      const isClosed = Boolean(p.isClosed),
+        rollbackCandidate = financeRollbackCandidateV319(d),
+        canRollback = Boolean(rollbackCandidate && financeCanReopenV318());
+      document
+        .querySelectorAll("[data-finance-table] input, [data-finance-special]")
+        .forEach((element) => {
+          element.disabled = isClosed;
+        });
+      document.querySelectorAll(".finance-close-day-btn").forEach((button) => {
+        button.disabled = isClosed;
+        button.classList.toggle("is-disabled", isClosed);
+        const textNode = Array.from(button.childNodes).find(
+          (node) => node.nodeType === Node.TEXT_NODE,
+        );
+        if (textNode) textNode.textContent = isClosed ? "اليوم مغلق" : "إغلاق اليوم";
+      });
+      document.querySelectorAll("#financeAddAdvanceBtn").forEach((button) => {
+        button.disabled = isClosed;
+        button.classList.toggle("is-disabled", isClosed);
+      });
+      document.querySelectorAll(".finance-reopen-day-btn").forEach((button) => {
+        button.hidden = !canRollback;
+        button.disabled = financeCloseInFlightV226;
+        button.classList.toggle(
+          "has-blocked-rollback",
+          Boolean(
+            canRollback && financeRollbackChangedV319(rollbackCandidate),
+          ),
+        );
+      });
+    }
+    function H(fullRender) {
+      if (!financeViewIsActiveV341()) return false;
+      y();
+      if (fullRender) {
+        n.forEach(L);
+        N();
+        P(document.getElementById("financeView") || document);
+      }
+      financeRenderDateV341();
+      financeRenderClosedStateV341();
+      const advanceDayView = financeAdvanceDayViewV341();
+      M(advanceDayView);
+      I(advanceDayView);
+      return true;
     }
     async function O(event) {
       event?.preventDefault?.();
@@ -25353,7 +25386,7 @@ async function init() {
             return;
           }
           const currentTotals = T(),
-            advanceSnapshot = window.nawahAdvanceLedgerV340.snapshot(d),
+            advanceSnapshot = financeAdvanceDayViewV341(),
             closeChain = financeNextOpenTargetV317(d),
             nextFinanceDate = closeChain.immediateDate,
             openFinanceDate = closeChain.targetDate,
@@ -25836,7 +25869,7 @@ async function init() {
     if (V && !V.__financeDailyTablesWrapped) {
       const e = function () {
         const e = V.apply(this, arguments);
-        return (setTimeout(() => H(!0), 0), e);
+        return (setTimeout(() => H(!1), 0), e);
       };
       ((e.__financeDailyTablesWrapped = !0), (renderAll = e));
     }
@@ -25867,7 +25900,6 @@ async function init() {
         ("note" === e.target?.dataset?.financeField && C(e.target),
           _(t, e.target),
           B(t),
-          P(document.getElementById("financeView") || document),
           b(!0),
           M());
         return;
@@ -25976,8 +26008,6 @@ async function init() {
               void ("today" === e && g(l()))
             );
           }
-          e.target?.closest?.('[data-view="finance"]') &&
-            setTimeout(() => void financeOpenScreenV316(), 100);
         },
         !0,
       ),
@@ -87992,7 +88022,7 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v340 - Finance print uses the same immutable advance ledger and close snapshot. */
+/* v341 - Finance print uses the same immutable advance ledger and close snapshot. */
 (function () {
   if (window.__nawahFinanceDailyPrintV332) return;
   window.__nawahFinanceDailyPrintV332 = true;
@@ -88130,7 +88160,7 @@ window.nawahContractDateCorrectionV321 = {
 
   function financePrintAdvanceGroupsV332(date, day) {
     var advances = financePrintReadJsonV332("nawah-payroll-advances", []);
-    var ledger = window.nawahAdvanceLedgerV340;
+    var ledger = window.nawahAdvanceLedgerV341 || window.nawahAdvanceLedgerV340;
     var view = ledger.dayView(
       day || {},
       date,
@@ -88833,7 +88863,7 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 340,
+    version: 341,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();
