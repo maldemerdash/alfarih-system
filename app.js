@@ -3856,9 +3856,9 @@ function payrollAdvanceWithPayment(advance, payment) {
   };
 }
 
-/* v342 - Immutable, date-effective advance ledger and finance-day snapshots. */
+/* v343 - Immutable, date-effective advance ledger and finance-day snapshots. */
 (function () {
-  if (window.nawahAdvanceLedgerV342) return;
+  if (window.nawahAdvanceLedger?.version >= 343) return;
   const ADVANCES_KEY = "nawah-payroll-advances",
     FINANCE_DAYS_KEY = "nawah-finance-daily-days",
     FINANCE_OPEN_KEY = "nawah-finance-daily-open";
@@ -4223,8 +4223,8 @@ function payrollAdvanceWithPayment(advance, payment) {
     return JSON.stringify(rows);
   }
 
-  const advanceLedgerV342 = Object.freeze({
-    version: 342,
+  const advanceLedgerV343 = Object.freeze({
+    version: 343,
     dateKey,
     effectiveDate,
     paymentDate,
@@ -4244,9 +4244,9 @@ function payrollAdvanceWithPayment(advance, payment) {
     hasClosedImpact,
     eventsOnDateSignature,
   });
-  window.nawahAdvanceLedgerV342 = advanceLedgerV342;
-  window.nawahAdvanceLedgerV341 = advanceLedgerV342;
-  window.nawahAdvanceLedgerV340 = advanceLedgerV342;
+  window.nawahAdvanceLedger = advanceLedgerV343;
+  window.nawahAdvanceLedgerV343 = advanceLedgerV343;
+  window.nawahAdvanceLedgerV340 = advanceLedgerV343;
 })();
 function absenceSegmentDisplayLabel(segment) {
   const value = String(segment || "fullDay");
@@ -24310,8 +24310,8 @@ async function init() {
     let financeAdvanceViewCacheV341 = null;
     function financeAdvanceDayViewV341() {
       const ledger =
-        window.nawahAdvanceLedgerV342 ||
-        window.nawahAdvanceLedgerV341 ||
+        window.nawahAdvanceLedger ||
+        window.nawahAdvanceLedgerV343 ||
         window.nawahAdvanceLedgerV340;
       if (!ledger?.dayView)
         return { version: 0, date: d, total: 0, items: [], hash: "" };
@@ -24777,8 +24777,8 @@ async function init() {
       const e = document.getElementById("financeAdvancesTableBody");
       if (!e) return;
       const ledger =
-          window.nawahAdvanceLedgerV342 ||
-          window.nawahAdvanceLedgerV341 ||
+          window.nawahAdvanceLedger ||
+          window.nawahAdvanceLedgerV343 ||
           window.nawahAdvanceLedgerV340,
         t = Array.isArray(dayAdvances?.items) ? dayAdvances.items : [];
       if (!t.length)
@@ -24908,7 +24908,7 @@ async function init() {
         h = p.isClosed
           ? o(p.newCarriedAmountSnapshot)
           : calculatedNewCarried,
-        calculatedFund = u + m + r + c + n - t - a - l,
+        calculatedFund = u + m + r + c - t - a - l,
         v = p.isClosed ? o(p.fundAmountSnapshot) : calculatedFund;
       return (
         p.isClosed ||
@@ -71801,7 +71801,6 @@ window.nawahLeaveBalanceReportV185 = {
           : number(day.carriedAmountOverride),
       custody = number(settings.custodyAmount),
       pending = sum(day.pending),
-      deletedPending = sum(day.deletedPending),
       expenses = sum(day.expenses),
       cashSales = sum(day.cashSales),
       cardSales = sum(day.cardSales),
@@ -71819,8 +71818,7 @@ window.nawahLeaveBalanceReportV185 = {
         carried +
         custody +
         cashSales +
-        manualCash +
-        deletedPending -
+        manualCash -
         pending -
         expenses -
         advances,
@@ -88059,7 +88057,7 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v342 - Finance print uses the same immutable advance ledger and close snapshot. */
+/* v343 - Finance print uses the same immutable advance ledger and close snapshot. */
 (function () {
   if (window.__nawahFinanceDailyPrintV332) return;
   window.__nawahFinanceDailyPrintV332 = true;
@@ -88198,8 +88196,8 @@ window.nawahContractDateCorrectionV321 = {
   function financePrintAdvanceGroupsV332(date, day) {
     var advances = financePrintReadJsonV332("nawah-payroll-advances", []);
     var ledger =
-      window.nawahAdvanceLedgerV342 ||
-      window.nawahAdvanceLedgerV341 ||
+      window.nawahAdvanceLedger ||
+      window.nawahAdvanceLedgerV343 ||
       window.nawahAdvanceLedgerV340;
     var view = ledger.dayView(
       day || {},
@@ -88298,12 +88296,6 @@ window.nawahContractDateCorrectionV321 = {
     var pending = financePrintRowsV332(day.pending).reduce(function (sum, row) {
       return sum + financePrintNumberV332(row.amount);
     }, 0);
-    var deletedPending = (Array.isArray(day.deletedPending)
-      ? day.deletedPending
-      : []
-    ).reduce(function (sum, row) {
-      return sum + financePrintNumberV332(row && row.amount);
-    }, 0);
     var expenses = financePrintRowsV332(day.expenses).reduce(function (
       sum,
       row,
@@ -88346,8 +88338,7 @@ window.nawahContractDateCorrectionV321 = {
       carried +
       custody +
       cashSales +
-      manualCash +
-      deletedPending -
+      manualCash -
       pending -
       expenses -
       advances;
@@ -88903,7 +88894,7 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 342,
+    version: 343,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();
