@@ -3018,6 +3018,12 @@ function currentPayrollMonthKey() {
 function approvedPayrollAdvancesForEmployee(employeeId, monthKey) {
   try {
     const list = JSON.parse(localStorage.getItem("nawah-payroll-advances") || "[]");
+    if (window.nawahAdvanceLedgerV340)
+      return window.nawahAdvanceLedgerV340.payrollEmployeeTotal(
+        Array.isArray(list) ? list : [],
+        employeeId,
+        monthKey,
+      );
     return (Array.isArray(list) ? list : [])
       .filter(
         (advance) =>
@@ -3798,19 +3804,34 @@ function payrollAdvancePaymentSourceLabel(advance) {
   return latest.sourceLabel || latest.source || "نقدي";
 }
 function payrollAdvanceWithPayment(advance, payment) {
+  const paymentId =
+      payment?.id || `pay-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    currentPayments = payrollAdvancePayments(advance);
+  if (
+    currentPayments.some(
+      (item) => String(item?.id || "") === String(paymentId),
+    )
+  )
+    return advance;
   const amount = payrollAdvanceAmountValue(advance),
     payAmount = Math.min(
       payrollAdvanceRemainingAmount(advance),
       Math.max(0, Number(payment?.amount || 0) || 0),
     );
   if (!(payAmount > 0)) return advance;
-  const payments = payrollAdvancePayments(advance).concat({
-    id: payment?.id || `pay-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  const payments = currentPayments.concat({
+    id: paymentId,
     amount: payAmount,
     date: payment?.date || formatInputDate(todayAtNoon()),
+    financeDate:
+      payment?.financeDate ||
+      payment?.date ||
+      formatInputDate(todayAtNoon()),
     source: payment?.source || "manual",
     sourceLabel: payment?.sourceLabel || "نقدي",
     payrollRunId: payment?.payrollRunId || "",
+    eventType: payment?.eventType || "payment",
+    reversalOfAdvanceId: payment?.reversalOfAdvanceId || "",
     createdAt: payment?.createdAt || new Date().toISOString(),
     createdBy:
       payment?.createdBy ||
@@ -3834,6 +3855,403 @@ function payrollAdvanceWithPayment(advance, payment) {
     settledAt: remainingAmount <= 0 ? latest.createdAt || new Date().toISOString() : "",
   };
 }
+
+/* v340 - Immutable, date-effective advance ledger and finance-day snapshots. */
+(function () {
+  if (window.nawahAdvanceLedgerV340) return;
+  const ADVANCES_KEY = "nawah-payroll-advances",
+    FINANCE_DAYS_KEY = "nawah-finance-daily-days",
+    FINANCE_OPEN_KEY = "nawah-finance-daily-open";
+
+  function number(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  }
+  function dateKey(value) {
+    const candidate = String(value || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return "";
+    const parts = candidate.split("-").map(Number),
+      date = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+    return date.getFullYear() === parts[0] &&
+      date.getMonth() === parts[1] - 1 &&
+      date.getDate() === parts[2]
+      ? candidate
+      : "";
+  }
+  function readJson(key, fallback) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "null");
+      return parsed == null ? fallback : parsed;
+    } catch (_) {
+      return fallback;
+    }
+  }
+  function readAdvances() {
+    const records = readJson(ADVANCES_KEY, []);
+    return Array.isArray(records) ? records.filter(Boolean) : [];
+  }
+  function effectiveDate(record) {
+    const values = [
+      record?.financeDate,
+      record?.transactionDate,
+      record?.date,
+      record?.createdAt,
+    ];
+    for (const value of values) {
+      const date = dateKey(value);
+      if (date) return date;
+    }
+    return "";
+  }
+  function paymentDate(payment, record) {
+    return (
+      dateKey(
+        payment?.financeDate ||
+          payment?.date ||
+          payment?.paymentDate ||
+          payment?.createdAt,
+      ) || effectiveDate(record)
+    );
+  }
+  function amount(record) {
+    try {
+      if (typeof payrollAdvanceAmountValue === "function")
+        return number(payrollAdvanceAmountValue(record));
+    } catch (_) {}
+    return number(
+      record?.amount ??
+        record?.value ??
+        record?.total ??
+        record?.advanceAmount,
+    );
+  }
+  function payments(record) {
+    try {
+      if (typeof payrollAdvancePayments === "function")
+        return payrollAdvancePayments(record).filter(Boolean);
+    } catch (_) {}
+    return Array.isArray(record?.payments)
+      ? record.payments.filter(Boolean)
+      : [];
+  }
+  function paidThrough(record, date) {
+    const selectedDate = dateKey(date);
+    if (!selectedDate) return 0;
+    return Math.min(
+      amount(record),
+      payments(record).reduce((total, payment) => {
+        const eventDate = paymentDate(payment, record);
+        return eventDate && eventDate <= selectedDate
+          ? total + number(payment?.amount ?? payment?.value)
+          : total;
+      }, 0),
+    );
+  }
+  function stateAt(record, date) {
+    const selectedDate = dateKey(date),
+      issuedAt = effectiveDate(record);
+    if (
+      !record ||
+      String(record.status || "approved") !== "approved" ||
+      !selectedDate ||
+      !issuedAt ||
+      issuedAt > selectedDate
+    )
+      return null;
+    const totalAmount = amount(record),
+      paidAmount = paidThrough(record, selectedDate),
+      remainingAmount = Math.max(0, totalAmount - paidAmount),
+      datedPayments = payments(record)
+        .map((payment) => ({
+          ...payment,
+          effectiveDate: paymentDate(payment, record),
+        }))
+        .filter(
+          (payment) =>
+            payment.effectiveDate && payment.effectiveDate <= selectedDate,
+        )
+        .sort((left, right) =>
+          `${left.effectiveDate}|${left.createdAt || ""}|${left.id || ""}`.localeCompare(
+            `${right.effectiveDate}|${right.createdAt || ""}|${right.id || ""}`,
+          ),
+        ),
+      latestPayment = datedPayments[datedPayments.length - 1] || null;
+    return {
+      id: String(record.id || ""),
+      employeeId: String(record.employeeId || ""),
+      employeeName: String(
+        record.employeeName || record.employee?.name || record.employeeId || "موظف",
+      ),
+      amount: totalAmount,
+      paidAmount,
+      remainingAmount,
+      date: issuedAt,
+      dayName: String(record.dayName || ""),
+      paymentSourceLabel: String(
+        latestPayment?.sourceLabel || latestPayment?.source || "—",
+      ),
+    };
+  }
+  function entriesAt(date, records = readAdvances()) {
+    return (Array.isArray(records) ? records : [])
+      .map((record) => stateAt(record, date))
+      .filter((record) => record && record.remainingAmount > 0)
+      .sort((left, right) =>
+        `${left.date}|${left.id}`.localeCompare(`${right.date}|${right.id}`),
+      );
+  }
+  function total(entries) {
+    return (Array.isArray(entries) ? entries : []).reduce(
+      (sum, record) => sum + number(record?.remainingAmount),
+      0,
+    );
+  }
+  function groups(entries) {
+    const grouped = new Map();
+    (Array.isArray(entries) ? entries : []).forEach((record) => {
+      const key = String(
+          record.employeeId || record.employeeName || "employee",
+        ),
+        group = grouped.get(key) || {
+          key,
+          employeeSample: record,
+          total: 0,
+          items: [],
+        };
+      group.total += number(record.remainingAmount);
+      group.items.push(record);
+      grouped.set(key, group);
+    });
+    return Array.from(grouped.values());
+  }
+  function hash(value) {
+    const text = JSON.stringify(value),
+      length = text.length;
+    let result = 2166136261;
+    for (let index = 0; index < length; index += 1) {
+      result ^= text.charCodeAt(index);
+      result = Math.imul(result, 16777619);
+    }
+    return (result >>> 0).toString(16).padStart(8, "0");
+  }
+  function snapshot(date, records = readAdvances()) {
+    const selectedDate = dateKey(date),
+      items = entriesAt(selectedDate, records).map((record) => ({
+        id: record.id,
+        employeeId: record.employeeId,
+        employeeName: record.employeeName,
+        amount: record.amount,
+        paidAmount: record.paidAmount,
+        remainingAmount: record.remainingAmount,
+        date: record.date,
+        dayName: record.dayName,
+        paymentSourceLabel: record.paymentSourceLabel,
+      })),
+      snapshotTotal = total(items),
+      content = { date: selectedDate, total: snapshotTotal, items };
+    return {
+      version: 2,
+      date: selectedDate,
+      total: snapshotTotal,
+      items,
+      hash: hash(content),
+    };
+  }
+  function rowTotal(rows) {
+    return (Array.isArray(rows) ? rows : []).reduce(
+      (sum, row) => sum + number(row?.amount),
+      0,
+    );
+  }
+  function legacyClosedTotal(day) {
+    if (!day?.isClosed) return null;
+    const inferred =
+      number(day.carriedAmountSnapshot) +
+      number(day.custodyAmountSnapshot) +
+      rowTotal(day.cashSales) +
+      number(day.manualCashAmount) +
+      rowTotal(day.deletedPending) -
+      rowTotal(day.pending) -
+      rowTotal(day.expenses) -
+      number(day.fundAmountSnapshot);
+    return Math.max(0, inferred);
+  }
+  function dayView(day, date, records = readAdvances()) {
+    const selectedDate = dateKey(date || day?.financeDate);
+    if (!day?.isClosed) return snapshot(selectedDate, records);
+    if (
+      Number(day.advanceSnapshotVersion || 0) >= 2 &&
+      Array.isArray(day.advanceItemsSnapshot) &&
+      Number.isFinite(Number(day.advancesTotalSnapshot))
+    ) {
+      return {
+        version: Number(day.advanceSnapshotVersion),
+        date: selectedDate,
+        total: number(day.advancesTotalSnapshot),
+        items: day.advanceItemsSnapshot.map((record) => ({
+          ...record,
+          amount: number(record?.amount),
+          paidAmount: number(record?.paidAmount),
+          remainingAmount: number(record?.remainingAmount),
+        })),
+        hash: String(day.advanceSnapshotHash || ""),
+      };
+    }
+    const historicalTotal = legacyClosedTotal(day),
+      historicalEntries = entriesAt(selectedDate, records),
+      entriesTotal = total(historicalEntries),
+      compatible = Math.abs(entriesTotal - number(historicalTotal)) <= 0.01;
+    return {
+      version: 1,
+      date: selectedDate,
+      total: number(historicalTotal),
+      items: compatible
+        ? historicalEntries
+        : number(historicalTotal) > 0
+          ? [
+              {
+                id: `legacy-closed-${selectedDate}`,
+                employeeId: "",
+                employeeName: "إجمالي محفوظ لليوم",
+                amount: number(historicalTotal),
+                paidAmount: 0,
+                remainingAmount: number(historicalTotal),
+                date: selectedDate,
+                dayName: "",
+                paymentSourceLabel: "سجل إغلاق سابق",
+              },
+            ]
+          : [],
+      hash: "",
+    };
+  }
+  function financeDays() {
+    const days = readJson(FINANCE_DAYS_KEY, {});
+    return days && typeof days === "object" && !Array.isArray(days) ? days : {};
+  }
+  function isDayClosed(date) {
+    const selectedDate = dateKey(date);
+    return Boolean(selectedDate && financeDays()?.[selectedDate]?.isClosed);
+  }
+  function currentOpenDate() {
+    const days = financeDays(),
+      storedOpen = readJson(FINANCE_OPEN_KEY, {}),
+      storedDate = dateKey(storedOpen?.financeDate);
+    try {
+      const sync = window.nawahFinanceSyncV226,
+        syncDate = dateKey(
+          sync?.openDate?.() || sync?.operationalDate?.() || "",
+        ),
+        syncDay = sync?.readDays?.()?.[syncDate] || sync?.readCurrent?.() || {};
+      if (syncDate && !syncDay?.isClosed) return syncDate;
+    } catch (_) {}
+    if (storedDate && !storedOpen?.isClosed && !days?.[storedDate]?.isClosed)
+      return storedDate;
+    return (
+      Object.keys(days)
+        .map(dateKey)
+        .filter((date) => date && days[date] && !days[date].isClosed)
+        .sort()[0] || ""
+    );
+  }
+  function isPostingDateOpen(date) {
+    const selectedDate = dateKey(date),
+      openDate = currentOpenDate();
+    return Boolean(selectedDate && openDate && selectedDate === openDate && !isDayClosed(selectedDate));
+  }
+  function monthEnd(monthKey) {
+    const match = /^(\d{4})-(\d{2})$/.exec(String(monthKey || ""));
+    if (!match) return "";
+    const date = new Date(Number(match[1]), Number(match[2]), 0, 12, 0, 0, 0);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+  function payrollEligible(record, monthKey) {
+    const cutoff = monthEnd(monthKey),
+      issuedAt = effectiveDate(record);
+    return Boolean(
+      record &&
+        String(record.status || "approved") === "approved" &&
+        cutoff &&
+        issuedAt &&
+        issuedAt <= cutoff &&
+        payrollAdvanceRemainingAmount(record) > 0,
+    );
+  }
+  function payrollEmployeeTotal(records, employeeId, monthKey) {
+    return (Array.isArray(records) ? records : [])
+      .filter(
+        (record) =>
+          String(record?.employeeId || "") === String(employeeId || "") &&
+          payrollEligible(record, monthKey),
+      )
+      .reduce(
+        (sum, record) => sum + payrollAdvanceRemainingAmount(record),
+        0,
+      );
+  }
+  function hasClosedImpact(record) {
+    const issuedAt = effectiveDate(record);
+    if (!issuedAt) return false;
+    const days = financeDays();
+    return Object.keys(days).some(
+      (date) => date >= issuedAt && Boolean(days[date]?.isClosed),
+    );
+  }
+  function eventsOnDateSignature(date, records = readAdvances()) {
+    const selectedDate = dateKey(date),
+      rows = (Array.isArray(records) ? records : [])
+        .filter(
+          (record) =>
+            effectiveDate(record) === selectedDate ||
+            payments(record).some(
+              (payment) => paymentDate(payment, record) === selectedDate,
+            ),
+        )
+        .map((record) => ({
+          id: String(record?.id || ""),
+          employeeId: String(record?.employeeId || ""),
+          amount: amount(record),
+          status: String(record?.status || ""),
+          date: effectiveDate(record),
+          payments: payments(record)
+            .filter(
+              (payment) => paymentDate(payment, record) === selectedDate,
+            )
+            .map((payment) => ({
+              id: String(payment?.id || ""),
+              amount: number(payment?.amount),
+              date: paymentDate(payment, record),
+              source: String(payment?.source || ""),
+              payrollRunId: String(payment?.payrollRunId || ""),
+            }))
+            .sort((left, right) => left.id.localeCompare(right.id)),
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id));
+    return JSON.stringify(rows);
+  }
+
+  window.nawahAdvanceLedgerV340 = Object.freeze({
+    version: 340,
+    dateKey,
+    effectiveDate,
+    paymentDate,
+    readAdvances,
+    stateAt,
+    entriesAt,
+    total,
+    groups,
+    snapshot,
+    dayView,
+    legacyClosedTotal,
+    isDayClosed,
+    currentOpenDate,
+    isPostingDateOpen,
+    payrollEligible,
+    payrollEmployeeTotal,
+    hasClosedImpact,
+    eventsOnDateSignature,
+  });
+})();
 function absenceSegmentDisplayLabel(segment) {
   const value = String(segment || "fullDay");
   if (value === "first") return "الفترة الأولى";
@@ -19689,6 +20107,16 @@ async function init() {
       }
       return false;
     }
+    async function verifyPayrollCloudV340(predicate) {
+      const sync = payrollCloudSyncV225();
+      try {
+        if (sync && typeof sync.refresh === "function") await sync.refresh();
+        return Boolean(predicate());
+      } catch (error) {
+        console.warn("v340: تعذر التحقق من نتيجة الحركة المالية.", error);
+        return false;
+      }
+    }
     function B() {
       try {
         Q();
@@ -19771,31 +20199,90 @@ async function init() {
         } catch (e) {}
         return !1;
       }
-      const monthKey =
-        a.monthKey || String(a.date || "").slice(0, 7) || p();
-      if (lockedPayrollRunV225(monthKey)) {
+      const ledger = window.nawahAdvanceLedgerV340,
+        remainingAmount = payrollAdvanceRemainingAmount(a);
+      if (!(remainingAmount > 0)) {
         try {
           showToast(
-            "لا يمكن حذف سلفة مرتبطة بمسير مصروف؛ المسير المالي محفوظ وغير قابل للتعديل",
+            "لا يمكن حذف سلفة مسددة؛ سجلها المالي محفوظ وغير قابل للتعديل",
           );
         } catch (_) {}
         return !1;
       }
       const r = M(a.employeeId),
-        i = `هل تريد حذف سلفة ${r?.name || a.employeeName || "الموظف"} بقيمة ${o(a.amount)}؟ سيتم تحديث الرواتب والمالية مباشرة.`;
+        closedImpact = Boolean(ledger?.hasClosedImpact?.(a)),
+        postingDate = ledger?.currentOpenDate?.() || "",
+        i = closedImpact
+          ? `السلفة مرتبطة بيوم مالي مغلق، لذلك لن يُحذف سجلها. سيتم تسجيل حركة عكسية بقيمة ${o(remainingAmount)} في اليوم المالي المفتوح. هل تريد المتابعة؟`
+          : `هل تريد حذف سلفة ${r?.name || a.employeeName || "الموظف"} بقيمة ${o(a.amount)}؟ سيتم تحديث الرواتب والمالية مباشرة.`;
+      if (
+        closedImpact &&
+        (!postingDate || !ledger?.isPostingDateOpen?.(postingDate))
+      ) {
+        try {
+          showToast("لا يوجد يوم مالي مفتوح لتسجيل الحركة العكسية");
+        } catch (_) {}
+        return !1;
+      }
       if (!(await confirmAdvanceDelete(a, r, i))) return !1;
+      if (closedImpact) {
+        const reversed = payrollAdvanceWithPayment(a, {
+          id: `advance-reversal-${t}-${postingDate}`,
+          amount: remainingAmount,
+          date: postingDate,
+          financeDate: postingDate,
+          source: "reversal",
+          sourceLabel: "عكس سلفة في اليوم المالي المفتوح",
+          eventType: "reversal",
+          reversalOfAdvanceId: t,
+        });
+        P(
+          n.map((record) =>
+            String(record?.id || "") === t ? reversed : record,
+          ),
+        );
+        trackPayrollUpsertsV225("payrollAdvances", [t]);
+        const saved = await F("confirmed-advance-reversal");
+        const confirmed = Boolean(
+          saved &&
+            (await verifyPayrollCloudV340(() =>
+              C()
+                .find((record) => String(record?.id || "") === t)
+                ?.payments?.some(
+                  (payment) =>
+                    String(payment?.id || "") ===
+                    `advance-reversal-${t}-${postingDate}`,
+                ),
+            )),
+        );
+        B();
+        try {
+          showToast(
+            confirmed
+              ? "تم حفظ الحركة العكسية مع بقاء سجل السلفة التاريخي"
+              : "تعذر اعتماد الحركة العكسية؛ حدّث البيانات وتأكد أن اليوم المالي ما زال مفتوحًا",
+          );
+        } catch (_) {}
+        return confirmed;
+      }
       P(n.filter((e) => String(e?.id || "") !== t));
       trackPayrollDeletesV225("payrollAdvances", [t]);
       const saved = await F("confirmed-advance-delete");
+      const confirmed = Boolean(
+        saved &&
+          (await verifyPayrollCloudV340(
+            () => !C().some((record) => String(record?.id || "") === t),
+          )),
+      );
       B();
       try {
         showToast(
-          saved
+          confirmed
             ? "تم حذف السلفة وحفظ التغيير سحابيًا"
-            : "تم تطبيق الحذف مؤقتًا، وتعذر تأكيده سحابيًا وسيُعاد تلقائيًا",
+            : "تعذر تأكيد حذف السلفة سحابيًا؛ تم الاحتفاظ بالسجل",
         );
       } catch (e) {}
-      return saved;
+      return confirmed;
       } finally {
         advanceMutationInFlight = false;
       }
@@ -19865,7 +20352,9 @@ async function init() {
         } catch (e) {}
         return;
       }
-      const i = M(n.employeeId),
+      const ledger = window.nawahAdvanceLedgerV340,
+        postingDate = ledger?.currentOpenDate?.() || "",
+        i = M(n.employeeId),
         s = ensureAdvancePaymentModal(),
         l = (function (e) {
           try {
@@ -19887,7 +20376,7 @@ async function init() {
         s.querySelector("#advancePaymentAmount") &&
           (s.querySelector("#advancePaymentAmount").value = ""),
         s.querySelector("#advancePaymentDate") &&
-          (s.querySelector("#advancePaymentDate").value = l),
+          (s.querySelector("#advancePaymentDate").value = postingDate || l),
         updateAdvancePaymentPreview(s));
       try {
         s.open || s.showModal();
@@ -19910,16 +20399,6 @@ async function init() {
         a = C(),
         r = a.find((e) => String(e?.id || "") === n);
       if (!r) return !1;
-      const monthKey =
-        r.monthKey || String(r.date || "").slice(0, 7) || p();
-      if (lockedPayrollRunV225(monthKey)) {
-        try {
-          showToast(
-            "لا يمكن تعديل سداد سلفة مرتبطة بمسير مصروف؛ المسير المالي محفوظ",
-          );
-        } catch (_) {}
-        return !1;
-      }
       const i = payrollAdvanceRemainingAmount(r),
         s =
           e.querySelector('input[name="advancePaymentMode"]:checked')?.value ||
@@ -19948,12 +20427,29 @@ async function init() {
         } catch (e) {}
         return !1;
       }
+      const ledger = window.nawahAdvanceLedgerV340,
+        issueDate = ledger?.effectiveDate?.(r) || "";
+      if (!ledger?.isPostingDateOpen?.(c)) {
+        try {
+          showToast("يجب تسجيل السداد في اليوم المالي المفتوح فقط");
+        } catch (_) {}
+        return !1;
+      }
+      if (issueDate && c < issueDate) {
+        try {
+          showToast("لا يمكن أن يسبق تاريخ السداد تاريخ إصدار السلفة");
+        } catch (_) {}
+        return !1;
+      }
+      const paymentId = `manual-${n}-${c}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       P(
         a.map((e) =>
           String(e?.id || "") === n
             ? payrollAdvanceWithPayment(e, {
+                id: paymentId,
                 amount: l,
                 date: c,
+                financeDate: c,
                 source: "manual",
                 sourceLabel: "نقدي",
               })
@@ -19962,46 +20458,63 @@ async function init() {
       );
       trackPayrollUpsertsV225("payrollAdvances", [n]);
       const saved = await F("confirmed-advance-payment");
+      const confirmed = Boolean(
+        saved &&
+          (await verifyPayrollCloudV340(() =>
+            C()
+              .find((record) => String(record?.id || "") === n)
+              ?.payments?.some(
+                (payment) => String(payment?.id || "") === paymentId,
+              ),
+          )),
+      );
       (e.open && e.close(), B());
       try {
         showToast(
-          saved
+          confirmed
             ? "تم حفظ سداد السلفة وتحديث المتبقي سحابيًا"
-            : "تم تسجيل السداد مؤقتًا، وتعذر تأكيده سحابيًا وسيُعاد تلقائيًا",
+            : "تعذر اعتماد السداد؛ تأكد أن اليوم المالي ما زال مفتوحًا",
         );
       } catch (e) {}
-      return saved;
+      return confirmed;
       } finally {
         advanceMutationInFlight = false;
       }
     }
-    function payMonthAdvancesFromPayroll(e, t) {
+    function payMonthAdvancesFromPayroll(e, t, postingDate) {
       const n = C();
       let a = 0,
         r = 0;
-      const i = (function (e) {
-        try {
-          return "function" == typeof formatInputDate
-            ? formatInputDate(e)
-            : new Date(e).toISOString().slice(0, 10);
-        } catch (e) {
-          return new Date().toISOString().slice(0, 10);
-        }
-      })(new Date());
+      const ledger = window.nawahAdvanceLedgerV340,
+        i = ledger?.dateKey?.(postingDate) || "",
+        runEmployeeIds = new Set(
+          (Array.isArray(t?.items) ? t.items : [])
+            .map((item) => String(item?.employeeId || item?.employee?.id || ""))
+            .filter(Boolean),
+        );
       P(
         n.map((n) => {
-          const s = n.monthKey || String(n.date || "").slice(0, 7),
-            l = payrollAdvanceRemainingAmount(n);
+          const l = payrollAdvanceRemainingAmount(n),
+            eligible = Boolean(ledger?.payrollEligible?.(n, e)),
+            paymentId = `payroll-${t?.id || e}-${n?.id || "advance"}`,
+            alreadyPaidByRun = payrollAdvancePayments(n).some(
+              (payment) =>
+                String(payment?.payrollRunId || "") === String(t?.id || "") ||
+                String(payment?.id || "") === paymentId,
+            );
           if (
             n &&
-            String(n.status || "approved") === "approved" &&
-            String(s || "") === String(e || "") &&
+            eligible &&
+            runEmployeeIds.has(String(n.employeeId || "")) &&
+            !alreadyPaidByRun &&
             l > 0
           ) {
             ((a += 1), (r += l));
             return payrollAdvanceWithPayment(n, {
+              id: paymentId,
               amount: l,
               date: i,
+              financeDate: i,
               source: "payroll",
               sourceLabel: "مسدد في مسير الرواتب",
               payrollRunId: t?.id || "",
@@ -20015,12 +20528,10 @@ async function init() {
         total: r,
         ids: n
           .filter((advance) => {
-            const monthKey =
-              advance.monthKey || String(advance.date || "").slice(0, 7);
             return (
               advance &&
-              String(advance.status || "approved") === "approved" &&
-              String(monthKey || "") === String(e || "") &&
+              ledger?.payrollEligible?.(advance, e) &&
+              runEmployeeIds.has(String(advance.employeeId || "")) &&
               payrollAdvanceRemainingAmount(advance) > 0
             );
           })
@@ -20029,8 +20540,13 @@ async function init() {
       };
     }
     function O(e = p()) {
+      const ledger = window.nawahAdvanceLedgerV340;
       return C().filter(
-        (t) => t && t.status === n && t.monthKey === e && M(t.employeeId),
+        (record) =>
+          record &&
+          record.status === n &&
+          M(record.employeeId) &&
+          ledger?.payrollEligible?.(record, e),
       );
     }
     function R(e, t = p()) {
@@ -20085,19 +20601,21 @@ async function init() {
         } catch (e) {}
         return;
       }
-      if (k(p())) {
-        try {
-          showToast("لا يمكن إضافة سلفة على مسير محفوظ ومصروف");
-        } catch (e) {}
-        return;
-      }
-      const rules = window.nawahWorkdayTransactionRulesV335,
+      const ledger = window.nawahAdvanceLedgerV340,
+        rules = window.nawahWorkdayTransactionRulesV335,
         advanceDate = rules?.normalizeDate?.(transactionDate) ||
+          ledger?.currentOpenDate?.() ||
           rules?.today?.() ||
           ("function" == typeof formatInputDate
             ? formatInputDate(todayAtNoon())
             : new Date().toISOString().slice(0, 10)),
         workdayRule = rules?.status?.(advanceDate);
+      if (!ledger?.isPostingDateOpen?.(advanceDate)) {
+        try {
+          showToast("لا يمكن إضافة سلفة إلا في اليوم المالي المفتوح");
+        } catch (_) {}
+        return;
+      }
       if (workdayRule && !workdayRule.allowed) {
         try {
           showToast(rules.message("السلفة", workdayRule));
@@ -20123,7 +20641,7 @@ async function init() {
         n && (n.value = ""));
       const o = e.querySelector(".advance-modal-head p");
       if (
-        (o && (o.textContent = `تسجل السلفة كاعتماد مباشر ضمن ${y()}`),
+        (o && (o.textContent = `تسجل السلفة بتاريخ اليوم المالي المفتوح ${advanceDate}`),
         !t?.options?.length || t.options.length <= 1)
       )
         try {
@@ -20165,6 +20683,13 @@ async function init() {
         } catch (_) {}
         return !1;
       }
+      const ledger = window.nawahAdvanceLedgerV340;
+      if (!ledger?.isPostingDateOpen?.(transactionDate)) {
+        try {
+          showToast("أُغلق اليوم المالي أو تغير أثناء الإدخال؛ لم تُعتمد السلفة");
+        } catch (_) {}
+        return !1;
+      }
       const r = (function (e) {
           const t = String(e ?? "")
               .replace(/[٠-٩]/g, (e) => String("٠١٢٣٤٥٦٧٨٩".indexOf(e)))
@@ -20179,16 +20704,10 @@ async function init() {
         } catch (e) {}
         return !1;
       }
-      const s = p(),
+      const s = String(transactionDate).slice(0, 7),
         l = x(i),
         c = l / 2,
         d = R(a, s) + r;
-      if (lockedPayrollRunV225(s)) {
-        try {
-          showToast("لا يمكن إضافة سلفة على مسير محفوظ ومصروف");
-        } catch (_) {}
-        return !1;
-      }
       if (l > 0 && d > c) {
         const e = d - c,
           t =
@@ -20229,8 +20748,11 @@ async function init() {
           employeeName: i.name || "",
           amount: r,
           date: y,
+          financeDate: y,
+          transactionDate: y,
           dayName: f(y),
           monthKey: s,
+          ledgerVersion: 2,
           status: n,
           payments: [],
           paidAmount: 0,
@@ -20246,12 +20768,18 @@ async function init() {
       (v.push(h), P(v));
       trackPayrollUpsertsV225("payrollAdvances", [h.id]);
       const saved = await F("confirmed-advance-create");
+      const confirmed = Boolean(
+        saved &&
+          (await verifyPayrollCloudV340(() =>
+            C().some((record) => String(record?.id || "") === h.id),
+          )),
+      );
       t.close();
       try {
         showToast(
-          saved
+          confirmed
             ? "تم اعتماد السلفة وحفظها سحابيًا"
-            : "تم اعتماد السلفة مؤقتًا، وتعذر تأكيدها سحابيًا وسيُعاد تلقائيًا",
+            : "تعذر اعتماد السلفة؛ تأكد أن اليوم المالي ما زال مفتوحًا",
         );
       } catch (e) {}
       try {
@@ -20271,7 +20799,7 @@ async function init() {
         );
         window.nawahFinanceSyncV226?.render?.();
       } catch (e) {}
-      return saved;
+      return confirmed;
       } finally {
         advanceMutationInFlight = false;
       }
@@ -20351,7 +20879,7 @@ async function init() {
         totalSalary: Number(x(e) || 0),
       };
     }
-    function J(e = p()) {
+    function J(e = p(), postingDate = "") {
       const t = h()
         .filter(isOnDutyEmployee)
         .map((t) => ({ employeeId: t.id, employee: G(t), line: z(t, e) }));
@@ -20361,6 +20889,9 @@ async function init() {
         monthLabel: y(e),
         status: "paid",
         statusLabel: "مصروف",
+        financeDate: postingDate,
+        approvedFinanceDate: postingDate,
+        approvedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         createdBy:
           void 0 !== authProfile && authProfile?.full_name
@@ -20400,24 +20931,55 @@ async function init() {
         Q();
         return !1;
       }
-      const t = J(e),
+      const ledger = window.nawahAdvanceLedgerV340,
+        postingDate = ledger?.currentOpenDate?.() || "";
+      if (!postingDate || !ledger?.isPostingDateOpen?.(postingDate)) {
+        try {
+          showToast("لا يوجد يوم مالي مفتوح لاعتماد وتسديد المسير");
+        } catch (_) {}
+        return !1;
+      }
+      const t = J(e, postingDate),
         n = y(e);
       N(t);
-      const a = payMonthAdvancesFromPayroll(e, t);
+      const a = payMonthAdvancesFromPayroll(e, t, postingDate);
       trackPayrollUpsertsV225("payrollRuns", [t.id]);
       trackPayrollUpsertsV225("payrollAdvances", a.ids || []);
       const saved = await F("confirmed-payroll-run-create");
+      const confirmed = Boolean(
+        saved &&
+          (await verifyPayrollCloudV340(() => {
+            const savedRun = q().some(
+                (run) => String(run?.id || "") === String(t.id),
+              ),
+              savedAdvances = C();
+            return (
+              savedRun &&
+              (a.ids || []).every((advanceId) =>
+                savedAdvances
+                  .find(
+                    (advance) =>
+                      String(advance?.id || "") === String(advanceId),
+                  )
+                  ?.payments?.some(
+                    (payment) =>
+                      String(payment?.payrollRunId || "") === String(t.id),
+                  ),
+              )
+            );
+          })),
+      );
       try {
         showToast(
-          saved
+          confirmed
             ? `تم اعتماد وصرف مسير رواتب ${n} وحفظه سحابيًا${
                 a.count ? `، وتم تسديد ${a.count} سلفة من المسير` : ""
               }`
-            : `تم إنشاء مسير ${n} مؤقتًا، وتعذر تأكيده سحابيًا وسيُعاد تلقائيًا`,
+            : `تعذر اعتماد مسير ${n}؛ تأكد أن اليوم المالي ما زال مفتوحًا`,
         );
       } catch (e) {}
       Q();
-      return saved;
+      return confirmed;
       } finally {
         payrollRunInFlight = false;
       }
@@ -20892,13 +21454,25 @@ async function init() {
               .filter(Boolean),
           ),
           o = n.filter((e) => {
-            const n = e?.monthKey || String(e?.date || "").slice(0, 7);
-            return String(e?.employeeId || "") === t && !a.has(String(n || ""));
+            const n = e?.monthKey || String(e?.date || "").slice(0, 7),
+              hasHistory =
+                Boolean(window.nawahAdvanceLedgerV340?.hasClosedImpact?.(e)) ||
+                payrollAdvancePayments(e).length > 0;
+            return (
+              String(e?.employeeId || "") === t &&
+              !a.has(String(n || "")) &&
+              !hasHistory
+            );
           }),
           r = n.filter((e) => !o.includes(e)),
           i = n.filter((e) => {
             const n = e?.monthKey || String(e?.date || "").slice(0, 7);
-            return String(e?.employeeId || "") === t && a.has(String(n || ""));
+            return (
+              String(e?.employeeId || "") === t &&
+              (a.has(String(n || "")) ||
+                Boolean(window.nawahAdvanceLedgerV340?.hasClosedImpact?.(e)) ||
+                payrollAdvancePayments(e).length > 0)
+            );
           }).length;
         if (o.length) {
           P(r);
@@ -23485,7 +24059,7 @@ async function init() {
     }
     function c(e, t) {
       const n = e && "object" == typeof e ? e : {};
-      return {
+      const normalized = {
         financeDate: n.financeDate || t || l(),
         pending: s(n.pending),
         expenses: s(n.expenses),
@@ -23524,6 +24098,21 @@ async function init() {
           : [],
         updatedAt: n.updatedAt || "",
       };
+      if (Object.prototype.hasOwnProperty.call(n, "advanceSnapshotVersion"))
+        normalized.advanceSnapshotVersion = Number(
+          n.advanceSnapshotVersion || 0,
+        );
+      if (Object.prototype.hasOwnProperty.call(n, "advancesTotalSnapshot"))
+        normalized.advancesTotalSnapshot = o(n.advancesTotalSnapshot);
+      if (Object.prototype.hasOwnProperty.call(n, "advanceItemsSnapshot"))
+        normalized.advanceItemsSnapshot = Array.isArray(
+          n.advanceItemsSnapshot,
+        )
+          ? financeCloneV318(n.advanceItemsSnapshot)
+          : [];
+      if (Object.prototype.hasOwnProperty.call(n, "advanceSnapshotHash"))
+        normalized.advanceSnapshotHash = String(n.advanceSnapshotHash || "");
+      return normalized;
     }
     const financeSnapshotFieldsV318 = [
       "pending",
@@ -23537,6 +24126,10 @@ async function init() {
       "custodyAmountSnapshot",
       "fundAmountSnapshot",
       "newCarriedAmountSnapshot",
+      "advanceSnapshotVersion",
+      "advancesTotalSnapshot",
+      "advanceItemsSnapshot",
+      "advanceSnapshotHash",
       "isClosed",
       "closedAt",
       "nextFinanceDate",
@@ -23551,6 +24144,10 @@ async function init() {
       "custodyAmountSnapshot",
       "fundAmountSnapshot",
       "newCarriedAmountSnapshot",
+      "advanceSnapshotVersion",
+      "advancesTotalSnapshot",
+      "advanceItemsSnapshot",
+      "advanceSnapshotHash",
       "isClosed",
       "closedAt",
       "nextFinanceDate",
@@ -23562,7 +24159,8 @@ async function init() {
       const normalized = c(record, date),
         snapshot = { financeDate: date };
       financeSnapshotFieldsV318.forEach((field) => {
-        snapshot[field] = financeCloneV318(normalized[field]);
+        if (Object.prototype.hasOwnProperty.call(normalized, field))
+          snapshot[field] = financeCloneV318(normalized[field]);
       });
       return snapshot;
     }
@@ -23611,6 +24209,11 @@ async function init() {
         const rows = JSON.parse(
           localStorage.getItem("nawah-payroll-advances") || "[]",
         );
+        if (window.nawahAdvanceLedgerV340)
+          return window.nawahAdvanceLedgerV340.eventsOnDateSignature(
+            date,
+            Array.isArray(rows) ? rows : [],
+          );
         return JSON.stringify(
           (Array.isArray(rows) ? rows : [])
             .filter(
@@ -24100,84 +24703,27 @@ async function init() {
     function I() {
       const e = document.getElementById("financeAdvancesTableBody");
       if (!e) return;
-      const t = (function () {
-        const e = D();
-        try {
-          const t = JSON.parse(
-            localStorage.getItem("nawah-payroll-advances") || "[]",
-          );
-          return Array.isArray(t)
-            ? t
-                .filter((t) => {
-                  if (!t || "approved" !== String(t.status || "approved"))
-                    return !1;
-                  if ((t.monthKey || String(t.date || "").slice(0, 7)) !== e)
-                    return !1;
-                  if (
-                    "function" == typeof payrollAdvanceRemainingAmount &&
-                    !(payrollAdvanceRemainingAmount(t) > 0)
-                  )
-                    return !1;
-                  try {
-                    if (
-                      t.employeeId &&
-                      "function" == typeof getEmployeeById &&
-                      !getEmployeeById(t.employeeId)
-                    )
-                      return !1;
-                  } catch (e) {}
-                  return !0;
-                })
-                .sort((e, t) =>
-                  String(e.date || "").localeCompare(String(t.date || "")),
-                )
-            : [];
-        } catch (e) {
-          return [];
-        }
-      })();
+      const ledger = window.nawahAdvanceLedgerV340,
+        dayAdvances = ledger?.dayView?.(p, d),
+        t = Array.isArray(dayAdvances?.items) ? dayAdvances.items : [];
       if (!t.length)
         return void (e.innerHTML =
-          '<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات قائمة غير مسددة لهذا الشهر</strong></div></td></tr>');
-      const n = new Map();
-      (t.forEach((e) => {
-        const t = String(
-            e.employeeId || e.employeeName || e.employee?.name || "employee",
-          ),
-          a = n.get(t) || { key: t, employeeSample: e, total: 0, items: [] };
-        ((a.total +=
-          "function" == typeof payrollAdvanceRemainingAmount
-            ? payrollAdvanceRemainingAmount(e)
-            : o(e.amount)),
-          a.items.push(e),
-          n.set(t, a));
-      }),
-        (e.innerHTML = Array.from(n.values())
+          '<tr><td colspan="2"><div class="empty-state"><strong>لا توجد سلفيات قائمة غير مسددة حتى هذا التاريخ</strong></div></td></tr>');
+      const n = ledger?.groups?.(t) || [];
+      (e.innerHTML = n
           .map((e, t) => {
             const n = `finance-advance-${t}`,
               a = `finance-advance-detail-${n}`,
-              o = e.items
+              detailRows = e.items
                 .slice()
                 .sort((e, t) =>
                   String(e.date || "").localeCompare(String(t.date || "")),
                 )
                 .map((e) => {
-                  const t =
-                      "function" == typeof payrollAdvanceAmountValue
-                        ? payrollAdvanceAmountValue(e)
-                        : o(e.amount),
-                    n =
-                      "function" == typeof payrollAdvancePaidAmount
-                        ? payrollAdvancePaidAmount(e)
-                        : o(e.paidAmount || e.paid || 0),
-                    a =
-                      "function" == typeof payrollAdvanceRemainingAmount
-                        ? payrollAdvanceRemainingAmount(e)
-                        : Math.max(0, t - n),
-                    r =
-                      "function" == typeof payrollAdvancePaymentSourceLabel
-                        ? payrollAdvancePaymentSourceLabel(e)
-                        : e.paymentSourceLabel || e.sourceLabel || "—";
+                  const t = o(e.amount),
+                    n = o(e.paidAmount),
+                    a = o(e.remainingAmount),
+                    r = e.paymentSourceLabel || "—";
                   return `<tr><td>${A(
                     e.dayName ||
                       (function (e) {
@@ -24222,9 +24768,9 @@ async function init() {
               return A(E(e));
             })(
               e.employeeSample,
-            )}</div></td><td class="advance-total-cell"><strong>${S(e.total)}</strong></td></tr><tr class="advance-detail-row finance-advance-detail-row" id="${a}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>اليوم</th><th>التاريخ</th><th>قيمة السلفة</th><th>المسدد</th><th>المتبقي</th><th>مصدر السداد</th></tr></thead><tbody>${o}</tbody></table></div></td></tr>`;
+            )}</div></td><td class="advance-total-cell"><strong>${S(e.total)}</strong></td></tr><tr class="advance-detail-row finance-advance-detail-row" id="${a}" hidden><td colspan="2"><div class="advance-detail-box"><table><thead><tr><th>اليوم</th><th>التاريخ</th><th>قيمة السلفة</th><th>المسدد</th><th>المتبقي</th><th>مصدر السداد</th></tr></thead><tbody>${detailRows}</tbody></table></div></td></tr>`;
           })
-          .join("")),
+          .join(""),
         e
           .querySelectorAll("[data-toggle-finance-advance-details]")
           .forEach((e) => {
@@ -24272,38 +24818,8 @@ async function init() {
         r = w(p.cashSales),
         i = w(p.cardSales),
         s = r + i,
-        l = (function () {
-          const e = D();
-          try {
-            const t = JSON.parse(
-              localStorage.getItem("nawah-payroll-advances") || "[]",
-            );
-            return Array.isArray(t)
-              ? t.reduce((t, n) => {
-                  if (!n || "approved" !== String(n.status || "approved"))
-                    return t;
-                  if ((n.monthKey || String(n.date || "").slice(0, 7)) !== e)
-                    return t;
-                  try {
-                    if (
-                      n.employeeId &&
-                      "function" == typeof getEmployeeById &&
-                      !getEmployeeById(n.employeeId)
-                    )
-                      return t;
-                  } catch (e) {}
-                  return (
-                    t +
-                    ("function" == typeof payrollAdvanceRemainingAmount
-                      ? payrollAdvanceRemainingAmount(n)
-                      : o(n.amount))
-                  );
-                }, 0)
-              : 0;
-          } catch (e) {
-            return 0;
-          }
-        })(),
+        advanceDayView = window.nawahAdvanceLedgerV340?.dayView?.(p, d),
+        l = o(advanceDayView?.total),
         c = o(p.manualCashAmount),
         d = o(p.budgetAmount),
         u = p.isClosed
@@ -24314,8 +24830,12 @@ async function init() {
         m = p.isClosed ? o(p.custodyAmountSnapshot) : e.custodyAmount,
         y = u + r + i,
         f = i + a,
-        h = u + s - a - i,
-        v = u + m + r + c + n - t - a - l;
+        calculatedNewCarried = u + s - a - i,
+        h = p.isClosed
+          ? o(p.newCarriedAmountSnapshot)
+          : calculatedNewCarried,
+        calculatedFund = u + m + r + c + n - t - a - l,
+        v = p.isClosed ? o(p.fundAmountSnapshot) : calculatedFund;
       return (
         p.isClosed ||
           ((p.carriedAmountSnapshot = u),
@@ -24751,6 +25271,12 @@ async function init() {
               n && (n.textContent = e ? "اليوم مغلق" : "إغلاق اليوم");
             }),
             document
+              .querySelectorAll("#financeAddAdvanceBtn")
+              .forEach((button) => {
+                button.disabled = e;
+                button.classList.toggle("is-disabled", e);
+              }),
+            document
               .querySelectorAll(".finance-reopen-day-btn")
               .forEach((button) => {
                 button.hidden = !canRollback;
@@ -24827,6 +25353,7 @@ async function init() {
             return;
           }
           const currentTotals = T(),
+            advanceSnapshot = window.nawahAdvanceLedgerV340.snapshot(d),
             closeChain = financeNextOpenTargetV317(d),
             nextFinanceDate = closeChain.immediateDate,
             openFinanceDate = closeChain.targetDate,
@@ -24858,6 +25385,10 @@ async function init() {
             custodyAmountSnapshot: currentTotals.settings.custodyAmount,
             fundAmountSnapshot: currentTotals.fundAmount,
             newCarriedAmountSnapshot: currentTotals.newCarriedAmount,
+            advanceSnapshotVersion: advanceSnapshot.version,
+            advancesTotalSnapshot: advanceSnapshot.total,
+            advanceItemsSnapshot: advanceSnapshot.items,
+            advanceSnapshotHash: advanceSnapshot.hash,
             updatedAt: closedAt,
           });
           m[d] = c(p, d);
@@ -24915,6 +25446,10 @@ async function init() {
             "custodyAmountSnapshot",
             "fundAmountSnapshot",
             "newCarriedAmountSnapshot",
+            "advanceSnapshotVersion",
+            "advancesTotalSnapshot",
+            "advanceItemsSnapshot",
+            "advanceSnapshotHash",
             "closureHistory",
             "updatedAt",
           ].forEach((field) =>
@@ -25394,6 +25929,12 @@ async function init() {
           const a = e.target?.closest?.("#financeAddAdvanceBtn");
           if (a) {
             (e.preventDefault?.(), e.stopPropagation?.());
+            if (p.isClosed) {
+              try {
+                showToast("لا يمكن إضافة سلفة في يوم مالي مغلق");
+              } catch (_) {}
+              return;
+            }
             try {
               window.openAdvanceModal?.(d);
             } catch (e) {}
@@ -49581,6 +50122,12 @@ async function init() {
   }
   function approvedAdvanceSum(empId, monthKey) {
     var list = parseJson(localStorage.getItem(ADVANCES_KEY), []);
+    if (window.nawahAdvanceLedgerV340)
+      return window.nawahAdvanceLedgerV340.payrollEmployeeTotal(
+        list,
+        empId,
+        monthKey,
+      );
     return list
       .filter(function (a) {
         return (
@@ -70864,6 +71411,100 @@ window.nawahLeaveBalanceReportV185 = {
     };
   }
 
+  function financeCloudDateV340(value) {
+    const candidate = String(value || "").slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : "";
+  }
+
+  function financeCloudAdvanceDateV340(record) {
+    return financeCloudDateV340(
+      record?.financeDate ||
+        record?.transactionDate ||
+        record?.date ||
+        record?.createdAt,
+    );
+  }
+
+  function financeCloudPaymentDateV340(payment, record) {
+    return (
+      financeCloudDateV340(
+        payment?.financeDate ||
+          payment?.date ||
+          payment?.paymentDate ||
+          payment?.createdAt,
+      ) || financeCloudAdvanceDateV340(record)
+    );
+  }
+
+  function financeCloudDayClosedV340(days, date) {
+    const selectedDate = financeCloudDateV340(date);
+    return Boolean(selectedDate && days?.[selectedDate]?.isClosed);
+  }
+
+  function financeCloudAdvanceHasClosedImpactV340(record, days) {
+    const issuedAt = financeCloudAdvanceDateV340(record);
+    return Boolean(
+      issuedAt &&
+        Object.keys(days || {}).some(
+          (date) => date >= issuedAt && Boolean(days?.[date]?.isClosed),
+        ),
+    );
+  }
+
+  function mergePayrollAdvanceForFinanceV340(
+    remoteRecord,
+    localRecord,
+    financeDays,
+  ) {
+    const remote =
+        remoteRecord && typeof remoteRecord === "object" ? remoteRecord : null,
+      local =
+        localRecord && typeof localRecord === "object" ? localRecord : null;
+    if (!local) return remote ? clone(remote) : null;
+    const localIssueDate = financeCloudAdvanceDateV340(local);
+    if (!remote && financeCloudDayClosedV340(financeDays, localIssueDate))
+      return null;
+    let protectedLocal = local;
+    if (remote && financeCloudAdvanceHasClosedImpactV340(remote, financeDays)) {
+      protectedLocal = {
+        ...local,
+        employeeId: remote.employeeId,
+        employeeName: remote.employeeName,
+        amount: remote.amount,
+        value: remote.value,
+        total: remote.total,
+        date: remote.date,
+        financeDate: remote.financeDate,
+        transactionDate: remote.transactionDate,
+        monthKey: remote.monthKey,
+        status: remote.status,
+      };
+    }
+    const merged = mergePayrollAdvanceV225(remote, protectedLocal),
+      remotePaymentIds = new Set(
+        (Array.isArray(remote?.payments) ? remote.payments : [])
+          .map((payment) => String(payment?.id || ""))
+          .filter(Boolean),
+      ),
+      acceptedPayments = (Array.isArray(merged.payments)
+        ? merged.payments
+        : []
+      ).filter((payment) => {
+        const paymentId = String(payment?.id || "");
+        return (
+          remotePaymentIds.has(paymentId) ||
+          !financeCloudDayClosedV340(
+            financeDays,
+            financeCloudPaymentDateV340(payment, merged),
+          )
+        );
+      });
+    return mergePayrollAdvanceV225(remote, {
+      ...merged,
+      payments: acceptedPayments,
+    });
+  }
+
   function financeLegacyRowIdV226(record, amount, note, index) {
     const seed = `${record?.source || "legacy"}|${record?.travelId || ""}|${record?.createdAt || ""}|${amount}|${note}|${index}`;
     let hash = 2166136261;
@@ -71098,28 +71739,11 @@ window.nawahLeaveBalanceReportV185 = {
       cashSales = sum(day.cashSales),
       cardSales = sum(day.cardSales),
       manualCash = number(day.manualCashAmount),
-      monthKey = String(day.financeDate || "").slice(0, 7),
-      advances = (Array.isArray(state.payrollAdvances)
-        ? state.payrollAdvances
-        : []
-      ).reduce((total, advance) => {
-        const advanceMonth = String(
-            advance?.monthKey || String(advance?.date || "").slice(0, 7),
-          ),
-          amount = number(
-            advance?.amount ?? advance?.value ?? advance?.total ?? 0,
-          ),
-          paid = Array.isArray(advance?.payments)
-            ? advance.payments.reduce(
-                (sum, payment) => sum + number(payment?.amount),
-                0,
-              )
-            : number(advance?.paidAmount || advance?.paid || 0);
-        return advanceMonth === monthKey &&
-          String(advance?.status || "approved") === "approved"
-          ? total + Math.max(0, amount - paid)
-          : total;
-      }, 0);
+      advanceSnapshot = window.nawahAdvanceLedgerV340.snapshot(
+        day.financeDate,
+        Array.isArray(state.payrollAdvances) ? state.payrollAdvances : [],
+      ),
+      advances = advanceSnapshot.total;
     return {
       ...day,
       carriedAmountSnapshot: carried,
@@ -71134,6 +71758,10 @@ window.nawahLeaveBalanceReportV185 = {
         expenses -
         advances,
       newCarriedAmountSnapshot: carried + cashSales - expenses,
+      advanceSnapshotVersion: advanceSnapshot.version,
+      advancesTotalSnapshot: advanceSnapshot.total,
+      advanceItemsSnapshot: advanceSnapshot.items,
+      advanceSnapshotHash: advanceSnapshot.hash,
     };
   }
 
@@ -71383,22 +72011,53 @@ window.nawahLeaveBalanceReportV185 = {
         );
         const rows = merged[field]
           .filter(
-            (record) =>
-              !deletedIds?.has(String(record?.id || "")),
+            (record) => {
+              if (!deletedIds?.has(String(record?.id || ""))) return true;
+              if (field !== "payrollAdvances") return false;
+              return (
+                financeCloudAdvanceHasClosedImpactV340(
+                  record,
+                  merged.financeDailyDays,
+                ) ||
+                (Array.isArray(record?.payments) && record.payments.length > 0)
+              );
+            },
           )
           .map((record) => {
             const id = String(record?.id || "");
             if (!upsertIds?.has(id) || !localById.has(id)) return record;
             return field === "payrollAdvances"
-              ? mergePayrollAdvanceV225(record, localById.get(id))
+              ? mergePayrollAdvanceForFinanceV340(
+                  record,
+                  localById.get(id),
+                  merged.financeDailyDays,
+                ) || record
               : clone(localById.get(id));
           });
         const presentIds = new Set(
           rows.map((record) => String(record?.id || "")),
         );
         upsertIds?.forEach((_, id) => {
-          if (!presentIds.has(id) && localById.has(id))
-            rows.push(clone(localById.get(id)));
+          if (presentIds.has(id) || !localById.has(id)) return;
+          const localRecord = localById.get(id);
+          if (field === "payrollAdvances") {
+            const accepted = mergePayrollAdvanceForFinanceV340(
+              null,
+              localRecord,
+              merged.financeDailyDays,
+            );
+            if (accepted) rows.push(accepted);
+            return;
+          }
+          if (
+            field === "payrollRuns" &&
+            financeCloudDayClosedV340(
+              merged.financeDailyDays,
+              localRecord?.approvedFinanceDate || localRecord?.financeDate,
+            )
+          )
+            return;
+          rows.push(clone(localRecord));
         });
         merged[field] = rows;
       } else if (Object.prototype.hasOwnProperty.call(localState, field)) {
@@ -71480,7 +72139,13 @@ window.nawahLeaveBalanceReportV185 = {
           monthKey = String(
             advance?.monthKey || String(advance?.date || "").slice(0, 7),
           );
-        return !employeeId || employeeIds.has(employeeId) || lockedMonths.has(monthKey);
+        return (
+          !employeeId ||
+          employeeIds.has(employeeId) ||
+          lockedMonths.has(monthKey) ||
+          Boolean(window.nawahAdvanceLedgerV340?.hasClosedImpact?.(advance)) ||
+          payrollAdvancePayments(advance).length > 0
+        );
       });
     }
     merged.version = Math.max(
@@ -87327,7 +87992,7 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v337 - Targeted finance-print typography refinement based on v336. */
+/* v340 - Finance print uses the same immutable advance ledger and close snapshot. */
 (function () {
   if (window.__nawahFinanceDailyPrintV332) return;
   window.__nawahFinanceDailyPrintV332 = true;
@@ -87463,39 +88128,20 @@ window.nawahContractDateCorrectionV321 = {
     return Math.max(0, total - paid);
   }
 
-  function financePrintAdvanceGroupsV332(date) {
-    var monthKey = String(date || "").slice(0, 7);
+  function financePrintAdvanceGroupsV332(date, day) {
     var advances = financePrintReadJsonV332("nawah-payroll-advances", []);
-    var groups = new Map();
-    (Array.isArray(advances) ? advances : []).forEach(function (record) {
-      if (!record || String(record.status || "approved") !== "approved") return;
-      var recordMonth =
-        record.monthKey || String(record.date || "").slice(0, 7);
-      if (recordMonth !== monthKey) return;
-      try {
-        if (
-          record.employeeId &&
-          typeof getEmployeeById === "function" &&
-          !getEmployeeById(record.employeeId)
-        )
-          return;
-      } catch (_) {}
-      var remaining = financePrintAdvanceRemainingV332(record);
-      if (!(remaining > 0)) return;
-      var key = String(
-        record.employeeId ||
-          record.employeeName ||
-          (record.employee && record.employee.name) ||
-          "employee",
-      );
-      var group = groups.get(key) || {
-        employee: financePrintEmployeeNameV332(record),
-        total: 0,
+    var ledger = window.nawahAdvanceLedgerV340;
+    var view = ledger.dayView(
+      day || {},
+      date,
+      Array.isArray(advances) ? advances : [],
+    );
+    return ledger.groups(view.items).map(function (group) {
+      return {
+        employee: financePrintEmployeeNameV332(group.employeeSample),
+        total: financePrintNumberV332(group.total),
       };
-      group.total += remaining;
-      groups.set(key, group);
-    });
-    return Array.from(groups.values()).sort(function (left, right) {
+    }).sort(function (left, right) {
       return String(left.employee || "").localeCompare(
         String(right.employee || ""),
         "ar",
@@ -88067,7 +88713,7 @@ window.nawahContractDateCorrectionV321 = {
       var company = financePrintCompanyV332();
       var logo = await financePrintLogoV332(company);
       var symbolUrl = new URL("sar-symbol.png", location.href).href;
-      var advances = financePrintAdvanceGroupsV332(current.date);
+      var advances = financePrintAdvanceGroupsV332(current.date, current.day);
       var totals = financePrintTotalsV332(current.day, advances);
       var sections = financePrintSectionsV332(current.day, advances);
       var pages = financePrintPagesV332(sections);
@@ -88187,11 +88833,11 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 337,
+    version: 340,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();
-      var advances = financePrintAdvanceGroupsV332(current.date);
+      var advances = financePrintAdvanceGroupsV332(current.date, current.day);
       return {
         date: current.date,
         day: current.day,
