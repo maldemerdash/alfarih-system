@@ -3856,9 +3856,9 @@ function payrollAdvanceWithPayment(advance, payment) {
   };
 }
 
-/* v345 - Immutable, date-effective advance ledger and finance-day snapshots. */
+/* v346 - Immutable, date-effective advance ledger and finance-day snapshots. */
 (function () {
-  if (window.nawahAdvanceLedger?.version >= 345) return;
+  if (window.nawahAdvanceLedger?.version >= 346) return;
   const ADVANCES_KEY = "nawah-payroll-advances",
     FINANCE_DAYS_KEY = "nawah-finance-daily-days",
     FINANCE_OPEN_KEY = "nawah-finance-daily-open";
@@ -4223,8 +4223,8 @@ function payrollAdvanceWithPayment(advance, payment) {
     return JSON.stringify(rows);
   }
 
-  const advanceLedgerV345 = Object.freeze({
-    version: 345,
+  const advanceLedgerV346 = Object.freeze({
+    version: 346,
     dateKey,
     effectiveDate,
     paymentDate,
@@ -4244,9 +4244,9 @@ function payrollAdvanceWithPayment(advance, payment) {
     hasClosedImpact,
     eventsOnDateSignature,
   });
-  window.nawahAdvanceLedger = advanceLedgerV345;
-  window.nawahAdvanceLedgerV345 = advanceLedgerV345;
-  window.nawahAdvanceLedgerV340 = advanceLedgerV345;
+  window.nawahAdvanceLedger = advanceLedgerV346;
+  window.nawahAdvanceLedgerV346 = advanceLedgerV346;
+  window.nawahAdvanceLedgerV340 = advanceLedgerV346;
 })();
 function absenceSegmentDisplayLabel(segment) {
   const value = String(segment || "fullDay");
@@ -24108,6 +24108,11 @@ async function init() {
           : [];
       if (Object.prototype.hasOwnProperty.call(n, "advanceSnapshotHash"))
         normalized.advanceSnapshotHash = String(n.advanceSnapshotHash || "");
+      if (
+        "budgetAmount" === n.dailyCreditSource ||
+        "cardSales" === n.dailyCreditSource
+      )
+        normalized.dailyCreditSource = n.dailyCreditSource;
       return normalized;
     }
     const financeSnapshotFieldsV318 = [
@@ -24116,6 +24121,7 @@ async function init() {
       "cashSales",
       "cardSales",
       "budgetAmount",
+      "dailyCreditSource",
       "manualCashAmount",
       "carriedAmountOverride",
       "carriedAmountSnapshot",
@@ -24134,6 +24140,7 @@ async function init() {
     ];
     const financeMetaFieldsV318 = [
       "budgetAmount",
+      "dailyCreditSource",
       "manualCashAmount",
       "carriedAmountOverride",
       "carriedAmountSnapshot",
@@ -24182,6 +24189,10 @@ async function init() {
         cashSales: financeContentRowsV318(normalized.cashSales),
         cardSales: financeContentRowsV318(normalized.cardSales),
         budgetAmount: String(normalized.budgetAmount || ""),
+        dailyCreditSource:
+          "budgetAmount" === normalized.dailyCreditSource
+            ? "budgetAmount"
+            : "cardSales",
         manualCashAmount: String(normalized.manualCashAmount || ""),
         carriedAmountOverride:
           normalized.carriedAmountOverride == null
@@ -24311,7 +24322,7 @@ async function init() {
     function financeAdvanceDayViewV341() {
       const ledger =
         window.nawahAdvanceLedger ||
-        window.nawahAdvanceLedgerV345 ||
+        window.nawahAdvanceLedgerV346 ||
         window.nawahAdvanceLedgerV340;
       if (!ledger?.dayView)
         return { version: 0, date: d, total: 0, items: [], hash: "" };
@@ -24778,7 +24789,7 @@ async function init() {
       if (!e) return;
       const ledger =
           window.nawahAdvanceLedger ||
-          window.nawahAdvanceLedgerV345 ||
+          window.nawahAdvanceLedgerV346 ||
           window.nawahAdvanceLedgerV340,
         t = Array.isArray(dayAdvances?.items) ? dayAdvances.items : [];
       if (!t.length)
@@ -24896,6 +24907,10 @@ async function init() {
         l = o(advanceDayView?.total),
         c = o(p.manualCashAmount),
         budgetAmount = o(p.budgetAmount),
+        dailyCreditSource =
+          "budgetAmount" === p.dailyCreditSource
+            ? "budgetAmount"
+            : "cardSales",
         u = p.isClosed
           ? o(p.carriedAmountSnapshot)
           : null === p.carriedAmountOverride
@@ -24903,7 +24918,7 @@ async function init() {
             : o(p.carriedAmountOverride),
         m = p.isClosed ? o(p.custodyAmountSnapshot) : e.custodyAmount,
         y = u + r + i,
-        f = i + a,
+        f = ("budgetAmount" === dailyCreditSource ? budgetAmount : i) + a,
         calculatedNewCarried = u + s - a - i,
         h = p.isClosed
           ? o(p.newCarriedAmountSnapshot)
@@ -24927,6 +24942,7 @@ async function init() {
           advancesTotal: l,
           manualCashAmount: c,
           budgetAmount,
+          dailyCreditSource,
           dailyDebit: y,
           dailyCredit: f,
           fundAmount: v,
@@ -24959,6 +24975,11 @@ async function init() {
           .forEach((e) => {
             document.activeElement !== e &&
               (e.value = p.manualCashAmount || "");
+          }),
+        document
+          .querySelectorAll("[data-finance-daily-credit-source]")
+          .forEach((sourceSelect) => {
+            sourceSelect.value = e.dailyCreditSource;
           }));
       const t = e.budgetAmount - e.cardSalesTotal;
       document.querySelectorAll("[data-finance-budget-status]").forEach((e) => {
@@ -24973,6 +24994,25 @@ async function init() {
           e.textContent = `غير متطابقة بفارق ${n}${S(Math.abs(t))}`;
         }
       });
+    }
+    function financeApplyDailyCreditSourceV346(sourceSelect) {
+      if (!sourceSelect?.matches?.("[data-finance-daily-credit-source]"))
+        return !1;
+      if (p.isClosed) {
+        H(!0);
+        return !1;
+      }
+      p.dailyCreditSource =
+        "budgetAmount" === sourceSelect.value
+          ? "budgetAmount"
+          : "cardSales";
+      trackFinanceUpsertsV226([
+        financeMutationKeyV226(d, "meta", "dailyCreditSource"),
+        financeMutationKeyV226(d, "meta", "updatedAt"),
+      ]);
+      b(!0);
+      M();
+      return !0;
     }
     function x(e) {
       return Boolean(
@@ -25401,7 +25441,9 @@ async function init() {
         rollbackCandidate = financeRollbackCandidateV319(d),
         canRollback = Boolean(rollbackCandidate && financeCanReopenV318());
       document
-        .querySelectorAll("[data-finance-table] input, [data-finance-special]")
+        .querySelectorAll(
+          "[data-finance-table] input, [data-finance-special], [data-finance-daily-credit-source]",
+        )
         .forEach((element) => {
           element.disabled = isClosed;
         });
@@ -25601,6 +25643,7 @@ async function init() {
             "advancesTotalSnapshot",
             "advanceItemsSnapshot",
             "advanceSnapshotHash",
+            "dailyCreditSource",
             "closureHistory",
             "updatedAt",
           ].forEach((field) =>
@@ -26040,9 +26083,15 @@ async function init() {
         "change",
         async function (e) {
           const table = e.target?.dataset?.financeTableInput,
-            special = e.target?.dataset?.financeSpecial;
-          if ((!table || !n.includes(table)) && !special) return;
+            special = e.target?.dataset?.financeSpecial,
+            dailyCreditSource = e.target?.matches?.(
+              "[data-finance-daily-credit-source]",
+            );
+          if ((!table || !n.includes(table)) && !special && !dailyCreditSource)
+            return;
           if (p.isClosed) return void H(!0);
+          if (dailyCreditSource)
+            financeApplyDailyCreditSourceV346(e.target);
           await confirmFinanceCloudV226("confirmed-finance-field-change");
         },
         !0,
@@ -26516,122 +26565,6 @@ async function init() {
         : setTimeout(f, 100),
       setTimeout(f, 800),
       setInterval(p, 5000));
-  })(),
-  (function () {
-    if (window.__finalFinanceDailyCreditFormulaLock) return;
-    window.__finalFinanceDailyCreditFormulaLock = !0;
-    function e(e) {
-      const t = Number(
-        String(e ?? "")
-          .replace(/,/g, "")
-          .trim(),
-      );
-      return Number.isFinite(t) && t >= 0 ? t : 0;
-    }
-    function t(t) {
-      return (Array.isArray(t) ? t : []).reduce(
-        (t, n) => t + e(n && n.amount),
-        0,
-      );
-    }
-    function n() {
-      try {
-        const e = JSON.parse(
-            localStorage.getItem("nawah-finance-daily-days") || "{}",
-          ),
-          t = (function () {
-            const e = document.querySelector(
-              "[data-finance-date-picker]",
-            )?.value;
-            if (e) return e;
-            try {
-              if (
-                "function" == typeof formatInputDate &&
-                "function" == typeof todayAtNoon
-              )
-                return formatInputDate(todayAtNoon());
-            } catch (e) {}
-            const t = new Date();
-            return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-          })();
-        if (e && "object" == typeof e && e[t]) return e[t];
-      } catch (e) {}
-      try {
-        return (
-          JSON.parse(
-            localStorage.getItem("nawah-finance-daily-open") || "{}",
-          ) || {}
-        );
-      } catch (e) {
-        return {};
-      }
-    }
-    function a(t) {
-      const n = document.querySelector(
-        `#financeView [data-finance-table="${t}"]`,
-      );
-      return n
-        ? Array.from(n.querySelectorAll("tbody tr")).reduce((t, n) => {
-            const a = n.querySelector('[data-finance-field="amount"]');
-            return t + e(a ? a.value : 0);
-          }, 0)
-        : null;
-    }
-    function o() {
-      const o = document.getElementById("financeView");
-      if (!o) return;
-      const r = n(),
-        i = a("cardSales"),
-        s = a("expenses"),
-        l =
-          (null === i ? t(r.cardSales) : i) + (null === s ? t(r.expenses) : s);
-      o.querySelectorAll('[data-finance-card="dailyCredit"]').forEach((t) => {
-        const n =
-          t.querySelector("[data-finance-money]") ||
-          t.querySelector("strong span") ||
-          t.querySelector("strong");
-        n &&
-          (n.textContent = (function (t) {
-            const n = e(t);
-            try {
-              if ("function" == typeof arabicNumber) return arabicNumber(n);
-            } catch (e) {}
-            return n.toLocaleString("en-US");
-          })(l));
-        const a = t.querySelector("small");
-        a && (a.textContent = "مبيعات الشبكة + المصروفات");
-      });
-    }
-    function r() {
-      (o(), setTimeout(o, 50), setTimeout(o, 200));
-    }
-    (document.addEventListener(
-      "input",
-      function (e) {
-        const t = e.target?.dataset?.financeTableInput;
-        ("cardSales" !== t && "expenses" !== t) || r();
-      },
-      !0,
-    ),
-      document.addEventListener(
-        "change",
-        function (e) {
-          e.target?.matches?.("[data-finance-date-picker]") && r();
-        },
-        !0,
-      ),
-      document.addEventListener(
-        "click",
-        function (e) {
-          e.target?.closest?.(
-            '[data-view="finance"], [data-finance-day-nav], .finance-close-day-btn',
-          ) && r();
-        },
-        !0,
-      ),
-      "loading" === document.readyState
-        ? document.addEventListener("DOMContentLoaded", r)
-        : r());
   })(),
   (function () {
     if (window.__finalAuthorityPermissionsLogicLock) return;
@@ -71718,6 +71651,10 @@ window.nawahLeaveBalanceReportV185 = {
       cashSales: rows(day.cashSales),
       cardSales: rows(day.cardSales),
       budgetAmount: amountText(day.budgetAmount),
+      dailyCreditSource:
+        "budgetAmount" === day.dailyCreditSource
+          ? "budgetAmount"
+          : "cardSales",
       manualCashAmount: amountText(day.manualCashAmount),
       carriedAmountOverride:
         day.carriedAmountOverride == null || day.carriedAmountOverride === ""
@@ -88149,7 +88086,7 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v345 - Finance print uses the same immutable advance ledger and close snapshot. */
+/* v346 - Finance print uses the same immutable advance ledger and close snapshot. */
 (function () {
   if (window.__nawahFinanceDailyPrintV332) return;
   window.__nawahFinanceDailyPrintV332 = true;
@@ -88289,7 +88226,7 @@ window.nawahContractDateCorrectionV321 = {
     var advances = financePrintReadJsonV332("nawah-payroll-advances", []);
     var ledger =
       window.nawahAdvanceLedger ||
-      window.nawahAdvanceLedgerV345 ||
+      window.nawahAdvanceLedgerV346 ||
       window.nawahAdvanceLedgerV340;
     var view = ledger.dayView(
       day || {},
@@ -88423,9 +88360,14 @@ window.nawahContractDateCorrectionV321 = {
       : financePrintNumberV332(settings.custodyAmount);
     var manualCash = financePrintNumberV332(day.manualCashAmount);
     var budget = financePrintNumberV332(day.budgetAmount);
+    var dailyCreditSource =
+      day.dailyCreditSource === "budgetAmount"
+        ? "budgetAmount"
+        : "cardSales";
     var sales = cashSales + cardSales;
     var dailyDebit = carried + cashSales + cardSales;
-    var dailyCredit = cardSales + expenses;
+    var dailyCredit =
+      (dailyCreditSource === "budgetAmount" ? budget : cardSales) + expenses;
     var calculatedFund =
       carried +
       custody +
@@ -88439,6 +88381,7 @@ window.nawahContractDateCorrectionV321 = {
       custodyAmount: custody,
       dailyDebit: dailyDebit,
       dailyCredit: dailyCredit,
+      dailyCreditSource: dailyCreditSource,
       carriedAmount: carried,
       newCarriedAmount: day.isClosed
         ? financePrintNumberV332(day.newCarriedAmountSnapshot)
@@ -88619,7 +88562,14 @@ window.nawahContractDateCorrectionV321 = {
     var metrics = [
       ["مبلغ العهدة", totals.custodyAmount, "positive", ""],
       ["مجموع المدين اليومي", totals.dailyDebit, "positive", ""],
-      ["مجموع الدائن اليومي", totals.dailyCredit, "negative", ""],
+      [
+        "مجموع الدائن اليومي",
+        totals.dailyCredit,
+        "negative",
+        totals.dailyCreditSource === "budgetAmount"
+          ? "الموازنة + المصروفات"
+          : "مبيعات الشبكة + المصروفات",
+      ],
       ["المبلغ المرحل", totals.carriedAmount, "carried", ""],
       ["المبلغ المرحل الجديد", totals.newCarriedAmount, "carried-new", ""],
       ["إجمالي السلفيات", totals.advancesTotal, "negative", ""],
@@ -88645,7 +88595,11 @@ window.nawahContractDateCorrectionV321 = {
             financePrintMoneyHtmlV332(metric[1], symbolUrl) +
             (metric[3]
               ? '<small class="' +
-                (Math.abs(difference) < 0.005 ? "match" : "unmatch") +
+                (metric[0] === "مبلغ الموازنة المدخل"
+                  ? Math.abs(difference) < 0.005
+                    ? "match"
+                    : "unmatch"
+                  : "source") +
                 '">' +
                 financePrintEscapeV332(metric[3]) +
                 "</small>"
@@ -88986,7 +88940,7 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 345,
+    version: 346,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();

@@ -44137,3 +44137,48 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
     justify-content: center;
   }
 }
+
+/* v346 - Date-specific source selector for the daily credit total. */
+#financeView .finance-daily-credit-source-v346 {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+#financeView .finance-daily-credit-source-v346 > span {
+  color: #9a6a6e !important;
+  font-size: 8px !important;
+  font-weight: 800 !important;
+  white-space: nowrap;
+}
+
+#financeView .finance-daily-credit-source-v346 select {
+  width: 100%;
+  min-width: 0;
+  height: 25px;
+  min-height: 25px;
+  padding: 0 8px;
+  border: 1px solid rgba(199, 68, 77, 0.2);
+  border-radius: 8px;
+  background: #fff9f9;
+  color: #8e474d;
+  font-family: "Almarai", "Segoe UI", Tahoma, Arial, sans-serif;
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1;
+  outline: none;
+  cursor: pointer;
+}
+
+#financeView .finance-daily-credit-source-v346 select:focus {
+  border-color: rgba(199, 68, 77, 0.45);
+  box-shadow: 0 0 0 3px rgba(199, 68, 77, 0.08);
+}
+
+#financeView .finance-daily-credit-source-v346 select:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
