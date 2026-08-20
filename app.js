@@ -3856,9 +3856,9 @@ function payrollAdvanceWithPayment(advance, payment) {
   };
 }
 
-/* v344 - Immutable, date-effective advance ledger and finance-day snapshots. */
+/* v345 - Immutable, date-effective advance ledger and finance-day snapshots. */
 (function () {
-  if (window.nawahAdvanceLedger?.version >= 344) return;
+  if (window.nawahAdvanceLedger?.version >= 345) return;
   const ADVANCES_KEY = "nawah-payroll-advances",
     FINANCE_DAYS_KEY = "nawah-finance-daily-days",
     FINANCE_OPEN_KEY = "nawah-finance-daily-open";
@@ -4223,8 +4223,8 @@ function payrollAdvanceWithPayment(advance, payment) {
     return JSON.stringify(rows);
   }
 
-  const advanceLedgerV344 = Object.freeze({
-    version: 344,
+  const advanceLedgerV345 = Object.freeze({
+    version: 345,
     dateKey,
     effectiveDate,
     paymentDate,
@@ -4244,9 +4244,9 @@ function payrollAdvanceWithPayment(advance, payment) {
     hasClosedImpact,
     eventsOnDateSignature,
   });
-  window.nawahAdvanceLedger = advanceLedgerV344;
-  window.nawahAdvanceLedgerV344 = advanceLedgerV344;
-  window.nawahAdvanceLedgerV340 = advanceLedgerV344;
+  window.nawahAdvanceLedger = advanceLedgerV345;
+  window.nawahAdvanceLedgerV345 = advanceLedgerV345;
+  window.nawahAdvanceLedgerV340 = advanceLedgerV345;
 })();
 function absenceSegmentDisplayLabel(segment) {
   const value = String(segment || "fullDay");
@@ -24311,7 +24311,7 @@ async function init() {
     function financeAdvanceDayViewV341() {
       const ledger =
         window.nawahAdvanceLedger ||
-        window.nawahAdvanceLedgerV344 ||
+        window.nawahAdvanceLedgerV345 ||
         window.nawahAdvanceLedgerV340;
       if (!ledger?.dayView)
         return { version: 0, date: d, total: 0, items: [], hash: "" };
@@ -24778,7 +24778,7 @@ async function init() {
       if (!e) return;
       const ledger =
           window.nawahAdvanceLedger ||
-          window.nawahAdvanceLedgerV344 ||
+          window.nawahAdvanceLedgerV345 ||
           window.nawahAdvanceLedgerV340,
         t = Array.isArray(dayAdvances?.items) ? dayAdvances.items : [];
       if (!t.length)
@@ -25285,14 +25285,14 @@ async function init() {
       if (!s) return void q(n, e, a, 0);
       r[r.length - 1] && q(n, e, a, o.length);
     }
-    function financeSalesInputsV344(section) {
+    function financeSalesInputsV345(section) {
       return Array.from(
         document.querySelectorAll(
           `#financeView [data-finance-table="${section}"] tbody input[data-finance-field="amount"]`,
         ),
       );
     }
-    function financeFocusSalesInputV344(input) {
+    function financeFocusSalesInputV345(input) {
       if (!input || input.disabled || input.readOnly) return !1;
       input.focus();
       try {
@@ -25300,33 +25300,47 @@ async function init() {
       } catch (_) {}
       return document.activeElement === input;
     }
-    function financeSalesKeyboardNavigationV344(event) {
+    function financeSalesKeyboardNavigationV345(event) {
+      if (event.defaultPrevented || event.isComposing) return;
+      const input = event.target;
       if (
-        event.defaultPrevented ||
-        event.isComposing ||
-        event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.shiftKey
-      )
-        return;
-      const input = event.target,
-        section = input?.dataset?.financeTableInput;
-      if (
-        !input?.matches?.('input[data-finance-field="amount"]') ||
-        ("cashSales" !== section && "cardSales" !== section) ||
+        !input?.matches?.('#financeView input[type="number"]') ||
         input.disabled ||
         input.readOnly
       )
         return;
-      const inputs = financeSalesInputsV344(section),
+      const verticalArrow =
+        "ArrowUp" === event.key || "ArrowDown" === event.key;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        verticalArrow && event.preventDefault();
+        return;
+      }
+      const section = input.dataset.financeTableInput,
+        isSalesInput =
+          input.matches('input[data-finance-field="amount"]') &&
+          ("cashSales" === section || "cardSales" === section);
+      if (
+        verticalArrow && !isSalesInput
+      ) {
+        event.preventDefault();
+        return;
+      }
+      if (!isSalesInput) return;
+      const inputs = financeSalesInputsV345(section),
         rowIndex = inputs.indexOf(input);
       if (rowIndex < 0) return;
-      if ("Enter" === event.key) {
+      if ("Enter" === event.key || "ArrowDown" === event.key) {
         event.preventDefault();
         B(section);
-        const updatedInputs = financeSalesInputsV344(section);
-        financeFocusSalesInputV344(updatedInputs[rowIndex + 1] || null);
+        const updatedInputs = financeSalesInputsV345(section);
+        financeFocusSalesInputV345(
+          updatedInputs[rowIndex + 1] || updatedInputs[rowIndex] || null,
+        );
+        return;
+      }
+      if ("ArrowUp" === event.key) {
+        event.preventDefault();
+        financeFocusSalesInputV345(inputs[rowIndex - 1] || input);
         return;
       }
       const targetSection =
@@ -25337,14 +25351,24 @@ async function init() {
             : "";
       if (!targetSection) return;
       event.preventDefault();
-      let targetInputs = financeSalesInputsV344(targetSection);
+      let targetInputs = financeSalesInputsV345(targetSection);
       if (!targetInputs.length) {
         L(targetSection);
-        targetInputs = financeSalesInputsV344(targetSection);
+        targetInputs = financeSalesInputsV345(targetSection);
       }
-      financeFocusSalesInputV344(
+      financeFocusSalesInputV345(
         targetInputs[rowIndex] || targetInputs[targetInputs.length - 1] || null,
       );
+    }
+    function financePreventNumberWheelV345(event) {
+      const input = event.target;
+      if (
+        input?.matches?.('#financeView input[type="number"]') &&
+        !input.disabled &&
+        !input.readOnly &&
+        document.activeElement === input
+      )
+        event.preventDefault();
     }
     function financeRenderDateV341() {
       const info = v(d),
@@ -25977,9 +26001,13 @@ async function init() {
     }
     (document.addEventListener(
       "keydown",
-      financeSalesKeyboardNavigationV344,
+      financeSalesKeyboardNavigationV345,
       !0,
     ),
+      document.addEventListener("wheel", financePreventNumberWheelV345, {
+        capture: !0,
+        passive: !1,
+      }),
       document.addEventListener("input", function (e) {
       const t = e.target?.dataset?.financeTableInput;
       if (
@@ -88121,7 +88149,7 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v344 - Finance print uses the same immutable advance ledger and close snapshot. */
+/* v345 - Finance print uses the same immutable advance ledger and close snapshot. */
 (function () {
   if (window.__nawahFinanceDailyPrintV332) return;
   window.__nawahFinanceDailyPrintV332 = true;
@@ -88261,7 +88289,7 @@ window.nawahContractDateCorrectionV321 = {
     var advances = financePrintReadJsonV332("nawah-payroll-advances", []);
     var ledger =
       window.nawahAdvanceLedger ||
-      window.nawahAdvanceLedgerV344 ||
+      window.nawahAdvanceLedgerV345 ||
       window.nawahAdvanceLedgerV340;
     var view = ledger.dayView(
       day || {},
@@ -88958,7 +88986,7 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 344,
+    version: 345,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();
