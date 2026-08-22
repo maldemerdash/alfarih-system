@@ -3856,9 +3856,9 @@ function payrollAdvanceWithPayment(advance, payment) {
   };
 }
 
-/* v349 - Immutable, date-effective advance ledger and finance-day snapshots. */
+/* v350 - Immutable, date-effective advance ledger and finance-day snapshots. */
 (function () {
-  if (window.nawahAdvanceLedger?.version >= 349) return;
+  if (window.nawahAdvanceLedger?.version >= 350) return;
   const ADVANCES_KEY = "nawah-payroll-advances",
     FINANCE_DAYS_KEY = "nawah-finance-daily-days",
     FINANCE_OPEN_KEY = "nawah-finance-daily-open";
@@ -4223,8 +4223,8 @@ function payrollAdvanceWithPayment(advance, payment) {
     return JSON.stringify(rows);
   }
 
-  const advanceLedgerV349 = Object.freeze({
-    version: 349,
+  const advanceLedgerV350 = Object.freeze({
+    version: 350,
     dateKey,
     effectiveDate,
     paymentDate,
@@ -4244,12 +4244,13 @@ function payrollAdvanceWithPayment(advance, payment) {
     hasClosedImpact,
     eventsOnDateSignature,
   });
-  window.nawahAdvanceLedger = advanceLedgerV349;
-  window.nawahAdvanceLedgerV349 = advanceLedgerV349;
-  window.nawahAdvanceLedgerV348 = advanceLedgerV349;
-  window.nawahAdvanceLedgerV347 = advanceLedgerV349;
-  window.nawahAdvanceLedgerV346 = advanceLedgerV349;
-  window.nawahAdvanceLedgerV340 = advanceLedgerV349;
+  window.nawahAdvanceLedger = advanceLedgerV350;
+  window.nawahAdvanceLedgerV350 = advanceLedgerV350;
+  window.nawahAdvanceLedgerV349 = advanceLedgerV350;
+  window.nawahAdvanceLedgerV348 = advanceLedgerV350;
+  window.nawahAdvanceLedgerV347 = advanceLedgerV350;
+  window.nawahAdvanceLedgerV346 = advanceLedgerV350;
+  window.nawahAdvanceLedgerV340 = advanceLedgerV350;
 })();
 
 /* v347 - Forward-compatible comparison for immutable finance-day signatures. */
@@ -24433,6 +24434,7 @@ async function init() {
     function financeAdvanceDayViewV341() {
       const ledger =
         window.nawahAdvanceLedger ||
+        window.nawahAdvanceLedgerV350 ||
         window.nawahAdvanceLedgerV349 ||
         window.nawahAdvanceLedgerV348 ||
         window.nawahAdvanceLedgerV347 ||
@@ -25471,6 +25473,7 @@ async function init() {
       if (!e) return;
       const ledger =
           window.nawahAdvanceLedger ||
+          window.nawahAdvanceLedgerV350 ||
           window.nawahAdvanceLedgerV349 ||
           window.nawahAdvanceLedgerV348 ||
           window.nawahAdvanceLedgerV347 ||
@@ -25771,22 +25774,57 @@ async function init() {
       }
       e.appendChild(o);
     }
-    const financeSalesSectionsV349 = Object.freeze([
+    const financeSalesSectionsV350 = Object.freeze([
       "cashSales",
       "cardSales",
-    ]);
-    function financeIsSalesSectionV349(section) {
-      return financeSalesSectionsV349.includes(String(section || ""));
+      ]),
+      financeSalesMaxRowIndexV350 = 5000;
+    function financeIsSalesSectionV350(section) {
+      return financeSalesSectionsV350.includes(String(section || ""));
     }
-    function financeSalesVisibleRowCountV349(minimum = 0) {
-      const populatedMaximum = Math.max(
-        ...financeSalesSectionsV349.map(
-          (section) =>
-            (Array.isArray(p[section]) ? p[section] : []).filter(x).length,
+    /* v350: Persist positions on populated sales only; visual gaps remain
+       zero-valued without becoming financial records. */
+    function financeSalesPositionedRecordsV350(section) {
+      const used = new Set();
+      let fallback = 0;
+      return (Array.isArray(p[section]) ? p[section] : [])
+        .filter(x)
+        .map((record) => {
+          const rawPosition = record?.rowIndex,
+            parsedPosition = Number(rawPosition);
+          let rowIndex =
+            rawPosition !== "" &&
+            rawPosition != null &&
+            Number.isSafeInteger(parsedPosition) &&
+            parsedPosition >= 0 &&
+            parsedPosition <= financeSalesMaxRowIndexV350 &&
+            !used.has(parsedPosition)
+              ? parsedPosition
+              : -1;
+          if (rowIndex < 0) {
+            while (used.has(fallback)) fallback += 1;
+            rowIndex = fallback;
+            fallback += 1;
+          }
+          used.add(rowIndex);
+          return { record, rowIndex };
+        })
+        .sort((left, right) => left.rowIndex - right.rowIndex);
+    }
+    function financeSalesVisibleRowCountV350(minimum = 0) {
+      const lastPopulatedIndex = Math.max(
+        ...financeSalesSectionsV350.flatMap((section) =>
+          financeSalesPositionedRecordsV350(section).map(
+            (entry) => entry.rowIndex,
+          ),
         ),
-        0,
+        -1,
       );
-      return Math.max(1, Number(minimum) || 0, populatedMaximum + 1);
+      return Math.max(
+        1,
+        Number(minimum) || 0,
+        lastPopulatedIndex + 2,
+      );
     }
     function L(e) {
       const t = document.querySelector(`[data-finance-table="${e}"]`);
@@ -25803,12 +25841,26 @@ async function init() {
       if (!body) return;
       body.innerHTML = "";
       const o = s(p[e]),
-        visibleRows = financeIsSalesSectionV349(e)
-          ? financeSalesVisibleRowCountV349()
-          : o.length;
+        isSales = financeIsSalesSectionV350(e);
       p[e] = o;
+      const positionedRows = isSales
+          ? new Map(
+              financeSalesPositionedRecordsV350(e).map((entry) => [
+                entry.rowIndex,
+                entry.record,
+              ]),
+            )
+          : null,
+        visibleRows = isSales
+          ? financeSalesVisibleRowCountV350()
+          : o.length;
       for (let index = 0; index < visibleRows; index += 1)
-        q(body, e, o[index] || a, index);
+        q(
+          body,
+          e,
+          isSales ? positionedRows.get(index) || a : o[index] || a,
+          index,
+        );
     }
     function k() {
       try {
@@ -25980,7 +26032,7 @@ async function init() {
         ),
         a = [],
         o = changedTarget?.closest?.("tr") || null;
-      t.querySelectorAll("tbody tr").forEach((t) => {
+      t.querySelectorAll("tbody tr").forEach((t, rowIndex) => {
         const r = t.querySelector('[data-finance-field="amount"]')?.value || "",
           i = t.querySelector('[data-finance-field="note"]')?.value || "",
           s = String(t.dataset.financeRecordId || "").trim(),
@@ -25995,6 +26047,7 @@ async function init() {
                 id: c,
                 amount: r,
                 note: i,
+                ...(financeIsSalesSectionV350(e) ? { rowIndex } : {}),
                 createdAt: d.createdAt || new Date().toISOString(),
                 updatedAt:
                   t === o ? new Date().toISOString() : d.updatedAt || d.createdAt || "",
@@ -26016,14 +26069,14 @@ async function init() {
       }
       p[e] = r;
     }
-    function financeTableRowsV349(section) {
+    function financeTableRowsV350(section) {
       return Array.from(
         document.querySelectorAll(
           `#financeView [data-finance-table="${section}"] tbody tr`,
         ),
       );
     }
-    function financeDomRowHasValueV349(row) {
+    function financeDomRowHasValueV350(row) {
       return x({
         amount:
           row?.querySelector?.('[data-finance-field="amount"]')?.value || "",
@@ -26031,7 +26084,7 @@ async function init() {
           row?.querySelector?.('[data-finance-field="note"]')?.value || "",
       });
     }
-    function financeEnsureTableRowsV349(section, minimumCount) {
+    function financeEnsureTableRowsV350(section, minimumCount) {
       const table = document.querySelector(
           `#financeView [data-finance-table="${section}"]`,
         ),
@@ -26045,47 +26098,47 @@ async function init() {
       }
       return rows;
     }
-    function financeSyncSalesRowsV349(minimumCount = 0) {
+    function financeSyncSalesRowsV350(minimumCount = 0) {
       const active = document.activeElement,
         activeSection = active?.dataset?.financeTableInput,
-        activeRows = financeIsSalesSectionV349(activeSection)
-          ? financeTableRowsV349(activeSection)
+        activeRows = financeIsSalesSectionV350(activeSection)
+          ? financeTableRowsV350(activeSection)
           : [],
         activeRow = active?.closest?.("tr"),
         activeMinimum = Math.max(0, activeRows.indexOf(activeRow) + 1),
         populatedDomMinimum = Math.max(
-          ...financeSalesSectionsV349.map((section) => {
-            const rows = financeTableRowsV349(section);
+          ...financeSalesSectionsV350.map((section) => {
+            const rows = financeTableRowsV350(section);
             for (let index = rows.length - 1; index >= 0; index -= 1)
-              if (financeDomRowHasValueV349(rows[index])) return index + 2;
+              if (financeDomRowHasValueV350(rows[index])) return index + 2;
             return 1;
           }),
           1,
         ),
-        desired = financeSalesVisibleRowCountV349(
+        desired = financeSalesVisibleRowCountV350(
           Math.max(
             Number(minimumCount) || 0,
             activeMinimum,
             populatedDomMinimum,
           ),
         );
-      financeSalesSectionsV349.forEach((section) => {
-        const rows = financeEnsureTableRowsV349(section, desired),
+      financeSalesSectionsV350.forEach((section) => {
+        const rows = financeEnsureTableRowsV350(section, desired),
           removable = rows.slice(desired).reverse();
         removable.forEach((row) => {
-          if (!row.contains(active) && !financeDomRowHasValueV349(row))
+          if (!row.contains(active) && !financeDomRowHasValueV350(row))
             row.remove();
         });
       });
       return desired;
     }
-    function financeMaintainExpenseRowsV349() {
-      const rows = financeTableRowsV349("expenses"),
+    function financeMaintainExpenseRowsV350() {
+      const rows = financeTableRowsV350("expenses"),
         active = document.activeElement,
         activeIndex = rows.indexOf(active?.closest?.("tr"));
       let lastPopulatedIndex = -1;
       for (let index = rows.length - 1; index >= 0; index -= 1)
-        if (financeDomRowHasValueV349(rows[index])) {
+        if (financeDomRowHasValueV350(rows[index])) {
           lastPopulatedIndex = index;
           break;
         }
@@ -26094,66 +26147,66 @@ async function init() {
           activeIndex + 1,
           lastPopulatedIndex + 2,
         ),
-        updatedRows = financeEnsureTableRowsV349("expenses", desired);
+        updatedRows = financeEnsureTableRowsV350("expenses", desired);
       updatedRows
         .slice(desired)
         .reverse()
         .forEach((row) => {
-          if (!row.contains(active) && !financeDomRowHasValueV349(row))
+          if (!row.contains(active) && !financeDomRowHasValueV350(row))
             row.remove();
         });
       return desired;
     }
     function B(e) {
-      if (financeIsSalesSectionV349(e)) {
-        financeSyncSalesRowsV349();
+      if (financeIsSalesSectionV350(e)) {
+        financeSyncSalesRowsV350();
         return;
       }
       if (e === "expenses") {
-        financeMaintainExpenseRowsV349();
+        financeMaintainExpenseRowsV350();
         return;
       }
       const t = document.querySelector(`[data-finance-table="${e}"]`),
         n = t?.querySelector("tbody");
       if (!n) return;
       const o = Array.from(n.querySelectorAll("tr")),
-        r = o.map(financeDomRowHasValueV349),
+        r = o.map(financeDomRowHasValueV350),
         i = r.filter((value) => !value).length;
       if (i > 1 || r.slice(0, -1).some((value) => !value)) return void L(e);
       const lastRow = o[o.length - 1];
       if (!lastRow) return void q(n, e, a, 0);
       r[r.length - 1] && q(n, e, a, o.length);
     }
-    const financeExcelColumnsV349 = Object.freeze([
+    const financeExcelColumnsV350 = Object.freeze([
       Object.freeze({ section: "expenses", field: "amount" }),
       Object.freeze({ section: "expenses", field: "note" }),
       Object.freeze({ section: "cashSales", field: "amount" }),
       Object.freeze({ section: "cardSales", field: "amount" }),
     ]);
-    function financeExcelColumnIndexV349(element) {
+    function financeExcelColumnIndexV350(element) {
       const section = String(element?.dataset?.financeTableInput || ""),
         field = String(element?.dataset?.financeField || "");
-      return financeExcelColumnsV349.findIndex(
+      return financeExcelColumnsV350.findIndex(
         (column) => column.section === section && column.field === field,
       );
     }
-    function financeExcelCellV349(columnIndex, rowIndex) {
-      const column = financeExcelColumnsV349[columnIndex];
+    function financeExcelCellV350(columnIndex, rowIndex) {
+      const column = financeExcelColumnsV350[columnIndex];
       if (!column || rowIndex < 0) return null;
       return document.querySelector(
         `#financeView [data-finance-table="${column.section}"] ` +
           `[data-finance-field="${column.field}"][data-finance-index="${rowIndex}"]`,
       );
     }
-    function financeEnsureExcelCellV349(columnIndex, rowIndex) {
-      const column = financeExcelColumnsV349[columnIndex];
+    function financeEnsureExcelCellV350(columnIndex, rowIndex) {
+      const column = financeExcelColumnsV350[columnIndex];
       if (!column || rowIndex < 0) return null;
-      if (financeIsSalesSectionV349(column.section))
-        financeSyncSalesRowsV349(rowIndex + 1);
-      else financeEnsureTableRowsV349(column.section, rowIndex + 1);
-      return financeExcelCellV349(columnIndex, rowIndex);
+      if (financeIsSalesSectionV350(column.section))
+        financeSyncSalesRowsV350(rowIndex + 1);
+      else financeEnsureTableRowsV350(column.section, rowIndex + 1);
+      return financeExcelCellV350(columnIndex, rowIndex);
     }
-    function financeFocusExcelCellV349(element) {
+    function financeFocusExcelCellV350(element) {
       if (!element || element.disabled || element.readOnly) return !1;
       element.focus();
       try {
@@ -26161,7 +26214,7 @@ async function init() {
       } catch (_) {}
       return document.activeElement === element;
     }
-    function financeExcelKeyboardNavigationV349(event) {
+    function financeExcelKeyboardNavigationV350(event) {
       if (event.defaultPrevented || event.isComposing) return;
       const element = event.target,
         isFinanceNumber = element?.matches?.(
@@ -26176,7 +26229,7 @@ async function init() {
         !element.closest?.("#financeView")
       )
         return;
-      const columnIndex = financeExcelColumnIndexV349(element);
+      const columnIndex = financeExcelColumnIndexV350(element);
       if (columnIndex < 0) {
         if (isFinanceNumber && verticalArrow) event.preventDefault();
         return;
@@ -26195,8 +26248,8 @@ async function init() {
         ].includes(event.key)
       )
         return;
-      const rows = financeTableRowsV349(
-          financeExcelColumnsV349[columnIndex].section,
+      const rows = financeTableRowsV350(
+          financeExcelColumnsV350[columnIndex].section,
         ),
         rowIndex = rows.indexOf(element.closest("tr"));
       if (rowIndex < 0) return;
@@ -26210,13 +26263,13 @@ async function init() {
       else if (event.key === "ArrowRight") targetColumn -= 1;
       if (
         targetColumn < 0 ||
-        targetColumn >= financeExcelColumnsV349.length
+        targetColumn >= financeExcelColumnsV350.length
       )
-        return void financeFocusExcelCellV349(element);
-      const target = financeEnsureExcelCellV349(targetColumn, targetRow);
-      financeFocusExcelCellV349(target || element);
+        return void financeFocusExcelCellV350(element);
+      const target = financeEnsureExcelCellV350(targetColumn, targetRow);
+      financeFocusExcelCellV350(target || element);
     }
-    function financePreventNumberWheelV349(event) {
+    function financePreventNumberWheelV350(event) {
       const input = event.target;
       if (
         input?.matches?.('#financeView input[type="number"]') &&
@@ -26864,10 +26917,10 @@ async function init() {
     }
     (document.addEventListener(
       "keydown",
-      financeExcelKeyboardNavigationV349,
+      financeExcelKeyboardNavigationV350,
       !0,
     ),
-      document.addEventListener("wheel", financePreventNumberWheelV349, {
+      document.addEventListener("wheel", financePreventNumberWheelV350, {
         capture: !0,
         passive: !1,
       }),
@@ -88928,7 +88981,7 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v349 - Finance print uses the same immutable advance ledger and close snapshot. */
+/* v350 - Finance print uses the same immutable advance ledger and close snapshot. */
 (function () {
   if (window.__nawahFinanceDailyPrintV332) return;
   window.__nawahFinanceDailyPrintV332 = true;
@@ -89068,6 +89121,7 @@ window.nawahContractDateCorrectionV321 = {
     var advances = financePrintReadJsonV332("nawah-payroll-advances", []);
     var ledger =
       window.nawahAdvanceLedger ||
+      window.nawahAdvanceLedgerV350 ||
       window.nawahAdvanceLedgerV349 ||
       window.nawahAdvanceLedgerV348 ||
       window.nawahAdvanceLedgerV347 ||
@@ -89784,7 +89838,7 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 349,
+    version: 350,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();
