@@ -3856,9 +3856,9 @@ function payrollAdvanceWithPayment(advance, payment) {
   };
 }
 
-/* v346 - Immutable, date-effective advance ledger and finance-day snapshots. */
+/* v348 - Immutable, date-effective advance ledger and finance-day snapshots. */
 (function () {
-  if (window.nawahAdvanceLedger?.version >= 346) return;
+  if (window.nawahAdvanceLedger?.version >= 348) return;
   const ADVANCES_KEY = "nawah-payroll-advances",
     FINANCE_DAYS_KEY = "nawah-finance-daily-days",
     FINANCE_OPEN_KEY = "nawah-finance-daily-open";
@@ -4223,8 +4223,8 @@ function payrollAdvanceWithPayment(advance, payment) {
     return JSON.stringify(rows);
   }
 
-  const advanceLedgerV346 = Object.freeze({
-    version: 346,
+  const advanceLedgerV348 = Object.freeze({
+    version: 348,
     dateKey,
     effectiveDate,
     paymentDate,
@@ -4244,9 +4244,119 @@ function payrollAdvanceWithPayment(advance, payment) {
     hasClosedImpact,
     eventsOnDateSignature,
   });
-  window.nawahAdvanceLedger = advanceLedgerV346;
-  window.nawahAdvanceLedgerV346 = advanceLedgerV346;
-  window.nawahAdvanceLedgerV340 = advanceLedgerV346;
+  window.nawahAdvanceLedger = advanceLedgerV348;
+  window.nawahAdvanceLedgerV348 = advanceLedgerV348;
+  window.nawahAdvanceLedgerV347 = advanceLedgerV348;
+  window.nawahAdvanceLedgerV346 = advanceLedgerV348;
+  window.nawahAdvanceLedgerV340 = advanceLedgerV348;
+})();
+
+/* v347 - Forward-compatible comparison for immutable finance-day signatures. */
+(function () {
+  if (window.nawahFinanceSignatureV347) return;
+  function parse(value) {
+    if (value && typeof value === "object") return value;
+    try {
+      const parsed = JSON.parse(String(value || ""));
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function subsetEqual(expected, current) {
+    if (Array.isArray(expected)) {
+      if (!Array.isArray(current) || expected.length !== current.length)
+        return !1;
+      return expected.every((item, index) =>
+        subsetEqual(item, current[index]),
+      );
+    }
+    if (expected && typeof expected === "object") {
+      if (!current || typeof current !== "object" || Array.isArray(current))
+        return !1;
+      return Object.keys(expected).every(
+        (key) =>
+          Object.prototype.hasOwnProperty.call(current, key) &&
+          subsetEqual(expected[key], current[key]),
+      );
+    }
+    return Object.is(expected, current);
+  }
+  function amountEqual(left, right) {
+    const leftNumber = Number(left || 0),
+      rightNumber = Number(right || 0);
+    return (
+      Number.isFinite(leftNumber) &&
+      Number.isFinite(rightNumber) &&
+      Math.abs(leftNumber - rightNumber) <= 0.005
+    );
+  }
+  function rowEqual(expected, current) {
+    if (!expected || !current || typeof expected !== "object") return !1;
+    return Object.keys(expected).every((key) => {
+      if (!Object.prototype.hasOwnProperty.call(current, key)) return !1;
+      if (key === "amount") return amountEqual(expected[key], current[key]);
+      return subsetEqual(expected[key], current[key]);
+    });
+  }
+  function rowsEqual(expected, current) {
+    if (!Array.isArray(expected) || !Array.isArray(current)) return !1;
+    if (expected.length !== current.length) return !1;
+    const currentById = new Map(
+      current.map((row, index) => [String(row?.id || `__row_${index}`), row]),
+    );
+    return expected.every((row, index) => {
+      const key = String(row?.id || `__row_${index}`);
+      return rowEqual(row, currentById.get(key));
+    });
+  }
+  function financeEqual(expected, current) {
+    const rowFields = new Set([
+        "pending",
+        "expenses",
+        "cashSales",
+        "cardSales",
+        "deletedPending",
+      ]),
+      amountFields = new Set(["budgetAmount", "manualCashAmount"]);
+    return Object.keys(expected).every((key) => {
+      if (!Object.prototype.hasOwnProperty.call(current, key)) return !1;
+      if (rowFields.has(key)) return rowsEqual(expected[key], current[key]);
+      if (amountFields.has(key)) return amountEqual(expected[key], current[key]);
+      if (key === "carriedAmountOverride") {
+        const leftEmpty = expected[key] == null || expected[key] === "",
+          rightEmpty = current[key] == null || current[key] === "";
+        return leftEmpty || rightEmpty
+          ? leftEmpty === rightEmpty
+          : amountEqual(expected[key], current[key]);
+      }
+      return subsetEqual(expected[key], current[key]);
+    });
+  }
+  function matches(expectedSignature, currentSignature) {
+    const expectedText = String(expectedSignature || ""),
+      currentText = String(currentSignature || "");
+    if (expectedText === currentText) return !0;
+    if (expectedText === "__missing__" || currentText === "__missing__")
+      return !1;
+    const expected = parse(expectedText),
+      current = parse(currentText);
+    if (!expected || !current || !financeEqual(expected, current)) return !1;
+    if (
+      !Object.prototype.hasOwnProperty.call(expected, "dailyCreditSource") &&
+      current.dailyCreditSource &&
+      current.dailyCreditSource !== "cardSales"
+    )
+      return !1;
+    return !0;
+  }
+  window.nawahFinanceSignatureV347 = Object.freeze({
+    version: 347,
+    parse,
+    subsetEqual,
+    financeEqual,
+    matches,
+  });
 })();
 function absenceSegmentDisplayLabel(segment) {
   const value = String(segment || "fullDay");
@@ -24322,7 +24432,8 @@ async function init() {
     function financeAdvanceDayViewV341() {
       const ledger =
         window.nawahAdvanceLedger ||
-        window.nawahAdvanceLedgerV346 ||
+        window.nawahAdvanceLedgerV348 ||
+        window.nawahAdvanceLedgerV347 ||
         window.nawahAdvanceLedgerV340;
       if (!ledger?.dayView)
         return { version: 0, date: d, total: 0, items: [], hash: "" };
@@ -24554,64 +24665,633 @@ async function init() {
         financeLegacyRollbackV319(currentDate)
       );
     }
-    function financeRollbackChangedV318(candidate) {
-      if (!candidate?.operation) return "تعذر العثور على سجل الإغلاق الآمن";
-      const operation = candidate.operation,
-        targetDate = operation.targetDate,
-        targetRecord = targetDate && m[targetDate] ? m[targetDate] : null,
-        currentSignature = financeDayContentSignatureV318(
-          targetRecord,
-          targetDate,
-        );
-      if (currentSignature !== String(operation.afterTargetSignature || ""))
-        return "لا يمكن التراجع لأن اليوم الذي فُتح بعد الإغلاق يحتوي على حركات أو تعديلات مالية جديدة";
+    const financeRollbackSectionLabelsV347 = Object.freeze({
+      pending: "مبلغ معلق",
+      expenses: "مصروف",
+      cashSales: "مبيعات نقدية",
+      cardSales: "مبيعات شبكة",
+      deletedPending: "حذف مبلغ معلق",
+    });
+    function financeSignatureParseV347(value) {
+      try {
+        if (window.nawahFinanceSignatureV347?.parse)
+          return window.nawahFinanceSignatureV347.parse(value);
+        const parsed = JSON.parse(String(value || ""));
+        return parsed && typeof parsed === "object" ? parsed : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    function financeSignatureMatchesV347(expected, current) {
+      try {
+        if (window.nawahFinanceSignatureV347?.matches)
+          return window.nawahFinanceSignatureV347.matches(expected, current);
+      } catch (_) {}
+      return String(expected || "") === String(current || "");
+    }
+    function financeRollbackValueTextV347(value) {
+      if (value == null || value === "") return "فارغ";
+      if (typeof value === "boolean") return value ? "نعم" : "لا";
+      return String(value);
+    }
+    function financeRollbackRowKeyV347(row, index) {
+      const id = String(row?.id || "").trim();
+      return id || `__row_${index}_${String(row?.amount || "")}_${String(row?.note || "")}`;
+    }
+    function financeRollbackRowsEqualV347(left, right) {
+      return ["amount", "note", "source", "travelId"].every(
+        (field) =>
+          field === "amount"
+            ? Math.abs(o(left?.[field]) - o(right?.[field])) <= 0.005
+            : String(left?.[field] || "") === String(right?.[field] || ""),
+      );
+    }
+    function financeRollbackRowDiffV347(
+      expectedRows,
+      currentRows,
+      section,
+      targetDate,
+    ) {
+      const expected = Array.isArray(expectedRows) ? expectedRows : [],
+        current = Array.isArray(currentRows) ? currentRows : [],
+        expectedMap = new Map(
+          expected.map((row, index) => [
+            financeRollbackRowKeyV347(row, index),
+            row,
+          ]),
+        ),
+        currentMap = new Map(
+          current.map((row, index) => [
+            financeRollbackRowKeyV347(row, index),
+            row,
+          ]),
+        ),
+        title = financeRollbackSectionLabelsV347[section] || "حركة مالية",
+        items = [];
+      currentMap.forEach((row, key) => {
+        const previous = expectedMap.get(key);
+        if (!previous) {
+          items.push({
+            kind: section,
+            title,
+            action: section === "deletedPending" ? "حذف جديد" : "إضافة جديدة",
+            date: targetDate,
+            amount: o(row?.amount),
+            note: String(row?.note || "").trim(),
+            id: String(row?.id || ""),
+          });
+        } else if (!financeRollbackRowsEqualV347(previous, row)) {
+          items.push({
+            kind: section,
+            title,
+            action: "تعديل",
+            date: targetDate,
+            amount: o(row?.amount),
+            note: String(row?.note || "").trim(),
+            previousAmount: o(previous?.amount),
+            previousNote: String(previous?.note || "").trim(),
+            id: String(row?.id || ""),
+          });
+        }
+      });
+      expectedMap.forEach((row, key) => {
+        if (currentMap.has(key)) return;
+        items.push({
+          kind: section,
+          title,
+          action: section === "deletedPending" ? "إلغاء حذف" : "حذف",
+          date: targetDate,
+          amount: o(row?.amount),
+          note: String(row?.note || "").trim(),
+          id: String(row?.id || ""),
+        });
+      });
+      return items;
+    }
+    function financeRollbackDedupePendingV347(items) {
+      const deletedIds = new Set(
+        (Array.isArray(items) ? items : [])
+          .filter(
+            (item) =>
+              item?.kind === "deletedPending" && item?.action === "حذف جديد",
+          )
+          .map((item) => String(item.id || ""))
+          .filter(Boolean),
+      );
+      return (Array.isArray(items) ? items : []).filter(
+        (item) =>
+          !(
+            item?.kind === "pending" &&
+            item?.action === "حذف" &&
+            deletedIds.has(String(item.id || ""))
+          ),
+      );
+    }
+    function financeRollbackScalarDiffV347(
+      expected,
+      current,
+      targetDate,
+    ) {
+      const items = [],
+        fields = [
+          ["budgetAmount", "مبلغ الموازنة المدخل", "amount"],
+          ["manualCashAmount", "المبلغ النقدي", "amount"],
+          ["carriedAmountOverride", "المبلغ المرحل", "nullableAmount"],
+          ["isClosed", "حالة إغلاق اليوم اللاحق", "state"],
+        ];
+      fields.forEach(([field, title, kind]) => {
+        if (!Object.prototype.hasOwnProperty.call(expected || {}, field))
+          return;
+        const previous = expected?.[field],
+          next = current?.[field],
+          equal =
+            kind === "amount"
+              ? Math.abs(o(previous) - o(next)) <= 0.005
+              : kind === "nullableAmount"
+                ? previous == null || previous === "" || next == null || next === ""
+                  ? (previous == null || previous === "") ===
+                    (next == null || next === "")
+                  : Math.abs(o(previous) - o(next)) <= 0.005
+              : Object.is(previous, next);
+        if (equal) return;
+        items.push({
+          kind: field,
+          title,
+          action: "تعديل",
+          date: targetDate,
+          amount:
+            kind === "amount" || kind === "nullableAmount" ? o(next) : null,
+          previousAmount:
+            kind === "amount" || kind === "nullableAmount"
+              ? o(previous)
+              : null,
+          previousValue:
+            kind === "state"
+              ? previous
+                ? "مغلق"
+                : "مفتوح"
+              : financeRollbackValueTextV347(previous),
+          currentValue:
+            kind === "state"
+              ? next
+                ? "مغلق"
+                : "مفتوح"
+              : financeRollbackValueTextV347(next),
+        });
+      });
+      const expectedHasSource = Object.prototype.hasOwnProperty.call(
+          expected || {},
+          "dailyCreditSource",
+        ),
+        previousSource = expectedHasSource
+          ? expected.dailyCreditSource === "budgetAmount"
+            ? "budgetAmount"
+            : "cardSales"
+          : "cardSales",
+        currentSource =
+          current?.dailyCreditSource === "budgetAmount"
+            ? "budgetAmount"
+            : "cardSales";
+      if (previousSource !== currentSource)
+        items.push({
+          kind: "dailyCreditSource",
+          title: "مصدر مجموع الدائن اليومي",
+          action: "تعديل",
+          date: targetDate,
+          previousValue:
+            previousSource === "budgetAmount"
+              ? "مبلغ الموازنة المدخل"
+              : "مبيعات الشبكة",
+          currentValue:
+            currentSource === "budgetAmount"
+              ? "مبلغ الموازنة المدخل"
+              : "مبيعات الشبكة",
+        });
+      return items;
+    }
+    function financeRollbackDayDiffV347(
+      expectedSignature,
+      currentSignature,
+      targetDate,
+    ) {
+      const expected = financeSignatureParseV347(expectedSignature),
+        current = financeSignatureParseV347(currentSignature);
+      if (!expected || !current)
+        return [
+          {
+            kind: "day",
+            title: "بيانات اليوم المالي اللاحق",
+            action: "تعديل غير قابل للتصنيف",
+            date: targetDate,
+            note: "تختلف البصمة المالية المحفوظة عن الحالة الحالية.",
+          },
+        ];
+      const items = [];
+      [
+        "pending",
+        "expenses",
+        "cashSales",
+        "cardSales",
+        "deletedPending",
+      ].forEach((section) =>
+        items.push(
+          ...financeRollbackRowDiffV347(
+            expected[section],
+            current[section],
+            section,
+            targetDate,
+          ),
+        ),
+      );
+      items.push(
+        ...financeRollbackScalarDiffV347(expected, current, targetDate),
+      );
       if (
-        financeAdvanceSignatureV318(targetDate) !==
-        String(operation.afterAdvanceSignature || "[]")
+        Object.prototype.hasOwnProperty.call(expected, "financeDate") &&
+        String(expected.financeDate || "") !== String(current.financeDate || "")
       )
-        return "لا يمكن التراجع لوجود سلفة أضيفت أو عُدلت في اليوم الذي فُتح بعد الإغلاق";
-      return "";
+        items.push({
+          kind: "date",
+          title: "تاريخ اليوم المالي",
+          action: "تعديل",
+          date: targetDate,
+          previousValue: String(expected.financeDate || ""),
+          currentValue: String(current.financeDate || ""),
+        });
+      return items.length
+        ? items
+        : [
+            {
+              kind: "day",
+              title: "بيانات اليوم المالي اللاحق",
+              action: "تعديل غير قابل للتصنيف",
+              date: targetDate,
+            },
+          ];
+    }
+    function financeRollbackAdvanceDiffV347(
+      expectedSignature,
+      currentSignature,
+      targetDate,
+    ) {
+      const expected = financeSignatureParseV347(expectedSignature),
+        current = financeSignatureParseV347(currentSignature);
+      if (!Array.isArray(expected) || !Array.isArray(current))
+        return [
+          {
+            kind: "advance",
+            title: "سلفة أو سداد سلفة",
+            action: "تعديل غير قابل للتصنيف",
+            date: targetDate,
+          },
+        ];
+      const expectedMap = new Map(
+          expected.map((record, index) => [
+            String(record?.id || `__advance_${index}`),
+            record,
+          ]),
+        ),
+        currentMap = new Map(
+          current.map((record, index) => [
+            String(record?.id || `__advance_${index}`),
+            record,
+          ]),
+        ),
+        items = [];
+      currentMap.forEach((record, key) => {
+        const previous = expectedMap.get(key),
+          employeeName = E(record);
+        if (!previous) {
+          items.push({
+            kind: "advance",
+            title: "سلفة",
+            action: "إضافة جديدة",
+            date: targetDate,
+            amount: o(record?.amount),
+            note: employeeName,
+            id: String(record?.id || ""),
+          });
+          (Array.isArray(record?.payments) ? record.payments : []).forEach(
+            (payment) =>
+              items.push({
+                kind: "advancePayment",
+                title: "سداد سلفة",
+                action: "إضافة جديدة",
+                date: String(payment?.date || targetDate),
+                amount: o(payment?.amount),
+                note: `${employeeName}${payment?.source ? ` — ${String(payment.source)}` : ""}`,
+                id: String(payment?.id || ""),
+              }),
+          );
+          return;
+        }
+        const scalarChanged = ["employeeId", "amount", "status", "date"].some(
+          (field) => String(previous?.[field] ?? "") !== String(record?.[field] ?? ""),
+        );
+        if (scalarChanged)
+          items.push({
+            kind: "advance",
+            title: "سلفة",
+            action: "تعديل",
+            date: targetDate,
+            amount: o(record?.amount),
+            previousAmount: o(previous?.amount),
+            note: employeeName,
+            id: String(record?.id || ""),
+          });
+        const previousPayments = new Map(
+            (Array.isArray(previous?.payments) ? previous.payments : []).map(
+              (payment, index) => [
+                String(payment?.id || `__payment_${index}`),
+                payment,
+              ],
+            ),
+          ),
+          currentPayments = new Map(
+            (Array.isArray(record?.payments) ? record.payments : []).map(
+              (payment, index) => [
+                String(payment?.id || `__payment_${index}`),
+                payment,
+              ],
+            ),
+          );
+        currentPayments.forEach((payment, paymentKey) => {
+          const oldPayment = previousPayments.get(paymentKey);
+          if (!oldPayment) {
+            items.push({
+              kind: "advancePayment",
+              title: "سداد سلفة",
+              action: "إضافة جديدة",
+              date: String(payment?.date || targetDate),
+              amount: o(payment?.amount),
+              note: `${employeeName}${payment?.source ? ` — ${String(payment.source)}` : ""}`,
+              id: String(payment?.id || ""),
+            });
+          } else if (JSON.stringify(oldPayment) !== JSON.stringify(payment)) {
+            items.push({
+              kind: "advancePayment",
+              title: "سداد سلفة",
+              action: "تعديل",
+              date: String(payment?.date || targetDate),
+              amount: o(payment?.amount),
+              previousAmount: o(oldPayment?.amount),
+              note: employeeName,
+              id: String(payment?.id || ""),
+            });
+          }
+        });
+        previousPayments.forEach((payment, paymentKey) => {
+          if (currentPayments.has(paymentKey)) return;
+          items.push({
+            kind: "advancePayment",
+            title: "سداد سلفة",
+            action: "حذف",
+            date: String(payment?.date || targetDate),
+            amount: o(payment?.amount),
+            note: employeeName,
+            id: String(payment?.id || ""),
+          });
+        });
+      });
+      expectedMap.forEach((record, key) => {
+        if (currentMap.has(key)) return;
+        items.push({
+          kind: "advance",
+          title: "سلفة",
+          action: "حذف",
+          date: targetDate,
+          amount: o(record?.amount),
+          note: E(record),
+          id: String(record?.id || ""),
+        });
+      });
+      return items.length
+        ? items
+        : [
+            {
+              kind: "advance",
+              title: "سلفة أو سداد سلفة",
+              action: "تعديل غير قابل للتصنيف",
+              date: targetDate,
+            },
+          ];
+    }
+    function financeRollbackDiagnosticsV347(candidate) {
+      const targetDate = String(candidate?.operation?.targetDate || "").slice(
+          0,
+          10,
+        ),
+        report = {
+          version: 347,
+          blocked: false,
+          summary: "",
+          sourceDate: String(candidate?.sourceDate || "").slice(0, 10),
+          targetDate,
+          items: [],
+        };
+      if (!candidate?.operation) {
+        report.items.push({
+          kind: "system",
+          title: "سجل الإغلاق",
+          action: "غير متاح",
+          date: targetDate,
+          note: "تعذر العثور على سجل الإغلاق الآمن.",
+        });
+      } else if (candidate.legacy) {
+        const source = c(m[candidate.sourceDate], candidate.sourceDate),
+          target = targetDate && m[targetDate]
+            ? c(m[targetDate], targetDate)
+            : null;
+        if (!source.isClosed || !target || target.isClosed) {
+          report.items.push({
+            kind: "sequence",
+            title: "تسلسل الأيام المالية",
+            action: "تغير",
+            date: targetDate,
+            note: "حدّث الصفحة ثم أعد المحاولة.",
+          });
+        } else {
+          ["expenses", "cashSales", "cardSales"].forEach((section) =>
+            report.items.push(
+              ...financeRollbackRowDiffV347(
+                [],
+                financeContentRowsV318(target[section]),
+                section,
+                targetDate,
+              ),
+            ),
+          );
+          report.items.push(
+            ...financeRollbackRowDiffV347(
+              financeContentRowsV318(source.pending),
+              financeContentRowsV318(target.pending),
+              "pending",
+              targetDate,
+            ),
+          );
+          report.items.push(
+            ...financeRollbackRowDiffV347(
+              [],
+              Array.isArray(target.deletedPending)
+                ? target.deletedPending
+                : [],
+              "deletedPending",
+              targetDate,
+            ),
+          );
+          if (o(target.budgetAmount) > 0.005)
+            report.items.push({
+              kind: "budgetAmount",
+              title: "مبلغ الموازنة المدخل",
+              action: "إضافة جديدة",
+              date: targetDate,
+              amount: o(target.budgetAmount),
+            });
+          if (o(target.manualCashAmount) > 0.005)
+            report.items.push({
+              kind: "manualCashAmount",
+              title: "المبلغ النقدي",
+              action: "إضافة جديدة",
+              date: targetDate,
+              amount: o(target.manualCashAmount),
+            });
+          if (
+            Math.abs(
+              o(target.carriedAmountOverride) -
+                o(source.newCarriedAmountSnapshot),
+            ) > 0.005
+          )
+            report.items.push({
+              kind: "carriedAmountOverride",
+              title: "المبلغ المرحل",
+              action: "تعديل",
+              date: targetDate,
+              amount: o(target.carriedAmountOverride),
+              previousAmount: o(source.newCarriedAmountSnapshot),
+            });
+          const advanceSignature = financeAdvanceSignatureV318(targetDate);
+          if (advanceSignature !== "[]")
+            report.items.push(
+              ...financeRollbackAdvanceDiffV347(
+                "[]",
+                advanceSignature,
+                targetDate,
+              ),
+            );
+        }
+      } else {
+        const operation = candidate.operation,
+          targetRecord = targetDate && m[targetDate] ? m[targetDate] : null,
+          currentSignature = financeDayContentSignatureV318(
+            targetRecord,
+            targetDate,
+          ),
+          expectedSignature = String(operation.afterTargetSignature || "");
+        if (!financeSignatureMatchesV347(expectedSignature, currentSignature))
+          report.items.push(
+            ...financeRollbackDayDiffV347(
+              expectedSignature,
+              currentSignature,
+              targetDate,
+            ),
+          );
+        const expectedAdvanceSignature = String(
+            operation.afterAdvanceSignature || "[]",
+          ),
+          currentAdvanceSignature = financeAdvanceSignatureV318(targetDate);
+        if (expectedAdvanceSignature !== currentAdvanceSignature)
+          report.items.push(
+            ...financeRollbackAdvanceDiffV347(
+              expectedAdvanceSignature,
+              currentAdvanceSignature,
+              targetDate,
+            ),
+          );
+      }
+      report.items = financeRollbackDedupePendingV347(report.items);
+      report.blocked = report.items.length > 0;
+      report.summary = report.blocked
+        ? `تعذر التراجع: توجد ${report.items.length} ${report.items.length === 1 ? "حركة مالية مانعة" : "حركات أو تعديلات مالية مانعة"} في اليوم اللاحق`
+        : "";
+      return report;
+    }
+    function financeRollbackChangedV318(candidate) {
+      return financeRollbackDiagnosticsV347(candidate).summary;
     }
     function financeLegacyRollbackChangedV319(candidate) {
-      if (!candidate?.legacy || !candidate?.operation)
-        return "تعذر العثور على سجل الإغلاق السابق";
-      const source = c(m[candidate.sourceDate], candidate.sourceDate),
-        targetDate = candidate.operation.targetDate,
-        target = targetDate && m[targetDate]
-          ? c(m[targetDate], targetDate)
-          : null;
-      if (!source.isClosed || !target || target.isClosed)
-        return "تغير تسلسل الأيام المالية؛ حدّث الصفحة ثم أعد المحاولة";
-      if (
-        ["expenses", "cashSales", "cardSales"].some((section) =>
-          s(target[section]).some(x),
-        )
-      )
-        return "لا يمكن التراجع لأن اليوم الذي فُتح بعد الإغلاق يحتوي على مصروفات أو مبيعات جديدة";
-      if (
-        JSON.stringify(financeContentRowsV318(source.pending)) !==
-        JSON.stringify(financeContentRowsV318(target.pending))
-      )
-        return "لا يمكن التراجع لأن المبالغ المعلقة في اليوم اللاحق تغيرت بعد الإغلاق";
-      if (Array.isArray(target.deletedPending) && target.deletedPending.length)
-        return "لا يمكن التراجع لأن مبالغ معلقة حُذفت في اليوم اللاحق";
-      if (o(target.budgetAmount) || o(target.manualCashAmount))
-        return "لا يمكن التراجع لأن اليوم اللاحق يحتوي على مبالغ مالية مدخلة";
-      if (
-        Math.abs(
-          o(target.carriedAmountOverride) -
-            o(source.newCarriedAmountSnapshot),
-        ) > 0.005
-      )
-        return "لا يمكن التراجع لأن المبلغ المرحل في اليوم اللاحق تم تعديله";
-      if (financeAdvanceSignatureV318(targetDate) !== "[]")
-        return "لا يمكن التراجع لوجود سلفة في اليوم الذي فُتح بعد الإغلاق";
-      return "";
+      return financeRollbackDiagnosticsV347(candidate).summary;
     }
     function financeRollbackChangedV319(candidate) {
-      return candidate?.legacy
-        ? financeLegacyRollbackChangedV319(candidate)
-        : financeRollbackChangedV318(candidate);
+      return financeRollbackDiagnosticsV347(candidate).summary;
+    }
+    function financeShowRollbackBlockersV347(candidate, suppliedReport) {
+      const report = suppliedReport || financeRollbackDiagnosticsV347(candidate);
+      if (!report.blocked) return false;
+      const targetInfo = v(report.targetDate),
+        visibleItems = report.items.slice(0, 50),
+        remaining = report.items.length - visibleItems.length;
+      let modal = document.getElementById("financeRollbackBlockedModal");
+      if (!modal) {
+        modal = document.createElement("dialog");
+        modal.id = "financeRollbackBlockedModal";
+        modal.className =
+          "modal small-modal finance-rollback-blockers-modal-v347";
+        document.body.appendChild(modal);
+      }
+      modal.innerHTML = `
+        <div class="modal-head finance-rollback-blockers-head-v347">
+          <div class="finance-rollback-blockers-icon-v347"><span data-icon="info"></span></div>
+          <div>
+            <h2>تعذر التراجع عن الإغلاق</h2>
+            <p>اليوم اللاحق: ${A(`${targetInfo.dayName} ${targetInfo.dateLabel}`)}</p>
+          </div>
+        </div>
+        <div class="modal-body finance-rollback-blockers-body-v347">
+          <p class="finance-rollback-blockers-guidance-v347">عالج الحركات التالية في اليوم اللاحق ثم أعد المحاولة. لا تُعد الفروق التقنية الناتجة عن تحديث النظام حركات مالية.</p>
+          <div class="finance-rollback-blockers-list-v347">
+            ${visibleItems
+              .map((item, index) => {
+                const hasAmount = item.amount != null,
+                  hasPreviousAmount = item.previousAmount != null,
+                  changedAmount =
+                    hasAmount &&
+                    hasPreviousAmount &&
+                    Math.abs(o(item.amount) - o(item.previousAmount)) > 0.005;
+                return `<article class="finance-rollback-blocker-item-v347" data-blocker-kind="${A(item.kind || "finance")}">
+                  <span class="finance-rollback-blocker-index-v347">${index + 1}</span>
+                  <div class="finance-rollback-blocker-content-v347">
+                    <div class="finance-rollback-blocker-title-v347"><strong>${A(item.title || "حركة مالية")}</strong><span>${A(item.action || "تعديل")}</span></div>
+                    <dl>
+                      <div><dt>التاريخ</dt><dd>${A(item.date || report.targetDate || "—")}</dd></div>
+                      ${hasAmount ? `<div><dt>المبلغ${changedAmount ? " الحالي" : ""}</dt><dd>${A(S(item.amount))} ر.س</dd></div>` : ""}
+                      ${changedAmount ? `<div><dt>المبلغ السابق</dt><dd>${A(S(item.previousAmount))} ر.س</dd></div>` : ""}
+                      ${item.note ? `<div><dt>البيان/التفصيل</dt><dd>${A(item.note)}</dd></div>` : ""}
+                      ${item.previousValue != null ? `<div><dt>القيمة السابقة</dt><dd>${A(item.previousValue)}</dd></div>` : ""}
+                      ${item.currentValue != null ? `<div><dt>القيمة الحالية</dt><dd>${A(item.currentValue)}</dd></div>` : ""}
+                      ${item.previousNote && item.previousNote !== item.note ? `<div><dt>البيان السابق</dt><dd>${A(item.previousNote)}</dd></div>` : ""}
+                      ${item.id ? `<div><dt>رقم المرجع</dt><dd dir="ltr">${A(item.id)}</dd></div>` : ""}
+                    </dl>
+                  </div>
+                </article>`;
+              })
+              .join("")}
+          </div>
+          ${remaining > 0 ? `<p class="finance-rollback-blockers-more-v347">وهناك ${remaining} حركة إضافية. عالج الحركات الظاهرة ثم أعد الفحص.</p>` : ""}
+        </div>
+        <div class="modal-actions finance-rollback-blockers-actions-v347">
+          <button type="button" class="primary-btn" data-finance-blockers-close>إغلاق</button>
+        </div>`;
+      try {
+        hydrateIcons(modal);
+      } catch (_) {}
+      modal.querySelector("[data-finance-blockers-close]").onclick = () =>
+        modal.close();
+      try {
+        modal.open || modal.showModal();
+      } catch (_) {
+        modal.setAttribute("open", "open");
+      }
+      return true;
     }
     function financeTrackRestoreRowsV318(date, desiredRecord, currentRecord) {
       n.forEach((section) => {
@@ -24789,7 +25469,8 @@ async function init() {
       if (!e) return;
       const ledger =
           window.nawahAdvanceLedger ||
-          window.nawahAdvanceLedgerV346 ||
+          window.nawahAdvanceLedgerV348 ||
+          window.nawahAdvanceLedgerV347 ||
           window.nawahAdvanceLedgerV340,
         t = Array.isArray(dayAdvances?.items) ? dayAdvances.items : [];
       if (!t.length)
@@ -24919,7 +25600,9 @@ async function init() {
         m = p.isClosed ? o(p.custodyAmountSnapshot) : e.custodyAmount,
         y = u + r + i,
         f = ("budgetAmount" === dailyCreditSource ? budgetAmount : i) + a,
-        calculatedNewCarried = u + s - a - i,
+        /* v348: the new carry is the displayed daily debit minus the
+           displayed daily credit, so it follows the selected source. */
+        calculatedNewCarried = y - f,
         h = p.isClosed
           ? o(p.newCarriedAmountSnapshot)
           : calculatedNewCarried,
@@ -25621,8 +26304,10 @@ async function init() {
                 m[openFinanceDate],
                 openFinanceDate,
               ),
+              afterTargetSignatureVersion: 347,
               afterAdvanceSignature:
                 financeAdvanceSignatureV318(openFinanceDate),
+              afterAdvanceSignatureVersion: 347,
               closedAt,
               closedBy: k(),
               reopenedAt: "",
@@ -25711,11 +26396,9 @@ async function init() {
         H(!0);
         return !1;
       }
-      const blockedReason = financeRollbackChangedV319(candidate);
-      if (blockedReason) {
-        try {
-          showToast(blockedReason);
-        } catch (_) {}
+      const blockedReport = financeRollbackDiagnosticsV347(candidate);
+      if (blockedReport.blocked) {
+        financeShowRollbackBlockersV347(candidate, blockedReport);
         H(!0);
         return !1;
       }
@@ -25771,12 +26454,14 @@ async function init() {
             } catch (_) {}
             return;
           }
-          const refreshedBlockedReason =
-            financeRollbackChangedV319(refreshedCandidate);
-          if (refreshedBlockedReason) {
-            try {
-              showToast(refreshedBlockedReason);
-            } catch (_) {}
+          const refreshedBlockedReport =
+            financeRollbackDiagnosticsV347(refreshedCandidate);
+          if (refreshedBlockedReport.blocked) {
+            modal.close();
+            financeShowRollbackBlockersV347(
+              refreshedCandidate,
+              refreshedBlockedReport,
+            );
             return;
           }
           const refreshedOperation = refreshedCandidate.operation,
@@ -25802,7 +26487,9 @@ async function init() {
                 targetCurrent,
                 targetDate,
               ),
+              afterTargetSignatureVersion: 347,
               afterAdvanceSignature: financeAdvanceSignatureV318(targetDate),
+              afterAdvanceSignatureVersion: 347,
               reopenedAt,
               reopenedBy: k(),
               reopenReason: reason,
@@ -68759,6 +69446,11 @@ window.nawahLeaveBalanceReportV185 = {
         cashSales: normalizeRows(current.cashSales),
         cardSales: normalizeRows(current.cardSales),
         budgetAmount: current.budgetAmount || "",
+        dailyCreditSource:
+          current.dailyCreditSource === "budgetAmount" ||
+          current.dailyCreditSource === "cardSales"
+            ? current.dailyCreditSource
+            : undefined,
         manualCashAmount: current.manualCashAmount || "",
         carriedAmountOverride: current.carriedAmountOverride ?? null,
         carriedAmountSnapshot: Number(current.carriedAmountSnapshot || 0),
@@ -71674,6 +72366,14 @@ window.nawahLeaveBalanceReportV185 = {
     });
   }
 
+  function financeCloudSignatureMatchesV347(expected, current) {
+    try {
+      if (window.nawahFinanceSignatureV347?.matches)
+        return window.nawahFinanceSignatureV347.matches(expected, current);
+    } catch (_) {}
+    return String(expected || "") === String(current || "");
+  }
+
   function parseFinanceMutationKeyV226(value) {
     const parts = String(value || "").split("::");
     return parts.length >= 3
@@ -71713,10 +72413,13 @@ window.nawahLeaveBalanceReportV185 = {
         String(latestOperation.targetDate || "") &&
         String(latestOperation.reopenedAt || "") &&
         String(latestOperation.reopenReason || "").trim().length >= 3 &&
-        financeDayContentSignatureV319(
-          mergedDays[String(latestOperation.targetDate || "")],
-          String(latestOperation.targetDate || ""),
-        ) === String(latestOperation.afterTargetSignature || "")
+        financeCloudSignatureMatchesV347(
+          latestOperation.afterTargetSignature,
+          financeDayContentSignatureV319(
+            mergedDays[String(latestOperation.targetDate || "")],
+            String(latestOperation.targetDate || ""),
+          ),
+        )
       )
         reopeningDates.add(parsed.date);
     });
@@ -71833,6 +72536,7 @@ window.nawahLeaveBalanceReportV185 = {
       expenses = sum(day.expenses),
       cashSales = sum(day.cashSales),
       cardSales = sum(day.cardSales),
+      budget = number(day.budgetAmount),
       manualCash = number(day.manualCashAmount),
       advanceSnapshot = window.nawahAdvanceLedgerV340.snapshot(
         day.financeDate,
@@ -71851,7 +72555,12 @@ window.nawahLeaveBalanceReportV185 = {
         pending -
         expenses -
         advances,
-      newCarriedAmountSnapshot: carried + cashSales - expenses,
+      newCarriedAmountSnapshot:
+        carried +
+        cashSales +
+        cardSales -
+        expenses -
+        (day.dailyCreditSource === "budgetAmount" ? budget : cardSales),
       advanceSnapshotVersion: advanceSnapshot.version,
       advancesTotalSnapshot: advanceSnapshot.total,
       advanceItemsSnapshot: advanceSnapshot.items,
@@ -88086,7 +88795,7 @@ window.nawahContractDateCorrectionV321 = {
   };
 })();
 
-/* v346 - Finance print uses the same immutable advance ledger and close snapshot. */
+/* v348 - Finance print uses the same immutable advance ledger and close snapshot. */
 (function () {
   if (window.__nawahFinanceDailyPrintV332) return;
   window.__nawahFinanceDailyPrintV332 = true;
@@ -88226,7 +88935,8 @@ window.nawahContractDateCorrectionV321 = {
     var advances = financePrintReadJsonV332("nawah-payroll-advances", []);
     var ledger =
       window.nawahAdvanceLedger ||
-      window.nawahAdvanceLedgerV346 ||
+      window.nawahAdvanceLedgerV348 ||
+      window.nawahAdvanceLedgerV347 ||
       window.nawahAdvanceLedgerV340;
     var view = ledger.dayView(
       day || {},
@@ -88376,7 +89086,7 @@ window.nawahContractDateCorrectionV321 = {
       pending -
       expenses -
       advances;
-    var calculatedNewCarried = carried + sales - expenses - cardSales;
+    var calculatedNewCarried = dailyDebit - dailyCredit;
     return {
       custodyAmount: custody,
       dailyDebit: dailyDebit,
@@ -88940,7 +89650,7 @@ window.nawahContractDateCorrectionV321 = {
   );
 
   window.nawahFinanceDailyPrintV332 = {
-    version: 346,
+    version: 348,
     printCurrentDay: financePrintDayV332,
     previewData: function () {
       var current = financePrintCurrentV332();
