@@ -1349,6 +1349,111 @@ function authenticatedUserNameV352() {
       .find(Boolean) || "مستخدم النظام"
   );
 }
+function employeeDisplayNameV353(e = {}) {
+  return String(
+    e.name ||
+      [e.firstName, e.fatherName, e.grandName, e.familyName]
+        .filter(Boolean)
+        .join(" ") ||
+      "",
+  ).trim();
+}
+function authenticatedEmployeeActorV353() {
+  let e = null,
+    t = null,
+    n = null;
+  try {
+    e = authProfile || null;
+  } catch (_) {}
+  try {
+    t = authUser || null;
+  } catch (_) {}
+  try {
+    n = window.authProfile || null;
+  } catch (_) {}
+  const a = String(
+    e?.employee_id ||
+      e?.employeeId ||
+      e?.linked_employee_id ||
+      n?.employee_id ||
+      n?.employeeId ||
+      n?.linked_employee_id ||
+      "",
+  ).trim();
+  let o = null;
+  if (a)
+    try {
+      o =
+        ("function" == typeof getEmployee ? getEmployee(a) : null) ||
+        (Array.isArray(employees)
+          ? employees.find((e) => String(e?.id || "") === a)
+          : null);
+    } catch (_) {}
+  return {
+    employeeId: a,
+    employeeName: employeeDisplayNameV353(o || {}),
+    userId: String(t?.id || e?.user_id || n?.user_id || "").trim(),
+  };
+}
+function absenceMinuteIssuerNameV353(e = {}, t = null) {
+  const n = String(
+    e.issuedByEmployeeName || t?.issuedByEmployeeName || "",
+  ).trim();
+  if (n) return n;
+  const a = String(
+    e.issuedByEmployeeId || t?.issuedByEmployeeId || "",
+  ).trim();
+  if (a)
+    try {
+      const e =
+        ("function" == typeof getEmployee ? getEmployee(a) : null) ||
+        (Array.isArray(employees)
+          ? employees.find((e) => String(e?.id || "") === a)
+          : null);
+      const t = employeeDisplayNameV353(e || {});
+      if (t) return t;
+    } catch (_) {}
+  const o = String(e.createdBy || t?.createdBy || "").trim();
+  if (o)
+    try {
+      const e = Array.isArray(appUserProfilesCache)
+          ? appUserProfilesCache.find((e) =>
+              [e?.full_name, e?.name, e?.email].some(
+                (e) => String(e || "").trim().toLowerCase() === o.toLowerCase(),
+              ),
+            )
+          : null,
+        t = String(
+          e?.employee_id || e?.employeeId || e?.linked_employee_id || "",
+        ).trim(),
+        n = t
+          ? ("function" == typeof getEmployee ? getEmployee(t) : null) ||
+            (Array.isArray(employees)
+              ? employees.find((e) => String(e?.id || "") === t)
+              : null)
+          : null,
+        a = employeeDisplayNameV353(n || {});
+      if (a) return a;
+    } catch (_) {}
+  const r = authenticatedEmployeeActorV353();
+  if (r.employeeName) {
+    let e = [];
+    try {
+      e.push(authProfile?.full_name, authProfile?.name, authProfile?.email);
+    } catch (_) {}
+    try {
+      e.push(authUser?.user_metadata?.full_name, authUser?.email);
+    } catch (_) {}
+    if (
+      !o ||
+      e.some(
+        (e) => String(e || "").trim().toLowerCase() === o.toLowerCase(),
+      )
+    )
+      return r.employeeName;
+  }
+  return o || "غير محدد";
+}
 function confirmRecordDeleteV352(e = {}) {
   const t = document.getElementById("recordDeleteConfirmV352");
   if (!t || t.open) return Promise.resolve(!1);
@@ -1413,6 +1518,9 @@ function createEmployeeMinuteRecord(e = {}) {
     createdAt: t,
     createdAtLabel: e.createdAtLabel || formatDateTime(t),
     createdBy: e.createdBy || authenticatedUserNameV352(),
+    issuedByEmployeeId: e.issuedByEmployeeId || "",
+    issuedByEmployeeName: e.issuedByEmployeeName || "",
+    issuedByUserId: e.issuedByUserId || "",
     sourceAbsenceId: e.sourceAbsenceId || "",
   };
 }
@@ -6999,6 +7107,9 @@ async function createAbsenceMinute(e) {
       sourceAbsenceId: e.id,
       employeeId: e.employeeId,
       createdBy: e.createdBy || authenticatedUserNameV352(),
+      issuedByEmployeeId: e.issuedByEmployeeId || "",
+      issuedByEmployeeName: e.issuedByEmployeeName || "",
+      issuedByUserId: e.issuedByUserId || "",
       absenceType: e.type,
       absencePeriod: a,
       absencePolicy: o.policy,
@@ -7036,12 +7147,139 @@ function printHtmlDocument(e, t, n = "") {
   };
   ((a.onload = () => setTimeout(i, 250)), setTimeout(i, 700));
 }
+async function printAbsenceMinuteReportV353(e, t, n = null) {
+  if (!e || !t) return void showToast("تعذر العثور على بيانات محضر الغياب");
+  const a =
+      n ||
+      (e.sourceAbsenceId
+        ? attendanceExceptions.find((t) => t.id === e.sourceAbsenceId) || null
+        : null),
+    o = a
+      ? absencePenaltyDetails(a)
+      : {
+          policy: e.absencePolicy || "—",
+          text: e.penalty || "—",
+          periodLabel: "—",
+          showPeriod: !1,
+        },
+    r = a
+      ? a.from === a.to
+        ? formatDate(a.from)
+        : `${formatDate(a.from)} إلى ${formatDate(a.to)}`
+      : e.absencePeriod || "—",
+    i = absenceTypeMeta(a?.type || e.absenceType || "unexcused"),
+    s = a ? absenceDeductionAmount(a) : Number(e.deductionAmount || 0),
+    l = a?.reason || e.fieldValues?.absenceReason || "—",
+    c =
+      o.showPeriod || a?.periodSegment
+        ? o.periodLabel ||
+          absencePeriodMeta(a?.periodSegment || "fullDay").label ||
+          "—"
+        : "—",
+    d =
+      ("function" == typeof minuteRecordSummary
+        ? minuteRecordSummary(e)
+        : e.text) || "—",
+    u =
+      ("function" == typeof minuteRecordPenalty
+        ? minuteRecordPenalty(e)
+        : e.penalty) ||
+      o.text ||
+      "—",
+    m = absenceMinuteIssuerNameV353(e, a),
+    p = employeeDisplayNameV353(t) || "—",
+    y = e.createdAtLabel || formatDateTime(e.createdAt) || "—";
+  let f = {};
+  try {
+    f = JSON.parse(
+      localStorage.getItem("nawah-company-settings-v92") || "{}",
+    );
+  } catch (_) {
+    f = {};
+  }
+  const h = f.company || f.companyName || f.name || "اسم المنشأة",
+    v = [
+      f.unifiedNumber ? `الرقم الموحد: ${f.unifiedNumber}` : "",
+      f.city || f.region || "",
+      f.phone ? `هاتف: ${f.phone}` : "",
+      f.email || "",
+    ]
+      .filter(Boolean)
+      .join(" • ");
+  let A = f.logoDataUrl || f.logo || "";
+  if (!A && f.logoAttachmentId)
+    try {
+      A = (await attachmentUrl(f.logoAttachmentId)) || "";
+    } catch (_) {}
+  if (!A)
+    try {
+      A = new URL("sar-symbol.png", document.baseURI).href;
+    } catch (_) {
+      A = "sar-symbol.png";
+    }
+  const g = `
+    <main class="absence-report-v353">
+      <header class="absence-report-header-v353">
+        <div class="absence-brand-v353">
+          <img src="${escapeHtml(A)}" alt="شعار ${escapeHtml(h)}" />
+          <div><span>نظام إدارة الموظفين</span><h1>${escapeHtml(h)}</h1><p>${escapeHtml(v || "إدارة الموارد البشرية")}</p></div>
+        </div>
+        <div class="absence-document-type-v353"><span>وثيقة إدارية</span><strong>محضر غياب</strong></div>
+      </header>
+      <section class="absence-title-v353">
+        <div><span class="absence-kicker-v353">الحضور والانصراف</span><h2>محضر إثبات غياب</h2><p>توثيق واقعة الغياب والجزاء المعتمد وفق سياسة المنشأة.</p></div>
+        <div class="absence-issued-at-v353"><span>تاريخ الإصدار</span><strong>${escapeHtml(y)}</strong></div>
+      </section>
+      <section class="absence-employee-strip-v353">
+        <div class="absence-primary-name-v353"><span>الموظف محل المحضر</span><strong>${escapeHtml(p)}</strong></div>
+        <div><span>رقم الموظف</span><strong>${escapeHtml(t.employeeNumber || "—")}</strong></div>
+        <div><span>الإدارة</span><strong>${escapeHtml(t.department || "—")}</strong></div>
+        <div><span>المهنة</span><strong>${escapeHtml(t.role || t.jobTitle || "—")}</strong></div>
+      </section>
+      <section class="absence-section-v353">
+        <div class="absence-section-heading-v353"><span>01</span><div><h3>بيانات الغياب</h3><p>تفاصيل الواقعة المسجلة في النظام</p></div></div>
+        <div class="absence-details-grid-v353">
+          <div><span>فترة الغياب</span><strong>${escapeHtml(r)}</strong></div>
+          <div><span>نوع الغياب</span><strong>${escapeHtml(i.label || "—")}</strong></div>
+          <div><span>الفترة الغائبة</span><strong>${escapeHtml(c)}</strong></div>
+          <div><span>القاعدة المطبقة</span><strong>${escapeHtml(e.absencePolicy || o.policy || a?.policy || "—")}</strong></div>
+          <div><span>الحسم المالي</span><strong class="absence-deduction-v353">${escapeHtml(formatCurrencyEn(s))}</strong></div>
+          <div><span>السبب أو الملاحظة</span><strong>${escapeHtml(l)}</strong></div>
+        </div>
+      </section>
+      <section class="absence-section-v353">
+        <div class="absence-section-heading-v353"><span>02</span><div><h3>نص المحضر</h3><p>البيان المثبت على الموظف</p></div></div>
+        <p class="absence-statement-v353">${escapeHtml(d)}</p>
+      </section>
+      <section class="absence-section-v353">
+        <div class="absence-section-heading-v353"><span>03</span><div><h3>الجزاء المعتمد</h3><p>نتيجة السياسة المطبقة عند تسجيل الغياب</p></div></div>
+        <p class="absence-penalty-v353">${escapeHtml(u)}</p>
+      </section>
+      <section class="absence-parties-v353">
+        <div class="absence-party-v353"><span>اسم الموظف</span><strong>${escapeHtml(p)}</strong><i>التوقيع</i></div>
+        <div class="absence-party-v353"><span>المسؤول</span><strong>${escapeHtml(m)}</strong><i>التوقيع</i></div>
+      </section>
+      <footer class="absence-footer-v353"><span>صدر آليًا من نظام إدارة الموظفين</span><span>تاريخ التسجيل: ${escapeHtml(y)}</span></footer>
+    </main>`;
+  printHtmlDocument(
+    `محضر غياب - ${p}`,
+    g,
+    "@page{size:A4;margin:10mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff}body{direction:rtl;font-family:Almarai,Arial,Tahoma,sans-serif;color:#172033;-webkit-print-color-adjust:exact;print-color-adjust:exact}.absence-report-v353{min-height:277mm;border:1px solid #dce8eb;border-top:5px solid #13a3b7;border-radius:4px;padding:9mm 10mm 7mm;display:flex;flex-direction:column}.absence-report-header-v353{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:10px;border-bottom:1px solid #d8e5e8}.absence-brand-v353{display:flex;align-items:center;gap:12px}.absence-brand-v353 img{width:58px;height:58px;border:1px solid #dce8eb;border-radius:14px;object-fit:contain;padding:5px;background:#fff}.absence-brand-v353 span,.absence-document-type-v353 span{display:block;color:#1595aa;font-size:9px;font-weight:800}.absence-brand-v353 h1{margin:3px 0 0;color:#08758a;font-size:18px;line-height:1.25}.absence-brand-v353 p{margin:4px 0 0;color:#64748b;font-size:8.5px}.absence-document-type-v353{min-width:105px;border:1px solid #bfe5ea;border-radius:12px;padding:9px 12px;text-align:center;background:#f0fbfc}.absence-document-type-v353 strong{display:block;margin-top:3px;color:#0f5968;font-size:13px}.absence-title-v353{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:16px 2px 12px}.absence-kicker-v353{color:#1595aa;font-size:9px;font-weight:900}.absence-title-v353 h2{margin:4px 0 3px;color:#172033;font-size:22px}.absence-title-v353 p{margin:0;color:#64748b;font-size:10px}.absence-issued-at-v353{min-width:145px;text-align:left}.absence-issued-at-v353 span{display:block;color:#64748b;font-size:9px}.absence-issued-at-v353 strong{display:block;margin-top:4px;color:#0f5968;font-size:10px}.absence-employee-strip-v353{display:grid;grid-template-columns:1.6fr .7fr 1fr 1fr;border:1px solid #d7e6e9;border-radius:13px;overflow:hidden;background:#fbfdfe}.absence-employee-strip-v353>div{padding:10px 11px;border-left:1px solid #e3ecee}.absence-employee-strip-v353>div:last-child{border-left:0}.absence-employee-strip-v353 span,.absence-details-grid-v353 span{display:block;color:#64748b;font-size:8.5px}.absence-employee-strip-v353 strong,.absence-details-grid-v353 strong{display:block;margin-top:4px;color:#172033;font-size:11px;line-height:1.55}.absence-primary-name-v353{background:#effbfc}.absence-primary-name-v353 strong{color:#08758a!important;font-size:12px!important}.absence-section-v353{margin-top:15px}.absence-section-heading-v353{display:flex;align-items:center;gap:8px;margin-bottom:7px}.absence-section-heading-v353>span{display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#1595aa;color:#fff;font-size:9px;font-weight:900}.absence-section-heading-v353 h3{margin:0;color:#0f5968;font-size:12px}.absence-section-heading-v353 p{margin:1px 0 0;color:#94a3b8;font-size:8px}.absence-details-grid-v353{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #dce7ea;border-radius:12px;overflow:hidden}.absence-details-grid-v353>div{min-height:52px;padding:9px 10px;border-left:1px solid #e7eef0;border-bottom:1px solid #e7eef0}.absence-details-grid-v353>div:nth-child(3n){border-left:0}.absence-details-grid-v353>div:nth-last-child(-n+3){border-bottom:0}.absence-deduction-v353{color:#b4232d!important}.absence-statement-v353,.absence-penalty-v353{margin:0;border-radius:12px;padding:11px 13px;line-height:1.9;font-size:10.5px}.absence-statement-v353{border:1px solid #dce7ea;background:#fbfdfe;color:#334155}.absence-penalty-v353{border:1px solid #c8ece6;background:#f0fdfa;color:#0f5f59;font-weight:800}.absence-parties-v353{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}.absence-party-v353{min-height:86px;border:1px solid #d7e6e9;border-radius:13px;padding:11px 13px;background:#fff}.absence-party-v353 span{display:block;color:#64748b;font-size:9px;font-weight:800}.absence-party-v353 strong{display:block;margin-top:6px;color:#172033;font-size:12px}.absence-party-v353 i{display:block;margin-top:25px;padding-top:6px;border-top:1px dashed #aebfc4;color:#94a3b8;font-size:8px;font-style:normal}.absence-footer-v353{display:flex;justify-content:space-between;gap:12px;margin-top:auto;padding-top:8px;border-top:1px solid #d8e5e8;color:#64748b;font-size:8px}@media print{.absence-report-v353{break-inside:avoid}.absence-section-v353,.absence-parties-v353{break-inside:avoid}}",
+  );
+}
 async function printAbsenceMinute(e) {
   const t = getEmployee(e.employeeId || employeeFormState.employeeId);
   if (!t || !e) return void showToast("تعذر العثور على بيانات المحضر");
   const n =
-      attendanceExceptions.find((t) => t.id === e.sourceAbsenceId) || null,
-    a = n
+      attendanceExceptions.find((t) => t.id === e.sourceAbsenceId) || null;
+  if (
+    n ||
+    e.sourceAbsenceId ||
+    e.absenceType ||
+    "محضر غياب" === e.type
+  )
+    return printAbsenceMinuteReportV353(e, t, n);
+  const a = n
       ? absencePenaltyDetails(n)
       : {
           policy: "—",
@@ -7121,6 +7359,11 @@ async function handleAbsenceSubmit(e) {
     o = n.to;
   if (!n.employeeId || !a || !o)
     return void showToast("اختر الموظف وفترة الغياب");
+  const absenceIssuer = authenticatedEmployeeActorV353();
+  if (!absenceIssuer.employeeId || !absenceIssuer.employeeName)
+    return void showToast(
+      "لا يمكن إصدار محضر الغياب قبل ربط حساب المستخدم بملف موظف",
+    );
   const absenceEmployee = getEmployee(n.employeeId);
   if (
     absenceEmployee &&
@@ -7185,7 +7428,10 @@ async function handleAbsenceSubmit(e) {
       periodSegment: l?.legacySegment || "fullDay",
       reason: n.reason?.trim() || "",
       createdAt: new Date().toISOString(),
-      createdBy: authenticatedUserNameV352(),
+      createdBy: absenceIssuer.employeeName,
+      issuedByEmployeeId: absenceIssuer.employeeId,
+      issuedByEmployeeName: absenceIssuer.employeeName,
+      issuedByUserId: absenceIssuer.userId,
     },
     s = absencePenaltyDetails(i),
     c = buildAbsenceDeductionSnapshotV351(i);
@@ -9577,6 +9823,9 @@ async function init() {
           sourceAbsenceId: e.id,
           employeeId: e.employeeId,
           createdBy: e.createdBy || authenticatedUserNameV352(),
+          issuedByEmployeeId: e.issuedByEmployeeId || "",
+          issuedByEmployeeName: e.issuedByEmployeeName || "",
+          issuedByUserId: e.issuedByUserId || "",
           absenceType: e.type,
           absencePeriod: a,
           absencePolicy: o.policy,
@@ -11651,7 +11900,7 @@ async function init() {
       }
       return { minute: null, employee: d };
     }
-    function l(a, o) {
+    async function l(a, o) {
       if (!a) {
         try {
           showToast("تعذر العثور على بيانات المحضر");
@@ -11671,23 +11920,9 @@ async function init() {
           "محضر غياب" === e.type ||
           e.isAbsenceMinute,
         ))(a);
-      let s = "";
-      if (r) {
-        let n = Number(a.deductionAmount || 0);
-        try {
-          if (a.sourceAbsenceId && Array.isArray(attendanceExceptions)) {
-            const e = attendanceExceptions.find(
-              (e) => e.id === a.sourceAbsenceId,
-            );
-            e &&
-              "function" == typeof absenceDeductionAmount &&
-              (n = absenceDeductionAmount(e));
-          }
-        } catch {}
-        s = `<div><span>الفترة</span><strong>${e(a.absencePeriod || "—")}</strong></div><div><span>القاعدة المطبقة</span><strong>${e(a.absencePolicy || "—")}</strong></div><div><span>الحسم المالي</span><strong>${e(t(n))}</strong></div>`;
-      } else
-        s =
-          (function (a = {}, o = {}) {
+      if (r) return void (await printAbsenceMinuteReportV353(a, o));
+      let s =
+        (function (a = {}, o = {}) {
             let r = Array.isArray(a.employeeFields) ? a.employeeFields : [];
             if (
               !r.length &&
@@ -11731,11 +11966,11 @@ async function init() {
                   )
                   .join("")
               : "";
-          })(a);
+        })(a);
       s.trim() ||
         (s = `<div class="wide"><span>تفاصيل المحضر</span><strong>${e(i(a))}</strong></div>`);
       const l = a.type || "محضر موظف",
-        c = `<main class="minute-sheet"><h1>${e(l)}</h1><p class="minute-subtitle">تم إنشاء هذا المحضر من نظام إدارة الموظفين</p><section><h2>بيانات الموظف</h2><div class="minute-grid"><div><span>اسم الموظف</span><strong>${e(n(o))}</strong></div><div><span>رقم الموظف</span><strong>${e(o.employeeNumber || "—")}</strong></div><div><span>الجنسية</span><strong>${e(o.nationality || "—")}</strong></div><div><span>رقم الهوية</span><strong>${e(o.identityNumber || "—")}</strong></div><div><span>المهنة</span><strong>${e(o.role || o.jobTitle || "—")}</strong></div><div><span>بداية العمل</span><strong>${e(o.workStartDate && "function" == typeof formatDate ? formatDate(o.workStartDate) : o.workStartDate || "—")}</strong></div></div></section><section><h2>${r ? "بيانات الغياب" : "بيانات المحضر"}</h2><div class="minute-grid">${s}<div class="wide"><span>تفاصيل المحضر</span><strong>${e(i(a))}</strong></div></div></section><section><h2>الجزاء الموقع على الموظف</h2><p class="penalty-box">${e(
+        c = `<main class="minute-sheet"><h1>${e(l)}</h1><p class="minute-subtitle">تم إنشاء هذا المحضر من نظام إدارة الموظفين</p><section><h2>بيانات الموظف</h2><div class="minute-grid"><div><span>اسم الموظف</span><strong>${e(n(o))}</strong></div><div><span>رقم الموظف</span><strong>${e(o.employeeNumber || "—")}</strong></div><div><span>الجنسية</span><strong>${e(o.nationality || "—")}</strong></div><div><span>رقم الهوية</span><strong>${e(o.identityNumber || "—")}</strong></div><div><span>المهنة</span><strong>${e(o.role || o.jobTitle || "—")}</strong></div><div><span>بداية العمل</span><strong>${e(o.workStartDate && "function" == typeof formatDate ? formatDate(o.workStartDate) : o.workStartDate || "—")}</strong></div></div></section><section><h2>بيانات المحضر</h2><div class="minute-grid">${s}<div class="wide"><span>تفاصيل المحضر</span><strong>${e(i(a))}</strong></div></div></section><section><h2>الجزاء الموقع على الموظف</h2><p class="penalty-box">${e(
           ((e = {}) => {
             try {
               if ("function" == typeof minuteRecordPenalty)
@@ -11764,12 +11999,12 @@ async function init() {
     }
     window.addEventListener(
       "click",
-      (e) => {
+      async (e) => {
         const t = e.target?.closest?.("[data-print-minute]");
         if (!t) return;
         (e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation());
         const { minute: n, employee: a } = s(t);
-        l(n, a);
+        await l(n, a);
       },
       !0,
     );
