@@ -2160,6 +2160,180 @@ function contractYearRangeForEmployee(e, t) {
 function absenceRecordDays(e) {
   return calculateDays(e?.from, e?.to || e?.from);
 }
+const ABSENCE_DEDUCTION_SNAPSHOT_VERSION_V351 = 1;
+function absenceRoundMoneyV351(e) {
+  return Math.round((Number(e) || 0) * 100) / 100;
+}
+function absenceMonthKeyV351(e) {
+  const t = String(e || "").slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(t) ? t : "";
+}
+function absenceDateKeysV351(e) {
+  const t = parseDate(e?.from),
+    n = parseDate(e?.to || e?.from);
+  if (!t || !n || t > n) return [];
+  const a = [],
+    o = new Date(t);
+  let r = 0;
+  for (; o <= n && r < 3700; )
+    (a.push(formatInputDate(o)), o.setDate(o.getDate() + 1), (r += 1));
+  return a;
+}
+function absenceDaysByMonthV351(e) {
+  return absenceDateKeysV351(e).reduce((e, t) => {
+    const n = absenceMonthKeyV351(t);
+    return (n && (e[n] = Number(e[n] || 0) + 1), e);
+  }, {});
+}
+let absencePayrollRunsRawV351 = "",
+  absencePayrollRunsCacheV351 = [];
+function absenceApprovedPayrollRunsV351() {
+  let e = "[]";
+  try {
+    e = localStorage.getItem("nawah-payroll-runs") || "[]";
+  } catch (_) {}
+  if (e === absencePayrollRunsRawV351) return absencePayrollRunsCacheV351;
+  try {
+    const t = JSON.parse(e);
+    absencePayrollRunsCacheV351 = Array.isArray(t) ? t : [];
+  } catch (_) {
+    absencePayrollRunsCacheV351 = [];
+  }
+  return ((absencePayrollRunsRawV351 = e), absencePayrollRunsCacheV351);
+}
+function approvedPayrollRunForMonthV351(e) {
+  const t = absenceMonthKeyV351(e);
+  if (!t) return null;
+  return absenceApprovedPayrollRunsV351().find((e) => {
+    if (String(e?.monthKey || "") !== t) return !1;
+    return ["paid", "closed", "approved", "processed"].includes(
+      String(e?.status || "paid").toLowerCase(),
+    );
+  });
+}
+function absenceLockedPayrollMonthsV351(e) {
+  return Object.keys(absenceDaysByMonthV351(e))
+    .filter((e) => Boolean(approvedPayrollRunForMonthV351(e)))
+    .sort();
+}
+function absenceSavedPolicyKeyV351(e, t = absencePolicySettings) {
+  const n = String(e?.deductionPolicyKey || "").trim();
+  if (["establishment", "labor"].includes(n)) return n;
+  const a = String(e?.policy || "");
+  return /مكتب العمل|labor/i.test(a)
+    ? "labor"
+    : /سياسة المنشأة|establishment/i.test(a) || e?.establishmentRuleId
+      ? "establishment"
+      : normalizeAbsencePolicySettings(t).activePolicy;
+}
+function absenceHasDeductionSnapshotV351(e) {
+  return (
+    Number(e?.deductionSnapshotVersion || 0) >=
+    ABSENCE_DEDUCTION_SNAPSHOT_VERSION_V351
+  );
+}
+function absenceLegacyDeductionIsFinalV351(e) {
+  if (absenceHasDeductionSnapshotV351(e)) return !0;
+  const t = Number(e?.deductionDays);
+  return (
+    (Number.isFinite(t) && t > 0) ||
+    (Number.isFinite(t) && t >= 0 && absenceLockedPayrollMonthsV351(e).length > 0)
+  );
+}
+function absenceSalaryBasisV351(e) {
+  const t = Number(e?.baseSalary || e?.salary || 0),
+    n = t > 0 ? t : employeeGrossSalary(e);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+function absenceAllocateMonthlyAmountV351(e, t) {
+  const n = Object.keys(e || {}).sort(),
+    a = n.reduce((t, n) => t + Number(e[n] || 0), 0),
+    o = {};
+  if (!n.length) return o;
+  let r = 0;
+  return (
+    n.forEach((monthKey, i) => {
+      const s =
+        i === n.length - 1
+          ? absenceRoundMoneyV351(t - r)
+          : absenceRoundMoneyV351(
+              a > 0 ? (t * Number(e[monthKey] || 0)) / a : 0,
+            );
+      ((o[monthKey] = s), (r = absenceRoundMoneyV351(r + s)));
+    }),
+    o
+  );
+}
+function buildAbsenceDeductionSnapshotV351(e, t = {}) {
+  const n = getEmployee(e?.employeeId),
+    a = normalizeAbsencePolicySettings(absencePolicySettings),
+    o = t.policyKey || absenceSavedPolicyKeyV351(e, a),
+    r = absenceDaysByMonthV351(e),
+    i = Object.values(r).reduce((e, t) => e + Number(t || 0), 0),
+    s = Math.max(1, i || absenceRecordDays(e)),
+    l =
+      "establishment" === o
+        ? getEstablishmentAbsenceRule(
+            e?.establishmentRuleId || e?.periodSegment || "fullDay",
+            a,
+          )
+        : null,
+    c = "unexcused" === e?.type,
+    d = c
+      ? "labor" === o
+        ? 1
+        : Number(l?.deductionDays ?? a.fullDayDeductionDays ?? 0) || 0
+      : 0,
+    u = Number(e?.deductionDays),
+    m =
+      Boolean(t.preserveLegacy) &&
+      Number.isFinite(u) &&
+      u > 0,
+    p = c ? (m ? u : absenceRoundMoneyV351(s * d)) : 0,
+    y = m ? p / s : d,
+    f = Object.fromEntries(
+      Object.entries(r).map(([e, t]) => [
+        e,
+        absenceRoundMoneyV351(Number(t || 0) * y),
+      ]),
+    ),
+    h = absenceSalaryBasisV351(n),
+    v = h / 30,
+    g = Number(e?.deductionAmount),
+    b =
+      m &&
+      Object.prototype.hasOwnProperty.call(e || {}, "deductionAmount") &&
+      Number.isFinite(g) &&
+      g >= 0,
+    S = c ? absenceRoundMoneyV351(b ? g : v * p) : 0,
+    w = absenceAllocateMonthlyAmountV351(f, S),
+    D = "labor" === o ? "قاعدة مكتب العمل" : "سياسة المنشأة",
+    A = String(e?.establishmentRuleName || l?.name || "").trim();
+  return {
+    deductionSnapshotVersion: ABSENCE_DEDUCTION_SNAPSHOT_VERSION_V351,
+    deductionPolicyKey: o,
+    policy: D,
+    absenceDays: s,
+    deductionRuleId: "establishment" === o ? l?.id || "" : "labor-absence",
+    deductionRuleName: "establishment" === o ? A : "قاعدة مكتب العمل",
+    establishmentRuleId:
+      "establishment" === o ? e?.establishmentRuleId || l?.id || "" : "",
+    establishmentRuleName: "establishment" === o ? A : "",
+    deductionFactor: absenceRoundMoneyV351(y),
+    deductionDays: absenceRoundMoneyV351(p),
+    baseSalarySnapshot: absenceRoundMoneyV351(
+      b && p > 0 ? (S / p) * 30 : h,
+    ),
+    dailyWageSnapshot: absenceRoundMoneyV351(
+      b && p > 0 ? S / p : v,
+    ),
+    monthlyDeductionDays: f,
+    monthlyDeductions: w,
+    deductionAmount: S,
+    deductionCalculatedAt: String(e?.deductionCalculatedAt || new Date().toISOString()),
+    deductionSource: "policy-snapshot-v351",
+  };
+}
 function unexcusedAbsenceDaysInContractYear(e, t, n = null) {
   const a = contractYearRangeForEmployee(getEmployee(e), t),
     o = attendanceExceptions.filter(
@@ -2208,16 +2382,39 @@ function laborAbsencePenalty(e, t = !0) {
   };
 }
 function absencePenaltyDetails(e) {
-  const t = normalizeAbsencePolicySettings(absencePolicySettings);
+  const t = normalizeAbsencePolicySettings(absencePolicySettings),
+    n = absenceSavedPolicyKeyV351(e, t),
+    a = absenceHasDeductionSnapshotV351(e);
   if ("unexcused" !== e?.type)
     return {
-      policy: activeAbsencePolicyLabel(),
+      policy: a ? e?.policy || ("labor" === n ? "قاعدة مكتب العمل" : "سياسة المنشأة") : activeAbsencePolicyLabel(),
       deductionDays: 0,
       label: "لا يوجد خصم آلي",
       text: "لا يوجد جزاء آلي لأن الغياب بعذر أو بإذن.",
-      showPeriod: "establishment" === t.activePolicy,
+      showPeriod: "establishment" === n,
     };
-  if ("labor" === t.activePolicy)
+  if (a) {
+    const t = Number(e?.deductionDays || 0) || 0,
+      a = String(e?.deductionRuleName || e?.establishmentRuleName || "").trim(),
+      o = "labor" === n ? "قاعدة مكتب العمل" : "سياسة المنشأة";
+    return {
+      policy: e?.policy || o,
+      deductionDays: t,
+      days: t,
+      absenceDays: Number(e?.absenceDays || absenceRecordDays(e)) || 0,
+      deductionFactor: Number(e?.deductionFactor || 0) || 0,
+      label: formatDeductionDays(t),
+      text:
+        e?.penaltyText ||
+        ("labor" === n
+          ? `حسم أجر مدة الغياب (${formatDeductionDays(t)}) حسب قاعدة مكتب العمل.`
+          : `${a || "غياب اليوم الكامل"}: ${formatDeductionDays(t)} حسب سياسة المنشأة.`),
+      showPeriod: "establishment" === n,
+      periodLabel: a || absencePeriodMeta(e?.periodSegment || "fullDay").label,
+      establishmentRuleName: a,
+    };
+  }
+  if ("labor" === n)
     return {
       ...laborAbsencePenalty(
         e,
@@ -2225,20 +2422,24 @@ function absencePenaltyDetails(e) {
       ),
       showPeriod: !1,
     };
-  const n =
+  const o =
       getEstablishmentAbsenceRule(e.establishmentRuleId, t) ||
       getEstablishmentAbsenceRule(e.periodSegment || "fullDay", t),
-    a = Number(n?.deductionDays ?? t.fullDayDeductionDays ?? 1) || 0,
-    o = Number(e?.deductionDays),
-    hasSavedDeduction = Object.prototype.hasOwnProperty.call(e || {}, "deductionDays") && Number.isFinite(o) && o >= 0,
-    r = hasSavedDeduction ? o : a,
+    r = Number(o?.deductionDays ?? t.fullDayDeductionDays ?? 1) || 0,
+    i = Number(e?.deductionDays),
+    hasSavedDeduction = absenceLegacyDeductionIsFinalV351(e),
+    s = hasSavedDeduction ? i : absenceRoundMoneyV351(absenceRecordDays(e) * r),
     savedRuleName = String(e?.establishmentRuleName || "").trim(),
-    ruleName = savedRuleName || n?.name || "غياب اليوم الكامل";
+    ruleName = savedRuleName || o?.name || "غياب اليوم الكامل";
   return {
     policy: "سياسة المنشأة",
-    deductionDays: r,
-    label: formatDeductionDays(r),
-    text: `${ruleName}: ${formatDeductionDays(r)} حسب سياسة المنشأة.`,
+    deductionDays: s,
+    absenceDays: absenceRecordDays(e),
+    deductionFactor: hasSavedDeduction
+      ? absenceRoundMoneyV351(s / Math.max(1, absenceRecordDays(e)))
+      : r,
+    label: formatDeductionDays(s),
+    text: `${ruleName}: ${formatDeductionDays(s)} حسب سياسة المنشأة.`,
     showPeriod: !0,
     periodLabel: ruleName || absencePeriodMeta(e.periodSegment || "fullDay").label,
     establishmentRuleName: ruleName,
@@ -2267,14 +2468,58 @@ function employeeDailyWage(e) {
   return (t > 0 ? t : employeeGrossSalary(e)) / 30;
 }
 function absenceDeductionAmount(e) {
-  const t = getEmployee(e?.employeeId);
-  if (!t || "unexcused" !== e?.type) return 0;
-  const n = absencePenaltyDetails(e),
-    a = Number(e?.deductionDays),
-    o = Number(n.deductionDays ?? n.days ?? 0) || 0,
-    hasSavedDeduction = Object.prototype.hasOwnProperty.call(e || {}, "deductionDays") && Number.isFinite(a) && a >= 0,
-    r = hasSavedDeduction ? a : o;
-  return employeeDailyWage(t) * r;
+  if ("unexcused" !== e?.type) return 0;
+  const t = Number(e?.deductionAmount),
+    n = Number(e?.deductionDays),
+    a = Object.prototype.hasOwnProperty.call(e || {}, "deductionAmount") && Number.isFinite(t) && t >= 0;
+  if (absenceHasDeductionSnapshotV351(e)) return a ? t : 0;
+  if (absenceLegacyDeductionIsFinalV351(e) && a) return t;
+  const o = getEmployee(e?.employeeId);
+  if (!o) return a ? t : 0;
+  const r = absencePenaltyDetails(e),
+    i = Number(r.deductionDays ?? r.days ?? 0) || 0,
+    s = Number.isFinite(n) && n > 0 ? n : i;
+  return absenceRoundMoneyV351(employeeDailyWage(o) * s);
+}
+function absenceDeductionForRecordInMonthV351(e, t) {
+  const n = absenceMonthKeyV351(t);
+  if (!n || "unexcused" !== e?.type) return 0;
+  if (absenceHasDeductionSnapshotV351(e)) {
+    const t = e?.monthlyDeductions;
+    return t && Object.prototype.hasOwnProperty.call(t, n)
+      ? Number(t[n] || 0) || 0
+      : 0;
+  }
+  const a = absenceDaysByMonthV351(e),
+    o = Object.values(a).reduce((e, t) => e + Number(t || 0), 0),
+    r = Number(a[n] || 0);
+  return r > 0 && o > 0
+    ? absenceRoundMoneyV351((absenceDeductionAmount(e) * r) / o)
+    : 0;
+}
+function absenceDeductionForRecordInRangeV351(e, t, n) {
+  if ("unexcused" !== e?.type) return 0;
+  const a = String(t || "").slice(0, 10),
+    o = String(n || t || "").slice(0, 10),
+    r = absenceDateKeysV351(e),
+    i = r.filter((e) => (!a || e >= a) && (!o || e <= o));
+  if (!i.length || !r.length) return 0;
+  if (!absenceHasDeductionSnapshotV351(e))
+    return absenceRoundMoneyV351(
+      (absenceDeductionAmount(e) * i.length) / r.length,
+    );
+  const s = i.reduce((e, t) => {
+      const n = absenceMonthKeyV351(t);
+      return (n && (e[n] = Number(e[n] || 0) + 1), e);
+    }, {}),
+    l = absenceDaysByMonthV351(e);
+  return absenceRoundMoneyV351(
+    Object.entries(s).reduce((t, [n, a]) => {
+      const o = Number(l[n] || 0),
+        r = Number(e?.monthlyDeductions?.[n] || 0);
+      return t + (o > 0 ? (r * Number(a || 0)) / o : 0);
+    }, 0),
+  );
 }
 function absenceDeductionForEmployeeInMonth(e, t = new Date()) {
   const n = new Date(t.getFullYear(), t.getMonth(), 1, 12),
@@ -2288,8 +2533,101 @@ function absenceDeductionForEmployeeInMonth(e, t = new Date()) {
         "unexcused" === t.type &&
         dateRangesOverlap(t.from, t.to, o, r),
     )
-    .reduce((e, t) => e + absenceDeductionAmount(t), 0);
+    .reduce(
+      (e, t) =>
+        e + absenceDeductionForRecordInMonthV351(t, absenceMonthKeyV351(o)),
+      0,
+    );
 }
+function repairLegacyAbsenceDeductionSnapshotsV351() {
+  const e = [],
+    t = new Set();
+  attendanceExceptions = (Array.isArray(attendanceExceptions)
+    ? attendanceExceptions
+    : []
+  ).map((n) => {
+    if (
+      !n ||
+      absenceHasDeductionSnapshotV351(n) ||
+      absenceLockedPayrollMonthsV351(n).length
+    )
+      return n;
+    const a = absencePenaltyDetails(n),
+      o = buildAbsenceDeductionSnapshotV351(n, { preserveLegacy: !0 }),
+      r =
+        Number(n?.deductionDays || 0) <= 0 && Number(o.deductionDays || 0) > 0,
+      i = r || !String(n?.penaltyText || "").trim() ? a.text : n.penaltyText,
+      s = { ...n, ...o, penaltyText: i, policy: a.policy || o.policy };
+    e.push(String(s.id || ""));
+    const l = getEmployee(s.employeeId);
+    if (l?.minutes?.length) {
+      let e = !1;
+      l.minutes = l.minutes.map((t) => {
+        if (String(t?.sourceAbsenceId || "") !== String(s.id || "")) return t;
+        return (
+          (e = !0),
+          {
+            ...t,
+            penalty: `${s.policy}: ${s.penaltyText}`,
+            deductionAmount: s.deductionAmount,
+            deductionAmountLabel: formatCurrencyEn(s.deductionAmount),
+            absencePolicy: s.policy,
+          }
+        );
+      });
+      e && t.add(String(l.id || ""));
+    }
+    return s;
+  });
+  return {
+    updatedIds: e.filter(Boolean),
+    employeeIds: Array.from(t).filter(Boolean),
+  };
+}
+let absenceLegacyRepairTimerV351 = 0,
+  absenceLegacyRepairRunningV351 = !1;
+function scheduleLegacyAbsenceDeductionRepairV351(e = 0) {
+  clearTimeout(absenceLegacyRepairTimerV351);
+  absenceLegacyRepairTimerV351 = setTimeout(async () => {
+    if (absenceLegacyRepairRunningV351)
+      return void scheduleLegacyAbsenceDeductionRepairV351(50);
+    absenceLegacyRepairRunningV351 = !0;
+    try {
+      const e = repairLegacyAbsenceDeductionSnapshotsV351();
+      if (!e.updatedIds.length) return;
+      (saveLocalMeta(),
+        trackAttendanceRecordUpsertsV224("attendanceExceptions", e.updatedIds));
+      for (const t of e.employeeIds) {
+        const e = getEmployee(t);
+        if (!e) continue;
+        (trackAttendanceRecordUpsertsV224("employees", [t]),
+          await dbSaveEmployee(e));
+      }
+      const t = await confirmAttendanceCloudSaveV224(
+        "absence-deduction-snapshot-v351",
+      );
+      (t || queueCloudStateSave(),
+        renderAttendance(),
+        renderPayroll(),
+        renderDashboard());
+    } catch (e) {
+      (console.warn("v351: تعذر ترحيل سجل خصم غياب قديم.", e),
+        queueCloudStateSave());
+    } finally {
+      absenceLegacyRepairRunningV351 = !1;
+    }
+  }, Math.max(0, Number(e || 0)));
+}
+window.nawahAbsenceDeductionV351 = Object.freeze({
+  version: 351,
+  snapshotVersion: ABSENCE_DEDUCTION_SNAPSHOT_VERSION_V351,
+  buildSnapshot: buildAbsenceDeductionSnapshotV351,
+  amount: absenceDeductionAmount,
+  amountForMonth: absenceDeductionForRecordInMonthV351,
+  amountForRange: absenceDeductionForRecordInRangeV351,
+  employeeMonthTotal: absenceDeductionForEmployeeInMonth,
+  lockedMonths: absenceLockedPayrollMonthsV351,
+});
 function shiftOptionsHtml(e = "") {
   return normalizeWorkSettings(workSettings)
     .shifts.map(
@@ -6738,9 +7076,25 @@ async function handleAbsenceSubmit(e) {
         blockedWorkday,
       ),
     );
+  const lockedPayrollMonths = absenceLockedPayrollMonthsV351({
+    from: a,
+    to: o,
+  });
+  if (lockedPayrollMonths.length)
+    return void showToast(
+      `لا يمكن تسجيل الغياب؛ مسير الرواتب معتمد للشهر: ${lockedPayrollMonths.join("، ")}`,
+    );
   if (!(await prepareAttendanceCloudMutationV224()))
     return void showToast(
       "تعذر الاتصال بالسحابة؛ لم يُسجل الغياب لحماية البيانات",
+    );
+  const refreshedLockedPayrollMonths = absenceLockedPayrollMonthsV351({
+    from: a,
+    to: o,
+  });
+  if (refreshedLockedPayrollMonths.length)
+    return void showToast(
+      `اعتمد مسير الرواتب أثناء الإدخال؛ لا يمكن تسجيل الغياب للشهر: ${refreshedLockedPayrollMonths.join("، ")}`,
     );
   const r = attendanceExceptions.find(
     (e) =>
@@ -6760,16 +7114,13 @@ async function handleAbsenceSubmit(e) {
       establishmentRuleId: l?.id || "",
       establishmentRuleName: l?.name || "",
       periodSegment: l?.legacySegment || "fullDay",
-      deductionDays: 0,
       reason: n.reason?.trim() || "",
       createdAt: new Date().toISOString(),
       createdBy: currentUser,
     },
-    s = absencePenaltyDetails(i);
-  ((i.deductionDays = Number(s.deductionDays ?? s.days ?? 0) || 0),
-    (i.penaltyText = s.text),
-    (i.policy = s.policy),
-    (i.deductionAmount = absenceDeductionAmount(i)),
+    s = absencePenaltyDetails(i),
+    c = buildAbsenceDeductionSnapshotV351(i);
+  (Object.assign(i, c, { penaltyText: s.text, policy: s.policy || c.policy }),
     attendanceExceptions.unshift(i));
   trackAttendanceRecordUpsertsV224("attendanceExceptions", [i.id]);
   trackAttendanceRecordUpsertsV224("employees", [i.employeeId]);
@@ -6793,13 +7144,32 @@ async function handleAbsenceSubmit(e) {
   }
 }
 async function deleteAbsenceRecord(e) {
+  let t = attendanceExceptions.find((t) => t.id === e);
+  if (!t) {
+    showToast("سجل الغياب غير موجود أو تم حذفه مسبقًا");
+    return false;
+  }
+  const lockedPayrollMonths = absenceLockedPayrollMonthsV351(t);
+  if (lockedPayrollMonths.length) {
+    showToast(
+      `لا يمكن حذف الغياب؛ مسير الرواتب معتمد للشهر: ${lockedPayrollMonths.join("، ")}`,
+    );
+    return false;
+  }
   if (!(await prepareAttendanceCloudMutationV224())) {
     showToast("تعذر الاتصال بالسحابة؛ لم يُحذف الغياب لحماية البيانات");
     return false;
   }
-  const t = attendanceExceptions.find((t) => t.id === e);
+  t = attendanceExceptions.find((t) => t.id === e);
   if (!t) {
-    showToast("سجل الغياب غير موجود أو تم حذفه مسبقًا");
+    showToast("تم حذف سجل الغياب من مستخدم آخر قبل إتمام العملية");
+    return false;
+  }
+  const refreshedLockedPayrollMonths = absenceLockedPayrollMonthsV351(t);
+  if (refreshedLockedPayrollMonths.length) {
+    showToast(
+      `اعتمد مسير الرواتب أثناء الحذف؛ بقي سجل الغياب محفوظًا للشهر: ${refreshedLockedPayrollMonths.join("، ")}`,
+    );
     return false;
   }
   attendanceExceptions = attendanceExceptions.filter((t) => t.id !== e);
@@ -8092,7 +8462,9 @@ function setupEvents() {
         ((employees = employees.filter((e) => e.id !== t)),
           (leaves = leaves.filter((e) => e.employeeId !== t)),
           (attendanceExceptions = attendanceExceptions.filter(
-            (e) => e.employeeId !== t,
+            (e) =>
+              e.employeeId !== t ||
+              absenceLockedPayrollMonthsV351(e).length > 0,
           )));
         try {
           "function" == typeof window.cleanupEmployeePayrollAdvances &&
@@ -8760,6 +9132,7 @@ async function init() {
         showToast("تعذر فتح قاعدة البيانات؛ تم تشغيل نسخة مؤقتة"));
     }
     (populateFormOptions(), renderAll(), applyRolePermissions());
+    scheduleLegacyAbsenceDeductionRepairV351(0);
     markAppBootReady(950);
   }
 }
@@ -36706,8 +37079,12 @@ async function init() {
           try {
             return (
               sum +
-              (typeof absenceDeductionAmount === "function"
-                ? Number(absenceDeductionAmount(record) || 0)
+              (typeof absenceDeductionForRecordInRangeV351 === "function"
+                ? Number(
+                    absenceDeductionForRecordInRangeV351(record, from, to) || 0,
+                  )
+                : typeof absenceDeductionAmount === "function"
+                  ? Number(absenceDeductionAmount(record) || 0)
                 : 0)
             );
           } catch (_) {
@@ -71694,7 +72071,7 @@ window.nawahLeaveBalanceReportV185 = {
   if (window.__v221CanonicalCloudPersistence) return;
   window.__v221CanonicalCloudPersistence = true;
 
-  const STATE_SCHEMA_VERSION = 228;
+  const STATE_SCHEMA_VERSION = 229;
   const STATE_KEY =
     typeof CLOUD_STATE_KEY === "string" && CLOUD_STATE_KEY
       ? CLOUD_STATE_KEY
@@ -72229,6 +72606,7 @@ window.nawahLeaveBalanceReportV185 = {
         if (state.v136Settings.organization)
           writeJson("nawah-v136-org-settings", state.v136Settings.organization);
       }
+      scheduleLegacyAbsenceDeductionRepairV351(0);
       return result !== false;
     } finally {
       window.__nawahCloudApplyInProgressV221 = false;
