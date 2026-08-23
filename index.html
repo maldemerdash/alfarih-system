@@ -47,7 +47,7 @@
       .app-boot-line::after { content: ""; display: block; width: 44%; height: 100%; border-radius: inherit; background: #0f766e; animation: appBootPulse 1s ease-in-out infinite; }
       @keyframes appBootPulse { 0% { transform: translateX(135%); } 100% { transform: translateX(-235%); } }
     </style>
-    <link rel="stylesheet" href="style.css?v=351" />
+    <link rel="stylesheet" href="style.css?v=352" />
   </head>
   <body>
     <div class="app-boot-screen" id="appBootScreen" aria-live="polite">
@@ -1688,6 +1688,13 @@
       <div class="modal-actions"><button class="secondary-btn" id="cancelDeleteBtn">إلغاء</button><button class="danger-btn" id="confirmDeleteBtn">حذف الموظف</button></div>
     </dialog>
 
+    <dialog class="confirm-modal" id="recordDeleteConfirmV352" aria-labelledby="recordDeleteTitleV352" aria-describedby="recordDeleteMessageV352">
+      <div class="confirm-icon"><span data-icon="trash"></span></div>
+      <h2 id="recordDeleteTitleV352">تأكيد الحذف</h2>
+      <p id="recordDeleteMessageV352">راجع العملية قبل تأكيد الحذف.</p>
+      <div class="modal-actions"><button type="button" class="secondary-btn" data-cancel-record-delete-v352>إلغاء</button><button type="button" class="danger-btn" data-confirm-record-delete-v352>تأكيد الحذف</button></div>
+    </dialog>
+
     <div class="toast-container naw-feedback-layer-v336" id="toastContainer" popover="manual" role="region" aria-live="polite" aria-atomic="true"></div>
 
     <script>
@@ -1716,6 +1723,6 @@
       })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=351"></script>
+    <script src="app.js?v=352"></script>
   </body>
 </html>

@@ -1320,6 +1320,74 @@ function createDocument(e = {}) {
     attachmentId: e.attachmentId || "",
   };
 }
+function authenticatedUserNameV352() {
+  const e = [];
+  try {
+    e.push(authProfile?.full_name, authProfile?.name, authProfile?.email);
+  } catch (_) {}
+  try {
+    e.push(
+      window.authProfile?.full_name,
+      window.authProfile?.name,
+      window.authProfile?.email,
+    );
+  } catch (_) {}
+  try {
+    e.push(
+      authUser?.user_metadata?.full_name,
+      authUser?.user_metadata?.name,
+      authUser?.email,
+    );
+  } catch (_) {}
+  try {
+    const t = window.nawahPermissionProfilesV294?.current?.();
+    e.push(t?.full_name, t?.name, t?.email);
+  } catch (_) {}
+  return (
+    e
+      .map((e) => String(e || "").trim())
+      .find(Boolean) || "مستخدم النظام"
+  );
+}
+function confirmRecordDeleteV352(e = {}) {
+  const t = document.getElementById("recordDeleteConfirmV352");
+  if (!t || t.open) return Promise.resolve(!1);
+  const n = t.querySelector("#recordDeleteTitleV352"),
+    a = t.querySelector("#recordDeleteMessageV352"),
+    o = t.querySelector("[data-confirm-record-delete-v352]"),
+    r = t.querySelector("[data-cancel-record-delete-v352]");
+  if (!o || !r) return Promise.resolve(!1);
+  return (
+    n && (n.textContent = e.title || "تأكيد الحذف"),
+    a && (a.textContent = e.message || "لا يمكن التراجع عن هذه العملية."),
+    (o.textContent = e.confirmLabel || "تأكيد الحذف"),
+    "function" == typeof hydrateIcons && hydrateIcons(t),
+    new Promise((e) => {
+      let n = !1;
+      const a = (a, i = !0) => {
+        if (n) return;
+        ((n = !0),
+          (o.onclick = null),
+          (r.onclick = null),
+          (t.oncancel = null),
+          (t.onclose = null),
+          i && t.open && t.close(),
+          e(Boolean(a)));
+      };
+      ((o.onclick = () => a(!0)),
+        (r.onclick = () => a(!1)),
+        (t.oncancel = (e) => {
+          (e.preventDefault(), a(!1));
+        }),
+        (t.onclose = () => a(!1, !1)));
+      try {
+        t.showModal();
+      } catch (_) {
+        a(!1, !1);
+      }
+    })
+  );
+}
 function createEmployeeMinuteRecord(e = {}) {
   const t = e.createdAt || new Date().toISOString(),
     n = Number(e.deductionAmount || 0);
@@ -1344,7 +1412,7 @@ function createEmployeeMinuteRecord(e = {}) {
     employeeId: e.employeeId || "",
     createdAt: t,
     createdAtLabel: e.createdAtLabel || formatDateTime(t),
-    createdBy: e.createdBy || currentUser,
+    createdBy: e.createdBy || authenticatedUserNameV352(),
     sourceAbsenceId: e.sourceAbsenceId || "",
   };
 }
@@ -6930,6 +6998,7 @@ async function createAbsenceMinute(e) {
       deductionAmountLabel: formatCurrencyEn(s),
       sourceAbsenceId: e.id,
       employeeId: e.employeeId,
+      createdBy: e.createdBy || authenticatedUserNameV352(),
       absenceType: e.type,
       absencePeriod: a,
       absencePolicy: o.policy,
@@ -7116,7 +7185,7 @@ async function handleAbsenceSubmit(e) {
       periodSegment: l?.legacySegment || "fullDay",
       reason: n.reason?.trim() || "",
       createdAt: new Date().toISOString(),
-      createdBy: currentUser,
+      createdBy: authenticatedUserNameV352(),
     },
     s = absencePenaltyDetails(i),
     c = buildAbsenceDeductionSnapshotV351(i);
@@ -7156,6 +7225,17 @@ async function deleteAbsenceRecord(e) {
     );
     return false;
   }
+  const absenceEmployee = getEmployee(t.employeeId),
+    absencePeriod =
+      t.from === t.to
+        ? formatDate(t.from)
+        : `${formatDate(t.from)} إلى ${formatDate(t.to)}`,
+    confirmedDelete = await confirmRecordDeleteV352({
+      title: "تأكيد حذف الغياب",
+      message: `سيتم حذف غياب ${absenceEmployee?.name || "الموظف"} للفترة ${absencePeriod} ومحضر الغياب المرتبط به. لا يمكن التراجع عن هذه العملية.`,
+      confirmLabel: "حذف الغياب",
+    });
+  if (!confirmedDelete) return false;
   if (!(await prepareAttendanceCloudMutationV224())) {
     showToast("تعذر الاتصال بالسحابة؛ لم يُحذف الغياب لحماية البيانات");
     return false;
@@ -9496,6 +9576,7 @@ async function init() {
           deductionAmountLabel: formatCurrencyEn(i),
           sourceAbsenceId: e.id,
           employeeId: e.employeeId,
+          createdBy: e.createdBy || authenticatedUserNameV352(),
           absenceType: e.type,
           absencePeriod: a,
           absencePolicy: o.policy,
@@ -10461,7 +10542,7 @@ async function init() {
     } catch {}
     document.addEventListener(
       "click",
-      (e) => {
+      async (e) => {
         const t = e.target.closest("[data-print-minute]"),
           n = e.target.closest("[data-remove-minute-record]"),
           a = e.target.closest("[data-remove-note-record]"),
@@ -10482,16 +10563,28 @@ async function init() {
             e.stopImmediatePropagation(),
             void E(t.dataset.printMinute)
           );
-        if (n)
+        if (n) {
+          (e.preventDefault(), e.stopImmediatePropagation());
+          const t = n.dataset.removeMinuteRecord,
+            a = (employeeFormState.minutes || []).find((e) => e.id === t),
+            o = await confirmRecordDeleteV352({
+              title: a?.sourceAbsenceId
+                ? "تأكيد حذف محضر الغياب"
+                : "تأكيد حذف المحضر",
+              message: a?.sourceAbsenceId
+                ? "سيتم حذف المحضر فقط، وسيبقى سجل الغياب والخصم في الحضور والرواتب كما هو. لا يمكن التراجع عن هذه العملية."
+                : "سيتم حذف المحضر من ملف الموظف. لا يمكن التراجع عن هذه العملية.",
+              confirmLabel: "حذف المحضر",
+            });
+          if (!o) return;
           return (
-            e.preventDefault(),
-            e.stopImmediatePropagation(),
             (employeeFormState.minutes = (
               employeeFormState.minutes || []
-            ).filter((e) => e.id !== n.dataset.removeMinuteRecord)),
+            ).filter((e) => e.id !== t)),
             renderEmployeeMinutes(),
             void showToast("تم حذف المحضر")
           );
+        }
         if (a)
           return (
             e.preventDefault(),
@@ -11003,7 +11096,7 @@ async function init() {
         }),
       document.addEventListener(
         "click",
-        function (e) {
+        async function (e) {
           const t = e.target.closest("[data-print-minute]");
           if (t) {
             (e.preventDefault(), e.stopImmediatePropagation());
@@ -11033,10 +11126,23 @@ async function init() {
           const a = e.target.closest("[data-delete-employee-minute]");
           if (a) {
             (e.preventDefault(), e.stopImmediatePropagation());
-            const t = Number(a.dataset.deleteEmployeeMinute);
+            const t = Number(a.dataset.deleteEmployeeMinute),
+              n = Number.isInteger(t) ? employeeFormState.minutes[t] : null;
+            if (!n) return;
+            const o = await confirmRecordDeleteV352({
+              title: n.sourceAbsenceId
+                ? "تأكيد حذف محضر الغياب"
+                : "تأكيد حذف المحضر",
+              message: n.sourceAbsenceId
+                ? "سيتم حذف المحضر فقط، وسيبقى سجل الغياب والخصم في الحضور والرواتب كما هو. لا يمكن التراجع عن هذه العملية."
+                : "سيتم حذف المحضر من ملف الموظف. لا يمكن التراجع عن هذه العملية.",
+              confirmLabel: "حذف المحضر",
+            });
+            if (!o) return;
             return void (
-              Number.isInteger(t) &&
-              (employeeFormState.minutes.splice(t, 1), renderEmployeeMinutes())
+              employeeFormState.minutes.splice(t, 1),
+              renderEmployeeMinutes(),
+              showToast("تم حذف المحضر")
             );
           }
           const o = e.target.closest("[data-edit-minute-template-row]");
