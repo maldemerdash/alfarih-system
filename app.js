@@ -16892,7 +16892,12 @@ async function init() {
                             : 0 === c
                               ? "status-pending"
                               : "status-active";
-                      return `<div class="leave-preview-item dashboard-request-item traveler-request-row">\n        ${"function" == typeof employeeAvatar ? employeeAvatar(t) : ""}\n        <div class="leave-preview-info">\n          <div class="traveler-name-line"><button type="button" class="employee-name-link" data-edit-employee="${n(t.id)}">${n(t.name)}</button><span class="traveler-current-badge">مسافر حاليًا</span></div>\n          <span class="traveler-dates">تاريخ السفر: ${n(a)} · تاريخ العودة: ${n(i)}</span>\n        </div>\n        <div class="traveler-dashboard-metrics">\n          <span class="status-badge status-leave">مضى ${n(d)}</span>\n          <span class="status-badge ${m}">${n(u)}</span>\n        </div>\n      </div>`;
+                      const p =
+                        t.employeeNumber ||
+                        t.employeeNo ||
+                        t.code ||
+                        "";
+                      return `<article class="traveler-request-row">\n        <div class="traveler-card-head">\n          ${"function" == typeof employeeAvatar ? employeeAvatar(t) : ""}\n          <div class="traveler-identity">\n            <div class="traveler-name-line"><button type="button" class="employee-name-link" data-edit-employee="${n(t.id)}">${n(t.name)}</button><span class="traveler-current-badge">مسافر حاليًا</span></div>\n            ${p ? `<small class="traveler-employee-number">رقم الموظف: ${n(p)}</small>` : ""}\n          </div>\n          <button type="button" class="traveler-open-employee" data-edit-employee="${n(t.id)}" title="فتح ملف الموظف" aria-label="فتح ملف ${n(t.name)}">${"function" == typeof icon ? icon("eye") : ""}</button>\n        </div>\n        <div class="traveler-timeline" aria-label="مدة رحلة الموظف">\n          <div><small>تاريخ السفر</small><strong>${n(a)}</strong></div>\n          <span class="traveler-route"><i></i></span>\n          <div><small>تاريخ العودة</small><strong>${n(i)}</strong></div>\n        </div>\n        <div class="traveler-dashboard-metrics">\n          <span class="status-badge status-leave">مضى ${n(d)}</span>\n          <span class="status-badge ${m}">${n(u)}</span>\n        </div>\n      </article>`;
                     })
                     .join("")
                 : '<div class="empty-state"><strong>لا يوجد مسافرون حاليًا</strong></div>'
