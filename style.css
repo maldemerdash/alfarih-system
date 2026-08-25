@@ -18436,7 +18436,7 @@ body {
 }
 .travelers-dashboard-list.dashboard-list-ordered {
   display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px !important;
   max-height: 280px !important;
   padding: 2px 1px 7px !important;
@@ -18446,19 +18446,21 @@ body {
   display: flex !important;
   flex-direction: column;
   min-width: 0;
-  min-height: 174px;
+  min-height: 154px;
   padding: 14px !important;
   gap: 12px !important;
-  border: 1px solid rgba(18,148,184,.16) !important;
+  border: 1px solid rgba(14,165,201,.22) !important;
   border-radius: 20px !important;
-  background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(240,251,253,.88)) !important;
-  box-shadow: 0 8px 22px rgba(18,148,184,.08);
+  background:
+    radial-gradient(circle at 8% 16%, rgba(34,197,94,.08), transparent 25%),
+    linear-gradient(120deg, #ffffff 0%, #f1fbfd 52%, #eef9ff 100%) !important;
+  box-shadow: 0 8px 22px rgba(14,165,201,.09);
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 .dashboard-list-ordered .traveler-request-row:hover {
   transform: translateY(-2px);
-  border-color: rgba(18,148,184,.28) !important;
-  box-shadow: 0 13px 28px rgba(18,148,184,.13);
+  border-color: rgba(14,165,201,.38) !important;
+  box-shadow: 0 13px 28px rgba(14,165,201,.15);
 }
 .dashboard-list-ordered .traveler-card-head > .avatar {
   width: 48px !important;
@@ -18531,7 +18533,8 @@ body {
   width: 100%;
   padding: 10px 11px;
   border-radius: 14px;
-  background: rgba(18,148,184,.055);
+  border: 1px solid rgba(14,165,201,.10);
+  background: linear-gradient(90deg, rgba(20,184,166,.07), rgba(14,165,233,.07));
 }
 .traveler-timeline > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .traveler-timeline > div:last-child { text-align: left; }
@@ -18546,7 +18549,7 @@ body {
   left: 0;
   height: 2px;
   border-radius: 999px;
-  background: linear-gradient(90deg,#14b8a6,#1294b8);
+  background: linear-gradient(90deg,#22c55e,#14b8a6 45%,#0ea5e9);
 }
 .traveler-route::after,
 .traveler-route i {
@@ -18557,17 +18560,14 @@ body {
   height: 8px;
   border: 2px solid #fff;
   border-radius: 50%;
-  background: #1294b8;
-  box-shadow: 0 0 0 2px rgba(18,148,184,.14);
+  background: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14,165,233,.14);
 }
 .traveler-route::after { left: 0; }
 .traveler-route i { right: 0; }
 .dashboard-list-ordered .traveler-dashboard-metrics {
   width: 100%;
   margin-top: auto;
-}
-@media (max-width: 1180px) {
-  .travelers-dashboard-list.dashboard-list-ordered { grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
   .traveler-card-head { grid-template-columns: auto minmax(0,1fr) auto; }
