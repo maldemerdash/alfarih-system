@@ -18570,54 +18570,33 @@ body {
 }
 .traveler-progress.is-overdue .traveler-progress-meta,
 .traveler-progress.is-overdue .traveler-progress-meta strong { color: #dc2626; }
-.traveler-timeline {
-  display: grid;
-  grid-template-columns: minmax(88px,auto) minmax(42px,1fr) minmax(88px,auto);
-  align-items: center;
-  gap: 9px;
+.traveler-progress-dates {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   width: 100%;
-  padding: 10px 11px;
-  border-radius: 14px;
-  border: 1px solid rgba(14,165,201,.10);
-  background: linear-gradient(90deg, rgba(20,184,166,.07), rgba(14,165,233,.07));
 }
-.traveler-timeline > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.traveler-timeline > div:last-child { text-align: left; }
-.traveler-timeline small { color: var(--muted); font-size: 9px; }
-.traveler-timeline strong { color: var(--text); font-size: 11px; white-space: nowrap; }
-.traveler-route { position: relative; height: 12px; }
-.traveler-route::before {
-  content: "";
-  position: absolute;
-  top: 5px;
-  right: 0;
-  left: 0;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg,#22c55e,#14b8a6 45%,#0ea5e9);
+.traveler-progress-dates > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
-.traveler-route::after,
-.traveler-route i {
-  content: "";
-  position: absolute;
-  top: 2px;
-  width: 8px;
-  height: 8px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  background: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(14,165,233,.14);
+.traveler-progress-dates > span:last-child { text-align: left; }
+.traveler-progress-dates small { color: var(--muted); font-size: 9px; }
+.traveler-progress-dates strong {
+  color: var(--text);
+  font-size: 11px;
+  white-space: nowrap;
 }
-.traveler-route::after { left: 0; }
-.traveler-route i { right: 0; }
 .dashboard-list-ordered .traveler-dashboard-metrics {
   width: 100%;
   margin-top: auto;
 }
 @media (max-width: 620px) {
   .traveler-card-head { grid-template-columns: auto minmax(0,1fr) auto; }
-  .traveler-timeline { grid-template-columns: minmax(76px,auto) minmax(30px,1fr) minmax(76px,auto); gap: 6px; }
-  .traveler-timeline strong { font-size: 10px; }
+  .traveler-progress-dates strong { font-size: 10px; }
 }
 .traveler-request-row .leave-preview-info,
 .dashboard-request-item .leave-preview-info { align-items: flex-start !important; text-align: right !important; }
