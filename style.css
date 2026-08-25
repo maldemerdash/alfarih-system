@@ -18435,6 +18435,46 @@ body {
   align-items: center !important;
   text-align: right !important;
 }
+.dashboard-list-ordered .traveler-request-row {
+  min-height: 82px;
+  padding: 13px 15px !important;
+  gap: 13px !important;
+  border: 1px solid rgba(18,148,184,.16) !important;
+  border-radius: 18px !important;
+  background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(240,251,253,.88)) !important;
+}
+.dashboard-list-ordered .traveler-request-row > .avatar {
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+  border: 3px solid #fff !important;
+  box-shadow: 0 5px 14px rgba(18,148,184,.20) !important;
+}
+.dashboard-list-ordered .traveler-request-row > .avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: inherit !important;
+}
+.traveler-name-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.traveler-current-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(20,184,166,.12);
+  color: #0f766e !important;
+  font-size: 10px !important;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.traveler-dates { line-height: 1.7; }
 .traveler-request-row .leave-preview-info,
 .dashboard-request-item .leave-preview-info { align-items: flex-start !important; text-align: right !important; }
 .traveler-request-row .employee-name-link,

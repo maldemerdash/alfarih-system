@@ -16204,7 +16204,7 @@ async function init() {
             Boolean(h(e.employeeId)),
         ));
       (e.classList.add("travelers-dashboard-panel"),
-        (e.innerHTML = `<div class="panel-head"><div><h3>المسافرون</h3><p>الموظفون المسافرون وحالة العودة والمباشرة</p></div><button class="secondary-btn" data-go-view="leaves">عرض الكل</button></div><div class="travelers-dashboard-list">${
+        (e.innerHTML = `<div class="panel-head"><div><h3>المسافرون حالياً</h3><p>الموظفون الذين لديهم سفر قائم ولم يتم تسجيل مباشرتهم</p></div><button class="text-btn" data-go-view="leaves">عرض الكل</button></div><div class="travelers-dashboard-list dashboard-list-ordered">${
           n.length
             ? n
                 .slice(0, 9)
@@ -16892,7 +16892,7 @@ async function init() {
                             : 0 === c
                               ? "status-pending"
                               : "status-active";
-                      return `<div class="leave-preview-item dashboard-request-item traveler-request-row">\n        ${"function" == typeof avatar ? avatar(t) : ""}\n        <div class="leave-preview-info">\n          <button type="button" class="employee-name-link" data-edit-employee="${n(t.id)}">${n(t.name)}</button>\n          <span>تاريخ السفر: ${n(a)} · تاريخ العودة: ${n(i)}</span>\n        </div>\n        <div class="traveler-dashboard-metrics">\n          <span class="status-badge status-leave">مضى ${n(d)}</span>\n          <span class="status-badge ${m}">${n(u)}</span>\n        </div>\n      </div>`;
+                      return `<div class="leave-preview-item dashboard-request-item traveler-request-row">\n        ${"function" == typeof employeeAvatar ? employeeAvatar(t) : ""}\n        <div class="leave-preview-info">\n          <div class="traveler-name-line"><button type="button" class="employee-name-link" data-edit-employee="${n(t.id)}">${n(t.name)}</button><span class="traveler-current-badge">مسافر حاليًا</span></div>\n          <span class="traveler-dates">تاريخ السفر: ${n(a)} · تاريخ العودة: ${n(i)}</span>\n        </div>\n        <div class="traveler-dashboard-metrics">\n          <span class="status-badge status-leave">مضى ${n(d)}</span>\n          <span class="status-badge ${m}">${n(u)}</span>\n        </div>\n      </div>`;
                     })
                     .join("")
                 : '<div class="empty-state"><strong>لا يوجد مسافرون حاليًا</strong></div>'
@@ -16903,7 +16903,9 @@ async function init() {
                 (e.preventDefault(),
                   "function" == typeof switchView && switchView("leaves"));
               }),
-            "function" == typeof hydrateIcons && hydrateIcons(e));
+            "function" == typeof hydrateIcons && hydrateIcons(e),
+            "function" == typeof hydrateAttachmentImages &&
+              hydrateAttachmentImages(e));
         })(),
         (function () {
           const e = document.querySelector(".dashboard-grid"),
@@ -16962,7 +16964,7 @@ async function init() {
       ((window.__finalDashboardDocumentsPatch = !0),
       (renderDashboard = function () {
         const e = h.apply(this, arguments);
-        return (setTimeout(f, 0), e);
+        return (f(), e);
       })),
       document.addEventListener(
         "click",
