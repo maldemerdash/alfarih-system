@@ -16076,8 +16076,38 @@ async function init() {
               }
             : t,
         )),
-        i(),
-        l("#travelApprovalModal")?.close(),
+        i());
+      let cloudSaved = !0;
+      try {
+        const cloudSync =
+          window.nawahCloudSyncV228 ||
+          window.nawahCloudSyncV227 ||
+          window.nawahCloudSyncV226 ||
+          window.nawahCloudSyncV221;
+        if (cloudSync?.trackRecordUpserts)
+          cloudSync.trackRecordUpserts("travelRequests", [a.id]);
+        else if (cloudSync?.trackFields)
+          cloudSync.trackFields(["travelRequests"]);
+        if (cloudSync?.saveConfirmed)
+          cloudSaved = await cloudSync.saveConfirmed(
+            "travel-approval-confirmed",
+          );
+        else if (cloudSync?.save)
+          cloudSaved = await cloudSync.save("travel-approval-confirmed");
+        else if ("function" == typeof saveCloudStateNow)
+          await saveCloudStateNow({
+            force: !0,
+            reason: "travel-approval-confirmed",
+          });
+      } catch (e) {
+        cloudSaved = !1;
+        console.warn("تعذر تأكيد حفظ اعتماد السفر سحابيًا.", e);
+      }
+      if (!cloudSaved) {
+        showToast("تعذر تأكيد اعتماد السفر سحابيًا؛ حاول مرة أخرى");
+        return;
+      }
+      (l("#travelApprovalModal")?.close(),
         (n = null),
         (o = ""),
         (r = ""),
@@ -16516,7 +16546,7 @@ async function init() {
             const n =
               "function" == typeof renderDashboard ? renderDashboard : null;
             renderDashboard = function () {
-              (n && n(), H(), O());
+              (n && n(), H());
             };
             const a =
               "function" == typeof approvedLeaveForDate
