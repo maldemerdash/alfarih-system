@@ -16846,20 +16846,21 @@ async function init() {
     function u() {
       const e = document.querySelector(
         ".dashboard-welcome-compact .welcome-copy",
-      );
-      if (!e) return;
-      let t = e.querySelector(".banner-action[data-go-view='leaves']");
+        ),
+        actionBar = document.querySelector("#dashboardActionsBarV363");
+      if (!e || !actionBar) return;
+      let t = actionBar.querySelector(".banner-action[data-go-view='leaves']");
       if (
         (t &&
-          (t.innerHTML = 'مراجعة الطلبات <span data-icon="arrow-left"></span>'),
-        !e.querySelector("#dashboardAbsenceBtn"))
+          (t.innerHTML = '<span data-icon="list"></span> مراجعة الطلبات'),
+        !actionBar.querySelector("#dashboardAbsenceBtn"))
       ) {
         const n = document.createElement("button");
         ((n.type = "button"),
           (n.id = "dashboardAbsenceBtn"),
           (n.className = "banner-action banner-absence-action"),
           (n.innerHTML = '<span data-icon="user-x"></span> تسجيل الغياب'),
-          t ? t.insertAdjacentElement("afterend", n) : e.appendChild(n),
+          t ? t.insertAdjacentElement("afterend", n) : actionBar.appendChild(n),
           n.addEventListener("click", (e) => {
             e.preventDefault();
             const t = document.querySelector("#newAbsenceBtn");
@@ -16870,8 +16871,8 @@ async function init() {
                 : "function" == typeof switchView && switchView("attendance");
           }));
       }
-      const n = e.querySelector("#dashboardAbsenceBtn");
-      if (!e.querySelector("#dashboardAdvanceBtn")) {
+      const n = actionBar.querySelector("#dashboardAbsenceBtn");
+      if (!actionBar.querySelector("#dashboardAdvanceBtn")) {
         const a = document.createElement("button");
         ((a.type = "button"),
           (a.id = "dashboardAdvanceBtn"),
@@ -16882,7 +16883,7 @@ async function init() {
             ? n.insertAdjacentElement("afterend", a)
             : t
               ? t.insertAdjacentElement("afterend", a)
-              : e.appendChild(a),
+              : actionBar.appendChild(a),
           a.addEventListener("click", (e) => {
             (e.preventDefault(),
               "function" != typeof openAdvanceModal
@@ -16902,7 +16903,8 @@ async function init() {
           const e = r();
           return `${new Intl.DateTimeFormat("ar-SA-u-nu-latn", { weekday: "long" }).format(e)}، ${new Intl.DateTimeFormat("ar-SA-u-nu-latn", { day: "numeric", month: "long", year: "numeric" }).format(e)}`;
         })()),
-        "function" == typeof hydrateIcons && hydrateIcons(e));
+        "function" == typeof hydrateIcons &&
+          (hydrateIcons(e), hydrateIcons(actionBar)));
     }
     function m() {
       const e = [];
