@@ -26383,7 +26383,9 @@ async function init() {
         h = p.isClosed
           ? o(p.newCarriedAmountSnapshot)
           : calculatedNewCarried,
-        calculatedFund = u + m + r + c - t - a - l,
+        /* The fund follows the selected daily-credit source through the same
+           debit-minus-credit relationship used by the new carried amount. */
+        calculatedFund = y - f + m + c - t - l,
         v = p.isClosed ? o(p.fundAmountSnapshot) : calculatedFund;
       return (
         p.isClosed ||
@@ -73511,11 +73513,13 @@ window.nawahLeaveBalanceReportV185 = {
       custodyAmountSnapshot: custody,
       fundAmountSnapshot:
         carried +
-        custody +
         cashSales +
+        cardSales -
+        expenses -
+        (day.dailyCreditSource === "budgetAmount" ? budget : cardSales) +
+        custody +
         manualCash -
         pending -
-        expenses -
         advances,
       newCarriedAmountSnapshot:
         carried +
@@ -90043,12 +90047,11 @@ window.nawahContractDateCorrectionV321 = {
     var dailyCredit =
       (dailyCreditSource === "budgetAmount" ? budget : cardSales) + expenses;
     var calculatedFund =
-      carried +
+      dailyDebit -
+      dailyCredit +
       custody +
-      cashSales +
       manualCash -
       pending -
-      expenses -
       advances;
     var calculatedNewCarried = dailyDebit - dailyCredit;
     return {
