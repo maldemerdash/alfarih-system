@@ -3607,6 +3607,114 @@ function currentPayrollFinalDisbursement() {
       return sum + transfer;
     }, 0);
 }
+function renderDashboardCommandCenterV362(attendance) {
+  const financePanel = document.querySelector(".dashboard-finance-panel-v362");
+  if (financePanel) {
+    let canViewFinance = true;
+    try {
+      canViewFinance = typeof roleCanOpen !== "function" || roleCanOpen("finance");
+    } catch (_) {}
+    financePanel.classList.toggle("is-permission-hidden", !canViewFinance);
+  }
+  const summary = attendance || attendanceSummaryForDate(formatInputDate(todayAtNoon())),
+    activeTotal = Math.max(0, Number(summary.total || 0)),
+    attendanceRate = summary.isWorkday && activeTotal
+      ? Math.round((Number(summary.present || 0) / activeTotal) * 100)
+      : 0;
+  let travelCount = 0;
+  try {
+    const travelRows = JSON.parse(localStorage.getItem("nawah-travel-requests") || "[]");
+    travelCount = (Array.isArray(travelRows) ? travelRows : []).filter(
+      (row) => row && row.status === "approved" && !row.workResumeDate,
+    ).length;
+  } catch (_) {}
+  const setText = (selector, value) => {
+    const element = document.querySelector(selector);
+    if (element) element.textContent = value;
+  };
+  setText("#dashboardTeamRateV362", `${attendanceRate}%`);
+  setText("#dashboardTeamPresentV362", arabicNumber(summary.present || 0));
+  setText("#dashboardTeamAbsentV362", arabicNumber(summary.absent || 0));
+  setText("#dashboardTeamLeaveV362", arabicNumber(summary.leave || 0));
+  setText("#dashboardTeamTravelV362", arabicNumber(travelCount));
+  const ring = document.querySelector("#dashboardTeamRingV362");
+  if (ring) ring.style.setProperty("--team-rate", String(attendanceRate));
+
+  const number = (value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+    },
+    sum = (rows) => (Array.isArray(rows) ? rows : []).reduce(
+      (total, row) => total + number(row?.amount),
+      0,
+    );
+  let financeDay = {}, financeSettings = {};
+  try {
+    financeDay = JSON.parse(localStorage.getItem("nawah-finance-daily-open") || "{}") || {};
+    financeSettings = JSON.parse(localStorage.getItem("nawah-finance-settings") || "{}") || {};
+  } catch (_) {}
+  const carried = financeDay.carriedAmountOverride == null
+      ? number(financeSettings.openingAmount)
+      : number(financeDay.carriedAmountOverride),
+    custody = number(financeSettings.custodyAmount),
+    pending = sum(financeDay.pending),
+    expenses = sum(financeDay.expenses),
+    cashSales = sum(financeDay.cashSales),
+    cardSales = sum(financeDay.cardSales),
+    budget = number(financeDay.budgetAmount),
+    manualCash = number(financeDay.manualCashAmount),
+    dailyCreditSource = financeDay.dailyCreditSource === "budgetAmount"
+      ? "budgetAmount"
+      : "cardSales",
+    dailyDebit = carried + cashSales + cardSales,
+    dailyCredit = (dailyCreditSource === "budgetAmount" ? budget : cardSales) + expenses,
+    advances = (() => {
+      try {
+        const records = typeof payrollAdvances !== "undefined" && Array.isArray(payrollAdvances)
+          ? payrollAdvances
+          : [];
+        return number(
+          window.nawahAdvanceLedgerV340?.snapshot?.(
+            financeDay.financeDate || formatInputDate(todayAtNoon()),
+            records,
+          )?.total,
+        );
+      } catch (_) {
+        return 0;
+      }
+    })(),
+    newCarried = financeDay.isClosed
+      ? number(financeDay.newCarriedAmountSnapshot)
+      : dailyDebit - dailyCredit,
+    fundAmount = financeDay.isClosed
+      ? number(financeDay.fundAmountSnapshot)
+      : dailyDebit - dailyCredit + custody + manualCash - pending - advances,
+    currency = (value) => formatCurrency(Number(value || 0));
+  setText("#dashboardFundAmountV362", currency(fundAmount));
+  setText("#dashboardSalesTotalV362", currency(cashSales + cardSales));
+  setText("#dashboardExpensesTotalV362", currency(expenses));
+  setText("#dashboardNewCarriedV362", currency(newCarried));
+  setText(
+    "#dashboardCreditSourceV362",
+    dailyCreditSource === "budgetAmount"
+      ? "الدائن من الموازنة المدخلة"
+      : "الدائن من مبيعات الشبكة",
+  );
+  const budgetState = document.querySelector("#dashboardBudgetStateV362"),
+    budgetDifference = budget - cardSales;
+  if (budgetState) {
+    const match = Math.abs(budgetDifference) < 0.005;
+    budgetState.classList.toggle("is-match", match);
+    budgetState.classList.toggle("is-unmatch", !match);
+    const label = budgetState.querySelector("strong");
+    if (label)
+      label.textContent = match
+        ? "الموازنة متطابقة"
+        : `فرق الموازنة ${currency(Math.abs(budgetDifference))}`;
+  }
+  const dashboard = document.querySelector("#dashboardView");
+  if (dashboard && typeof hydrateIcons === "function") hydrateIcons(dashboard);
+}
 function renderDashboard() {
   const e = attendanceSummaryForDate(formatInputDate(todayAtNoon())),
     t = currentPayrollFinalDisbursement(),
@@ -3650,6 +3758,7 @@ function renderDashboard() {
         })
         .join("")
     : '<div class="empty-state"><strong>لا توجد طلبات معلقة</strong></div>';
+  renderDashboardCommandCenterV362(e);
 }
 function filteredEmployees() {
   const e = document

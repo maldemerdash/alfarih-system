@@ -204,33 +204,15 @@
             </div>
 
             <div class="dashboard-grid">
-              <article class="panel attendance-panel">
+              <article class="panel attendance-panel travelers-dashboard-panel">
                 <div class="panel-head">
                   <div>
-                    <h3>نظرة عامة على الحضور</h3>
-                    <p>معدل الحضور خلال أيام الأسبوع</p>
+                    <h3>المسافرون حالياً</h3>
+                    <p>الموظفون الذين لديهم سفر قائم ولم يتم تسجيل مباشرتهم</p>
                   </div>
-                  <select class="small-select" aria-label="الفترة">
-                    <option>هذا الأسبوع</option>
-                    <option>هذا الشهر</option>
-                  </select>
+                  <button class="text-btn" data-go-view="leaves">عرض الكل</button>
                 </div>
-                <div class="chart-wrap">
-                  <div class="chart-y-axis">
-                    <span>١٠٠٪</span><span>٧٥٪</span><span>٥٠٪</span><span>٢٥٪</span><span>٠٪</span>
-                  </div>
-                  <div class="bar-chart" aria-label="رسم بياني للحضور">
-                    <div class="bar-column"><div class="bar" style="--height: 88%"><span>٨٨٪</span></div><small>الأحد</small></div>
-                    <div class="bar-column"><div class="bar" style="--height: 94%"><span>٩٤٪</span></div><small>الإثنين</small></div>
-                    <div class="bar-column"><div class="bar" style="--height: 82%"><span>٨٢٪</span></div><small>الثلاثاء</small></div>
-                    <div class="bar-column"><div class="bar" style="--height: 96%"><span>٩٦٪</span></div><small>الأربعاء</small></div>
-                    <div class="bar-column"><div class="bar active" style="--height: 91%"><span>٩١٪</span></div><small>الخميس</small></div>
-                  </div>
-                </div>
-                <div class="chart-summary">
-                  <span><i class="legend-dot teal-dot"></i> متوسط الحضور <strong>٩٠٪</strong></span>
-                  <span><i class="legend-dot gray-dot"></i> متوسط التأخير <strong>٧٪</strong></span>
-                </div>
+                <div class="travelers-dashboard-list dashboard-list-ordered"><div class="empty-state"><strong>لا يوجد مسافرون حاليًا</strong></div></div>
               </article>
 
               <article class="panel leave-panel">
@@ -242,6 +224,64 @@
                   <button class="text-btn" data-go-view="leaves">عرض الكل</button>
                 </div>
                 <div class="leave-preview-list" id="leavePreviewList"></div>
+              </article>
+
+              <article class="panel expiry-dashboard-panel" id="dashboardEstDocsPanel">
+                <div class="panel-head"><div><h3>وثائق المنشأة قرب الانتهاء أو منتهية</h3><p>تظهر الوثائق التي تحتاج إلى إجراء</p></div></div>
+                <div class="expiry-doc-list"><div class="empty-state"><strong>لا توجد وثائق تحتاج إلى إجراء</strong></div></div>
+              </article>
+
+              <article class="panel expiry-dashboard-panel" id="dashboardEmployeeDocsPanel">
+                <div class="panel-head"><div><h3>وثائق الموظفين قرب الانتهاء أو منتهية</h3><p>الإقامات والجوازات والوثائق التي تحتاج إلى إجراء</p></div></div>
+                <div class="expiry-doc-list"><div class="empty-state"><strong>لا توجد وثائق تحتاج إلى إجراء</strong></div></div>
+              </article>
+            </div>
+
+            <div class="dashboard-command-grid-v362">
+              <article class="panel dashboard-team-panel-v362">
+                <div class="panel-head">
+                  <div>
+                    <span class="dashboard-section-kicker-v362">الفريق اليوم</span>
+                    <h3>حالة الموظفين</h3>
+                    <p>توزيع مباشر لحالة الفريق خلال يوم العمل</p>
+                  </div>
+                  <button class="text-btn" data-go-view="attendance">فتح الحضور</button>
+                </div>
+                <div class="dashboard-team-total-v362">
+                  <div><strong id="dashboardTeamRateV362">0%</strong><span>نسبة الحضور</span></div>
+                  <div class="dashboard-team-ring-v362" id="dashboardTeamRingV362" style="--team-rate:0"><span data-icon="users"></span></div>
+                </div>
+                <div class="dashboard-team-states-v362">
+                  <button type="button" data-go-view="attendance" class="is-present"><span>حاضرون</span><strong id="dashboardTeamPresentV362">0</strong></button>
+                  <button type="button" data-go-view="attendance" class="is-absent"><span>غائبون</span><strong id="dashboardTeamAbsentV362">0</strong></button>
+                  <button type="button" data-go-view="leaves" class="is-leave"><span>في إجازة</span><strong id="dashboardTeamLeaveV362">0</strong></button>
+                  <button type="button" data-go-view="leaves" class="is-travel"><span>مسافرون</span><strong id="dashboardTeamTravelV362">0</strong></button>
+                </div>
+              </article>
+
+              <article class="panel dashboard-finance-panel-v362">
+                <div class="panel-head">
+                  <div>
+                    <span class="dashboard-section-kicker-v362">المالية اليوم</span>
+                    <h3>ملخص الحركة المالية</h3>
+                    <p>قراءة مختصرة دون تعديل العمليات من الرئيسية</p>
+                  </div>
+                  <button class="text-btn" data-go-view="finance">فتح المالية</button>
+                </div>
+                <div class="dashboard-finance-hero-v362">
+                  <span>مبلغ الصندوق</span>
+                  <strong id="dashboardFundAmountV362">0 ر.س</strong>
+                  <small id="dashboardCreditSourceV362">الدائن من مبيعات الشبكة</small>
+                </div>
+                <div class="dashboard-finance-metrics-v362">
+                  <div><span>مبيعات اليوم</span><strong id="dashboardSalesTotalV362">0 ر.س</strong></div>
+                  <div><span>المصروفات</span><strong id="dashboardExpensesTotalV362">0 ر.س</strong></div>
+                  <div><span>المرحل الجديد</span><strong id="dashboardNewCarriedV362">0 ر.س</strong></div>
+                </div>
+                <div class="dashboard-budget-state-v362 is-match" id="dashboardBudgetStateV362">
+                  <span data-icon="check"></span>
+                  <strong>الموازنة متطابقة</strong>
+                </div>
               </article>
             </div>
 
