@@ -149,6 +149,7 @@
               <div class="welcome-copy">
                 <h2>صباح الخير، محمد</h2>
                 <span class="eyebrow">تاريخ اليوم</span>
+                <small class="dashboard-action-summary-v364" id="dashboardActionSummaryV364">لا توجد إجراءات عاجلة</small>
               </div>
               <div class="banner-art" aria-hidden="true">
                 <div class="art-orbit orbit-one"></div>
@@ -204,6 +205,15 @@
                 <h3 id="monthlyPayroll">٠ ر.س</h3>
                 <span class="stat-note">الصافي النهائي للصرف</span>
               </article>
+              <article class="stat-card stat-card-clickable stat-card-attention-v364" data-go-view="employees" role="button" tabindex="0">
+                <div class="stat-top">
+                  <span class="stat-icon amber" data-icon="file"></span>
+                  <span class="trend down">يتطلب إجراء</span>
+                </div>
+                <p>الوثائق والعقود</p>
+                <h3 id="dashboardAttentionTotalV364">0</h3>
+                <span class="stat-note">منتهية أو قريبة الانتهاء</span>
+              </article>
             </div>
 
             <div class="dashboard-grid">
@@ -221,8 +231,8 @@
               <article class="panel leave-panel">
                 <div class="panel-head">
                   <div>
-                    <h3>طلبات تحتاج مراجعة</h3>
-                    <p>أحدث طلبات الإجازة</p>
+                    <h3>يحتاج إجراءك</h3>
+                    <p>طلبات الإجازة والسفر بانتظار المراجعة</p>
                   </div>
                   <button class="text-btn" data-go-view="leaves">عرض الكل</button>
                 </div>
@@ -288,14 +298,21 @@
               </article>
             </div>
 
+            <section class="dashboard-insights-v364" aria-label="المؤشرات التشغيلية">
+              <article class="dashboard-insight-card-v364 is-return" data-go-view="leaves" role="button" tabindex="0"><span data-icon="plane"></span><div><small>العائدون اليوم</small><strong id="dashboardReturnsTodayV364">0</strong><p>من السفر أو الإجازة</p></div></article>
+              <article class="dashboard-insight-card-v364 is-contract" data-go-view="employees" role="button" tabindex="0"><span data-icon="file"></span><div><small>عقود قريبة</small><strong id="dashboardContractsSoonV364">0</strong><p>خلال 30 يومًا</p></div></article>
+              <article class="dashboard-insight-card-v364 is-absence" data-go-view="attendance" role="button" tabindex="0"><span data-icon="user-x"></span><div><small>غياب متكرر</small><strong id="dashboardRepeatedAbsenceV364">0</strong><p>3 مرات أو أكثر هذا الشهر</p></div></article>
+              <article class="dashboard-insight-card-v364 is-finance" data-go-view="finance" role="button" tabindex="0"><span data-icon="wallet"></span><div><small>اليوم المالي</small><strong id="dashboardFinanceDayStateV364">مفتوح</strong><p id="dashboardFinanceDayNoteV364">جاهز لتسجيل العمليات</p></div></article>
+            </section>
+
             <article class="panel recent-panel">
               <div class="panel-head">
                 <div>
-                  <h3>أحدث الموظفين</h3>
-                  <p>آخر المنضمين إلى فريق العمل</p>
+                  <h3>آخر النشاطات</h3>
+                  <p>أحدث العمليات المسجلة في النظام</p>
                 </div>
                 <button class="secondary-btn" data-go-view="employees">
-                  عرض جميع الموظفين
+                  عرض الموظفين
                   <span data-icon="arrow-left"></span>
                 </button>
               </div>
@@ -303,10 +320,10 @@
                 <table>
                   <thead>
                     <tr>
+                      <th>العملية</th>
                       <th>الموظف</th>
-                      <th>القسم</th>
-                      <th>المسمى الوظيفي</th>
-                      <th>تاريخ الانضمام</th>
+                      <th>التفاصيل</th>
+                      <th>التاريخ</th>
                       <th>الحالة</th>
                     </tr>
                   </thead>

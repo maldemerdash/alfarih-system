@@ -3615,6 +3615,9 @@ function renderDashboardCommandCenterV362(attendance) {
       canViewFinance = typeof roleCanOpen !== "function" || roleCanOpen("finance");
     } catch (_) {}
     financePanel.classList.toggle("is-permission-hidden", !canViewFinance);
+    document
+      .querySelector(".dashboard-insight-card-v364.is-finance")
+      ?.classList.toggle("is-permission-hidden", !canViewFinance);
   }
   const summary = attendance || attendanceSummaryForDate(formatInputDate(todayAtNoon())),
     activeTotal = Math.max(0, Number(summary.total || 0)),
@@ -3711,6 +3714,133 @@ function renderDashboardCommandCenterV362(attendance) {
       label.textContent = match
         ? "الموازنة متطابقة"
         : `فرق الموازنة ${currency(Math.abs(budgetDifference))}`;
+  }
+  const todayKey = formatInputDate(todayAtNoon()),
+    dayDifference = (value) => {
+      const parsed = parseDate(value);
+      if (!parsed) return null;
+      const today = parseDate(todayKey);
+      return Math.ceil((parsed - today) / 864e5);
+    },
+    needsAction = (value) => {
+      const days = dayDifference(value);
+      return days != null && days <= 30;
+    },
+    employeeDocumentCount = employees.reduce((total, employee) => {
+      let count = needsAction(employee.identityExpiryGregorian) ? 1 : 0;
+      count += (Array.isArray(employee.passports) ? employee.passports : []).filter((item) => needsAction(item?.expiryDate)).length;
+      count += (Array.isArray(employee.documents) ? employee.documents : []).filter((item) => needsAction(item?.expiryDate)).length;
+      return total + count;
+    }, 0);
+  let establishmentDocumentCount = 0;
+  try {
+    const records = JSON.parse(localStorage.getItem("nawah-establishment-documents") || "[]");
+    establishmentDocumentCount = (Array.isArray(records) ? records : []).filter((item) => needsAction(item?.expiryDate)).length;
+  } catch (_) {}
+  const contractRows = employees
+    .map((employee) => ({
+      employee,
+      endDate:
+        employee.newContractEndDate ||
+        employee.contractNewEndDate ||
+        employee.contractEndDate ||
+        employee.endDate ||
+        "",
+    }))
+    .filter((item) => {
+      const days = dayDifference(item.endDate);
+      return days != null && days >= 0 && days <= 30;
+    });
+  const pendingLeavesCount = (Array.isArray(leaves) ? leaves : []).filter((item) => item?.status === "pending").length,
+    pendingTravelCount = (() => {
+      try {
+        const records = JSON.parse(localStorage.getItem("nawah-travel-requests") || "[]");
+        return (Array.isArray(records) ? records : []).filter((item) => item?.status === "pending").length;
+      } catch (_) {
+        return 0;
+      }
+    })(),
+    attentionTotal = employeeDocumentCount + establishmentDocumentCount + contractRows.length;
+  setText("#dashboardAttentionTotalV364", arabicNumber(attentionTotal));
+  setText("#dashboardContractsSoonV364", arabicNumber(contractRows.length));
+  const actionTotal = pendingLeavesCount + pendingTravelCount + attentionTotal;
+  setText(
+    "#dashboardActionSummaryV364",
+    actionTotal ? `لديك ${arabicNumber(actionTotal)} إجراءات تحتاج إلى المراجعة` : "لا توجد إجراءات عاجلة اليوم",
+  );
+
+  let travelRecords = [];
+  try {
+    const records = JSON.parse(localStorage.getItem("nawah-travel-requests") || "[]");
+    travelRecords = Array.isArray(records) ? records : [];
+  } catch (_) {}
+  const leaveReturns = (Array.isArray(leaves) ? leaves : []).filter(
+      (item) => item?.status === "approved" && String(item.to || "").slice(0, 10) === todayKey,
+    ),
+    travelReturns = travelRecords.filter(
+      (item) => item?.status === "approved" && !item.workResumeDate && String(item.returnDate || "").slice(0, 10) === todayKey,
+    ),
+    returningEmployees = new Set([
+      ...leaveReturns.map((item) => String(item.employeeId || "")),
+      ...travelReturns.map((item) => String(item.employeeId || "")),
+    ].filter(Boolean));
+  setText("#dashboardReturnsTodayV364", arabicNumber(returningEmployees.size));
+
+  const currentMonth = todayKey.slice(0, 7), absenceByEmployee = new Map();
+  (Array.isArray(attendanceExceptions) ? attendanceExceptions : []).forEach((item) => {
+    if (String(item?.from || "").slice(0, 7) !== currentMonth) return;
+    const id = String(item.employeeId || "");
+    if (id) absenceByEmployee.set(id, (absenceByEmployee.get(id) || 0) + 1);
+  });
+  const repeatedAbsenceCount = [...absenceByEmployee.values()].filter((count) => count >= 3).length;
+  setText("#dashboardRepeatedAbsenceV364", arabicNumber(repeatedAbsenceCount));
+  setText("#dashboardFinanceDayStateV364", financeDay.isClosed ? "مغلق" : "مفتوح");
+  setText(
+    "#dashboardFinanceDayNoteV364",
+    financeDay.isClosed ? "تم تثبيت نتائج اليوم" : "جاهز لتسجيل العمليات",
+  );
+
+  const activityRows = [], addActivity = (activity) => {
+    if (activity?.date) activityRows.push(activity);
+  };
+  employees.forEach((employee) => addActivity({
+    type: "إضافة موظف",
+    employee,
+    detail: employee.department || employee.role || "ملف وظيفي",
+    date: employee.createdAt || employee.contractStartDate || "",
+    status: "مكتمل",
+    tone: "status-active",
+  }));
+  (Array.isArray(leaves) ? leaves : []).forEach((item) => addActivity({
+    type: "طلب إجازة",
+    employee: getEmployee(item.employeeId),
+    detail: item.type || `${item.from || ""} - ${item.to || ""}`,
+    date: item.createdAt || item.from || "",
+    status: item.status === "approved" ? "معتمد" : item.status === "rejected" ? "مرفوض" : "معلق",
+    tone: item.status === "approved" ? "status-active" : item.status === "rejected" ? "status-rejected" : "status-pending",
+  }));
+  travelRecords.forEach((item) => addActivity({
+    type: "طلب سفر",
+    employee: getEmployee(item.employeeId),
+    detail: item.returnDate ? `عودة ${formatDate(item.returnDate)}` : "عودة مفتوحة",
+    date: item.createdAt || item.travelDate || "",
+    status: item.status === "approved" ? "معتمد" : item.status === "rejected" ? "مرفوض" : "معلق",
+    tone: item.status === "approved" ? "status-active" : item.status === "rejected" ? "status-rejected" : "status-pending",
+  }));
+  (Array.isArray(attendanceExceptions) ? attendanceExceptions : []).forEach((item) => addActivity({
+    type: "تسجيل غياب",
+    employee: getEmployee(item.employeeId),
+    detail: item.reason || item.policy || "غياب مسجل",
+    date: item.createdAt || item.from || "",
+    status: "مسجل",
+    tone: "status-rejected",
+  }));
+  const recentBody = document.querySelector("#recentEmployeesBody");
+  if (recentBody) {
+    const latest = activityRows.sort((left, right) => String(right.date).localeCompare(String(left.date))).slice(0, 7);
+    recentBody.innerHTML = latest.length
+      ? latest.map((item) => `<tr><td><strong>${escapeHtml(item.type)}</strong></td><td>${item.employee ? employeeCell(item.employee) : "—"}</td><td>${escapeHtml(item.detail || "—")}</td><td>${formatDate(String(item.date).slice(0, 10))}</td><td><span class="status-badge ${item.tone}">${escapeHtml(item.status)}</span></td></tr>`).join("")
+      : '<tr><td colspan="5"><div class="empty-state"><strong>لا توجد نشاطات مسجلة</strong></div></td></tr>';
   }
   const dashboard = document.querySelector("#dashboardView");
   if (dashboard && typeof hydrateIcons === "function") hydrateIcons(dashboard);
@@ -26443,13 +26573,24 @@ async function init() {
             });
           }));
     }
-    function $(e, t) {
-      document.querySelectorAll(`[data-finance-card="${e}"]`).forEach((e) => {
-        const n =
-          e.querySelector("[data-finance-money]") ||
-          e.querySelector("strong span") ||
-          e.querySelector("strong");
-        n && (n.textContent = S(t));
+    function $(cardKey, amount) {
+      document.querySelectorAll(`[data-finance-card="${cardKey}"]`).forEach((card) => {
+        const value = o(amount),
+          valueNode =
+            card.querySelector("[data-finance-money]") ||
+            card.querySelector("strong span") ||
+            card.querySelector("strong");
+        if (!valueNode) return;
+        if (cardKey === "fundAmount") {
+          const label = card.querySelector(":scope > span");
+          card.classList.toggle("finance-negative", value < 0);
+          card.classList.toggle("finance-positive", value > 0);
+          card.classList.toggle("finance-zero", value === 0);
+          if (label) label.textContent = value < 0 ? "عجز الصندوق" : "مبلغ الصندوق";
+          valueNode.textContent = S(Math.abs(value));
+        } else {
+          valueNode.textContent = S(value);
+        }
       });
     }
     function T(advanceDayView = financeAdvanceDayViewV341()) {
