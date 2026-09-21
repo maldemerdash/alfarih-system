@@ -17163,7 +17163,7 @@ async function init() {
           </div>
           <button type="button" class="traveler-open-employee" data-edit-employee="${n(t.id)}" title="فتح ملف الموظف" aria-label="فتح ملف ${n(t.name)}"><span data-icon="eye"></span></button>
         </div>
-        <div class="traveler-progress ${null === v ? "is-open" : c < 0 ? "is-overdue" : ""}" role="progressbar" aria-label="التقدم نحو تاريخ العودة" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${g}">
+        <div class="traveler-progress ${null === v ? "is-open" : c < 0 ? "is-overdue" : ""}" role="progressbar" aria-label="التقدم نحو تاريخ العودة" aria-valuemin="0" aria-valuemax="100" ${null !== v ? `aria-valuenow="${g}"` : `aria-valuetext="لم تُحدَّد العودة"`}>
           <div class="traveler-progress-meta"><span>${n(b)}</span>${null !== v ? `<strong>${g}%</strong>` : ""}</div>
           <div class="traveler-progress-track"><span style="width:${null === v ? 100 : g}%"></span></div>
         </div>
@@ -17265,11 +17265,11 @@ async function init() {
         !0,
       ));
     const v = () => {
-      f();
       try {
-        "function" == typeof renderAll && renderAll();
+        if ("function" == typeof renderAll) renderAll();
+        else f();
       } catch (e) {}
-      (setTimeout(f, 50), setTimeout(() => d(document.body), 250));
+      setTimeout(() => d(document.body), 250);
       try {
         new MutationObserver(() => d(document.body)).observe(document.body, {
           childList: !0,
