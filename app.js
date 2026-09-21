@@ -16461,37 +16461,6 @@ async function init() {
         "function" == typeof hydrateAttachmentImages &&
           hydrateAttachmentImages(e));
     }
-    function O() {
-      const e = l(".attendance-panel");
-      if (!e) return;
-      const n =
-        (s(),
-        t.filter(
-          (e) =>
-            "approved" === e.status &&
-            !e.workResumeDate &&
-            Boolean(h(e.employeeId)),
-        ));
-      (e.classList.add("travelers-dashboard-panel"),
-        (e.innerHTML = `<div class="panel-head"><div><h3>المسافرون حالياً</h3><p>الموظفون الذين لديهم سفر قائم ولم يتم تسجيل مباشرتهم</p></div><button class="text-btn" data-go-view="leaves">عرض الكل</button></div><div class="travelers-dashboard-list dashboard-list-ordered">${
-          n.length
-            ? n
-                .slice(0, 9)
-                .map((e) => {
-                  const t = h(e.employeeId);
-                  if (!t) return "";
-                  const n = w(e);
-                  return `<div class="traveler-card-row">${v(t)}<div><button type="button" class="employee-name-link" data-edit-employee="${t.id}">${d(t.name)}</button><span>سافر: ${y(e.travelDate)} · العودة: ${e.returnDate ? y(e.returnDate) : "غير محددة"}</span></div><div><strong>${n.elapsed}</strong><small>${n.remaining}</small></div></div>`;
-                })
-                .join("")
-            : '<div class="empty-state"><strong>لا يوجد مسافرون حاليًا</strong></div>'
-        }</div>`));
-      const a = e.querySelector('[data-go-view="leaves"]');
-      (a && a.addEventListener("click", () => switchView("leaves")),
-        "function" == typeof hydrateIcons && hydrateIcons(e),
-        "function" == typeof hydrateAttachmentImages &&
-          hydrateAttachmentImages(e));
-    }
     function R() {
       (document.addEventListener(
         "click",
@@ -17133,25 +17102,18 @@ async function init() {
                     .map((e) => {
                       const t = l(e.employeeId);
                       if (!t) return "";
-                      const a = e.travelDate
-                          ? formatDate(e.travelDate)
-                          : "غير محدد",
-                        i = e.returnDate
-                          ? formatDate(e.returnDate)
-                          : "غير محددة",
-                        s = e.travelDate
-                          ? Math.max(
-                              0,
-                              Math.floor((r() - o(e.travelDate)) / 864e5) + 1,
-                            )
+                      const travelDate = e.travelDate ? o(e.travelDate) : null,
+                        returnDate = e.returnDate ? o(e.returnDate) : null,
+                        a = travelDate ? formatDate(e.travelDate) : "غير محدد",
+                        i = returnDate ? formatDate(e.returnDate) : "لم تُحدَّد العودة",
+                        s = travelDate
+                          ? Math.max(0, Math.floor((r() - travelDate) / 864e5) + 1)
                           : 0,
-                        c = e.returnDate
-                          ? Math.ceil((o(e.returnDate) - r()) / 864e5)
-                          : null,
-                        d = e.travelDate ? `${s} يوم` : "غير محدد",
+                        c = returnDate ? Math.ceil((returnDate - r()) / 864e5) : null,
+                        d = travelDate ? `${s} يوم` : "غير محدد",
                         u =
                           null === c
-                            ? "عودة غير محددة"
+                            ? "لم تُحدَّد العودة"
                             : c > 0
                               ? `متبقي ${c} يوم`
                               : 0 === c
@@ -17164,20 +17126,15 @@ async function init() {
                               ? "status-pending"
                               : "status-active",
                         v =
-                          e.returnDate && e.travelDate
-                            ? Math.max(
-                                1,
-                                Math.ceil(
-                                  (o(e.returnDate) - o(e.travelDate)) / 864e5,
-                                ) + 1,
-                              )
+                          returnDate && travelDate
+                            ? Math.max(1, Math.ceil((returnDate - travelDate) / 864e5) + 1)
                             : null,
                         g = v
                           ? Math.max(0, Math.min(100, Math.round((s / v) * 100)))
                           : 0,
                         b =
                           null === v
-                            ? "موعد العودة مفتوح"
+                            ? "لم تُحدَّد العودة"
                             : c < 0
                               ? `تجاوز موعد العودة بـ ${Math.abs(c)} يوم`
                               : 0 === c
@@ -17187,8 +17144,30 @@ async function init() {
                         t.employeeNumber ||
                         t.employeeNo ||
                         t.code ||
-                        "";
-                      return `<article class="traveler-request-row">\n        <div class="traveler-card-head">\n          ${"function" == typeof employeeAvatar ? employeeAvatar(t) : ""}\n          <div class="traveler-identity">\n            <div class="traveler-name-line"><button type="button" class="employee-name-link" data-edit-employee="${n(t.id)}">${n(t.name)}</button><span class="traveler-current-badge">مسافر حاليًا</span></div>\n            ${p ? `<small class="traveler-employee-number">رقم الموظف: ${n(p)}</small>` : ""}\n          </div>\n          <button type="button" class="traveler-open-employee" data-edit-employee="${n(t.id)}" title="فتح ملف الموظف" aria-label="فتح ملف ${n(t.name)}"><span data-icon="eye"></span></button>\n        </div>\n        <div class="traveler-progress ${null === v ? "is-open" : c < 0 ? "is-overdue" : ""}" role="progressbar" aria-label="التقدم نحو تاريخ العودة" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${g}">\n          <div class="traveler-progress-meta"><span>${n(b)}</span>${null !== v ? `<strong>${g}%</strong>` : ""}</div>\n          <div class="traveler-progress-track"><span style="width:${null === v ? 100 : g}%"></span></div>\n          <div class="traveler-progress-dates">\n            <span><small>تاريخ السفر</small><strong>${n(a)}</strong></span>\n            <div class="traveler-dashboard-metrics">\n              <span class="traveler-duration-chip is-elapsed">مضى ${n(d)}</span>\n              <span class="traveler-duration-chip ${m}">${n(u)}</span>\n            </div>\n            <span><small>تاريخ العودة</small><strong>${n(i)}</strong></span>\n          </div>\n        </div>\n      </article>`;
+                        "—";
+                      return `<article class="traveler-request-row">
+        <div class="traveler-card-main">
+          ${"function" == typeof employeeAvatar ? employeeAvatar(t) : ""}
+          <div class="traveler-identity">
+            <div class="traveler-name-line"><button type="button" class="employee-name-link" data-edit-employee="${n(t.id)}">${n(t.name)}</button><span class="traveler-current-badge">مسافر حاليًا</span></div>
+            <small class="traveler-employee-number">رقم الموظف: ${n(p)}</small>
+          </div>
+          <div class="traveler-date-pair">
+            <div class="traveler-detail"><span>تاريخ السفر</span><strong>${n(a)}</strong></div>
+            <span class="traveler-date-separator" aria-hidden="true">←</span>
+            <div class="traveler-detail traveler-return-detail ${null === v ? "is-open" : ""}"><span>تاريخ العودة</span><strong>${n(i)}</strong></div>
+          </div>
+          <div class="traveler-dashboard-metrics" aria-label="مدة السفر">
+            <span class="traveler-duration-chip is-elapsed">مضى ${n(d)}</span>
+            <span class="traveler-duration-chip ${m}">${n(u)}</span>
+          </div>
+          <button type="button" class="traveler-open-employee" data-edit-employee="${n(t.id)}" title="فتح ملف الموظف" aria-label="فتح ملف ${n(t.name)}"><span data-icon="eye"></span></button>
+        </div>
+        <div class="traveler-progress ${null === v ? "is-open" : c < 0 ? "is-overdue" : ""}" role="progressbar" aria-label="التقدم نحو تاريخ العودة" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${g}">
+          <div class="traveler-progress-meta"><span>${n(b)}</span>${null !== v ? `<strong>${g}%</strong>` : ""}</div>
+          <div class="traveler-progress-track"><span style="width:${null === v ? 100 : g}%"></span></div>
+        </div>
+      </article>`;
                     })
                     .join("")
                 : '<div class="empty-state"><strong>لا يوجد مسافرون حاليًا</strong></div>'
@@ -26573,24 +26552,13 @@ async function init() {
             });
           }));
     }
-    function $(cardKey, amount) {
-      document.querySelectorAll(`[data-finance-card="${cardKey}"]`).forEach((card) => {
-        const value = o(amount),
-          valueNode =
-            card.querySelector("[data-finance-money]") ||
-            card.querySelector("strong span") ||
-            card.querySelector("strong");
-        if (!valueNode) return;
-        if (cardKey === "fundAmount") {
-          const label = card.querySelector(":scope > span");
-          card.classList.toggle("finance-negative", value < 0);
-          card.classList.toggle("finance-positive", value > 0);
-          card.classList.toggle("finance-zero", value === 0);
-          if (label) label.textContent = value < 0 ? "عجز الصندوق" : "مبلغ الصندوق";
-          valueNode.textContent = S(Math.abs(value));
-        } else {
-          valueNode.textContent = S(value);
-        }
+    function $(e, t) {
+      document.querySelectorAll(`[data-finance-card="${e}"]`).forEach((e) => {
+        const n =
+          e.querySelector("[data-finance-money]") ||
+          e.querySelector("strong span") ||
+          e.querySelector("strong");
+        n && (n.textContent = S(t));
       });
     }
     function T(advanceDayView = financeAdvanceDayViewV341()) {

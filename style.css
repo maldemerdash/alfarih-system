@@ -18105,7 +18105,7 @@ body {
 .warnings-table .warning-status-badge{display:inline-flex;align-items:center;justify-content:center;min-width:54px;padding:5px 10px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:800;font-size:11px}
 .warnings-table td{vertical-align:middle}
 
-.leave-travel-hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}.request-card{border:1px solid var(--border);background:var(--card);border-radius:24px;padding:18px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;box-shadow:var(--shadow-sm);cursor:pointer;text-align:right;color:var(--text)}.request-card span[data-icon]{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(20,184,166,.12);color:var(--primary)}.request-card strong{font-size:18px}.request-card small{color:var(--muted)}.request-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}.leave-travel-tables{display:grid;gap:18px}.travel-table-panel table,.leave-table-panel table{min-width:980px}.travel-actions{display:flex;gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap}.travel-tab-info{pointer-events:none;opacity:.9}.travel-modal-card{max-width:760px}.travel-approval-preview{margin-bottom:14px}.split-actions{justify-content:flex-end;gap:10px}.danger-btn{color:#dc2626!important;border-color:rgba(220,38,38,.28)!important;background:rgba(220,38,38,.06)!important}.travelers-dashboard-panel .travelers-dashboard-list{display:grid;gap:12px}.traveler-card-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px;border:1px solid var(--border);border-radius:18px;background:var(--surface)}.traveler-card-row div:nth-child(2){display:flex;flex-direction:column;gap:3px}.traveler-card-row span,.traveler-card-row small{color:var(--muted);font-size:12px}.traveler-card-row strong{display:block;text-align:left;color:var(--text)}@media(max-width:860px){.leave-travel-hero{grid-template-columns:1fr}.travel-table-panel table,.leave-table-panel table{min-width:760px}.traveler-card-row{grid-template-columns:auto 1fr}.traveler-card-row>div:last-child{grid-column:1/-1;text-align:right}}
+.leave-travel-hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}.request-card{border:1px solid var(--border);background:var(--card);border-radius:24px;padding:18px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;box-shadow:var(--shadow-sm);cursor:pointer;text-align:right;color:var(--text)}.request-card span[data-icon]{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(20,184,166,.12);color:var(--primary)}.request-card strong{font-size:18px}.request-card small{color:var(--muted)}.request-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}.leave-travel-tables{display:grid;gap:18px}.travel-table-panel table,.leave-table-panel table{min-width:980px}.travel-actions{display:flex;gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap}.travel-tab-info{pointer-events:none;opacity:.9}.travel-modal-card{max-width:760px}.travel-approval-preview{margin-bottom:14px}.split-actions{justify-content:flex-end;gap:10px}.danger-btn{color:#dc2626!important;border-color:rgba(220,38,38,.28)!important;background:rgba(220,38,38,.06)!important}.travelers-dashboard-panel .travelers-dashboard-list{display:grid;gap:12px}@media(max-width:860px){.leave-travel-hero{grid-template-columns:1fr}.travel-table-panel table,.leave-table-panel table{min-width:760px}}
 
 .full-span{grid-column:1 / -1}
 .travel-modal-card{
@@ -18375,7 +18375,6 @@ body {
 .leave-panel .panel-head {
   flex-shrink: 0;
 }
-.traveler-card-row,
 .leave-preview-item.dashboard-request-item {
   min-height: 62px;
 }
@@ -18443,12 +18442,12 @@ body {
   overflow-y: auto;
 }
 .dashboard-list-ordered .traveler-request-row {
-  display: flex !important;
-  flex-direction: column;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
-  min-height: 154px;
-  padding: 14px !important;
-  gap: 12px !important;
+  min-height: 0;
+  padding: 13px 14px !important;
+  gap: 10px !important;
   border: 1px solid rgba(14,165,201,.22) !important;
   border-radius: 20px !important;
   background:
@@ -18462,32 +18461,39 @@ body {
   border-color: rgba(14,165,201,.38) !important;
   box-shadow: 0 13px 28px rgba(14,165,201,.15);
 }
-.dashboard-list-ordered .traveler-card-head > .avatar {
+.traveler-card-main {
+  display: grid;
+  grid-template-columns: auto minmax(118px, 1.15fr) minmax(170px, 1.35fr) minmax(122px, auto) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+.traveler-card-main > .avatar {
   width: 48px !important;
   height: 48px !important;
   min-width: 48px !important;
   border: 3px solid #fff !important;
   box-shadow: 0 5px 14px rgba(18,148,184,.20) !important;
 }
-.dashboard-list-ordered .traveler-card-head > .avatar img {
+.traveler-card-main > .avatar img {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
   border-radius: inherit !important;
-}
-.traveler-card-head {
-  display: grid;
-  grid-template-columns: auto minmax(0,1fr) auto;
-  align-items: center;
-  gap: 11px;
-  width: 100%;
 }
 .traveler-identity { min-width: 0; }
 .traveler-name-line {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 0;
+}
+.traveler-name-line .employee-name-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .traveler-current-badge {
   display: inline-flex;
@@ -18503,9 +18509,49 @@ body {
 }
 .traveler-employee-number {
   display: block;
-  margin-top: 3px;
+  margin-top: 4px;
   color: var(--muted);
+  font-size: 10px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.traveler-date-pair {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.traveler-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.traveler-detail > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.traveler-detail > strong {
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.traveler-return-detail.is-open > strong {
+  color: #0f766e;
   font-size: 10px;
+}
+.traveler-date-separator {
+  flex: 0 0 auto;
+  color: #1294b8;
+  font-size: 16px;
+  font-weight: 900;
 }
 .traveler-open-employee {
   width: 34px;
@@ -18545,10 +18591,10 @@ body {
 }
 .traveler-progress-track {
   width: 100%;
-  height: 8px;
+  height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(14,165,201,.12);
+  background: rgba(14,165,201,.14);
   box-shadow: inset 0 1px 2px rgba(15,118,110,.08);
 }
 .traveler-progress-track > span {
@@ -18570,41 +18616,43 @@ body {
 }
 .traveler-progress.is-overdue .traveler-progress-meta,
 .traveler-progress.is-overdue .traveler-progress-meta strong { color: #dc2626; }
-.traveler-progress-dates {
-  display: grid;
-  grid-template-columns: minmax(95px,1fr) auto minmax(95px,1fr);
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-.traveler-progress-dates > span {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.traveler-progress-dates > span:last-child { text-align: left; }
-.traveler-progress-dates small { color: var(--muted); font-size: 9px; }
-.traveler-progress-dates strong {
-  color: var(--text);
-  font-size: 11px;
-  white-space: nowrap;
-}
-@media (max-width: 620px) {
-  .traveler-card-head { grid-template-columns: auto minmax(0,1fr) auto; }
-  .traveler-progress-dates strong { font-size: 10px; }
-  .traveler-progress-dates { grid-template-columns: 1fr 1fr; align-items: end; }
-  .traveler-progress-dates .traveler-dashboard-metrics {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-self: center;
+@media (max-width: 1120px) and (min-width: 981px) {
+  .traveler-card-main {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 9px;
   }
+  .traveler-date-pair,
+  .traveler-card-main > .traveler-dashboard-metrics {
+    grid-column: 2 / -1;
+  }
+  .traveler-date-pair { grid-row: 2; }
+  .traveler-card-main > .traveler-dashboard-metrics {
+    grid-row: 3;
+    justify-content: flex-start;
+  }
+  .traveler-open-employee { grid-column: 3; grid-row: 1; }
+}
+@media (max-width: 720px) {
+  .traveler-card-main {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 9px;
+  }
+  .traveler-date-pair,
+  .traveler-card-main > .traveler-dashboard-metrics {
+    grid-column: 1 / -1;
+  }
+  .traveler-date-pair { grid-row: 2; }
+  .traveler-card-main > .traveler-dashboard-metrics {
+    grid-row: 3;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .traveler-progress-meta { gap: 8px; }
 }
 .traveler-request-row .leave-preview-info,
 .dashboard-request-item .leave-preview-info { align-items: flex-start !important; text-align: right !important; }
 .traveler-request-row .employee-name-link,
 .dashboard-request-item .employee-name-link { text-align: right !important; }
-.traveler-request-row span { color: var(--muted); font-size: 12px; }
 .expiry-dashboard-panel { min-height: 245px !important; display:flex; flex-direction:column; }
 .expiry-doc-list { display:grid; gap:10px; max-height:190px; overflow-y:auto; padding-bottom:6px; }
 .expiry-doc-row { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; padding:11px 12px; border:1px solid var(--border); border-radius:16px; background:var(--surface); }
@@ -45021,45 +45069,4 @@ html[data-v293-reduced-motion="1"] *::after { animation-duration: .001ms !import
 @media (max-width: 680px) {
   #dashboardView .stats-grid,
   .dashboard-insights-v364 { grid-template-columns: 1fr; }
-}
-
-/* Finance fund status: preserve the signed value internally while presenting
-   a clear Arabic label and absolute amount when the balance is a deficit. */
-.finance-summary-card.finance-fund-highlight.finance-negative{
-  background:linear-gradient(135deg,#fff1f2 0%,#ffffff 46%,#fee2e2 100%);
-  border-color:rgba(220,38,38,.34)!important;
-  box-shadow:0 12px 26px rgba(220,38,38,.12)!important;
-}
-.finance-summary-card.finance-fund-highlight.finance-negative::before{
-  background:linear-gradient(180deg,#b91c1c,#ef4444,#fca5a5);
-}
-.finance-summary-card.finance-fund-highlight.finance-negative span{
-  color:#b91c1c;
-}
-.finance-summary-card.finance-fund-highlight.finance-negative strong{
-  color:#991b1b;
-}
-.finance-summary-card.finance-fund-highlight.finance-negative small{
-  color:#b91c1c;
-}
-.finance-summary-card.finance-fund-highlight.finance-zero{
-  background:linear-gradient(135deg,#f8fafc 0%,#ffffff 55%,#f1f5f9 100%);
-  border-color:rgba(148,163,184,.30)!important;
-}
-
-/* حالة عجز الصندوق: العرض يتغير فقط، بينما تبقى القيمة الحسابية الأصلية سالبة. */
-.finance-summary-card.finance-fund-highlight.finance-negative{
-  background:linear-gradient(135deg,#fff1f2 0%,#ffffff 46%,#fee2e2 100%);
-  border-color:rgba(220,38,38,.34)!important;
-  box-shadow:0 12px 26px rgba(220,38,38,.12)!important;
-}
-.finance-summary-card.finance-fund-highlight.finance-negative::before{
-  background:linear-gradient(180deg,#b91c1c,#ef4444,#fca5a5);
-}
-.finance-summary-card.finance-fund-highlight.finance-negative span{color:#b91c1c}
-.finance-summary-card.finance-fund-highlight.finance-negative strong{color:#991b1b}
-.finance-summary-card.finance-fund-highlight.finance-negative small{color:#b91c1c}
-.finance-summary-card.finance-fund-highlight.finance-zero{
-  background:linear-gradient(135deg,#f8fafc 0%,#ffffff 55%,#f1f5f9 100%);
-  border-color:rgba(148,163,184,.30)!important;
 }
